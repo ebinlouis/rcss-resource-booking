@@ -1,20 +1,28 @@
+import environ
 from pathlib import Path
-from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Initialize environ
+env = environ.Env(
+    # Set default casting and values
+    DEBUG=(bool, False)
+)
+
+# Read the .env file explicitly
+environ.Env.read_env(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
 
 # Application definition
@@ -26,8 +34,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Third-party
     'corsheaders',
     'rest_framework',
+    
+    # Local Apps
+    'apps.users',
+    'apps.approvals',
+    'apps.spaces',
+    'apps.fleet',
+    'apps.mess',
+    'apps.media',
 ]
 
 MIDDLEWARE = [
@@ -65,15 +83,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='rcss_booking_db'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
-    }
+    # env.db() parses a DATABASE_URL variable from your .env file
+    # Example .env entry: DATABASE_URL=postgres://postgres:yourpassword@localhost:5432/rcss_booking_db
+    'default': env.db('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/rcss_booking_db')
 }
+
+
+# ==========================================
+# CUSTOM USER MODEL
+# ==========================================
+AUTH_USER_MODEL = 'users.CustomUser'
 
 
 # Password validation
@@ -112,3 +131,18 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 CORS_ALLOW_ALL_ORIGINS = True # For development only
+
+
+# ==========================================
+# THIRD-PARTY CONFIGURATIONS
+# ==========================================
+
+# Django REST Framework & JWT Setup
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
