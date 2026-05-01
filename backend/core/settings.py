@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     # Third-party
     'corsheaders',
     'rest_framework',
+    'drf_spectacular',
     
     # Local Apps
     'apps.users',
@@ -144,11 +145,12 @@ CORS_ALLOW_ALL_ORIGINS = True # For development only
 # DRF Global Settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'apps.users.authentication.CustomCookieAuthentication', # We will build this next!
+        'apps.users.authentication.CustomCookieAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated', # Locks down the ENTIRE API by default
+        'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # <--- Add this line
 }
 
 # JWT Configuration
@@ -157,4 +159,12 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# Swagger API Documentation Settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Campus Resource Booking API',
+    'DESCRIPTION': 'Master API for Spaces, Fleet, Mess, and Media bookings.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
