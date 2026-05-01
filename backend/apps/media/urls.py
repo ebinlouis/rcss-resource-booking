@@ -1,14 +1,10 @@
-# ---------------------------------------------------------------------------
-# media/urls.py  (copy this block into apps/media/urls.py)
-# ---------------------------------------------------------------------------
-from apps.media.views import MediaBookingViewSet
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.fleet.views import VehicleViewSet, FleetBookingViewSet
- 
+from apps.media.views import MediaBookingViewSet
+
 media_router = DefaultRouter()
-media_router.register('bookings', MediaBookingViewSet, basename='media-booking')
- 
-media_urlpatterns = [
+media_router.register(r'bookings', MediaBookingViewSet, basename='media-booking')
+
+urlpatterns = [
     path('', include(media_router.urls)),
 ]
