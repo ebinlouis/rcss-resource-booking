@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '../api/authService';
+import { useAuth } from '../hooks/useAuth'; // Swapped authService for useAuth
 
 export default function Login() {
     const [email, setEmail]         = useState('');
@@ -8,17 +8,26 @@ export default function Login() {
     const [showPassword, setShow]   = useState(false);
     const [error, setError]         = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    
     const navigate = useNavigate();
+    const { login } = useAuth(); // Extract login from global context
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
+        
         try {
-            await authService.login(email, password);
-            navigate('/dashboard');
+            // Pass credentials as an object to match the AuthProvider logic
+            const result = await login({ email, password });
+            
+            if (result.success) {
+                navigate('/dashboard');
+            } else {
+                setError(result.error || 'Invalid credentials. Please try again.');
+            }
         } catch {
-            setError('Invalid credentials. Please try again.');
+            setError('An unexpected error occurred. Please try again.');
         } finally {
             setIsLoading(false);
         }
