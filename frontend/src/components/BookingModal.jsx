@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { createPortal } from "react-dom"
 
 function BookingModal({ spaceName, onClose }) {
 
@@ -37,13 +38,12 @@ function BookingModal({ spaceName, onClose }) {
     }))
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
 
-      <div className="bg-white w-[90%] max-w-5xl rounded-xl flex overflow-hidden">
-
+      <div className="bg-white w-full max-w-4xl rounded-xl flex overflow-hidden shadow-lg">
         {/* LEFT PANEL */}
-        <div className="w-1/3 bg-gradient-to-b from-green-900 to-blue-900 text-white p-6 flex flex-col justify-between">
+        <div className="hidden md:flex md:w-1/3 bg-gradient-to-b from-green-900 to-blue-900 text-white p-6 flex flex-col justify-between">
 
           <div>
             <p className="text-sm uppercase opacity-70">
@@ -81,7 +81,7 @@ function BookingModal({ spaceName, onClose }) {
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="w-2/3 p-6 overflow-y-auto max-h-[90vh]">
+        <div className="w-full md:w-2/3 p-6 overflow-y-auto max-h-[90vh]">
 
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
@@ -224,8 +224,9 @@ function BookingModal({ spaceName, onClose }) {
         </div>
 
       </div>
-    </div>
-  )
+    </div>,
+  document.body
+)
 }
 
 export default BookingModal
