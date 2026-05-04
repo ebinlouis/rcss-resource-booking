@@ -1,17 +1,16 @@
+import uuid
 from django.db import models
 from django.db.models import Q, F, Func
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import RangeOperators, DateTimeRangeField
 from apps.approvals.models import BaseBooking
 
-# We redefine the helper class here to keep the fleet app completely 
-# decoupled from the spaces app. This prevents circular dependencies.
 class TsTzRange(Func):
     function = 'TSTZRANGE'
     output_field = DateTimeRangeField()
 
 class Vehicle(models.Model):
-    name = models.CharField(max_length=100)  # E.g., College Bus 1, Innova
+    name = models.CharField(max_length=100)  
     registration_number = models.CharField(max_length=50, unique=True)
     capacity = models.IntegerField()
     is_active = models.BooleanField(default=True)
@@ -21,7 +20,6 @@ class Vehicle(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.registration_number})"
-
 
 class FleetBooking(BaseBooking):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name='bookings')
@@ -36,19 +34,14 @@ class FleetBooking(BaseBooking):
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [
-            # 1. Prevent inverted times
             models.CheckConstraint(
                 condition=Q(start_datetime__lt=F('end_datetime')),
                 name='fleet_booking_start_before_end'
             ),
-            
-            # 2. Prevent negative/zero passengers
             models.CheckConstraint(
                 condition=Q(total_passengers__gt=0),
                 name='fleet_booking_positive_passengers'
             ),
-            
-            # 3. THE LOCK: Prevent double-booking the same vehicle, if APPROVED.
             ExclusionConstraint(
                 name='exclude_overlapping_approved_fleet_bookings',
                 expressions=[
@@ -58,6 +51,11 @@ class FleetBooking(BaseBooking):
                 condition=Q(status='APPROVED'),
             )
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.reference_code:
+            self.reference_code = f"FLT-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.reference_code} - {self.vehicle.name}"

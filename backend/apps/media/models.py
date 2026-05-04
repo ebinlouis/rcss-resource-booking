@@ -1,9 +1,9 @@
+import uuid
 from django.db import models
 from django.db.models import Q, F
 from apps.approvals.models import BaseBooking
 
 class MediaBooking(BaseBooking):
-    # Notice we link this to the Space app using a string to avoid circular imports
     space = models.ForeignKey('spaces.Space', on_delete=models.PROTECT, related_name='media_bookings')
     event_name = models.CharField(max_length=200)
     
@@ -17,12 +17,16 @@ class MediaBooking(BaseBooking):
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [
-            # Ensure the event doesn't end before it begins
             models.CheckConstraint(
                 condition=Q(start_time__lt=F('end_time')),
                 name='media_booking_start_before_end'
             )
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.reference_code:
+            self.reference_code = f"MED-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.reference_code} - {self.event_name}"
