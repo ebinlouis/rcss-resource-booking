@@ -57,10 +57,10 @@ function AvailabilityModal({ spaceName, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/30 flex justify-center items-center z-50">
 
-      <div className="bg-white w-[95%] max-w-6xl rounded-xl flex overflow-hidden">
+      <div className="bg-white w-[95%] max-w-6xl rounded-xl flex shadow-lg">
 
         {/* LEFT → CALENDAR */}
-        <div className="w-2/3 p-6 border-r">
+        <div className="w-2/3 p-6 border-r border-gray-100">
 
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
@@ -72,14 +72,14 @@ function AvailabilityModal({ spaceName, onClose }) {
             <div className="flex gap-2">
               <button
                 onClick={() => changeMonth(-1)}
-                className="px-3 py-1 border rounded hover:bg-gray-100"
+                className="px-3 py-1 rounded hover:bg-gray-100"
               >
                 ←
               </button>
 
               <button
                 onClick={() => changeMonth(1)}
-                className="px-3 py-1 border rounded hover:bg-gray-100"
+                className="px-3 py-1 rounded hover:bg-gray-100"
               >
                 →
               </button>
@@ -87,8 +87,14 @@ function AvailabilityModal({ spaceName, onClose }) {
 
           </div>
 
+          <div className="grid grid-cols-7 text-xs text-gray-400 mb-2">
+  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+    <div key={d} className="text-center">{d}</div>
+  ))}
+</div>
+
           {/* Calendar */}
-          <div className="grid grid-cols-7 gap-2 text-sm">
+          <div className="grid grid-cols-7 gap-3 text-sm">
 
             {[...Array(daysInMonth)].map((_, i) => {
               const day = i + 1
@@ -99,11 +105,11 @@ function AvailabilityModal({ spaceName, onClose }) {
                 <div
                   key={day}
                   onClick={() => setSelectedDate(dateKey)}
-                  className={`border rounded p-2 cursor-pointer h-24 flex flex-col justify-between
-                    ${selectedDate === dateKey ? "bg-green-100 border-green-500" : ""}
-                  `}
+                  className={`bg-gray-50 rounded-lg p-3 cursor-pointer h-28 flex flex-col justify-between hover:bg-gray-100 transition
+  ${selectedDate === dateKey ? "bg-green-50 ring-1 ring-green-400" : ""}
+`}
                 >
-                  <span className="text-xs font-semibold">
+                  <span className="text-xs text-gray-500">
                     {day}
                   </span>
 
@@ -114,10 +120,10 @@ function AvailabilityModal({ spaceName, onClose }) {
                         key={idx}
                         className={`text-[10px] px-1 rounded ${
                           b.status === "approved"
-                            ? "bg-blue-100 text-blue-700"
-                            : b.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-green-100 text-green-700"
+  ? "bg-blue-50 text-blue-600"
+  : b.status === "pending"
+  ? "bg-yellow-50 text-yellow-600"
+  : "bg-green-50 text-green-600"
                         }`}
                       >
                         {b.time}
@@ -150,7 +156,7 @@ function AvailabilityModal({ spaceName, onClose }) {
             <button onClick={onClose}>✕</button>
           </div>
 
-          <hr className="my-4" />
+          <div className="my-4 border-t border-gray-100" />
 
           {/* Slots */}
           <div className="space-y-4">
@@ -174,10 +180,10 @@ function AvailabilityModal({ spaceName, onClose }) {
                 <span
                   className={`px-3 py-1 rounded text-sm ${
                     b.status === "approved"
-                      ? "bg-blue-100 text-blue-700"
+                      ? "bg-blue-50 text-blue-600"
                       : b.status === "pending"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-green-100 text-green-700"
+                      ? "bg-yellow-50 text-yellow-600"
+                      : "bg-green-50 text-green-600"
                   }`}
                 >
                   {b.status}
