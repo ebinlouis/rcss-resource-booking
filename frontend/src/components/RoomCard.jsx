@@ -1,14 +1,13 @@
 import { useState } from "react"
 import BookingModal from "./BookingModal"
-import AvailabilityModal from "./AvailabilityModal"
 
-function RoomCard({ room }) {
+function RoomCard({ room, onOpenAvailability }) {
 
   const [openBooking, setOpenBooking] = useState(false)
-  const [openAvailability, setOpenAvailability] = useState(false)
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border hover:shadow-md hover:scale-[1.01] transition overflow-hidden">
+    
+    <div className="bg-white rounded-xl shadow-sm border hover:shadow-md hover:scale-[1.01] transition">
 
       {/* Top Section (Image-ready) */}
       <div className="relative h-40 bg-gradient-to-r from-green-700 to-green-500 overflow-hidden">
@@ -27,34 +26,34 @@ function RoomCard({ room }) {
         <div className="absolute inset-0 bg-black/20"></div>
 
         {/* Content */}
-        <div className="relative z-10 flex justify-between items-start p-4 text-white text-sm">
+        <div className="relative z-10 flex justify-between items-center p-4 text-white text-sm">
 
           {/* Capacity */}
-<span className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur">
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-4 w-4 text-white"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0-4a4 4 0 110-8 4 4 0 010 8zm6 0a4 4 0 100-8 4 4 0 000 8z"
-    />
-  </svg>
+          <span className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0-4a4 4 0 110-8 4 4 0 010 8zm6 0a4 4 0 100-8 4 4 0 000 8z"
+              />
+            </svg>
 
-  {room.capacity}
-</span>
+            {room.capacity}
+          </span>
 
           {/* Status */}
           <span
-            className={`px-3 py-1 rounded-full text-xs font-medium backdrop-blur ${
+            className={`px-3 py-1 rounded-full text-xs font-medium ${
               room.status === "Available"
-                ? "bg-green-500/80"
-                : "bg-yellow-500/80"
+                ? "bg-white text-green-700"
+                : "bg-white text-yellow-600"
             }`}
           >
             {room.status}
@@ -94,36 +93,36 @@ function RoomCard({ room }) {
           ))}
         </div>
         
-        {/* Availability text (ADD HERE) */}
-<p className="text-sm text-gray-500 mt-2">
-  8 slots available today
-</p>
+        {/* Availability text */}
+        <p className="text-sm text-gray-500 mt-2">
+          8 slots available today
+        </p>
 
         {/* Buttons */}
         <div className="flex gap-2 mt-4">
 
           {/* Availability */}
           <button
-  onClick={() => setOpenAvailability(true)}
+  onClick={onOpenAvailability}
   className="flex-1 border rounded-md py-2 text-sm flex items-center justify-center gap-2 hover:bg-gray-100 transition"
 >
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-4 w-4 text-gray-600"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
-    />
-  </svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-gray-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
 
-  Availability
-</button>
+            Availability
+          </button>
 
           {/* Book */}
           <button
@@ -137,19 +136,11 @@ function RoomCard({ room }) {
 
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking Modal (still fine here) */}
       {openBooking && (
         <BookingModal
           spaceName={room.name}
           onClose={() => setOpenBooking(false)}
-        />
-      )}
-
-      {/* Availability Modal */}
-      {openAvailability && (
-        <AvailabilityModal
-          spaceName={room.name}
-          onClose={() => setOpenAvailability(false)}
         />
       )}
 

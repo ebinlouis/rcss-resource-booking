@@ -18,6 +18,7 @@ function App() {
           {/* 2. Protected Routes Wrapper */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Home />} />
+            
             {/* Future modules can go here: */}
             {/* <Route path="/spaces" element={<SpacesModule />} /> */}
           </Route>
