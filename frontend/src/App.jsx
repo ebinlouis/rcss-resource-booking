@@ -9,10 +9,10 @@ import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
 
 // Admin Pages
-import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
-// Admin Imports
 import AdminLayout from "./layouts/admin/AdminLayout";
 import AdminDashboard from './pages/admin/AdminDashboard';
+import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
+import AdminSpacesPage from "./pages/admin/AdminSpacesPage"; // <-- ADDED IMPORT
 
 function App() {
   return (
@@ -30,12 +30,6 @@ function App() {
             <Route path="/mess" element={<Mess />} />
           </Route>
 
-          {/* Admin Only Routes */}
-          <Route element={<ProtectedRoute allowedRoles={["IT_ADMIN"]} />}>
-            <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
-            {/* <Route path="/spaces" element={<SpacesModule />} /> */}
-          </Route>
-
           {/* STRICTLY Protected Admin Routes */}
           <Route element={<ProtectedRoute allowedRoles={['IT_ADMIN']} />}>
             
@@ -43,6 +37,10 @@ function App() {
             <Route element={<AdminLayout />}>
               {/* The "index" route maps to exactly /admin */}
               <Route path="/admin" element={<AdminDashboard />} />
+              
+              {/* Manage Spaces Route */}
+              <Route path="/admin/spaces" element={<AdminSpacesPage />} />
+              
               {/* Nested route maps to /admin/role-overrides */}
               <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
             </Route>
