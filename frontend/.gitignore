@@ -23,13 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Backend (Django)
-venv/
-__pycache__/
-*.pyc
-
-# Environment variables (VERY IMPORTANT)
-.env
-
-# Database (optional, if using SQLite locally)
-db.sqlite3

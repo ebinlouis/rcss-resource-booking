@@ -7,7 +7,7 @@ function RoomCard({ room, onOpenAvailability }) {
 
   return (
     
-    <div className="bg-white rounded-xl shadow-sm border hover:shadow-md hover:scale-[1.01] transition">
+    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md hover:scale-[1.01] transition overflow-hidden">
 
       {/* Top Section (Image-ready) */}
       <div className="relative h-40 bg-gradient-to-r from-green-700 to-green-500 overflow-hidden">
