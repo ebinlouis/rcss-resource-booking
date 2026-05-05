@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
+import api from "../api/axios" // <-- ADDED API IMPORT
 
 const DEPARTMENTS = [
   "Dept. of Social Work",
@@ -57,6 +58,7 @@ function SectionLabel({ children }) {
 }
 
 function BookingModal({
+  spaceId, // <-- ADDED THIS PROP
   spaceName,
   onClose,
   prefillDate  = "",
@@ -75,6 +77,7 @@ function BookingModal({
   })
   const [errors,    setErrors]    = useState({})
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false) // <-- ADDED LOADING STATE
 
   const set = (key, val) => {
     setForm((p) => ({ ...p, [key]: val }))
@@ -104,12 +107,59 @@ function BookingModal({
     return e
   }
 
-  const handleSubmit = () => {
+  // <-- ENTIRE SUBMIT HANDLER REWRITTEN TO INTEGRATE WITH DJANGO -->
+  const handleSubmit = async () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
-    // TODO: POST /api/spaces/requests/
-    console.log("Submitting:", form)
-    setSubmitted(true)
+
+    setIsSubmitting(true)
+    setErrors({})
+
+    try {
+      // 1. Format dates for PostgreSQL (ISO 8601)
+      const start_datetime = new Date(`${form.date}T${form.start}:00`).toISOString()
+      const end_datetime = new Date(`${form.date}T${form.end}:00`).toISOString()
+
+      // 2. Perform Availability Check First
+      const availRes = await api.post(`/spaces/catalog/${spaceId}/check_availability/`, {
+        start_datetime,
+        end_datetime
+      })
+
+      if (!availRes.data.available) {
+        setErrors({ end: availRes.data.message })
+        setIsSubmitting(false)
+        return
+      }
+
+      // 3. Format Requirements to match Django Text Field
+      const equipmentString = form.requirements
+        .map(reqId => REQUIREMENTS.find(r => r.id === reqId)?.label)
+        .join(', ')
+
+      // 4. Submit the Actual Booking Payload
+      const payload = {
+        space: spaceId,
+        start_datetime,
+        end_datetime,
+        attendee_count: Number(form.attendees),
+        purpose_of_booking: form.purpose,
+        department: form.department,
+        requested_equipment: form.notes ? `${equipmentString} | Notes: ${form.notes}` : equipmentString
+      }
+
+      await api.post('/spaces/requests/', payload)
+      setSubmitted(true)
+
+    } catch (error) {
+      console.error("Booking Error:", error)
+      const serverError = error.response?.data?.non_field_errors?.[0] 
+                       || error.response?.data?.error 
+                       || "An error occurred submitting your request. Please try again."
+      setErrors({ server: serverError })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // ── Success state ──
@@ -167,7 +217,8 @@ function BookingModal({
             </p>
             <h2 className="text-2xl font-bold text-white leading-tight">{spaceName}</h2>
             <p className="text-sm text-green-200/75 mt-3 leading-relaxed">
-Request a space, choose your time, and add any details needed for approval.            </p>
+              Request a space, choose your time, and add any details needed for approval.
+            </p>
           </div>
 
           <div className="space-y-2.5">
@@ -342,8 +393,7 @@ Request a space, choose your time, and add any details needed for approval.     
               </Field>
               <Field label="Requester">
                 <div className={`${inputCls(false)} bg-gray-50 text-gray-400 cursor-not-allowed`}>
-                  {/* Replaced by request.user on API integration */}
-                  Admin
+                  Automated by Login
                 </div>
               </Field>
             </div>
@@ -396,21 +446,28 @@ Request a space, choose your time, and add any details needed for approval.     
 
           {/* Footer */}
           <div className="shrink-0 flex justify-between items-center px-7 py-4 border-t border-gray-100 bg-gray-50/60">
-            <p className="text-xs text-gray-400">
-              Submitting this sends the request to admin approval.
-            </p>
+            <div>
+              {errors.server ? (
+                <p className="text-xs text-red-500 font-medium">{errors.server}</p>
+              ) : (
+                <p className="text-xs text-gray-400">Submitting sends the request to admin approval.</p>
+              )}
+            </div>
+            
             <div className="flex gap-2">
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
-              className="bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-green-100 hover:shadow-green-200 transition-all"
+                disabled={isSubmitting}
+                className="bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-800 shadow-lg shadow-green-100 hover:shadow-green-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Send request
+                {isSubmitting ? "Checking..." : "Send request"}
               </button>
             </div>
           </div>

@@ -39,6 +39,7 @@ const AdminLayout = () => {
                 
                 <nav className="flex-1 space-y-1 p-4">
                     <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Modules</p>
+                    
                     <NavLink 
                         to="/admin" 
                         end
@@ -50,6 +51,19 @@ const AdminLayout = () => {
                     >
                         Dashboard
                     </NavLink>
+                    
+                    {/* <-- NEW: Manage Spaces Link --> */}
+                    <NavLink 
+                        to="/admin/spaces" 
+                        className={({ isActive }) => 
+                            `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                                isActive ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-50'
+                            }`
+                        }
+                    >
+                        Manage Spaces
+                    </NavLink>
+
                     <NavLink 
                         to="/admin/role-overrides" 
                         className={({ isActive }) => 
@@ -76,7 +90,7 @@ const AdminLayout = () => {
                         <h2 className="text-sm font-medium text-gray-500 hidden md:block">System Administration</h2>
                     </div>
 
-                    {/* Profile Dropdown (Matched to your exact Navbar style) */}
+                    {/* Profile Dropdown */}
                     <div className="relative" ref={profileRef}>
                         <button
                             onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen); }}

@@ -1,10 +1,10 @@
-import { rooms } from "../data/rooms"
 import Navbar from "../components/Navbar"
 import RoomCard from "../components/RoomCard"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
 import Footer from "../components/Footer"
+import api from "../api/axios"
 
 const FILTERS = ["All", "Available", "In use"]
 
@@ -13,31 +13,45 @@ function Home() {
   const [activeFilter, setActiveFilter] = useState("All")
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [openAvailability, setOpenAvailability] = useState(false)
+  
+  const [dbRooms, setDbRooms] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchSpaces = async () => {
+      try {
+        const response = await api.get('/spaces/catalog/');
+        // Safely extract data whether Django returns paginated dict or flat array
+        const spaceData = response.data.results ? response.data.results : response.data;
+        setDbRooms(spaceData || []);
+      } catch (error) {
+        console.error("Failed to fetch spaces from database:", error);
+        setDbRooms([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSpaces();
+  }, []);
 
   const handleEditBooking = (booking) => {
-    const room = rooms.find(
+    const room = dbRooms.find(
       (r) => r.name.toLowerCase() === booking.hall.toLowerCase()
     )
     setSelectedRoom(room || { name: booking.hall })
     setOpenAvailability(true)
   }
 
-  const filteredRooms = rooms.filter((r) => {
+  // SAFE FILTERING: Added (r.field || "") to prevent string crashes
+  const filteredRooms = dbRooms.filter((r) => {
     const matchesSearch =
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.type.toLowerCase().includes(search.toLowerCase())
+      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.space_type || "").toLowerCase().includes(search.toLowerCase());
 
-    const matchesFilter =
-      activeFilter === "All"
-        ? true
-        : activeFilter === "Available"
-        ? r.status === "Available"
-        : activeFilter === "In use"
-        ? r.status !== "Available"
-        : true
+    const matchesFilter = activeFilter === "All" ? true : true; 
 
-    return matchesSearch && matchesFilter
-  })
+    return matchesSearch && matchesFilter;
+  });
 
   const hour = new Date().getHours()
   const greeting =
@@ -132,13 +146,16 @@ function Home() {
             {/* Results count */}
             {(search || activeFilter !== "All") && (
               <p className="text-xs text-gray-400 mb-4">
-                {filteredRooms.length} space
-                {filteredRooms.length !== 1 ? "s" : ""} found
+                {filteredRooms.length} space{filteredRooms.length !== 1 ? "s" : ""} found
               </p>
             )}
 
-            {/* Cards */}
-            {filteredRooms.length > 0 ? (
+            {/* Cards / Loading State */}
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <p className="text-sm text-gray-500 font-medium animate-pulse">Loading spaces from database...</p>
+              </div>
+            ) : filteredRooms.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filteredRooms.map((room) => (
                   <RoomCard
@@ -173,6 +190,7 @@ function Home() {
       {/* Modal */}
       {openAvailability && selectedRoom && (
         <AvailabilityModal
+          spaceId={selectedRoom.id} 
           spaceName={selectedRoom.name}
           onClose={() => setOpenAvailability(false)}
         />
