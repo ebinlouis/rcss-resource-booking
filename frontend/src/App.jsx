@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Your Pages
 import Login from './pages/Login';
 import Home from './pages/Home';
+import Media from './pages/Media';
 
 function App() {
   return (
@@ -18,8 +19,7 @@ function App() {
           {/* 2. Protected Routes Wrapper */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Home />} />
-            {/* Future modules can go here: */}
-            {/* <Route path="/spaces" element={<SpacesModule />} /> */}
+            <Route path="/media" element={<Media />} />
           </Route>
 
           {/* Catch-all: Redirect unknown routes back to the root */}

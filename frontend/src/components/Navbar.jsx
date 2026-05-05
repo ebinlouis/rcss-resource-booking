@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
 
 useEffect(() => {
     const handleClick = () => setMenuOpen(false)
@@ -13,7 +16,18 @@ useEffect(() => {
     return () => window.removeEventListener("click", handleClick)
   }, [menuOpen])
 
-  const tabs = ["Spaces", "Transport", "Media", "Mess", "Approvals"]
+  const tabs = [
+    { name: "Spaces", path: "/dashboard" },
+    { name: "Transport", path: "/transport" },
+    { name: "Media", path: "/media" },
+    { name: "Mess", path: "/mess" },
+    { name: "Approvals", path: "/approvals" }
+  ]
+
+  const handleTabClick = (tab) => {
+    navigate(tab.path)
+    setMenuOpen(false)
+  }
 
   return (
     <div className="bg-white border-b px-4 md:px-6 py-3 relative">
@@ -38,14 +52,15 @@ useEffect(() => {
         <div className="hidden md:flex bg-gray-100 rounded-md px-2 py-1 gap-2">
           {tabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.name}
+              onClick={() => handleTabClick(tab)}
               className={`px-3 py-1 rounded text-sm ${
-                tab === "Spaces"
+                location.pathname === tab.path
                   ? "bg-white text-gray-900 shadow-sm font-medium"
                   : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              {tab}
+              {tab.name}
             </button>
           ))}
         </div>
@@ -92,11 +107,16 @@ useEffect(() => {
 
   {tabs.map((tab, i) => (
     <button
-      key={tab}
+      key={tab.name}
+      onClick={() => handleTabClick(tab)}
       style={{ transitionDelay: `${i * 40}ms` }}
-      className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 transition"
+      className={`block w-full text-left px-4 py-3 text-sm transition ${
+        location.pathname === tab.path
+          ? "bg-green-50 text-green-600 font-medium"
+          : "text-gray-700 hover:bg-gray-100"
+      }`}
     >
-      {tab}
+      {tab.name}
     </button>
   ))}
 
