@@ -90,7 +90,7 @@ function Home() {
                     onClick={() => setActiveFilter(f)}
                     className={`px-4 py-1.5 rounded-lg text-sm font-medium transition
                       ${activeFilter === f
-                        ? "bg-gray-900 text-white shadow-sm"
+                        ? "bg-green-600 text-white shadow-sm"
                         : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}
                   >
                     {f}

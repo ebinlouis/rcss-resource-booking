@@ -6,144 +6,103 @@ function RoomCard({ room, onOpenAvailability }) {
   const [openBooking, setOpenBooking] = useState(false)
 
   return (
-    
-    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md hover:scale-[1.01] transition overflow-hidden">
+    <div className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300 overflow-hidden">
+      
+      {/* Top Section - Now Minimalist */}
+      <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
+        {/* Subtle Background Pattern or Image Placeholder */}
+        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
-      {/* Top Section (Image-ready) */}
-      <div className="relative h-40 bg-gradient-to-r from-green-700 to-green-500 overflow-hidden">
-
-        {/* FUTURE IMAGE */}
-        {/* Uncomment later when image is available */}
-        {/* 
-        <img
-          src={room.image}
-          alt={room.name}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        */}
-
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/20"></div>
-
-        {/* Content */}
-        <div className="relative z-10 flex justify-between items-center p-4 text-white text-sm">
-
-          {/* Capacity */}
-          <span className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0-4a4 4 0 110-8 4 4 0 010 8zm6 0a4 4 0 100-8 4 4 0 000 8z"
-              />
-            </svg>
-
-            {room.capacity}
-          </span>
-
-          {/* Status */}
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-medium ${
-              room.status === "Available"
-                ? "bg-white text-green-700"
-                : "bg-white text-yellow-600"
-            }`}
-          >
+        {/* Floating Badges */}
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+          {/* Status Badge - Soft Pill Style */}
+          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+            room.status === "Available"
+              ? "bg-green-50 text-green-600 border border-green-100"
+              : "bg-amber-50 text-amber-600 border border-amber-100"
+          }`}>
             {room.status}
           </span>
 
+          {/* Capacity - Minimalist with Icon */}
+          <span className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-gray-100 text-gray-500 text-xs font-medium shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            {room.capacity}
+          </span>
         </div>
 
+        {/* Room Type Icon/Illustration Placeholder */}
+        <div className="text-gray-200 group-hover:scale-110 transition-transform duration-500">
+           <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 24 24">
+             <path d="M19 13H5v-2h14v2z" /> {/* Replace with dynamic icons based on room.type */}
+           </svg>
+        </div>
       </div>
       
       {/* Bottom Section */}
-      <div className="p-4">
-
-        {/* Type */}
-        <p className="text-xs text-green-600 font-semibold uppercase tracking-wide">
+      <div className="p-6">
+        {/* Type Label */}
+        <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">
           {room.type}
-        </p>
+        </span>
 
         {/* Name */}
-        <h2 className="text-base font-semibold mt-1 text-gray-900">
+        <h2 className="text-lg font-semibold mt-1 text-gray-900 group-hover:text-green-600 transition-colors">
           {room.name}
         </h2>
 
         {/* Description */}
-        <p className="text-gray-500 text-sm mt-2 leading-relaxed">
+        <p className="text-gray-500 text-sm mt-2 line-clamp-2 font-light leading-relaxed">
           {room.description}
         </p>
 
-        {/* Features */}
-        <div className="flex flex-wrap gap-2 mt-3">
+        {/* Features - Pill Style */}
+        <div className="flex flex-wrap gap-1.5 mt-4">
           {room.features.map((f, i) => (
-            <span
-              key={i}
-              className="bg-gray-100 px-2 py-1 text-xs rounded-md text-gray-600"
-            >
+            <span key={i} className="bg-gray-50 border border-gray-100 px-2 py-0.5 text-[10px] rounded-full text-gray-400">
               {f}
             </span>
           ))}
         </div>
-        
-        {/* Availability text */}
-        <p className="text-sm text-gray-500 mt-2">
-          8 slots available today
-        </p>
 
-        {/* Buttons */}
-        <div className="flex gap-2 mt-4">
+        {/* Footer info & Buttons */}
+        <div className="mt-6 pt-5 border-t border-gray-50 flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-300 uppercase font-bold">Today</span>
+            <span className="text-xs text-gray-600 font-medium">8 slots open</span>
+          </div>
 
-          {/* Availability */}
-          <button
-  onClick={onOpenAvailability}
-  className="flex-1 border rounded-md py-2 text-sm flex items-center justify-center gap-2 hover:bg-gray-100 transition"
->
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
+          <div className="flex gap-2">
+  {/* Availability Button - Now with a label for clarity */}
+  <button 
+    onClick={onOpenAvailability}
+    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-emerald-500 hover:text-emerald-600 transition-all text-xs font-medium"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+    Schedule
+  </button>
 
-            Availability
-          </button>
-
-          {/* Book */}
-          <button
-            onClick={() => setOpenBooking(true)}
-            className="flex-1 bg-green-600 text-white rounded-md py-2 text-sm hover:bg-green-700 transition"
-          >
-            + Book
-          </button>
-
+  {/* Book Now Button */}
+  <button
+    onClick={() => setOpenBooking(true)}
+    className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-600 shadow-lg shadow-emerald-100 transition-all"
+  >
+    + Book Now
+  </button>
+</div>
         </div>
-
       </div>
 
-      {/* Booking Modal (still fine here) */}
       {openBooking && (
         <BookingModal
           spaceName={room.name}
           onClose={() => setOpenBooking(false)}
         />
       )}
-
     </div>
   )
 }

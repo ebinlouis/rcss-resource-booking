@@ -408,7 +408,7 @@ Request a space, choose your time, and add any details needed for approval.     
               </button>
               <button
                 onClick={handleSubmit}
-                className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm"
+              className="bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-green-100 hover:shadow-green-200 transition-all"
               >
                 Send request
               </button>
