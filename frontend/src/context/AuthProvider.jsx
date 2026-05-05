@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AuthContext } from './AuthContext'; // Import the context object
+import { AuthContext } from './AuthContext';
 
-// This file now exports ONLY a component, making Vite Fast Refresh perfectly happy.
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    // NEW: States for the Role Override system
+    const [effectiveRole, setEffectiveRole] = useState(null);
+    const [hasActiveOverride, setHasActiveOverride] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     const checkAuthStatus = useCallback(async () => {
         try {
-            // FIXED: Pointing to /api/auth/me/ instead of /api/users/me/
             const response = await fetch('http://localhost:8000/api/auth/me/', {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
@@ -18,12 +19,20 @@ export const AuthProvider = ({ children }) => {
             if (response.ok) {
                 const userData = await response.json();
                 setUser(userData);
+                
+                // NEW: Extract the dynamic permissions calculated mathematically by the backend
+                setEffectiveRole(userData.effective_role);
+                setHasActiveOverride(userData.has_active_override);
             } else {
                 setUser(null);
+                setEffectiveRole(null);
+                setHasActiveOverride(false);
             }
         } catch (error) {
             console.error("Auth check failed:", error);
             setUser(null);
+            setEffectiveRole(null);
+            setHasActiveOverride(false);
         } finally {
             setIsLoading(false);
         }
@@ -38,7 +47,6 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (credentials) => {
         try {
-            // This was already correct based on your urls.py mapping
             const response = await fetch('http://localhost:8000/api/auth/login/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -58,12 +66,33 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        // Optional: Call your Django logout endpoint here to clear cookies server-side
-        setUser(null);
+        try {
+            // Actually hit the backend to clear the HttpOnly cookies securely
+            await fetch('http://localhost:8000/api/auth/logout/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error("Logout request failed", error);
+        } finally {
+            // Always clear local state even if network fails
+            setUser(null);
+            setEffectiveRole(null);
+            setHasActiveOverride(false);
+        }
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+        // NEW: Expose effectiveRole and hasActiveOverride to the entire app
+        <AuthContext.Provider value={{ 
+            user, 
+            effectiveRole, 
+            hasActiveOverride, 
+            isLoading, 
+            login, 
+            logout 
+        }}>
             {children}
         </AuthContext.Provider>
     );
