@@ -1,35 +1,35 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthProvider';
-import ProtectedRoute from './components/ProtectedRoute';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./context/AuthProvider";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Your Pages
-import Login from './pages/Login';
-import Home from './pages/Home';
+// Pages
+import Login from "./pages/Login";
+import Home from "./pages/Home";
 import Transport from "./pages/Transport";
-import Mess from "./pages/Mess"
+import Mess from "./pages/Mess";
 
+// Admin Pages
+import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter> 
+      <BrowserRouter>
         <Routes>
 
           {/* Public Route */}
           <Route path="/" element={<Login />} />
 
-          {/* Protected Routes */}
+          {/* General Protected Routes */}
           <Route element={<ProtectedRoute />}>
-
             <Route path="/dashboard" element={<Home />} />
-
-            {/* ✅ YOUR TRANSPORT ROUTE (KEEP THIS) */}
             <Route path="/transport" element={<Transport />} />
-
-            {/* Future modules can go here: */}
             <Route path="/mess" element={<Mess />} />
-            {/* <Route path="/spaces" element={<SpacesModule />} /> */}
+          </Route>
 
+          {/* Admin Only Routes */}
+          <Route element={<ProtectedRoute allowedRoles={["IT_ADMIN"]} />}>
+            <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
           </Route>
 
           {/* Catch-all */}
