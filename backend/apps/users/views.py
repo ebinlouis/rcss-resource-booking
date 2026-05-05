@@ -2,14 +2,21 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
 from django.conf import settings
 from django.utils import timezone
+from django.db.models import Q
 
 # Explicit imports matching your app structure
 from apps.spaces.models import SpaceBooking
 from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
+
+# New imports for Role Override
+from .models import RoleOverride
+from .serializers import RoleOverrideSerializer
+from .permissions import IsITAdmin
 
 # ==========================================
 # AUTHENTICATION VIEWS
@@ -47,6 +54,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             
         return response
 
+
 class LogoutView(APIView):
     def post(self, request):
         response = Response({"message": "Successfully logged out."})
@@ -54,15 +62,42 @@ class LogoutView(APIView):
         response.delete_cookie('refresh_token')
         return response
 
+
 class CurrentUserView(APIView):
     # This ensures only users with a valid HttpOnly cookie can hit this endpoint
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
+        now = timezone.now()
+        
+        # 1. Get base role
+        base_role = user.role.name if user.role else None
+        effective_role = base_role
+        has_active_override = False
+        override_expires_at = None
+
+        # 2. Check for active override mathematically
+        active_override = RoleOverride.objects.filter(
+            user=user,
+            is_active=True
+        ).filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+        ).first()
+
+        if active_override:
+            effective_role = active_override.overridden_role.name
+            has_active_override = True
+            override_expires_at = active_override.expires_at
+
         return Response({
             "id": user.id,
             "email": user.email,
+            "name": user.first_name,
+            "base_role": base_role,
+            "effective_role": effective_role,
+            "has_active_override": has_active_override,
+            "override_expires_at": override_expires_at,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser
         })
@@ -134,3 +169,28 @@ class DashboardAPIView(APIView):
                 ]
             }
         })
+
+# ==========================================
+# ADMIN MANAGEMENT VIEWS
+# ==========================================
+class RoleOverrideViewSet(ModelViewSet):
+    """
+    Handles GET (list/retrieve), POST (create), and PATCH (revoke) for Role Overrides.
+    """
+    queryset = RoleOverride.objects.all().select_related('user', 'overridden_role', 'granted_by').order_by('-created_at')
+    serializer_class = RoleOverrideSerializer
+    
+    # Strictly limit access to IT Admins
+    permission_classes = [IsAuthenticated, IsITAdmin]
+
+    def perform_create(self, serializer):
+        # Automatically set the 'granted_by' to the admin making the request
+        serializer.save(granted_by=self.request.user)
+
+    def get_queryset(self):
+        # Allow frontend filtering by active status (/api/role-overrides/?active=true)
+        queryset = super().get_queryset()
+        is_active = self.request.query_params.get('active', None)
+        if is_active == 'true':
+            queryset = queryset.filter(is_active=True)
+        return queryset
