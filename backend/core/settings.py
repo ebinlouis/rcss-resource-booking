@@ -9,7 +9,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Initialize environ
 env = environ.Env(
-    # Set default casting and values
     DEBUG=(bool, False)
 )
 
@@ -19,29 +18,18 @@ environ.Env.read_env(BASE_DIR / '.env')
 # ==========================================
 # SENTRY ERROR TRACKING CONFIGURATION
 # ==========================================
-# Grabs the DSN from your .env file. Defaults to empty string so it 
-# won't crash your local environment if you forget to add it.
 SENTRY_DSN = env('SENTRY_DSN', default='')
 
 if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],
-        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
         traces_sample_rate=1.0,
-        # Enables sending PII (Personally Identifiable Information) like user IDs with the error
         send_default_pii=True
     )
 
-# Quick-start development settings - unsuitable for production
-# See [https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/](https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/)
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
-
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
 # Application definition
@@ -52,15 +40,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # PostgreSQL Features
     'django.contrib.postgres',
-    
+
     # Third-party
     'corsheaders',
     'rest_framework',
     'drf_spectacular',
-    
+
     # Local Apps
     'apps.users',
     'apps.approvals',
@@ -71,7 +59,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Must be first
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -112,18 +100,10 @@ AUTH_USER_MODEL = 'users.CustomUser'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 # Internationalization
@@ -132,14 +112,28 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# Static files
 STATIC_URL = 'static/'
-CORS_ALLOW_ALL_ORIGINS = False # For development only
+
+# ==========================================
+# CORS & CSRF CONFIGURATION
+# ==========================================
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Tells Django to accept requests from these origins even with CSRF protection on
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Must be False so the axios interceptor can read the csrftoken cookie
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # ==========================================
 # THIRD-PARTY CONFIGURATIONS

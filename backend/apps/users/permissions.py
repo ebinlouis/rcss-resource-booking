@@ -14,81 +14,92 @@ class IsSuperUser(permissions.BasePermission):
 
 class HasDynamicRole(permissions.BasePermission):
     """
-    BASE CLASS: Do not use directly in views.
-    Checks if a user has a required role either permanently (user.role) 
+    BASE ENGINE: Checks if a user has a required role permanently (user.role) 
     or temporarily via an unexpired RoleOverride.
     """
-    required_roles = []  # Subclasses must define this (e.g., ['IT_ADMIN', 'HOD'])
+    required_roles = []
 
     def has_permission(self, request, view):
-        # 1. Must be logged in
+        # 1. Authentication Check
         if not bool(request.user and request.user.is_authenticated):
+            print("DEBUG: User is not authenticated")
             return False
 
-        # 2. Superusers automatically pass all role checks
-        if request.user.is_superuser:
+        # 2. DEBUG LOG - see exactly what the backend receives
+        print(f"DEBUG PERMISSION CHECK ========================")
+        print(f"  User        : {request.user}")
+        print(f"  User ID     : {request.user.id}")
+        print(f"  is_staff    : {request.user.is_staff}")
+        print(f"  is_superuser: {request.user.is_superuser}")
+        print(f"  role        : {getattr(request.user, 'role', 'NO ROLE ATTR')}")
+        print(f"  required    : {self.required_roles}")
+        print(f"  class       : {self.__class__.__name__}")
+        print(f"================================================")
+
+        # 3. Administrative Bypass
+        if request.user.is_superuser or request.user.is_staff:
+            print("DEBUG: Bypassed via is_superuser/is_staff")
             return True
 
-        # 3. Check permanent role (using your custom ForeignKey 'role' field)
+        # 4. Permanent Role Check
         if request.user.role and request.user.role.name in self.required_roles:
+            print("DEBUG: Passed via permanent role")
             return True
 
-        # 4. Check temporary Role Override
+        # 5. Temporary Role Override Check
         now = timezone.now()
-        has_active_override = RoleOverride.objects.filter(
+        result = RoleOverride.objects.filter(
             user=request.user,
             is_active=True,
             overridden_role__name__in=self.required_roles
         ).filter(
-            # Must either have no expiration, OR expiration is strictly in the future
             Q(expires_at__isnull=True) | Q(expires_at__gt=now)
         ).exists()
 
-        return has_active_override
+        print(f"DEBUG: RoleOverride result: {result}")
+        return result
 
 
-# --- IMPLEMENTATIONS FOR YOUR VIEWS ---
+# --- STRUCTURAL PERMISSIONS ---
 
 class IsITAdmin(HasDynamicRole):
-    """Allows access only to IT Admins (or temporary IT Admins)."""
+    """Write access for system settings and space management."""
     required_roles = ['IT_ADMIN']
 
 
 class IsDepartmentHead(HasDynamicRole):
-    """Allows access to HODs. (IT_ADMIN is included as they usually have global override)."""
+    """Access for HOD-level approvals and department reports."""
     required_roles = ['HOD', 'IT_ADMIN']
-
-
-class IsStaffOrFaculty(HasDynamicRole):
-    """Allows access to general staff, faculty, HODs, and IT Admins."""
-    required_roles = ['STAFF', 'FACULTY', 'HOD', 'IT_ADMIN']
 
 
 class IsApprover(HasDynamicRole):
     """
-    Allows access to users designated as approvers.
-    This dynamically checks their base role AND temporary overrides.
+    Standardizes who can access the Unified Approval Queue.
+    Typically HODs for their departments and IT Admins for global resources.
     """
-    # Adjust these string values to match the exact names of your approval groups in the DB
-    required_roles = ['HOD', 'IT_ADMIN', 'APPROVER', 'FACULTY']
+    required_roles = ['HOD', 'IT_ADMIN']
+
+
+class CanBookResource(HasDynamicRole):
+    """
+    Logic for Phase 1 (Faculty/Admins) and Phase 2 (Students).
+    Currently allows anyone with a recognized institutional role.
+    """
+    required_roles = ['FACULTY', 'STAFF', 'IT_ADMIN', 'HOD', 'STUDENT']
 
 
 class IsAdminOrReadOnly(HasDynamicRole):
     """
-    The request is authenticated as a user, or is a read-only request.
-    Write permissions are strictly limited to IT Admins (permanent or temporary).
+    Safe methods (GET) for all authenticated users; 
+    Modifications restricted to IT Admins.
     """
-    # Roles allowed to make POST/PUT/PATCH/DELETE requests
-    required_roles = ['IT_ADMIN'] 
+    required_roles = ['IT_ADMIN']
 
     def has_permission(self, request, view):
-        # Always require the user to be logged in first
         if not bool(request.user and request.user.is_authenticated):
             return False
 
-        # SAFE_METHODS are GET, HEAD, or OPTIONS. Allow them for any logged-in user.
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # If it's a write method (creating/editing a space), use our dynamic engine check
         return super().has_permission(request, view)

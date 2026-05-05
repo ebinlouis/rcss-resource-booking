@@ -1,6 +1,6 @@
 import axiosInstance from './axios'; // Assuming this is your configured instance
 
-const API_URL = '/role-overrides/';
+const API_URL = 'role-overrides/';
 
 const roleOverrideService = {
     // Get all overrides (optional: filter by active status)
