@@ -3,6 +3,7 @@
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
+from django.contrib.postgres.operations import BtreeGistExtension # <-- ADDED IMPORT
 
 
 class Migration(migrations.Migration):
@@ -14,6 +15,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        BtreeGistExtension(), # <-- ADDED AS THE ABSOLUTE FIRST OPERATION
         migrations.CreateModel(
             name='Department',
             fields=[

@@ -12,14 +12,19 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SpaceBooking
-        # We include all base fields + space specific fields
         fields = [
             'id', 'reference_code', 'user', 'department', 'status', 
             'space', 'space_details', 'start_datetime', 'end_datetime', 
             'attendee_count', 'purpose_of_booking', 'requested_equipment',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['reference_code', 'status', 'created_at', 'updated_at']
+        
+        # ENTERPRISE SECURITY LOCKDOWN:
+        # The frontend cannot send or modify ANY of these fields during a POST or PUT.
+        # - user: Prevent impersonation
+        # - status: Prevent a user from auto-approving their own booking
+        # - reference_code: Prevent ID collisions
+        read_only_fields = ['reference_code', 'status', 'created_at', 'updated_at', 'user']
 
     def validate(self, data):
         """

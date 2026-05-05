@@ -21,8 +21,11 @@ function App() {
 
             <Route path="/dashboard" element={<Home />} />
 
-            {/* ✅ NEW TRANSPORT ROUTE */}
+            {/* ✅ YOUR TRANSPORT ROUTE (KEEP THIS) */}
             <Route path="/transport" element={<Transport />} />
+
+            {/* Future modules can go here: */}
+            {/* <Route path="/spaces" element={<SpacesModule />} /> */}
 
           </Route>
 

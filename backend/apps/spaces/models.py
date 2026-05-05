@@ -1,11 +1,10 @@
+import uuid # <-- 1. Don't forget to import this!
 from django.db import models
 from django.db.models import Q, F, Func
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import RangeOperators, DateTimeRangeField
 from apps.approvals.models import BaseBooking
 
-# Django requires this helper class to convert two DateTime fields 
-# into a PostgreSQL Timestamp Range on the fly for the Exclusion lock.
 class TsTzRange(Func):
     function = 'TSTZRANGE'
     output_field = DateTimeRangeField()
@@ -46,19 +45,14 @@ class SpaceBooking(BaseBooking):
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [
-            # 1. Prevent inverted times
             models.CheckConstraint(
                 condition=Q(start_datetime__lt=F('end_datetime')),
                 name='space_booking_start_before_end'
             ),
-            
-            # 2. Prevent negative/zero attendees
             models.CheckConstraint(
                 condition=Q(attendee_count__gt=0),
                 name='space_booking_positive_attendees'
             ),
-            
-            # 3. THE LOCK: Prevent double-booking for the exact same space, if APPROVED.
             ExclusionConstraint(
                 name='exclude_overlapping_approved_space_bookings',
                 expressions=[
@@ -68,6 +62,14 @@ class SpaceBooking(BaseBooking):
                 condition=Q(status='APPROVED'),
             )
         ]
+
+    # <-- 2. Here is the magic method! -->
+    def save(self, *args, **kwargs):
+        # If this is a brand new booking, generate a unique reference code
+        if not self.reference_code:
+            self.reference_code = f"SPC-{uuid.uuid4().hex[:8].upper()}"
+        
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.reference_code} - {self.space.name}"
