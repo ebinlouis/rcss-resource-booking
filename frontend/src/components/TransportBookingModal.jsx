@@ -1,229 +1,264 @@
 import { useState } from "react"
+import { createPortal } from "react-dom"
+
+// ── Field Wrapper ──
+function Field({ label, required, children }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-sm font-medium text-gray-600">
+        {label}
+        {required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const inputCls =
+  "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-600"
+
+// ── Section Label ──
+function SectionLabel({ children }) {
+  return (
+    <div className="flex items-center gap-3 mt-2">
+      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        {children}
+      </span>
+      <div className="flex-1 h-px bg-gray-100" />
+    </div>
+  )
+}
 
 function TransportBookingModal({ onClose }) {
 
   const [form, setForm] = useState({
-    department: "",
+    vehicle: "",
     purpose: "",
-    booking_date: "",
-    total_passengers: "",
+    start_datetime: "",
+    end_datetime: "",
     pickup_location: "",
     destination: "",
-    pickup_time: "",
-    return_time: "",
-    requested_by: "",
+    total_passengers: "",
     remarks: ""
   })
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
+  const set = (key, val) => {
+    setForm((prev) => ({ ...prev, [key]: val }))
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const handleSubmit = () => {
     console.log(form)
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
 
-      {/* MAIN CONTAINER */}
-      <div className="bg-white w-[95%] max-w-5xl h-[90vh] rounded-xl overflow-hidden flex relative">
+      <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
 
-        {/* CLOSE */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-600 text-xl z-50"
+        {/* LEFT PANEL */}
+        <div
+          className="hidden md:flex md:w-[32%] flex-col justify-between p-7"
+          style={{ background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)" }}
         >
-          ✕
-        </button>
-
-        {/* ================= LEFT PANEL ================= */}
-        <div className="w-1/3 bg-gradient-to-b from-green-800 to-blue-900 text-white p-6 flex flex-col justify-between">
-
           <div>
-            <p className="text-sm opacity-80 mb-2">
-              NEW BOOKING
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
+              New Booking
             </p>
-
-            <h2 className="text-2xl font-bold mb-4">
+            <h2 className="text-2xl font-bold text-white">
               Transport Request
             </h2>
-
-            <p className="text-sm opacity-80">
-              Submit your transport request with pickup, destination,
-              timing, and passenger details.
+            <p className="text-sm text-green-200/75 mt-3">
+              Submit a structured transport request with vehicle,
+              timing, and trip details in one pass.
             </p>
           </div>
 
-          {/* Bottom info cards */}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
 
-            <div className="bg-white/10 p-3 rounded-lg">
-              <p className="text-xs opacity-80">Selected Date</p>
-              <p className="font-semibold">Auto from calendar</p>
+            <div className="bg-white/10 rounded-xl p-4">
+              <p className="text-[10px] text-green-300 uppercase font-semibold">
+                Vehicle Allocation
+              </p>
+              <p className="text-white text-sm font-semibold mt-1">
+                Based on availability
+              </p>
             </div>
 
-            <div className="flex gap-2">
-              <div className="bg-white/10 p-3 rounded-lg flex-1">
-                <p className="text-xs opacity-80">Approval</p>
-                <p className="font-semibold">Admin review</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/10 rounded-xl p-3">
+                <p className="text-[9px] text-green-300 uppercase font-semibold">
+                  Approval
+                </p>
+                <p className="text-white text-xs font-semibold mt-1">
+                  Admin review
+                </p>
               </div>
 
-              <div className="bg-white/10 p-3 rounded-lg flex-1">
-                <p className="text-xs opacity-80">Policy</p>
-                <p className="font-semibold">Based on request</p>
+              <div className="bg-white/10 rounded-xl p-3">
+                <p className="text-[9px] text-green-300 uppercase font-semibold">
+                  Policy
+                </p>
+                <p className="text-white text-xs font-semibold mt-1">
+                  Depends on trip
+                </p>
               </div>
             </div>
 
           </div>
-
         </div>
 
-        {/* ================= RIGHT FORM ================= */}
-        <div className="w-2/3 p-6 overflow-y-auto">
+        {/* RIGHT FORM */}
+        <div className="flex-1 flex flex-col min-h-0">
 
-          <h2 className="text-xl font-semibold mb-6">
-            Complete booking form
-          </h2>
-
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-
-            {/* PURPOSE */}
-            <div className="col-span-2">
-              <label className="text-sm font-medium">Purpose</label>
-              <textarea
-                name="purpose"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
+          {/* HEADER */}
+          <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100">
+            <div>
+              <p className="text-xs font-semibold text-green-700 uppercase">
+                Request Details
+              </p>
+              <h2 className="text-xl font-bold">
+                Transport Booking Form
+              </h2>
             </div>
 
-            {/* DEPARTMENT */}
-            <div>
-              <label className="text-sm font-medium">Department</label>
-              <select
-                name="department"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              >
-                <option value="">Select Department</option>
-                <option>CS</option>
-                <option>Commerce</option>
-                <option>Management</option>
-              </select>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* BODY */}
+          <div className="flex-1 overflow-y-auto px-7 py-5 space-y-5">
+
+            {/* TRANSPORT DETAILS */}
+            <SectionLabel>Transport Details</SectionLabel>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Vehicle" required>
+                <select
+                  className={inputCls}
+                  value={form.vehicle}
+                  onChange={(e) => set("vehicle", e.target.value)}
+                >
+                  <option value="">Select vehicle</option>
+                  <option>Bus</option>
+                  <option>Mini Bus</option>
+                  <option>Van</option>
+                  <option>Car</option>
+                </select>
+              </Field>
+
+              <Field label="Total passengers" required>
+                <input
+                  type="number"
+                  className={inputCls}
+                  placeholder="e.g. 40"
+                  value={form.total_passengers}
+                  onChange={(e) => set("total_passengers", e.target.value)}
+                />
+              </Field>
             </div>
 
-            {/* REQUESTED BY */}
-            <div>
-              <label className="text-sm font-medium">Requested By</label>
+            <Field label="Purpose" required>
               <input
-                name="requested_by"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
+                className={inputCls}
+                placeholder="e.g. Industrial visit, Event transport..."
+                value={form.purpose}
+                onChange={(e) => set("purpose", e.target.value)}
               />
+            </Field>
+
+            {/* DATE & TIME */}
+            <SectionLabel>Date & Time</SectionLabel>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Start date & time" required>
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={form.start_datetime}
+                  onChange={(e) => set("start_datetime", e.target.value)}
+                />
+              </Field>
+
+              <Field label="End date & time" required>
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={form.end_datetime}
+                  onChange={(e) => set("end_datetime", e.target.value)}
+                />
+              </Field>
             </div>
 
-            {/* DATE */}
-            <div>
-              <label className="text-sm font-medium">Booking Date</label>
-              <input
-                type="date"
-                name="booking_date"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
+            {/* TRIP DETAILS */}
+            <SectionLabel>Trip Details</SectionLabel>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Pickup location" required>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. College main gate"
+                  value={form.pickup_location}
+                  onChange={(e) => set("pickup_location", e.target.value)}
+                />
+              </Field>
+
+              <Field label="Destination" required>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Kochi"
+                  value={form.destination}
+                  onChange={(e) => set("destination", e.target.value)}
+                />
+              </Field>
             </div>
 
-            {/* PASSENGERS */}
-            <div>
-              <label className="text-sm font-medium">Total Passengers</label>
-              <input
-                type="number"
-                name="total_passengers"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
-            </div>
+            {/* NOTES */}
+            <SectionLabel>Notes for approving office</SectionLabel>
 
-            {/* PICKUP */}
-            <div>
-              <label className="text-sm font-medium">Pickup Location</label>
-              <input
-                name="pickup_location"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
-            </div>
+            <textarea
+              rows={3}
+              className={`${inputCls} resize-none`}
+              placeholder="Mention route details, stops, special instructions..."
+              value={form.remarks}
+              onChange={(e) => set("remarks", e.target.value)}
+            />
 
-            {/* DESTINATION */}
-            <div>
-              <label className="text-sm font-medium">Destination</label>
-              <input
-                name="destination"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
-            </div>
+          </div>
 
-            {/* PICKUP TIME */}
-            <div>
-              <label className="text-sm font-medium">Pickup Time</label>
-              <input
-                type="time"
-                name="pickup_time"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-                required
-              />
-            </div>
+          {/* FOOTER */}
+          <div className="flex justify-between items-center px-7 py-4 border-t bg-gray-50">
+            <p className="text-xs text-gray-400">
+              Submitting this sends the request for admin approval.
+            </p>
 
-            {/* RETURN TIME */}
-            <div>
-              <label className="text-sm font-medium">Return Time</label>
-              <input
-                type="time"
-                name="return_time"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-              />
-            </div>
-
-            {/* REMARKS */}
-            <div className="col-span-2">
-              <label className="text-sm font-medium">Remarks</label>
-              <textarea
-                name="remarks"
-                onChange={handleChange}
-                className="w-full border rounded p-2 mt-1"
-              />
-            </div>
-
-            {/* SUBMIT */}
-            <div className="col-span-2">
+            <div className="flex gap-2">
               <button
-                type="submit"
-                className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-lg mt-2"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl border text-sm"
               >
-                Submit Booking
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                className="px-5 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold"
+              >
+                Send request
               </button>
             </div>
-
-          </form>
+          </div>
 
         </div>
 
       </div>
 
-    </div>
+    </div>,
+    document.body
   )
 }
 

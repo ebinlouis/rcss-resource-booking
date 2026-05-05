@@ -6,6 +6,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Transport from "./pages/Transport";
+import Mess from "./pages/Mess"
+
 
 function App() {
   return (
@@ -25,6 +27,7 @@ function App() {
             <Route path="/transport" element={<Transport />} />
 
             {/* Future modules can go here: */}
+            <Route path="/mess" element={<Mess />} />
             {/* <Route path="/spaces" element={<SpacesModule />} /> */}
 
           </Route>

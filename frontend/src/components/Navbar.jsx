@@ -21,7 +21,7 @@ function Navbar() {
     { name: "Spaces", path: "/dashboard" },
     { name: "Transport", path: "/transport" },
     { name: "Media", path: "#" },
-    { name: "Mess", path: "#" },
+    { name: "Mess", path: "/mess" },
     { name: "Approvals", path: "#" }
   ]
 
