@@ -2,49 +2,54 @@ import json
 from rest_framework import serializers
 from .models import Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest
 
+
 # ==========================================
-# 1. INVENTORY SERIALIZERS
+# 1. EQUIPMENT SERIALIZER
 # ==========================================
 class EquipmentSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Equipment
-        fields = ['id', 'name', 'category', 'total_owned', 'total_functional', 'is_returnable', 'is_active']
+        model  = Equipment
+        fields = [
+            'id', 'name', 'category', 'description',
+            'total_owned', 'is_portable', 'is_active',
+        ]
+
 
 class SpaceEquipmentSerializer(serializers.ModelSerializer):
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
-    
+
     class Meta:
-        model = SpaceEquipment
+        model  = SpaceEquipment
         fields = ['id', 'equipment', 'equipment_name', 'quantity']
+
 
 # ==========================================
 # 2. SPACE SERIALIZER (HANDLES IMAGE + GEAR)
 # ==========================================
 class SpaceSerializer(serializers.ModelSerializer):
     built_in_equipment = SpaceEquipmentSerializer(many=True, read_only=True)
-    
-    # We use this to accept a JSON string of equipment during creation/update
-    # because multipart/form-data (required for images) can't easily send nested JSON arrays.
+
+    # Accepts a JSON string of equipment because multipart/form-data
+    # (required for image uploads) can't send nested JSON arrays directly.
     equipment_data = serializers.CharField(write_only=True, required=False)
 
     class Meta:
-        model = Space
+        model  = Space
         fields = [
-            'id', 'name', 'space_type', 'capacity_hard', 'location', 
-            'image_1', 'is_active', 'built_in_equipment', 'equipment_data'
+            'id', 'name', 'space_type', 'capacity_hard', 'location',
+            'image_1', 'is_active', 'built_in_equipment', 'equipment_data',
         ]
 
     def create(self, validated_data):
         equipment_raw = validated_data.pop('equipment_data', None)
         space = Space.objects.create(**validated_data)
-        
+
         if equipment_raw:
-            equipment_list = json.loads(equipment_raw)
-            for item in equipment_list:
+            for item in json.loads(equipment_raw):
                 SpaceEquipment.objects.create(
-                    space=space, 
-                    equipment_id=item['equipment'], 
-                    quantity=item['quantity']
+                    space=space,
+                    equipment_id=item['equipment'],
+                    quantity=item['quantity'],
                 )
         return space
 
@@ -53,16 +58,16 @@ class SpaceSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
 
         if equipment_raw:
-            # Sync equipment: Wipe and recreate for simplicity in this Phase
+            # Wipe and recreate — simple and safe for admin use
             instance.built_in_equipment.all().delete()
-            equipment_list = json.loads(equipment_raw)
-            for item in equipment_list:
+            for item in json.loads(equipment_raw):
                 SpaceEquipment.objects.create(
-                    space=instance, 
-                    equipment_id=item['equipment'], 
-                    quantity=item['quantity']
+                    space=instance,
+                    equipment_id=item['equipment'],
+                    quantity=item['quantity'],
                 )
         return instance
+
 
 # ==========================================
 # 3. BOOKING SERIALIZER
@@ -71,21 +76,22 @@ class EquipmentRequestSerializer(serializers.ModelSerializer):
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
 
     class Meta:
-        model = EquipmentRequest
+        model  = EquipmentRequest
         fields = ['id', 'equipment', 'equipment_name', 'quantity', 'is_delivered', 'is_returned']
         read_only_fields = ['is_delivered', 'is_returned']
 
+
 class SpaceBookingSerializer(serializers.ModelSerializer):
-    space_details = SpaceSerializer(source='space', read_only=True)
+    space_details      = SpaceSerializer(source='space', read_only=True)
     equipment_requests = EquipmentRequestSerializer(many=True, required=False)
-    
+
     class Meta:
-        model = SpaceBooking
+        model  = SpaceBooking
         fields = [
-            'id', 'reference_code', 'user', 'department', 'status', 
-            'space', 'space_details', 'start_datetime', 'end_datetime', 
-            'attendee_count', 'purpose_of_booking', 'user_notes', 
-            'equipment_requests', 'created_at', 'updated_at'
+            'id', 'reference_code', 'user', 'department', 'status',
+            'space', 'space_details', 'start_datetime', 'end_datetime',
+            'attendee_count', 'purpose_of_booking', 'user_notes',
+            'equipment_requests', 'created_at', 'updated_at',
         ]
         read_only_fields = ['reference_code', 'status', 'created_at', 'updated_at', 'user']
 
@@ -97,24 +103,27 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return booking
 
     def validate(self, data):
-        space = data.get('space')
+        space     = data.get('space')
         attendees = data.get('attendee_count')
-        start = data.get('start_datetime')
-        end = data.get('end_datetime')
-        
+        start     = data.get('start_datetime')
+        end       = data.get('end_datetime')
+
         if space and attendees and attendees > space.capacity_hard:
-            raise serializers.ValidationError({"attendee_count": f"Max capacity is {space.capacity_hard}."})
+            raise serializers.ValidationError(
+                {"attendee_count": f"Max capacity is {space.capacity_hard}."}
+            )
 
         if start and end:
             if start >= end:
-                raise serializers.ValidationError({"start_datetime": "Must be before end time."})
-            
-            overlapping = SpaceBooking.objects.filter(
+                raise serializers.ValidationError(
+                    {"start_datetime": "Must be before end time."}
+                )
+            if SpaceBooking.objects.filter(
                 space=space, status='APPROVED',
                 start_datetime__lt=end, end_datetime__gt=start
-            ).exists()
-            
-            if overlapping:
-                raise serializers.ValidationError({"non_field_errors": ["Time slot already occupied."]})
+            ).exists():
+                raise serializers.ValidationError(
+                    {"non_field_errors": ["Time slot already occupied."]}
+                )
 
         return data
