@@ -175,7 +175,7 @@ return (
         <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
           
           {/* TABLE HEADER (Desktop Only) */}
-          <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+          <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold uppercase tracking-widest text-gray-400">
             <div className="col-span-2">Time</div>
             <div className="col-span-7">Booking Details</div>
             <div className="col-span-3 text-right pr-12">Status & Actions</div>

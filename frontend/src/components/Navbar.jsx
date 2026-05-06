@@ -39,7 +39,7 @@ function Navbar({ onTabChange }) { // Added prop here
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
-      <div className="max-w-screen-xl mx-auto px-5 md:px-6">
+      <div className="w-full px-5 md:px-8 xl:px-10">
         <div className="flex items-center justify-between h-16 gap-4">
 
           <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 ">
