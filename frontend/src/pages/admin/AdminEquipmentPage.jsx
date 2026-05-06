@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 
+// Must match EquipmentCategory choices in models.py exactly
 const EQUIPMENT_CATEGORIES = [
     { value: 'AV',         label: 'Audio / Visual' },
     { value: 'LIGHTING',   label: 'Lighting'        },
@@ -23,9 +24,12 @@ const EMPTY_FORM = {
     name:        '',
     category:    'AV',
     description: '',
+    total_owned: 1,
     is_portable: true,
     is_active:   true,
 };
+
+const ENDPOINT = '/spaces/inventory/';
 
 const FieldLabel = ({ children }) => (
     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
@@ -46,11 +50,9 @@ const Toggle = ({ checked, onChange, label, sublabel }) => (
                 checked ? 'bg-green-600' : 'bg-gray-200'
             }`}
         >
-            <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                    checked ? 'translate-x-5' : 'translate-x-0'
-                }`}
-            />
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                checked ? 'translate-x-5' : 'translate-x-0'
+            }`} />
         </button>
         <div>
             <p className="text-xs font-semibold text-gray-700">{label}</p>
@@ -58,12 +60,6 @@ const Toggle = ({ checked, onChange, label, sublabel }) => (
         </div>
     </label>
 );
-
-// ── All three endpoints now correctly point to /spaces/inventory/ ─────────────
-// because EquipmentViewSet is registered under the spaces router in urls.py:
-//   router.register(r'inventory', EquipmentViewSet, basename='equipment')
-// and spaces is mounted at api/spaces/ in core urls.py
-const ENDPOINT = '/spaces/inventory/';
 
 const AdminEquipmentPage = () => {
     const [equipment, setEquipment]           = useState([]);
@@ -109,6 +105,7 @@ const AdminEquipmentPage = () => {
                 name:        item.name,
                 category:    item.category,
                 description: item.description ?? '',
+                total_owned: item.total_owned ?? 1,
                 is_portable: item.is_portable,
                 is_active:   item.is_active,
             });
@@ -137,6 +134,7 @@ const AdminEquipmentPage = () => {
                 name:        formData.name.trim(),
                 category:    formData.category,
                 description: formData.description.trim(),
+                total_owned: parseInt(formData.total_owned, 10),
                 is_portable: formData.is_portable,
                 is_active:   formData.is_active,
             };
@@ -197,7 +195,7 @@ const AdminEquipmentPage = () => {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Equipment Catalog</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        Master inventory of all bookable and built-in equipment across the campus.
+                        Master inventory of all campus equipment available for spaces and bookings.
                     </p>
                 </div>
                 <button
@@ -217,9 +215,7 @@ const AdminEquipmentPage = () => {
                 ].map(({ label, value }) => (
                     <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                         <p className="text-2xl font-bold text-gray-900">
-                            {isLoading
-                                ? <span className="animate-pulse text-gray-300">—</span>
-                                : value}
+                            {isLoading ? <span className="animate-pulse text-gray-300">—</span> : value}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5 font-medium">{label}</p>
                     </div>
@@ -236,7 +232,7 @@ const AdminEquipmentPage = () => {
                     </svg>
                     <input
                         type="text"
-                        placeholder="Search equipment…"
+                        placeholder="Search by name or description…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -263,6 +259,7 @@ const AdminEquipmentPage = () => {
                                 <th className="px-6 py-4">Name</th>
                                 <th className="px-6 py-4">Category</th>
                                 <th className="px-6 py-4">Description</th>
+                                <th className="px-6 py-4">Qty</th>
                                 <th className="px-6 py-4">Portable</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
@@ -271,13 +268,13 @@ const AdminEquipmentPage = () => {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400 italic animate-pulse">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-400 italic animate-pulse">
                                         Loading equipment…
                                     </td>
                                 </tr>
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         {search || filterCategory !== 'ALL'
                                             ? 'No equipment matches your filters.'
                                             : 'No equipment found. Click "+ Add Equipment" to get started.'}
@@ -285,10 +282,7 @@ const AdminEquipmentPage = () => {
                                 </tr>
                             ) : (
                                 filtered.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        className={`hover:bg-gray-50/50 transition ${!item.is_active ? 'opacity-50' : ''}`}
-                                    >
+                                    <tr key={item.id} className={`hover:bg-gray-50/50 transition ${!item.is_active ? 'opacity-50' : ''}`}>
                                         <td className="px-6 py-4 font-semibold text-gray-900">{item.name}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${CATEGORY_COLORS[item.category] ?? CATEGORY_COLORS.OTHER}`}>
@@ -297,6 +291,9 @@ const AdminEquipmentPage = () => {
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
                                             {item.description || <span className="italic text-gray-300">—</span>}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-700 font-medium">
+                                            {item.total_owned}
                                         </td>
                                         <td className="px-6 py-4">
                                             {item.is_portable ? (
@@ -312,11 +309,10 @@ const AdminEquipmentPage = () => {
                                             )}
                                         </td>
                                         <td className="px-6 py-4">
-                                            {item.is_active ? (
-                                                <span className="text-green-700 bg-green-50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">Active</span>
-                                            ) : (
-                                                <span className="text-gray-400 bg-gray-100 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">Inactive</span>
-                                            )}
+                                            {item.is_active
+                                                ? <span className="text-green-700 bg-green-50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">Active</span>
+                                                : <span className="text-gray-400 bg-gray-100 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">Inactive</span>
+                                            }
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button
@@ -344,11 +340,8 @@ const AdminEquipmentPage = () => {
                 {!isLoading && filtered.length > 0 && (
                     <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50">
                         <p className="text-[11px] text-gray-400">
-                            Showing{' '}
-                            <span className="font-semibold text-gray-600">{filtered.length}</span>
-                            {' '}of{' '}
-                            <span className="font-semibold text-gray-600">{equipment.length}</span>
-                            {' '}items
+                            Showing <span className="font-semibold text-gray-600">{filtered.length}</span> of{' '}
+                            <span className="font-semibold text-gray-600">{equipment.length}</span> items
                         </p>
                     </div>
                 )}
@@ -380,24 +373,37 @@ const AdminEquipmentPage = () => {
                                 />
                             </div>
 
-                            <div>
-                                <FieldLabel>Category *</FieldLabel>
-                                <select
-                                    value={formData.category}
-                                    onChange={(e) => patchForm({ category: e.target.value })}
-                                    className={inputCls}
-                                >
-                                    {EQUIPMENT_CATEGORIES.map((c) => (
-                                        <option key={c.value} value={c.value}>{c.label}</option>
-                                    ))}
-                                </select>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <FieldLabel>Category *</FieldLabel>
+                                    <select
+                                        value={formData.category}
+                                        onChange={(e) => patchForm({ category: e.target.value })}
+                                        className={inputCls}
+                                    >
+                                        {EQUIPMENT_CATEGORIES.map((c) => (
+                                            <option key={c.value} value={c.value}>{c.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <FieldLabel>Qty Owned *</FieldLabel>
+                                    <input
+                                        required
+                                        type="number"
+                                        min="0"
+                                        value={formData.total_owned}
+                                        onChange={(e) => patchForm({ total_owned: e.target.value })}
+                                        className={inputCls}
+                                    />
+                                </div>
                             </div>
 
                             <div>
                                 <FieldLabel>Description</FieldLabel>
                                 <textarea
                                     rows={3}
-                                    placeholder="Brief description, model number, or notes…"
+                                    placeholder="Model number, specs, or any notes…"
                                     value={formData.description}
                                     onChange={(e) => patchForm({ description: e.target.value })}
                                     className={`${inputCls} resize-none`}
@@ -425,7 +431,7 @@ const AdminEquipmentPage = () => {
                                 </p>
                             )}
 
-                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-6">
+                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-2">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
