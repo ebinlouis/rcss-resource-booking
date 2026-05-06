@@ -2,8 +2,20 @@ from rest_framework import serializers
 from django.utils import timezone
 from django.db.models import Q
 from django.contrib.auth.models import Group
-from .models import RoleOverride, CustomUser
+from .models import RoleOverride, CustomUser, Department # <-- Added Department import
 
+# ==========================================
+# DEPARTMENT SERIALIZER
+# ==========================================
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ['id', 'department_name', 'department_code']
+
+
+# ==========================================
+# ROLE OVERRIDE SERIALIZER
+# ==========================================
 class RoleOverrideSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     user_name = serializers.CharField(source='user.first_name', read_only=True)

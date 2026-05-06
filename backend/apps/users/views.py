@@ -13,10 +13,33 @@ from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
 
-# New imports for Role Override
-from .models import RoleOverride
-from .serializers import RoleOverrideSerializer
+# Imports for Users & Roles
+from .models import RoleOverride, Department
+from .serializers import RoleOverrideSerializer, DepartmentSerializer
 from .permissions import IsITAdmin
+
+# ==========================================
+# DEPARTMENT VIEWSET (FULL CRUD)
+# ==========================================
+class DepartmentViewSet(ModelViewSet):
+    """
+    Handles full CRUD for Departments.
+    """
+    serializer_class = DepartmentSerializer
+    
+    def get_permissions(self):
+        # Anyone logged in can view the departments (for the booking dropdown)
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        # Only IT Admins can create, update, or delete departments
+        return [IsAuthenticated(), IsITAdmin()]
+
+    def get_queryset(self):
+        # Fetch departments and allow optional filtering for active ones
+        queryset = Department.objects.all().order_by('department_name')
+        if self.request.query_params.get('active') == 'true':
+            queryset = queryset.filter(is_active=True)
+        return queryset
 
 # ==========================================
 # AUTHENTICATION VIEWS
