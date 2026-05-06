@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 
 const TABS = [
   { name: "Spaces", path: "/dashboard" },
@@ -10,6 +10,7 @@ const TABS = [
 ];
 
 function Navbar({ onTabChange }) { // Added prop here
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
@@ -73,7 +74,7 @@ function Navbar({ onTabChange }) { // Added prop here
                   className={`relative px-4 text-sm font-medium transition-colors
                     flex items-center border-b-2
                     ${isActive
-                      ? "border-green-600 text-green-600"
+                      ? "border-green-700 text-green-700"
                       : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
                 >
                   {tab.name}
@@ -108,7 +109,7 @@ function Navbar({ onTabChange }) { // Added prop here
                   A
                 </div>
                 <div className="hidden md:block text-left leading-tight">
-                  <p className="text-xs font-semibold text-gray-800">Admin User</p>
+                  <p className="text-xs font-semibold text-gray-800">User</p>
                   <p className="text-[10px] text-gray-400">Faculty</p>
                 </div>
                 <svg
@@ -122,14 +123,13 @@ function Navbar({ onTabChange }) { // Added prop here
               {profileOpen && (
                 <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800">Admin User</p>
-                    <p className="text-xs text-gray-400 mt-0.5">admin@rcss.ac.in</p>
+                    <p className="text-sm font-semibold text-gray-800">User</p>
+                    <p className="text-xs text-gray-400 mt-0.5">user@rcss.ac.in</p>
                   </div>
                   <div className="py-1">
                     {[
                       { label: "My Bookings", d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
                       { label: "Profile", d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-                      { label: "Settings", d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
                     ].map(({ label, d }) => (
                       <button key={label} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
                         <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -140,14 +140,27 @@ function Navbar({ onTabChange }) { // Added prop here
                     ))}
                   </div>
                   <div className="border-t border-gray-100 py-1">
-                    <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left">
-                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round"
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Sign out
-                    </button>
-                  </div>
+  <button
+    onClick={() => navigate("/")}
+    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left"
+  >
+    <svg
+      className="w-4 h-4 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+      />
+    </svg>
+
+    Sign out
+  </button>
+</div>
                 </div>
               )}
             </div>
@@ -178,7 +191,7 @@ function Navbar({ onTabChange }) { // Added prop here
               onClick={() => { onTabChange?.(tab); setMenuOpen(false) }}
               className={`block w-full text-left px-3 py-2.5 rounded-lg text-sm transition
                 ${location.pathname === tab.path
-                  ? "bg-green-50 text-green-600 font-semibold"
+                  ? "bg-green-50 text-green-700 font-semibold"
                   : "text-gray-600 hover:bg-gray-50"}`}
             >
               {tab.name}
