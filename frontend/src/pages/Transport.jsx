@@ -1,9 +1,8 @@
 import React, { useState } from "react"
-import Navbar from "../components/Navbar"
+import MainLayout from "../layouts/MainLayout"
 import TransportBookingModal from "../components/TransportBookingModal"
-import Footer from "../components/Footer"
+
 import {
-  CalendarDays,
   Pencil,
   Trash2,
   Bus,
@@ -44,7 +43,7 @@ function Transport() {
 
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
 
-  // ALL BOOKINGS STATE
+  // BOOKINGS STATE
   const [allBookings, setAllBookings] = useState(initialBookings)
 
   // BOOKING MODAL
@@ -60,12 +59,6 @@ function Transport() {
   const [selectedBooking, setSelectedBooking] = useState(null)
 
   const bookings = allBookings[selectedDate] || []
-
-  const displayDate = new Date(selectedDate).toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "short"
-  })
 
   const openDeleteModal = (booking) => {
     setSelectedBooking(booking)
@@ -94,169 +87,151 @@ function Transport() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <MainLayout>
 
-      {/* NAVBAR */}
-      <div className="sticky top-0 z-50">
-        <Navbar />
-      </div>
+      <div className="space-y-8">
 
-      <div className="p-6">
+        {/* PAGE HEADER */}
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
 
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
-
+          {/* LEFT */}
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold text-gray-900">
               Transport Bookings
             </h1>
 
-            <p className="text-gray-500">
+            <p className="text-sm text-gray-500 mt-1">
               Your bus and vehicle bookings
             </p>
           </div>
 
-          {/* DATE */}
-          <div className="bg-white rounded-2xl shadow-sm px-1 py-1">
-
-            
+          {/* DATE PICKER */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2">
 
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="text-sm text-gray-700 bg-transparent outline-none border-none cursor-pointer"
-              
             />
 
           </div>
 
         </div>
 
-        {/* TODAY BOOKINGS HEADER */}
-        <div className="flex justify-between items-center mb-2">
+        {/* SECTION HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
-          <h2 className="text-lg font-semibold">
-            Today's bookings
-          </h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Today's bookings
+            </h2>
 
+            <p className="text-sm text-gray-400 mt-0.5">
+              Confirmed and pending transport usage for selected date.
+            </p>
+          </div>
+
+          {/* BUTTON */}
           <button
             onClick={() => {
               setEditMode(false)
               setSelectedEditBooking(null)
               setShowModal(true)
             }}
-            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-xl shadow-sm text-sm font-medium transition"
           >
-            <span className="text-lg">+</span>
+            <span className="text-lg leading-none">+</span>
             Book Transport
           </button>
 
         </div>
 
-        <p className="text-gray-500 text-sm mb-4">
-          Confirmed and pending transport usage for selected date.
-        </p>
-
         {/* BOOKINGS */}
-        <div className="border rounded-xl overflow-hidden bg-white">
+        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
 
-          {/* HEADER */}
-          <div className="hidden md:grid grid-cols-4 bg-gray-100 text-gray-500 text-sm px-4 py-2">
-            <span>TIME</span>
-            <span className="col-span-3">BOOKING</span>
+  {/* TABLE HEADER */}
+  <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold uppercase tracking-widest text-gray-400">
+    <div className="col-span-2">Time</div>
+    <div className="col-span-7">Transport Details</div>
+    <div className="col-span-3 text-right pr-12">Status & Actions</div>
+  </div>
+
+  {/* TABLE BODY */}
+  <div className="divide-y divide-gray-100">
+    {bookings.map((b, i) => (
+      <div
+        key={i}
+        className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
+      >
+
+        {/* TIME */}
+        <div className="col-span-12 md:col-span-2 text-sm font-semibold text-gray-700">
+          {b.time}
+        </div>
+
+        {/* BOOKING DETAILS */}
+        <div className="col-span-12 md:col-span-7">
+          <div
+            className={`p-3 rounded-lg border ${
+              b.status === "confirmed"
+                ? "bg-blue-50 border-blue-100 text-blue-700"
+                : "bg-yellow-50 border-yellow-100 text-yellow-700"
+            }`}
+          >
+            <p className="font-semibold text-sm">
+              {b.title}
+            </p>
+
+            <p className="text-xs opacity-70">
+              {b.desc}
+            </p>
+          </div>
+        </div>
+
+        {/* STATUS + ACTIONS */}
+        <div className="col-span-12 md:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
+
+          <span
+            className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${
+              b.status === "confirmed"
+                ? "bg-blue-100 text-blue-700"
+                : "bg-yellow-100 text-yellow-700"
+            }`}
+          >
+            {b.status}
+          </span>
+
+          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+
+            {/* EDIT */}
+            <button
+              onClick={() => openEditModal(b, i)}
+              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+
+            {/* DELETE */}
+            <button
+              onClick={() => {
+                setSelectedEditIndex(i)
+                openDeleteModal(b)
+              }}
+              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+
           </div>
 
-          {/* EMPTY */}
-          {bookings.length === 0 && (
-            <p className="p-4 text-gray-500 text-sm">
-              No bookings for this day
-            </p>
-          )}
-
-          {/* DATA */}
-          {bookings.map((b, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-1 md:grid-cols-4 items-start md:items-center px-4 py-4 border-t gap-3"
-            >
-
-              {/* TIME */}
-              <span className="font-semibold text-gray-700 text-lg">
-                {b.time}
-              </span>
-
-              {/* CARD */}
-              <div
-                className={`md:col-span-3 p-4 rounded-xl border ${
-                  b.status === "confirmed"
-                    ? "bg-blue-50 border-blue-300"
-                    : "bg-yellow-50 border-yellow-300"
-                }`}
-              >
-
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-
-                  {/* LEFT */}
-                  <div>
-                    <h3 className="font-semibold text-lg text-gray-900 flex items-center gap-2">
-                      <Bus size={18} />
-                      {b.title}
-                    </h3>
-
-                    <p className="text-sm text-gray-500 mt-1">
-                      {b.desc}
-                    </p>
-                  </div>
-
-                  {/* RIGHT */}
-                  <div className="flex items-center gap-3 flex-wrap">
-
-                    {/* STATUS */}
-                    <span
-                      className={`px-3 py-1 text-sm rounded-full ${
-                        b.status === "confirmed"
-                          ? "bg-blue-200 text-blue-700"
-                          : "bg-yellow-200 text-yellow-700"
-                      }`}
-                    >
-                      {b.status}
-                    </span>
-
-                    {/* ACTION BUTTONS */}
-                    <div className="flex items-center gap-2">
-
-                      {/* EDIT */}
-                      <button
-                        onClick={() => openEditModal(b, i)}
-                        className="text-gray-400 hover:text-blue-600 transition"
-                      >
-                        <Pencil size={18} />
-                      </button>
-
-                      {/* DELETE */}
-                      <button
-                        onClick={() => {
-                          setSelectedEditIndex(i)
-                          openDeleteModal(b)
-                        }}
-                        className="text-gray-400 hover:text-red-500 transition"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-          ))}
-
         </div>
+
+      </div>
+    ))}
+  </div>
+
+</div>
 
       </div>
 
@@ -292,7 +267,7 @@ function Transport() {
         />
       )}
 
-      {/* DELETE CONFIRM MODAL */}
+      {/* DELETE MODAL */}
       {showDeleteModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
 
@@ -361,9 +336,7 @@ function Transport() {
         </div>
       )}
 
-      <Footer />
-
-    </div>
+    </MainLayout>
   )
 }
 
