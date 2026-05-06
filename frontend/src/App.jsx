@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
+import Media from "./pages/Media";
 
 // Admin Pages
 import AdminLayout from "./layouts/admin/AdminLayout";
@@ -27,6 +28,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Home />} />
             <Route path="/transport" element={<Transport />} />
+            <Route path="/media" element={<Media />} />
             <Route path="/mess" element={<Mess />} />
           </Route>
 
