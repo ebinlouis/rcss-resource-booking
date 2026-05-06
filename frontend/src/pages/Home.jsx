@@ -188,17 +188,19 @@ function Home() {
         ) : filteredRooms.length > 0 ? (
 
           /* Cards */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filteredRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                onOpenAvailability={() => {
-                  setSelectedRoom(room)
-                  setOpenAvailability(true)
-                }}
-              />
-            ))}
+          <div className="px-2 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredRooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  onOpenAvailability={() => {
+                    setSelectedRoom(room)
+                    setOpenAvailability(true)
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
         ) : (
