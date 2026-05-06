@@ -13,7 +13,8 @@ import Media from "./pages/Media";
 import AdminLayout from "./layouts/admin/AdminLayout";
 import AdminDashboard from './pages/admin/AdminDashboard';
 import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
-import AdminSpacesPage from "./pages/admin/AdminSpacesPage"; // <-- ADDED IMPORT
+import AdminSpacesPage from "./pages/admin/AdminSpacesPage";
+import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; // <-- ADD THIS
 
 function App() {
   return (
@@ -37,13 +38,9 @@ function App() {
             
             {/* The Admin Layout Wrapper */}
             <Route element={<AdminLayout />}>
-              {/* The "index" route maps to exactly /admin */}
               <Route path="/admin" element={<AdminDashboard />} />
-              
-              {/* Manage Spaces Route */}
               <Route path="/admin/spaces" element={<AdminSpacesPage />} />
-              
-              {/* Nested route maps to /admin/role-overrides */}
+              <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> {/* <-- ADD THIS */}
               <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
             </Route>
 

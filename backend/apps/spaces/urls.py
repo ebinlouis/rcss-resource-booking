@@ -1,11 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SpaceViewSet, SpaceBookingViewSet
+from .views import SpaceViewSet, SpaceBookingViewSet, EquipmentViewSet
 
-# The router automatically generates all the standard REST URLs
 router = DefaultRouter()
 router.register(r'catalog', SpaceViewSet, basename='space')
 router.register(r'requests', SpaceBookingViewSet, basename='space-booking')
+router.register(r'inventory', EquipmentViewSet, basename='equipment') # <-- ADDED
 
 urlpatterns = [
     path('', include(router.urls)),
