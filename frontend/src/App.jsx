@@ -8,13 +8,15 @@ import Home from "./pages/Home";
 import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
 import Media from "./pages/Media";
+import MyBookingsPage from "./pages/MyBookingsPage"; 
 
 // Admin Pages
 import AdminLayout from "./layouts/admin/AdminLayout";
 import AdminDashboard from './pages/admin/AdminDashboard';
 import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
 import AdminSpacesPage from "./pages/admin/AdminSpacesPage";
-import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; // <-- ADD THIS
+import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; 
+import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage"; // <-- ADDED THIS
 
 function App() {
   return (
@@ -31,6 +33,7 @@ function App() {
             <Route path="/transport" element={<Transport />} />
             <Route path="/media" element={<Media />} />
             <Route path="/mess" element={<Mess />} />
+            <Route path="/my-bookings" element={<MyBookingsPage />} /> 
           </Route>
 
           {/* STRICTLY Protected Admin Routes */}
@@ -40,7 +43,8 @@ function App() {
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/spaces" element={<AdminSpacesPage />} />
-              <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> {/* <-- ADD THIS */}
+              <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> 
+              <Route path="/admin/departments" element={<AdminDepartmentsPage />} /> {/* <-- ADDED THIS */}
               <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
             </Route>
 

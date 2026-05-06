@@ -1,5 +1,6 @@
 import json
 from rest_framework import serializers
+from apps.users.models import Department
 from .models import Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest
 
 
@@ -84,6 +85,9 @@ class EquipmentRequestSerializer(serializers.ModelSerializer):
 class SpaceBookingSerializer(serializers.ModelSerializer):
     space_details      = SpaceSerializer(source='space', read_only=True)
     equipment_requests = EquipmentRequestSerializer(many=True, required=False)
+
+    # DELETED the 'department' override here. 
+    # Django will now automatically accept the Integer ID sent from React!
 
     class Meta:
         model  = SpaceBooking

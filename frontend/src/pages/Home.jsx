@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { Link } from "react-router-dom" // <-- ADDED THIS
 
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
@@ -78,15 +79,24 @@ function Home() {
   return (
     <MainLayout>
 
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {greeting}, User!
-        </h1>
-
-        <p className="text-gray-400 mt-1 text-sm">
-          Manage your space reservations and submit new booking requests.
-        </p>
+      {/* Welcome & Quick Actions */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {greeting}, User!
+          </h1>
+          <p className="text-gray-400 mt-1 text-sm">
+            Manage your space reservations and submit new booking requests.
+          </p>
+        </div>
+        
+        {/* ADDED THIS BUTTON */}
+        <Link 
+          to="/my-bookings" 
+          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-100 hover:bg-green-100 rounded-lg transition"
+        >
+          View My Bookings
+        </Link>
       </div>
 
       {/* Today Bookings */}

@@ -3,9 +3,10 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Dashboard',     end: true  },
-    { to: '/admin/spaces',         label: 'Spaces',        end: false },
-    { to: '/admin/equipment',      label: 'Equipment',     end: false },
+    { to: '/admin',                label: 'Dashboard',      end: true  },
+    { to: '/admin/spaces',         label: 'Spaces',         end: false },
+    { to: '/admin/equipment',      label: 'Equipment',      end: false },
+    { to: '/admin/departments',    label: 'Departments',    end: false }, // <-- ADDED THIS
     { to: '/admin/role-overrides', label: 'Role Overrides', end: false },
 ];
 
