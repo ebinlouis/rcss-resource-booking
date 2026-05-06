@@ -61,7 +61,7 @@ function BookingModal({
     notes:        "",
   })
   
-  // ── NEW: Dynamic State for Departments & Equipment ──
+  // ── Dynamic State for Departments & Equipment ──
   const [dynamicDepartments, setDynamicDepartments] = useState([])
   const [dynamicEquipment, setDynamicEquipment] = useState([])
   
@@ -69,21 +69,19 @@ function BookingModal({
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // ── NEW: Fetch data concurrently when modal opens ──
+  // ── Fetch data concurrently when modal opens ──
   useEffect(() => {
     const fetchDynamicData = async () => {
       try {
         const [deptRes, eqRes] = await Promise.all([
-          api.get('/auth/departments/'),     // Fixed the 404 URL prefix!
-          api.get('/spaces/inventory/')      // Fetching the equipment inventory
+          api.get('/auth/departments/'),     
+          api.get('/spaces/inventory/')      
         ]);
         
         const depts = deptRes.data.results || deptRes.data || [];
         const equips = eqRes.data.results || eqRes.data || [];
         
         setDynamicDepartments(depts);
-        
-        // Optional: Filter only portable equipment if your DB tracks that, otherwise show all
         setDynamicEquipment(equips.filter(eq => eq.is_active !== false));
         
       } catch (err) {
@@ -165,17 +163,30 @@ function BookingModal({
       console.error("Full Error Response:", error.response?.data)
       
       const errData = error.response?.data || {}
-      const firstErrorKey = Object.keys(errData)[0]
+      const mappedErrors = {}
+
+      // 1. Map specific Django field errors directly to React form inputs
+      if (errData.attendee_count) mappedErrors.attendees = Array.isArray(errData.attendee_count) ? errData.attendee_count[0] : errData.attendee_count;
+      if (errData.start_datetime) mappedErrors.start = Array.isArray(errData.start_datetime) ? errData.start_datetime[0] : errData.start_datetime;
+      if (errData.end_datetime) mappedErrors.end = Array.isArray(errData.end_datetime) ? errData.end_datetime[0] : errData.end_datetime;
+      if (errData.department) mappedErrors.department = Array.isArray(errData.department) ? errData.department[0] : errData.department;
+      if (errData.purpose_of_booking) mappedErrors.purpose = Array.isArray(errData.purpose_of_booking) ? errData.purpose_of_booking[0] : errData.purpose_of_booking;
       
-      let serverError = "An error occurred submitting your request."
-      if (firstErrorKey) {
-          const errorMsg = Array.isArray(errData[firstErrorKey]) 
-              ? errData[firstErrorKey][0] 
-              : errData[firstErrorKey]
-          serverError = `${firstErrorKey.toUpperCase()}: ${errorMsg}`
+      // 2. Catch overall errors (like "Time slot occupied") or unmapped fields
+      if (errData.non_field_errors) {
+        mappedErrors.server = Array.isArray(errData.non_field_errors) ? errData.non_field_errors[0] : errData.non_field_errors;
+      } else if (Object.keys(mappedErrors).length === 0 && Object.keys(errData).length > 0) {
+        const firstKey = Object.keys(errData)[0];
+        const msg = Array.isArray(errData[firstKey]) ? errData[firstKey][0] : errData[firstKey];
+        mappedErrors.server = `${firstKey.toUpperCase()}: ${msg}`;
+      }
+
+      // 3. Fallback
+      if (Object.keys(mappedErrors).length === 0) {
+        mappedErrors.server = "An error occurred submitting your request."
       }
       
-      setErrors({ server: serverError })
+      setErrors(mappedErrors)
     } finally {
       setIsSubmitting(false)
     }

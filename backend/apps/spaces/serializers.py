@@ -1,6 +1,6 @@
 import json
 from rest_framework import serializers
-from apps.users.models import Department  # <-- ADDED IMPORT
+from apps.users.models import Department
 from .models import Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest
 
 
@@ -86,11 +86,8 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     space_details      = SpaceSerializer(source='space', read_only=True)
     equipment_requests = EquipmentRequestSerializer(many=True, required=False)
 
-    # <-- ADDED THIS: Tells Django to map the frontend string to the 'name' field in the DB -->
-    department = serializers.SlugRelatedField(
-        queryset=Department.objects.all(),
-        slug_field='name' 
-    )
+    # DELETED the 'department' override here. 
+    # Django will now automatically accept the Integer ID sent from React!
 
     class Meta:
         model  = SpaceBooking
