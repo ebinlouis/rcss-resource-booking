@@ -39,9 +39,18 @@ function Field({ label, required, hint, error, children }) {
   )
 }
 
+const formatAMPM = (timeStr) => {
+  if (!timeStr) return null;
+  let [hours, minutes] = timeStr.split(':');
+  let ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  return `${hours}:${minutes} ${ampm}`;
+};
+
 const inputCls = (err) =>
   `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition
-   focus:ring-2 focus:ring-green-600 focus:border-transparent placeholder:text-gray-400
+   focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400
    ${err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`
 
 // ── Divider with label ──
@@ -172,44 +181,52 @@ Request a space, choose your time, and add any details needed for approval.     
 
           <div className="space-y-2.5">
             {/* Selected slot card */}
-            <div className="bg-white/10 rounded-xl p-4">
-              <p className="text-[10px] text-green-300 uppercase tracking-wide font-semibold mb-1">
-                Selected slot
-              </p>
+<div className="bg-white/10 rounded-xl p-4">
+  <p className="text-[10px] text-green-300 uppercase tracking-wide font-semibold mb-1">
+    Selected slot
+  </p>
 
-              {slotTime ? (
-                <>
-                  <p className="text-white font-bold text-base">{slotTime}</p>
-                  {form.date && (
-                    <p className="text-green-200/70 text-xs mt-0.5">
-                      {new Date(form.date + "T00:00:00").toLocaleDateString("en-IN", {
-                        weekday: "short", day: "numeric", month: "short",
-                      })}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-white/50 text-sm">Pick a time below</p>
-              )}
+  {form.start || form.end ? (
+    <>
+      <p className="text-white font-bold text-base">
+        {formatAMPM(form.start)} 
+        {form.end && ` – ${formatAMPM(form.end)}`}
+      </p>
+      {form.date && (
+        <p className="text-green-200/70 text-xs mt-0.5">
+          {new Date(form.date + "T00:00:00").toLocaleDateString("en-IN", {
+            weekday: "short", day: "numeric", month: "short",
+          })}
+        </p>
+      )}
+    </>
+  ) : (
+    <p className="text-white/50 text-sm">Pick a time below</p>
+  )}
 
-              {/* Availability bar */}
-              <div className="mt-3 flex gap-[2px]">
-                {Array.from({ length: 20 }).map((_, i) => {
-                  const seg  = 8 + i * 0.5
-                  const fill = startH !== null && endH !== null && seg >= startH && seg < endH
-                  return (
-                    <div
-                      key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300
-                        ${fill ? "bg-green-400" : "bg-white/20"}`}
-                    />
-                  )
-                })}
-              </div>
-              <div className="flex justify-between text-[9px] text-green-300/50 mt-1">
-                <span>08:00</span><span>18:00</span>
-              </div>
-            </div>
+  {/* Availability bar — Updated to 11 hour-based segments */}
+  <div className="mt-4 flex gap-1.5">
+    {Array.from({ length: 11 }).map((_, i) => {
+      const currentHour = 8 + i;
+      // Logic to check if this hour block is within the selected range
+      const isFilled = startH !== null && endH !== null && 
+                       currentHour >= Math.floor(startH) && 
+                       currentHour < Math.ceil(endH);
+      
+      return (
+        <div
+          key={i}
+          className={`h-1.5 flex-1 rounded-full transition-all duration-500
+            ${isFilled ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" : "bg-white/20"}`}
+        />
+      )
+    })}
+  </div>
+  <div className="flex justify-between text-[9px] text-green-300/50 mt-2 font-medium">
+    <span>08:00 AM</span>
+    <span>06:00 PM</span>
+  </div>
+</div>
 
             {/* Approval + Policy */}
             <div className="grid grid-cols-2 gap-2">
@@ -293,36 +310,52 @@ Request a space, choose your time, and add any details needed for approval.     
             </div>
 
             {/* ── Date & time ── */}
-            <SectionLabel>Date &amp; Time</SectionLabel>
+<SectionLabel>Date &amp; Time</SectionLabel>
 
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Date" required error={errors.date}>
-                <input
-                  type="date"
-                  className={inputCls(errors.date)}
-                  value={form.date}
-                  onChange={(e) => set("date", e.target.value)}
-                />
-              </Field>
-              <Field label="Start time" required error={errors.start}>
-                <input
-                  type="time"
-                  className={inputCls(errors.start)}
-                  min="08:00" max="18:00"
-                  value={form.start}
-                  onChange={(e) => set("start", e.target.value)}
-                />
-              </Field>
-              <Field label="End time" required error={errors.end}>
-                <input
-                  type="time"
-                  className={inputCls(errors.end)}
-                  min="08:00" max="18:00"
-                  value={form.end}
-                  onChange={(e) => set("end", e.target.value)}
-                />
-              </Field>
-            </div>
+<div className="grid grid-cols-3 gap-3">
+  <Field label="Date" required error={errors.date}>
+    <input
+      type="date"
+      className={inputCls(errors.date)}
+      value={form.date}
+      onChange={(e) => set("date", e.target.value)}
+    />
+  </Field>
+
+  <Field label="Start time" required error={errors.start}>
+    <div className="relative">
+      <input
+        type="time"
+        className={`${inputCls(errors.start)} tabular-nums`}
+        min="08:00" max="18:00"
+        value={form.start}
+        onChange={(e) => set("start", e.target.value)}
+      />
+      {form.start && (
+        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded pointer-events-none">
+          {formatAMPM(form.start)}
+        </span>
+      )}
+    </div>
+  </Field>
+
+  <Field label="End time" required error={errors.end}>
+    <div className="relative">
+      <input
+        type="time"
+        className={`${inputCls(errors.end)} tabular-nums`}
+        min="08:00" max="18:00"
+        value={form.end}
+        onChange={(e) => set("end", e.target.value)}
+      />
+      {form.end && (
+        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded pointer-events-none">
+          {formatAMPM(form.end)}
+        </span>
+      )}
+    </div>
+  </Field>
+</div>
             <p className="text-xs text-gray-400 -mt-3">
               Bookings must be within college hours: 08:00 – 18:00
             </p>
@@ -361,7 +394,7 @@ Request a space, choose your time, and add any details needed for approval.     
                     onClick={() => toggleReq(req.id)}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition text-left
                       ${active
-                        ? "border-green-600 bg-green-50 text-green-800"
+                        ? "border-green-700 bg-green-50 text-green-700"
                         : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}
                   >
                     {/* Checkbox */}

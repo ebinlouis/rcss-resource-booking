@@ -4,12 +4,12 @@ import BookingModal from "./BookingModal"
 function RoomCard({ room, onOpenAvailability }) {
 
   const [openBooking, setOpenBooking] = useState(false)
-
+  
   return (
-    <div className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300 overflow-hidden">
+    <div className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden">
       
       {/* Top Section - Now Minimalist */}
-      <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="relative h-48 bg-gradient-to-br from-gray-50 to-emerald-50/40 flex items-center justify-center overflow-hidden">
         {/* Subtle Background Pattern or Image Placeholder */}
         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
@@ -18,8 +18,8 @@ function RoomCard({ room, onOpenAvailability }) {
           {/* Status Badge - Soft Pill Style */}
           <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
             room.status === "Available"
-              ? "bg-green-50 text-green-600 border border-green-100"
-              : "bg-amber-50 text-amber-600 border border-amber-100"
+              ? "bg-green-50 text-green-700 border border-green-100"
+              : "bg-amber-50 text-amber-700 border border-amber-100"
           }`}>
             {room.status}
           </span>
@@ -44,12 +44,12 @@ function RoomCard({ room, onOpenAvailability }) {
       {/* Bottom Section */}
       <div className="p-6">
         {/* Type Label */}
-        <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">
+        <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest">
           {room.type}
         </span>
 
         {/* Name */}
-        <h2 className="text-lg font-semibold mt-1 text-gray-900 group-hover:text-green-600 transition-colors">
+        <h2 className="text-lg font-semibold mt-1 text-gray-900 group-hover:text-green-700 transition-colors">
           {room.name}
         </h2>
 
@@ -61,7 +61,7 @@ function RoomCard({ room, onOpenAvailability }) {
         {/* Features - Pill Style */}
         <div className="flex flex-wrap gap-1.5 mt-4">
           {room.features.map((f, i) => (
-            <span key={i} className="bg-gray-50 border border-gray-100 px-2 py-0.5 text-[10px] rounded-full text-gray-400">
+            <span key={i} className="bg-gray-50 border border-gray-100 px-2 py-0.5 text-[10px] rounded-full text-gray-500">
               {f}
             </span>
           ))}
@@ -71,7 +71,7 @@ function RoomCard({ room, onOpenAvailability }) {
         <div className="mt-6 pt-5 border-t border-gray-50 flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-300 uppercase font-bold">Today</span>
-            <span className="text-xs text-gray-600 font-medium">8 slots open</span>
+            <span className="text-xs text-gray-600 font-mediumtext-emerald-600 font-semibold">8 slots open</span>
           </div>
 
           <div className="flex gap-2">
@@ -89,7 +89,7 @@ function RoomCard({ room, onOpenAvailability }) {
   {/* Book Now Button */}
   <button
     onClick={() => setOpenBooking(true)}
-    className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-600 shadow-lg shadow-emerald-100 transition-all"
+    className="bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-800 shadow-lg shadow-emerald-100 transition-all"
   >
     + Book Now
   </button>

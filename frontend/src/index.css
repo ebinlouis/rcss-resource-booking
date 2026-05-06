@@ -1,22 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Reset default styles */
+
+/* Reset and Global Base */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Make app full width */
-html, body, #root {
-  width: 100%;
-  height: 100%;
+:root {
+  /* Set Inter as the global brand font */
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  
+  /* Brand Palette: Green-700 Base */
+  --brand-green: #15803d;
+  --brand-green-dark: #166534;
+  --brand-green-light: #f0fdf4;
 }
 
-/* Clean body */
-body {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  background-color: #f9fafb; /* light gray like your UI */
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
+  /* Use a slightly warmer, premium off-white instead of standard gray */
+  background-color: #fcfcfd; 
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global Typography Polish */
+h1, h2, h3, h4 {
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+/* Custom Scrollbar for the "Aesthetic" look */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Utility for the tiny minimalist labels we used in RoomCards and Modals */
+.caps-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
 }

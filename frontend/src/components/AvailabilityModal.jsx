@@ -205,7 +205,7 @@ function AvailabilityModal({ spaceName, onClose }) {
                 ? "bg-blue-50 hover:bg-blue-100 text-blue-800"
                 : status === "partial"
                 ? "bg-yellow-50 hover:bg-yellow-100 text-yellow-800"
-                : "bg-green-50 hover:bg-green-100 text-green-800"
+                : "bg-green-50 hover:bg-green-100 text-green-700"
 
               // Small dot at bottom to reinforce status
               const dotColor = isSel
@@ -313,7 +313,7 @@ function AvailabilityModal({ spaceName, onClose }) {
   <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-1" />
 
   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-    <p className="text-sm font-semibold text-green-900">
+    <p className="text-sm font-semibold text-green-700">
       {block.start} – {block.end}
     </p>
 
