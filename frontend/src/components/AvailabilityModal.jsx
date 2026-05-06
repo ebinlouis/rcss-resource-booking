@@ -111,7 +111,7 @@ function getDayStatus(bookings) {
 // ─────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────
-function AvailabilityModal({ spaceName, onClose }) {
+function AvailabilityModal({ spaceId, spaceName, onClose }) { // <-- ADDED spaceId PROP
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey())
@@ -282,76 +282,77 @@ function AvailabilityModal({ spaceName, onClose }) {
             {timeline.map((block, idx) => (
               block.type === "booked" ? (
                 <div
-  key={idx}
-  className="border border-blue-200 bg-blue-50 rounded-xl p-4 flex items-start gap-3"
->
-  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1" />
+                  key={idx}
+                  className="border border-blue-200 bg-blue-50 rounded-xl p-4 flex items-start gap-3"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1" />
 
-  <div className="flex flex-col gap-1.5">
-    <p className="text-sm font-semibold text-blue-900">
-      {block.start} – {block.end}
-    </p>
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-sm font-semibold text-blue-900">
+                      {block.start} – {block.end}
+                    </p>
 
-    <p className="text-xs text-blue-600 leading-relaxed">
-      {block.title}
-    </p>
+                    <p className="text-xs text-blue-600 leading-relaxed">
+                      {block.title}
+                    </p>
 
-    <span className="w-fit text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-      Booked
-    </span>
-  </div>
-</div>
+                    <span className="w-fit text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                      Booked
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <div
-  key={idx}
-  className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
-  onClick={() => {
-    setSelectedSlot(block)
-    setOpenBooking(true)
-  }}
->
-  <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-1" />
+                  key={idx}
+                  className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
+                  onClick={() => {
+                    setSelectedSlot(block)
+                    setOpenBooking(true)
+                  }}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-1" />
 
   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
     <p className="text-sm font-semibold text-green-700">
       {block.start} – {block.end}
     </p>
 
-    <span className="w-fit text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-      Available
-    </span>
+                    <span className="w-fit text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      Available
+                    </span>
 
-    <p className="text-[11px] text-gray-400 break-words leading-tight">
-      Tap to book
-    </p>
-  </div>
-</div>
+                    <p className="text-[11px] text-gray-400 break-words leading-tight">
+                      Tap to book
+                    </p>
+                  </div>
+                </div>
               )
             ))}
           </div>
 
           {/* Book button */}
           <button
-  onClick={() => {
-    setSelectedSlot(null)
-    setOpenBooking(true)
-  }}
-  className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
->
-  Open booking form
-</button>
+            onClick={() => {
+              setSelectedSlot(null)
+              setOpenBooking(true)
+            }}
+            className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
+          >
+            Open booking form
+          </button>
         </div>
       </div>
 
       {openBooking && (
-  <BookingModal
-    spaceName={spaceName}
-    prefillDate={selectedDate}
-    prefillStart={selectedSlot?.start || ""}
-    prefillEnd={selectedSlot?.end || ""}
-    onClose={() => setOpenBooking(false)}
-  />
-)}
+        <BookingModal
+          spaceId={spaceId} // <-- PASSED SPACE ID TO BOOKING MODAL
+          spaceName={spaceName}
+          prefillDate={selectedDate}
+          prefillStart={selectedSlot?.start || ""}
+          prefillEnd={selectedSlot?.end || ""}
+          onClose={() => setOpenBooking(false)}
+        />
+      )}
     </div>
   )
 }

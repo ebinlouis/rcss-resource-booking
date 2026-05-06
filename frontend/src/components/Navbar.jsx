@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 const TABS = [
   { name: "Spaces", path: "/dashboard" },
   { name: "Transport", path: "/transport" },
-  { name: "Media", path: null },
+  { name: "Media", path: "/media" },
   { name: "Mess", path: "/mess" },
   { name: "Approvals", path: null }
 ];
