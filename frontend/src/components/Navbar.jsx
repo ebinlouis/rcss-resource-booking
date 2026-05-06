@@ -6,7 +6,6 @@ const TABS = [
   { name: "Transport", path: "/transport" },
   { name: "Media", path: "/media" },
   { name: "Mess", path: "/mess" },
-  { name: "Approvals", path: null }
 ];
 
 function Navbar({ onTabChange }) { // Added prop here
