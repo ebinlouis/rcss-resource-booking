@@ -16,7 +16,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
 import AdminSpacesPage from "./pages/admin/AdminSpacesPage";
 import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; 
-import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage"; // <-- ADDED THIS
+import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage";
 
 function App() {
   return (
@@ -36,21 +36,29 @@ function App() {
             <Route path="/my-bookings" element={<MyBookingsPage />} /> 
           </Route>
 
-          {/* STRICTLY Protected Admin Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['IT_ADMIN']} />}>
-            
-            {/* The Admin Layout Wrapper */}
+          {/* ========================================== */}
+          {/* TIER 1: DYNAMIC APPROVER ROUTES */}
+          {/* ========================================== */}
+          <Route element={<ProtectedRoute requiredCapability="can_access_admin_portal" />}>
             <Route element={<AdminLayout />}>
+              
+              {/* Ensure this is EXACTLY "/admin" to match the Navbar */}
               <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/spaces" element={<AdminSpacesPage />} />
-              <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> 
-              <Route path="/admin/departments" element={<AdminDepartmentsPage />} /> {/* <-- ADDED THIS */}
-              <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
-            </Route>
 
+              {/* ========================================== */}
+              {/* TIER 2: SYSTEM ADMIN ROUTES */}
+              {/* ========================================== */}
+              <Route element={<ProtectedRoute requiredCapability="can_manage_system" />}>
+                <Route path="/admin/spaces" element={<AdminSpacesPage />} />
+                <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> 
+                <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
+                <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
+              </Route>
+
+            </Route>
           </Route>
 
-          {/* Catch-all */}
+          {/* Catch-all throws you to login if the URL doesn't exist */}
           <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>

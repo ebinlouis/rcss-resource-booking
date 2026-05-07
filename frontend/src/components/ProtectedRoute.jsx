@@ -1,16 +1,16 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth'; // or '../context/AuthProvider' depending on your setup
 
-const ProtectedRoute = ({ allowedRoles }) => {
-    // NEW: Pulling effectiveRole from our updated context
-    const { user, effectiveRole, isLoading } = useAuth();
+const ProtectedRoute = ({ requiredCapability }) => {
+    // We don't even need to pull effectiveRole anymore!
+    const { user, isLoading } = useAuth();
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
+            <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-900 font-geist">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-                    <p className="font-semibold tracking-wide">Verifying clearance...</p>
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-700 border-t-transparent"></div>
+                    <p className="font-semibold tracking-wide text-sm">Verifying clearance...</p>
                 </div>
             </div>
         );
@@ -21,13 +21,14 @@ const ProtectedRoute = ({ allowedRoles }) => {
         return <Navigate to="/" replace />;
     }
 
-    // 2. Role-based Authorization Check
-    if (allowedRoles && allowedRoles.length > 0) {
-        // Absolute Backend Admins bypass all React routing rules
-        const hasClearance = user.is_superuser || allowedRoles.includes(effectiveRole);
+    // 2. Capability-based Authorization Check
+    if (requiredCapability) {
+        // We dynamically check if the user object has the requested capability flag set to true
+        // e.g., user["can_access_admin_portal"]
+        const hasClearance = user.is_superuser || user[requiredCapability];
         
         if (!hasClearance) {
-            // They are logged in, but tried to sneak into an admin route. 
+            // They are logged in, but tried to sneak into a route they lack capabilities for. 
             // Send them back to their standard dashboard.
             return <Navigate to="/dashboard" replace />;
         }

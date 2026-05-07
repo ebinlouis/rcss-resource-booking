@@ -8,13 +8,15 @@ from .views import (
     CurrentUserView, 
     DashboardAPIView,
     RoleOverrideViewSet,
-    DepartmentViewSet # <-- IMPORT THE VIEWSET HERE
+    DepartmentViewSet,
+    RoleListView, 
+    UserSearchView # <-- NEW IMPORT
 )
 
 # Initialize the router for viewsets
 router = DefaultRouter()
 router.register(r'role-overrides', RoleOverrideViewSet, basename='role-override')
-router.register(r'departments', DepartmentViewSet, basename='department') # <-- ADD THIS
+router.register(r'departments', DepartmentViewSet, basename='department')
 
 urlpatterns = [
     path('login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -22,6 +24,10 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
     path('dashboard/', DashboardAPIView.as_view(), name='user-dashboard'),
+    
+    # --- STATIC ENDPOINTS ---
+    path('roles/', RoleListView.as_view(), name='role-list'),
+    path('users/search/', UserSearchView.as_view(), name='user-search'), # <-- NEW ENDPOINT
     
     # Include the router
     path('', include(router.urls)),

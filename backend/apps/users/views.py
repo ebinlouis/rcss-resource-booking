@@ -6,6 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 from django.conf import settings
 from django.utils import timezone
 from django.db.models import Q
+from django.contrib.auth.models import Group  
 
 # Explicit imports matching your app structure
 from apps.spaces.models import SpaceBooking
@@ -13,8 +14,8 @@ from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
 
-# Imports for Users & Roles
-from .models import RoleOverride, Department
+# Imports for Users & Roles 
+from .models import RoleOverride, Department, CustomUser
 from .serializers import RoleOverrideSerializer, DepartmentSerializer
 from .permissions import IsITAdmin
 
@@ -113,6 +114,26 @@ class CurrentUserView(APIView):
             has_active_override = True
             override_expires_at = active_override.expires_at
 
+        # 3. SUPERUSER SAFETY NET 
+        # If the user is a superuser but has no explicit role assigned via group/override,
+        # default their effective_role to 'IT_ADMIN' so frontend access is granted.
+        if not effective_role and user.is_superuser:
+            effective_role = 'IT_ADMIN'
+
+        # ==========================================
+        # 4. CAPABILITY MAPPING (DYNAMIC PBAC)
+        # ==========================================
+        # Normalize the role string to make matching safer
+        safe_role = effective_role.upper() if effective_role else ""
+        
+        # Define which roles have God Mode (Create/Edit Spaces, Roles, Departments)
+        SYSTEM_ADMIN_ROLES = ['IT ADMIN', 'IT_ADMIN', 'PRINCIPAL', 'SYSTEM OPS'] 
+        
+        can_manage_system = user.is_superuser or safe_role in SYSTEM_ADMIN_ROLES
+        
+        # Anyone with an elevated role (HOD, Father, etc.) or System Admins can access the portal
+        can_access_admin_portal = can_manage_system or bool(effective_role)
+
         return Response({
             "id": user.id,
             "email": user.email,
@@ -122,7 +143,11 @@ class CurrentUserView(APIView):
             "has_active_override": has_active_override,
             "override_expires_at": override_expires_at,
             "is_staff": user.is_staff,
-            "is_superuser": user.is_superuser
+            "is_superuser": user.is_superuser,
+            
+            # --- Dynamic Capabilities for Frontend ---
+            "can_access_admin_portal": can_access_admin_portal,
+            "can_manage_system": can_manage_system
         })
 
 # ==========================================
@@ -217,3 +242,37 @@ class RoleOverrideViewSet(ModelViewSet):
         if is_active == 'true':
             queryset = queryset.filter(is_active=True)
         return queryset
+
+class RoleListView(APIView):
+    """
+    Returns a simple list of all available roles (Django Groups) for dropdowns.
+    """
+    permission_classes = [IsAuthenticated, IsITAdmin]
+
+    def get(self, request):
+        # Querying the built-in Group model now
+        roles = Group.objects.all().values('id', 'name')
+        return Response(roles)
+
+# --- NEW: USER SEARCH VIEW ---
+class UserSearchView(APIView):
+    """
+    Allows admins to search for users by email, name, or ID for the override modal.
+    """
+    permission_classes = [IsAuthenticated, IsITAdmin]
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        
+        # Require at least 2 characters to prevent massive unoptimized queries
+        if len(query) < 2:
+            return Response([])
+
+        # Search across email, first name, or employee/student ID
+        users = CustomUser.objects.filter(
+            Q(email__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(employee_student_id__icontains=query)
+        ).values('id', 'email', 'first_name', 'employee_student_id')[:10]
+        
+        return Response(list(users))

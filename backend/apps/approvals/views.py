@@ -2,7 +2,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.db.models import Q
+
 from apps.users.permissions import IsApprover
+from apps.users.models import RoleOverride # <-- NEW IMPORT
 
 from apps.spaces.models import SpaceBooking
 from apps.fleet.models import FleetBooking
@@ -17,68 +20,94 @@ class UnifiedApprovalQueueView(APIView):
     permission_classes = [IsApprover] 
 
     def get(self, request):
-        # 1. Fetch PENDING requests. 
-        spaces = SpaceBooking.objects.filter(status='PENDING').values(
-            'id', 'reference_code', 'user__email', 'created_at', 'purpose_of_booking', 'space__name'
-        )
-        fleet = FleetBooking.objects.filter(status='PENDING').values(
-            'id', 'reference_code', 'user__email', 'created_at', 'purpose', 'vehicle__name'
-        )
-        mess = MessBooking.objects.filter(status='PENDING').values(
-            'id', 'reference_code', 'user__email', 'created_at', 'purpose_of_programme', 'total_persons'
-        )
-        media = MediaBooking.objects.filter(status='PENDING').values(
-            'id', 'reference_code', 'user__email', 'created_at', 'event_name'
-        )
+        user = request.user
+        now = timezone.now()
 
-        # 2. Standardize the shape so the React Table can map over it blindly
+        # --- 1. DETERMINE EFFECTIVE ROLE ---
+        active_override = RoleOverride.objects.filter(
+            user=user, is_active=True
+        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).first()
+        
+        effective_role = active_override.overridden_role.name if active_override else (user.role.name if user.role else None)
+
+        # --- 2. BASE QUERIES (PENDING ONLY) ---
+        spaces = SpaceBooking.objects.filter(status='PENDING').select_related('user', 'space')
+        fleet = FleetBooking.objects.filter(status='PENDING').select_related('user', 'vehicle')
+        mess = MessBooking.objects.filter(status='PENDING').select_related('user')
+        media = MediaBooking.objects.filter(status='PENDING').select_related('user')
+
+        # --- 3. SCOPE FILTERING (THE BOUNCER) ---
+        if user.is_superuser or effective_role == 'IT_ADMIN':
+            # God Mode: Can see all pending requests across the entire institution
+            pass 
+            
+        elif effective_role == 'HOD':
+            # Department Scope: Can only see requests from students/staff in their own department
+            if user.department:
+                spaces = spaces.filter(user__department=user.department)
+                fleet = fleet.filter(user__department=user.department)
+                mess = mess.filter(user__department=user.department)
+                media = media.filter(user__department=user.department)
+            else:
+                # Security fallback: If an HOD somehow has no department assigned, show nothing.
+                spaces, fleet, mess, media = spaces.none(), fleet.none(), mess.none(), media.none()
+                
+        # (Optional) You can add other roles here later, e.g.:
+        # elif effective_role == 'FACILITY_MANAGER':
+        #     mess, media = mess.none(), media.none() # Facility only sees Space/Fleet
+            
+        else:
+            # Absolute fallback: If role doesn't match known approval rules, return empty queues
+            spaces, fleet, mess, media = spaces.none(), fleet.none(), mess.none(), media.none()
+
+        # --- 4. FORMAT FOR REACT TABLE ---
         unified_queue = []
 
         for item in spaces:
             unified_queue.append({
-                "id": item['id'],
+                "id": item.id,
                 "domain": "spaces",
-                "reference_code": item['reference_code'],
-                "requester": item['user__email'],
-                "created_at": item['created_at'],
-                "resource_name": item['space__name'],          
-                "purpose": item['purpose_of_booking']          
+                "reference_code": item.reference_code,
+                "requester": item.user.email,
+                "created_at": item.created_at,
+                "resource_name": item.space.name,          
+                "purpose": item.purpose_of_booking          
             })
 
         for item in fleet:
             unified_queue.append({
-                "id": item['id'],
+                "id": item.id,
                 "domain": "fleet",
-                "reference_code": item['reference_code'],
-                "requester": item['user__email'],
-                "created_at": item['created_at'],
-                "resource_name": item['vehicle__name'],        
-                "purpose": item['purpose']                     
+                "reference_code": item.reference_code,
+                "requester": item.user.email,
+                "created_at": item.created_at,
+                "resource_name": item.vehicle.name,        
+                "purpose": item.purpose                    
             })
 
         for item in mess:
             unified_queue.append({
-                "id": item['id'],
+                "id": item.id,
                 "domain": "mess",
-                "reference_code": item['reference_code'],
-                "requester": item['user__email'],
-                "created_at": item['created_at'],
-                "resource_name": f"Catering ({item['total_persons']} Pax)", 
-                "purpose": item['purpose_of_programme']
+                "reference_code": item.reference_code,
+                "requester": item.user.email,
+                "created_at": item.created_at,
+                "resource_name": f"Catering ({item.total_persons} Pax)", 
+                "purpose": item.purpose_of_programme
             })
 
         for item in media:
             unified_queue.append({
-                "id": item['id'],
+                "id": item.id,
                 "domain": "media",
-                "reference_code": item['reference_code'],
-                "requester": item['user__email'],
-                "created_at": item['created_at'],
+                "reference_code": item.reference_code,
+                "requester": item.user.email,
+                "created_at": item.created_at,
                 "resource_name": "Equipment/Media Support",    
-                "purpose": item['event_name']
+                "purpose": item.event_name
             })
 
-        # 3. Sort the combined list by oldest first (First In, First Out)
+        # --- 5. SORT BY OLDEST FIRST ---
         unified_queue.sort(key=lambda x: x['created_at'])
 
         return Response({
@@ -92,7 +121,6 @@ class UnifiedApprovalQueueView(APIView):
 class AdminResolveBookingAPIView(APIView):
     permission_classes = [IsApprover]
 
-    # Map the incoming string to the actual Django Model
     MODEL_MAP = {
         'spaces': SpaceBooking,
         'fleet': FleetBooking,
@@ -107,32 +135,27 @@ class AdminResolveBookingAPIView(APIView):
         new_status = request.data.get('status')  
         remarks = request.data.get('remarks', '').strip()
 
-        # 1. Basic Validation
         if module not in self.MODEL_MAP:
             return Response({"error": "Invalid module provided."}, status=status.HTTP_400_BAD_REQUEST)
         
         if new_status not in ['APPROVED', 'REJECTED']:
             return Response({"error": "Status must be APPROVED or REJECTED."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Business Logic Rule: Rejections MUST have remarks
         if new_status == 'REJECTED' and not remarks:
             return Response(
                 {"error": "You must provide 'remarks' when rejecting a request."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 3. Fetch the record
         model_class = self.MODEL_MAP[module]
         try:
             booking = model_class.objects.get(id=booking_id)
         except model_class.DoesNotExist:
             return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # 4. Prevent modifying already resolved bookings
         if booking.status != 'PENDING':
             return Response({"error": f"Booking is already {booking.status}."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 5. Apply the updates and SLA timestamps
         booking.status = new_status
         booking.resolved_by = request.user
         booking.resolved_at = timezone.now()
@@ -140,7 +163,6 @@ class AdminResolveBookingAPIView(APIView):
         if remarks:
             booking.remarks_by_admin = remarks
 
-        # 6. Save (This will safely trigger your database constraints)
         try:
             booking.save()
             return Response({
