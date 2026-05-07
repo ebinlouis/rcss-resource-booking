@@ -83,20 +83,30 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     space_details      = SpaceSerializer(source='space', read_only=True)
     equipment_requests = EquipmentRequestSerializer(many=True, required=False)
 
-    # ── Permission-aware computed fields ──────────────────────────────────────
-    # Both fields pull the request from serializer context, which DRF populates
-    # automatically when the serializer is instantiated inside a ViewSet.
+    # ── Read: role-gated output ───────────────────────────────────────────────
+    # SerializerMethodField is read-only by design — it handles GET responses
+    # with privacy rules but never touches incoming write data.
     purpose_of_booking = serializers.SerializerMethodField()
-    can_modify         = serializers.SerializerMethodField()
+
+    # ── Write: accepts incoming purpose from the frontend ────────────────────
+    # write_only=True keeps it out of responses (purpose_of_booking handles that).
+    # source='purpose_of_booking' maps it to the correct model field.
+    purpose_of_booking_input = serializers.CharField(
+        write_only=True,
+        required=True,
+        source='purpose_of_booking',
+    )
+
+    can_modify = serializers.SerializerMethodField()
 
     class Meta:
         model  = SpaceBooking
         fields = [
             'id', 'reference_code', 'user', 'department', 'status',
             'space', 'space_details', 'start_datetime', 'end_datetime',
-            'attendee_count', 'purpose_of_booking', 'user_notes',
-            'equipment_requests', 'created_at', 'updated_at',
-            'can_modify',   # frontend uses this to show/hide edit+delete
+            'attendee_count', 'purpose_of_booking', 'purpose_of_booking_input',
+            'user_notes', 'equipment_requests', 'created_at', 'updated_at',
+            'can_modify',
         ]
         read_only_fields = ['reference_code', 'status', 'created_at', 'updated_at', 'user']
 
