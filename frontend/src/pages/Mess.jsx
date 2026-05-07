@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import Navbar from "../components/Navbar"
 import MessBookingForm from "../components/MessBookingForm"
 import Footer from "../components/Footer"
+
 import {
   Pencil,
   Trash2,
@@ -58,7 +59,7 @@ function Mess() {
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
   const [mealFilter, setMealFilter] = useState("All")
 
-  // ALL BOOKINGS STATE
+  // BOOKINGS STATE
   const [allBookings, setAllBookings] = useState(initialBookings)
 
   // FORM STATES
@@ -98,38 +99,41 @@ function Mess() {
         <Navbar />
       </div>
 
-      <div className="p-6">
+      <div className="p-6 space-y-6">
 
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-6">
+        {/* TOP SECTION */}
+        <div className="flex justify-between items-start">
 
+          {/* LEFT */}
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold text-gray-900">
               Mess Bookings
             </h1>
 
-            <p className="text-gray-600">
+            <p className="text-sm text-gray-500 mt-1">
               Manage your food and catering requests
             </p>
           </div>
 
-          {/* DATE */}
-          <div className="bg-white rounded-xl shadow-sm px-3 py-2">
-
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-sm text-gray-700 bg-transparent outline-none border-none cursor-pointer"
-            />
-
-          </div>
+          {/* RIGHT BUTTON */}
+          <button
+            onClick={() => {
+              setEditMode(false)
+              setSelectedEditBooking(null)
+              setShowForm(true)
+            }}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
+          >
+            <span className="text-lg leading-none">+</span>
+            Book Now
+          </button>
 
         </div>
 
-        {/* FILTER + BUTTON */}
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+        {/* FILTER + DATE */}
+        <div className="flex justify-between items-start flex-wrap gap-4">
 
+          {/* LEFT FILTERS */}
           <div className="flex gap-3 flex-wrap">
             {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
               <button
@@ -146,44 +150,56 @@ function Mess() {
             ))}
           </div>
 
-          <button
-            onClick={() => {
-              setEditMode(false)
-              setSelectedEditBooking(null)
-              setShowForm(true)
-            }}
-            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
-          >
-            + Book Meal
-          </button>
+          {/* DATE */}
+          <div>
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="
+                border border-gray-200
+                rounded-lg
+                px-3 py-1.5
+                text-sm
+                bg-white
+                shadow-sm
+                outline-none
+                focus:ring-2
+                focus:ring-emerald-500/20
+                focus:border-emerald-500
+              "
+            />
+
+          </div>
 
         </div>
 
         {/* TABLE */}
-        <div className="border rounded-xl overflow-hidden bg-white">
+        <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
 
           {/* HEADER */}
-          <div className="grid grid-cols-4 bg-gray-100 text-gray-500 text-sm px-4 py-2">
-            <span>MEAL</span>
-            <span className="col-span-3">BOOKING</span>
+          <div className="grid grid-cols-4 bg-gray-50 text-xs font-bold uppercase tracking-widest text-gray-400 px-4 py-3 border-b border-gray-100">
+            <span>Meal</span>
+            <span className="col-span-3">Booking</span>
           </div>
 
           {/* EMPTY */}
           {filteredBookings.length === 0 && (
-            <p className="p-4 text-gray-500 text-sm">
+            <div className="p-6 text-center text-sm text-gray-400">
               No bookings for this day
-            </p>
+            </div>
           )}
 
           {/* DATA */}
           {filteredBookings.map((b, i) => (
             <div
               key={i}
-              className="grid grid-cols-4 items-center px-4 py-4 border-t"
+              className="grid grid-cols-4 items-center px-4 py-4 border-t border-gray-100 hover:bg-gray-50/50 transition"
             >
 
               {/* LEFT */}
-              <span className="font-semibold text-gray-700">
+              <span className="font-semibold text-sm text-gray-700">
                 {b.meal}
               </span>
 
@@ -191,8 +207,8 @@ function Mess() {
               <div
                 className={`col-span-3 p-4 rounded-xl border ${
                   b.status === "confirmed"
-                    ? "bg-blue-50 border-blue-300"
-                    : "bg-orange-50 border-orange-300"
+                    ? "bg-blue-50 border-blue-100"
+                    : "bg-yellow-50 border-yellow-100"
                 }`}
               >
 
@@ -200,8 +216,9 @@ function Mess() {
 
                   {/* LEFT CONTENT */}
                   <div>
-                    <h3 className="font-semibold text-lg text-gray-900 flex items-center gap-2">
-                      <UtensilsCrossed size={18} />
+
+                    <h3 className="font-semibold text-base text-gray-900 flex items-center gap-2">
+                      <UtensilsCrossed size={17} />
                       {b.items}
                     </h3>
 
@@ -231,6 +248,7 @@ function Mess() {
                       </span>
 
                     </p>
+
                   </div>
 
                   {/* RIGHT */}
@@ -238,32 +256,32 @@ function Mess() {
 
                     {/* STATUS */}
                     <span
-                      className={`px-3 py-1 text-sm rounded-full ${
+                      className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${
                         b.status === "confirmed"
-                          ? "bg-blue-200 text-blue-700"
-                          : "bg-orange-200 text-orange-700"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-yellow-100 text-yellow-700"
                       }`}
                     >
                       {b.status}
                     </span>
 
                     {/* ACTION BUTTONS */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
 
                       {/* EDIT */}
                       <button
                         onClick={() => openEditModal(b, i)}
-                        className="text-gray-400 hover:text-blue-600 transition"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                       >
-                        <Pencil size={18} />
+                        <Pencil size={17} />
                       </button>
 
                       {/* DELETE */}
                       <button
                         onClick={() => openDeleteModal(b)}
-                        className="text-gray-400 hover:text-red-500 transition"
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={17} />
                       </button>
 
                     </div>

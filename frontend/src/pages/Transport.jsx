@@ -5,7 +5,6 @@ import TransportBookingModal from "../components/TransportBookingModal"
 import {
   Pencil,
   Trash2,
-  Bus,
   X
 } from "lucide-react"
 
@@ -89,10 +88,10 @@ function Transport() {
   return (
     <MainLayout>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
 
-        {/* PAGE HEADER */}
-        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        {/* TOP SECTION */}
+        <div className="flex justify-between items-start">
 
           {/* LEFT */}
           <div>
@@ -105,23 +104,25 @@ function Transport() {
             </p>
           </div>
 
-          {/* DATE PICKER */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2">
-
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-sm text-gray-700 bg-transparent outline-none border-none cursor-pointer"
-            />
-
-          </div>
+          {/* RIGHT BUTTON */}
+          <button
+            onClick={() => {
+              setEditMode(false)
+              setSelectedEditBooking(null)
+              setShowModal(true)
+            }}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
+          >
+            <span className="text-lg leading-none">+</span>
+            Book Transport
+          </button>
 
         </div>
 
-        {/* SECTION HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* TODAY BOOKINGS + DATE */}
+        <div className="flex justify-between items-start">
 
+          {/* LEFT */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
               Today's bookings
@@ -132,106 +133,129 @@ function Transport() {
             </p>
           </div>
 
-          {/* BUTTON */}
-          <button
-            onClick={() => {
-              setEditMode(false)
-              setSelectedEditBooking(null)
-              setShowModal(true)
-            }}
-            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-xl shadow-sm text-sm font-medium transition"
-          >
-            <span className="text-lg leading-none">+</span>
-            Book Transport
-          </button>
+          {/* RIGHT DATE */}
+          <div>
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="
+                border border-gray-200
+                rounded-lg
+                px-3 py-1.5
+                text-sm
+                bg-white
+                shadow-sm
+                outline-none
+                focus:ring-2
+                focus:ring-emerald-500/20
+                focus:border-emerald-500
+              "
+            />
+
+          </div>
 
         </div>
 
-        {/* BOOKINGS */}
+        {/* BOOKINGS TABLE */}
         <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
 
-  {/* TABLE HEADER */}
-  <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold uppercase tracking-widest text-gray-400">
-    <div className="col-span-2">Time</div>
-    <div className="col-span-7">Transport Details</div>
-    <div className="col-span-3 text-right pr-12">Status & Actions</div>
-  </div>
-
-  {/* TABLE BODY */}
-  <div className="divide-y divide-gray-100">
-    {bookings.map((b, i) => (
-      <div
-        key={i}
-        className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
-      >
-
-        {/* TIME */}
-        <div className="col-span-12 md:col-span-2 text-sm font-semibold text-gray-700">
-          {b.time}
-        </div>
-
-        {/* BOOKING DETAILS */}
-        <div className="col-span-12 md:col-span-7">
-          <div
-            className={`p-3 rounded-lg border ${
-              b.status === "confirmed"
-                ? "bg-blue-50 border-blue-100 text-blue-700"
-                : "bg-yellow-50 border-yellow-100 text-yellow-700"
-            }`}
-          >
-            <p className="font-semibold text-sm">
-              {b.title}
-            </p>
-
-            <p className="text-xs opacity-70">
-              {b.desc}
-            </p>
-          </div>
-        </div>
-
-        {/* STATUS + ACTIONS */}
-        <div className="col-span-12 md:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
-
-          <span
-            className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${
-              b.status === "confirmed"
-                ? "bg-blue-100 text-blue-700"
-                : "bg-yellow-100 text-yellow-700"
-            }`}
-          >
-            {b.status}
-          </span>
-
-          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-
-            {/* EDIT */}
-            <button
-              onClick={() => openEditModal(b, i)}
-              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-
-            {/* DELETE */}
-            <button
-              onClick={() => {
-                setSelectedEditIndex(i)
-                openDeleteModal(b)
-              }}
-              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-
+          {/* HEADER */}
+          <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold uppercase tracking-widest text-gray-400">
+            <div className="col-span-2">Time</div>
+            <div className="col-span-7">Transport Details</div>
+            <div className="col-span-3 text-right pr-12">
+              Status & Actions
+            </div>
           </div>
 
+          {/* BODY */}
+          <div className="divide-y divide-gray-100">
+
+            {bookings.length === 0 && (
+              <div className="p-6 text-center text-sm text-gray-400">
+                No bookings for this day
+              </div>
+            )}
+
+            {bookings.map((b, i) => (
+              <div
+                key={i}
+                className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
+              >
+
+                {/* TIME */}
+                <div className="col-span-12 md:col-span-2 text-sm font-semibold text-gray-700">
+                  {b.time}
+                </div>
+
+                {/* DETAILS */}
+                <div className="col-span-12 md:col-span-7">
+
+                  <div
+                    className={`p-3 rounded-lg border ${
+                      b.status === "confirmed"
+                        ? "bg-blue-50 border-blue-100 text-blue-700"
+                        : "bg-yellow-50 border-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    <p className="font-semibold text-sm">
+                      {b.title}
+                    </p>
+
+                    <p className="text-xs opacity-70">
+                      {b.desc}
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {/* STATUS + ACTIONS */}
+                <div className="col-span-12 md:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
+
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${
+                      b.status === "confirmed"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {b.status}
+                  </span>
+
+                  <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+
+                    {/* EDIT */}
+                    <button
+                      onClick={() => openEditModal(b, i)}
+                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
+                    {/* DELETE */}
+                    <button
+                      onClick={() => {
+                        setSelectedEditIndex(i)
+                        openDeleteModal(b)
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                  </div>
+
+                </div>
+
+              </div>
+            ))}
+
+          </div>
+
         </div>
-
-      </div>
-    ))}
-  </div>
-
-</div>
 
       </div>
 
