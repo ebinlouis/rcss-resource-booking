@@ -63,7 +63,7 @@ function MessBookingForm({ onClose }) {
 
       <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl h-[90vh]">
 
-        {/* 🔥 LEFT PANEL (FIXED GRADIENT) */}
+        {/*  LEFT PANEL (FIXED GRADIENT) */}
         <div
           className="w-[35%] flex flex-col justify-between p-7 text-white"
           style={{
@@ -75,7 +75,7 @@ function MessBookingForm({ onClose }) {
               New Booking
             </p>
 
-            <h2 className="text-2xl font-bold mt-2">
+            <h2 className="text-2xl font-bold mt-2 text-white">
               Mess Request
             </h2>
 
