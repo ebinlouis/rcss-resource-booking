@@ -270,7 +270,7 @@ export default function Login() {
                                 <span style={{ color:'#fff', fontWeight:800, fontSize:16, letterSpacing:'-.03em' }}>R</span>
                             </div>
                             <span style={{ color:'#9ef5be', fontWeight:700, fontSize:15, letterSpacing:'-.01em' }}>
-                                RLAB Booking
+                                Resource Booking
                             </span>
                         </div>
 
@@ -290,7 +290,7 @@ export default function Login() {
                                     boxShadow:'0 0 7px #82d8a3',
                                 }}/>
                                 <span style={{ color:'#82d8a3', fontSize:11, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase' }}>
-                                    Institutional Access
+                                    RCSS
                                 </span>
                             </div>
 

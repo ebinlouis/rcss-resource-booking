@@ -1,329 +1,292 @@
 import React, { useState } from "react"
 import MainLayout from "../layouts/MainLayout"
+import MessBookingForm from "../components/MessBookingForm"
 
 import {
-  UtensilsCrossed,
   Pencil,
   Trash2,
-  X
+  Users,
+  Clock3,
+  UtensilsCrossed,
+  X,
 } from "lucide-react"
 
 function Mess() {
-
-  const initialMeals = {
+  const initialBookings = {
     "2026-05-05": [
       {
         meal: "Breakfast",
-        time: "08:00 AM",
-        menu: "Idli, Sambar & Tea",
-        status: "confirmed"
+        items: "Appam & Curry",
+        time: "08:30 AM",
+        type: "Veg",
+        people: 120,
+        status: "confirmed",
       },
       {
         meal: "Lunch",
+        items: "Biriyani",
         time: "01:00 PM",
-        menu: "Meals + Fish Curry",
-        status: "pending"
-      }
-    ],
-
-    "2026-05-06": [
+        type: "Non-Veg",
+        people: 80,
+        status: "pending",
+      },
       {
         meal: "Dinner",
+        items: "Chapathi & Curry",
         time: "08:00 PM",
-        menu: "Chapathi & Chicken Curry",
-        status: "confirmed"
-      }
-    ]
+        type: "Veg",
+        people: 60,
+        status: "confirmed",
+      },
+      {
+        meal: "Snacks",
+        items: "Banana Fritters & Tea",
+        time: "05:00 PM",
+        type: "Veg",
+        people: 50,
+        status: "confirmed",
+      },
+    ],
   }
 
   const today = new Date()
 
   const formatDate = (d) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(d.getDate()).padStart(2, "0")}`
 
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
+  const [mealFilter, setMealFilter] = useState("All")
 
-  const [allMeals, setAllMeals] = useState(initialMeals)
+  const [allBookings, setAllBookings] = useState(initialBookings)
 
-  const [showMealModal, setShowMealModal] = useState(false)
-
+  const [showForm, setShowForm] = useState(false)
   const [editMode, setEditMode] = useState(false)
-
-  const [selectedMeal, setSelectedMeal] = useState(null)
-
-  const [selectedIndex, setSelectedIndex] = useState(null)
+  const [selectedEditBooking, setSelectedEditBooking] = useState(null)
+  const [selectedEditIndex, setSelectedEditIndex] = useState(null)
 
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedBooking, setSelectedBooking] = useState(null)
 
-  const meals = allMeals[selectedDate] || []
+  const bookings = allBookings[selectedDate] || []
 
-  const openEditModal = (meal, index) => {
-    setSelectedMeal(meal)
-    setSelectedIndex(index)
-    setEditMode(true)
-    setShowMealModal(true)
-  }
+  const filteredBookings =
+    mealFilter === "All"
+      ? bookings
+      : bookings.filter((b) => b.meal === mealFilter)
 
-  const openDeleteModal = (meal, index) => {
-    setSelectedMeal(meal)
-    setSelectedIndex(index)
+  const openDeleteModal = (booking) => {
+    setSelectedBooking(booking)
     setShowDeleteModal(true)
   }
 
-  const deleteMeal = () => {
-
-    const updated = { ...allMeals }
-
-    updated[selectedDate] = updated[selectedDate].filter(
-      (_, i) => i !== selectedIndex
-    )
-
-    setAllMeals(updated)
-
-    setShowDeleteModal(false)
-
-    setSelectedMeal(null)
+  const openEditModal = (booking, index) => {
+    setSelectedEditBooking(booking)
+    setSelectedEditIndex(index)
+    setEditMode(true)
+    setShowForm(true)
   }
 
   return (
     <MainLayout>
-
-      <div className="space-y-6">
-
+      <div className="space-y-6 p-4 sm:p-6">
         {/* HEADER */}
-        <div className="flex justify-between items-start">
-
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-
             <h1 className="text-2xl font-bold text-gray-900">
               Mess Bookings
             </h1>
 
             <p className="text-sm text-gray-500 mt-1">
-              Manage your meal reservations and food schedules
+              Manage your food and catering requests
             </p>
-
           </div>
 
           <button
             onClick={() => {
               setEditMode(false)
-              setSelectedMeal(null)
-              setShowMealModal(true)
+              setSelectedEditBooking(null)
+              setShowForm(true)
             }}
-            className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
+            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl shadow-sm text-sm font-medium transition-all"
           >
             <span className="text-lg leading-none">+</span>
-            Reserve Meal
+            Book Now
           </button>
-
         </div>
 
-        {/* DATE SECTION */}
-        <div className="flex justify-between items-start">
-
-          <div>
-
-            <h2 className="text-lg font-semibold text-gray-900">
-              Reserved meals
-            </h2>
-
-            <p className="text-sm text-gray-400 mt-0.5">
-              Breakfast, lunch, and dinner bookings for selected date
-            </p>
-
+        {/* FILTERS */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex gap-3 flex-wrap">
+            {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map(
+              (meal) => (
+                <button
+                  key={meal}
+                  onClick={() => setMealFilter(meal)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+                    mealFilter === meal
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {meal}
+                </button>
+              )
+            )}
           </div>
 
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="
-              border border-gray-200
-              rounded-lg
-              px-3 py-1.5
-              text-sm
-              bg-white
-              shadow-sm
-              outline-none
-              focus:ring-2
-              focus:ring-green-500/20
-              focus:border-green-500
-            "
+            className="border border-gray-200 rounded-xl px-4 py-2 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           />
-
         </div>
 
         {/* BOOKINGS */}
-        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-
-          {/* TABLE HEADER */}
-          <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold uppercase tracking-widest text-gray-400">
-
-            <div className="col-span-2">
-              Meal
-            </div>
-
-            <div className="col-span-2">
-              Time
-            </div>
-
-            <div className="col-span-5">
-              Menu
-            </div>
-
-            <div className="col-span-3 text-right pr-12">
-              Status & Actions
-            </div>
-
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          {/* HEADER */}
+          <div className="grid grid-cols-4 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-4 border-b border-gray-100">
+            <span>Meal</span>
+            <span className="col-span-3">Booking Details</span>
           </div>
 
-          {/* TABLE BODY */}
-          <div className="divide-y divide-gray-100">
+          {/* EMPTY */}
+          {filteredBookings.length === 0 && (
+            <div className="p-8 text-center text-sm text-gray-400">
+              No bookings for this day
+            </div>
+          )}
 
-            {meals.length === 0 && (
-              <div className="p-6 text-center text-sm text-gray-400">
-                No meal reservations for this day
+          {/* BOOKINGS */}
+          {filteredBookings.map((b, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start px-5 py-5 border-t border-gray-100 hover:bg-gray-50/60 transition-all"
+            >
+              {/* LEFT */}
+              <div>
+                <span className="font-semibold text-gray-800 text-sm">
+                  {b.meal}
+                </span>
               </div>
-            )}
 
-            {meals.map((meal, index) => (
-
+              {/* CARD */}
               <div
-                key={index}
-                className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
+                className={`md:col-span-3 rounded-2xl border p-5 ${
+                  b.status === "confirmed"
+                    ? "bg-blue-50 border-blue-100"
+                    : "bg-yellow-50 border-yellow-100"
+                }`}
               >
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  {/* LEFT CONTENT */}
+                  <div>
+                    <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                      <UtensilsCrossed size={18} />
+                      {b.items}
+                    </h3>
 
-                {/* MEAL */}
-                <div className="col-span-12 md:col-span-2">
+                    <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
+                      {/* PEOPLE */}
+                      <span className="flex items-center gap-1">
+                        <Users size={15} />
+                        {b.people} people
+                      </span>
 
-                  <div className="flex items-center gap-2">
+                      {/* TIME */}
+                      <span className="flex items-center gap-1">
+                        <Clock3 size={15} />
+                        {b.time}
+                      </span>
 
-                    <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
-
-                      <UtensilsCrossed className="w-4 h-4 text-green-700" />
-
+                      {/* TYPE */}
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          b.type === "Veg"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {b.type}
+                      </span>
                     </div>
+                  </div>
 
-                    <div>
+                  {/* RIGHT */}
+                  <div className="flex items-center gap-3">
+                    {/* STATUS */}
+                    <span
+                      className={`text-[10px] uppercase tracking-wide font-bold px-3 py-1 rounded-full ${
+                        b.status === "confirmed"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {b.status}
+                    </span>
 
-                      <p className="text-sm font-semibold text-gray-800">
-                        {meal.meal}
-                      </p>
+                    {/* ACTIONS */}
+                    <div className="flex items-center gap-1">
+                      {/* EDIT */}
+                      <button
+                        onClick={() => openEditModal(b, i)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-100 transition-all"
+                      >
+                        <Pencil size={17} />
+                      </button>
 
+                      {/* DELETE */}
+                      <button
+                        onClick={() => openDeleteModal(b)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-100 transition-all"
+                      >
+                        <Trash2 size={17} />
+                      </button>
                     </div>
-
                   </div>
-
                 </div>
-
-                {/* TIME */}
-                <div className="col-span-12 md:col-span-2 text-sm font-medium text-gray-600">
-                  {meal.time}
-                </div>
-
-                {/* MENU */}
-                <div className="col-span-12 md:col-span-5">
-
-                  <div
-                    className={`p-3 rounded-lg border ${
-                      meal.status === "confirmed"
-                        ? "bg-green-50 border-green-100 text-green-700"
-                        : "bg-yellow-50 border-yellow-100 text-yellow-700"
-                    }`}
-                  >
-
-                    <p className="text-sm font-semibold">
-                      {meal.menu}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* STATUS + ACTIONS */}
-                <div className="col-span-12 md:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
-
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${
-                      meal.status === "confirmed"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {meal.status}
-                  </span>
-
-                  <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-
-                    {/* EDIT */}
-                    <button
-                      onClick={() => openEditModal(meal, index)}
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-
-                    {/* DELETE */}
-                    <button
-                      onClick={() => openDeleteModal(meal, index)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-
-                  </div>
-
-                </div>
-
               </div>
-            ))}
-
-          </div>
-
+            </div>
+          ))}
         </div>
-
       </div>
 
-      {/* SIMPLE MODAL */}
-      {showMealModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
+      {/* FORM MODAL */}
+      {showForm && (
+        <MessBookingForm
+          onClose={() => {
+            setShowForm(false)
+            setEditMode(false)
+            setSelectedEditBooking(null)
+          }}
+          editData={editMode ? selectedEditBooking : null}
+          onSave={(updatedBooking) => {
+            if (editMode) {
+              const updated = { ...allBookings }
 
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+              updated[selectedDate][selectedEditIndex] = {
+                ...updated[selectedDate][selectedEditIndex],
+                ...updatedBooking,
+              }
 
-            <button
-              onClick={() => setShowMealModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X size={18} />
-            </button>
+              setAllBookings(updated)
+            }
 
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              {editMode ? "Edit Meal Booking" : "Reserve Meal"}
-            </h2>
-
-            <p className="text-sm text-gray-500 mb-6">
-              Meal booking form goes here
-            </p>
-
-            <button
-              onClick={() => setShowMealModal(false)}
-              className="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-xl text-sm font-semibold transition"
-            >
-              Done
-            </button>
-
-          </div>
-
-        </div>
+            setShowForm(false)
+            setEditMode(false)
+            setSelectedEditBooking(null)
+          }}
+        />
       )}
 
       {/* DELETE MODAL */}
-      {showDeleteModal && selectedMeal && (
+      {showDeleteModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
-
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 relative shadow-2xl text-center">
-
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 relative shadow-2xl text-center">
+            {/* CLOSE */}
             <button
               onClick={() => setShowDeleteModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -333,32 +296,28 @@ function Mess() {
 
             {/* ICON */}
             <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-
               <Trash2 size={24} className="text-red-500" />
-
             </div>
 
             {/* TITLE */}
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">
-              Cancel Reservation?
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Cancel Booking?
             </h2>
 
             {/* MESSAGE */}
             <p className="text-gray-500 text-sm leading-relaxed">
-              You're about to cancel your meal booking for
+              You're about to cancel your booking for
             </p>
 
-            {/* BOOKING */}
+            {/* BOOKING DETAILS */}
             <div className="mt-4">
-
-              <h3 className="text-xl font-bold text-gray-800">
-                {selectedMeal.meal}
+              <h3 className="text-xl font-bold text-gray-800 break-words">
+                {selectedBooking.items}
               </h3>
 
-              <p className="text-gray-400 text-sm mt-1">
-                {selectedMeal.menu}
+              <p className="text-gray-400 text-sm mt-1 break-words">
+                {selectedBooking.meal} • {selectedBooking.time}
               </p>
-
             </div>
 
             <p className="text-red-400 text-sm mt-5">
@@ -367,28 +326,23 @@ function Mess() {
 
             {/* BUTTONS */}
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
-
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
               >
-                Keep Reservation
+                Keep Booking
               </button>
 
               <button
-                onClick={deleteMeal}
+                onClick={() => setShowDeleteModal(false)}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl text-sm font-semibold transition"
               >
-                Yes, cancel it
+                Yes, Cancel
               </button>
-
             </div>
-
           </div>
-
         </div>
       )}
-
     </MainLayout>
   )
 }
