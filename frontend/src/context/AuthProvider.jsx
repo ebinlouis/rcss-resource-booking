@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { AuthContext } from './AuthContext';
 
 export const AuthProvider = ({ children }) => {
+    // The user object now holds EVERYTHING: id, email, effective_role, 
+    // can_access_admin_portal, and can_manage_system.
     const [user, setUser] = useState(null);
-    // NEW: States for the Role Override system
-    const [effectiveRole, setEffectiveRole] = useState(null);
-    const [hasActiveOverride, setHasActiveOverride] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     const checkAuthStatus = useCallback(async () => {
@@ -18,21 +17,13 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 const userData = await response.json();
-                setUser(userData);
-                
-                // NEW: Extract the dynamic permissions calculated mathematically by the backend
-                setEffectiveRole(userData.effective_role);
-                setHasActiveOverride(userData.has_active_override);
+                setUser(userData); // All capabilities are now safely in state!
             } else {
                 setUser(null);
-                setEffectiveRole(null);
-                setHasActiveOverride(false);
             }
         } catch (error) {
             console.error("Auth check failed:", error);
             setUser(null);
-            setEffectiveRole(null);
-            setHasActiveOverride(false);
         } finally {
             setIsLoading(false);
         }
@@ -67,7 +58,6 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            // Actually hit the backend to clear the HttpOnly cookies securely
             await fetch('http://localhost:8000/api/auth/logout/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -76,19 +66,15 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error("Logout request failed", error);
         } finally {
-            // Always clear local state even if network fails
             setUser(null);
-            setEffectiveRole(null);
-            setHasActiveOverride(false);
         }
     };
 
     return (
-        // NEW: Expose effectiveRole and hasActiveOverride to the entire app
         <AuthContext.Provider value={{ 
             user, 
-            effectiveRole, 
-            hasActiveOverride, 
+            // For backward compatibility if any of your older components still look for effectiveRole:
+            effectiveRole: user?.effective_role || null, 
             isLoading, 
             login, 
             logout 
