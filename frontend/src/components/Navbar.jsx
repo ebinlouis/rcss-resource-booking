@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useAuth } from "../hooks/useAuth" // IMPORTANT: Adjust path if you export this from '../context/AuthProvider'
 
 const TABS = [
   { name: "Spaces", path: "/dashboard" },
@@ -8,12 +9,15 @@ const TABS = [
   { name: "Mess", path: "/mess" },
 ];
 
-function Navbar({ onTabChange }) { // Added prop here
+function Navbar({ onTabChange }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
-  const location = useLocation()
+
+  // 1. Pull the user and logout functions directly from our global Auth Context
+  const { user, logout } = useAuth()
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -36,8 +40,16 @@ function Navbar({ onTabChange }) { // Added prop here
     return () => window.removeEventListener("click", handler)
   }, [menuOpen])
 
+  // 2. Use the new dynamic PBAC capability flag!
+  const isApprover = user?.can_access_admin_portal;
+
+  const handleLogout = async () => {
+    await logout(); // Context handles hitting the backend API and clearing state
+    navigate("/");
+  };
+
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
+    <header className="bg-white border-b border-gray-100 sticky top-0 z-40 font-geist">
       <div className="w-full px-5 md:px-8 xl:px-10">
         <div className="flex items-center justify-between h-16 gap-4">
 
@@ -80,10 +92,25 @@ function Navbar({ onTabChange }) { // Added prop here
                 </Link>
               )
             })}
+
+            {/* Seamless Admin Portal Tab */}
+            {isApprover && (
+              <Link
+                to="/admin" 
+                className={`relative px-4 text-sm font-medium transition-colors
+                  flex items-center border-b-2
+                  ${location.pathname === "/admin"
+                    ? "border-green-700 text-green-700"
+                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
+              >
+                Admin Portal
+              </Link>
+            )}
           </nav>
 
           {/* ── Right ── */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 md:gap-3">
+            
             {/* Bell */}
             <button className="hidden md:flex relative w-9 h-9 items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -102,14 +129,16 @@ function Navbar({ onTabChange }) { // Added prop here
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
               >
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm"
                   style={{ background: "linear-gradient(135deg, #14532d, #1e3a5f)" }}
                 >
-                  A
+                  {user?.name ? user.name[0].toUpperCase() : "U"}
                 </div>
                 <div className="hidden md:block text-left leading-tight">
-                  <p className="text-xs font-semibold text-gray-800">User</p>
-                  <p className="text-[10px] text-gray-400">Faculty</p>
+                  <p className="text-xs font-semibold text-gray-800">{user?.name || "Loading..."}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                    {user?.effective_role || "Student"}
+                  </p>
                 </div>
                 <svg
                   className={`hidden md:block w-3 h-3 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
@@ -122,8 +151,8 @@ function Navbar({ onTabChange }) { // Added prop here
               {profileOpen && (
                 <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800">User</p>
-                    <p className="text-xs text-gray-400 mt-0.5">user@rcss.ac.in</p>
+                    <p className="text-sm font-semibold text-gray-800 truncate">{user?.name || "User"}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email || "No email provided"}</p>
                   </div>
                   <div className="py-1">
                     {[
@@ -139,27 +168,26 @@ function Navbar({ onTabChange }) { // Added prop here
                     ))}
                   </div>
                   <div className="border-t border-gray-100 py-1">
-  <button
-    onClick={() => navigate("/")}
-    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left"
-  >
-    <svg
-      className="w-4 h-4 shrink-0"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={1.8}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-      />
-    </svg>
-
-    Sign out
-  </button>
-</div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left font-medium"
+                    >
+                      <svg
+                        className="w-4 h-4 shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        />
+                      </svg>
+                      Sign out
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -167,13 +195,15 @@ function Navbar({ onTabChange }) { // Added prop here
             {/* Hamburger (mobile) */}
             <button
               type="button"
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600"
               onClick={(e) => {
                 e.stopPropagation()
                 setMenuOpen(!menuOpen)
               }}
             >
-              <span className="text-xl">☰</span>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+              </svg>
             </button>
           </div>
         </div>
@@ -181,7 +211,7 @@ function Navbar({ onTabChange }) { // Added prop here
 
       {/* Mobile menu */}
       <div className={`md:hidden border-t border-gray-100 bg-white overflow-hidden transition-all duration-200
-        ${menuOpen ? "max-h-96" : "max-h-0"}`}>
+        ${menuOpen ? "max-h-[500px]" : "max-h-0"}`}>
         <nav className="px-4 py-2 space-y-0.5">
           {TABS.map((tab) => (
             <Link
@@ -196,17 +226,34 @@ function Navbar({ onTabChange }) { // Added prop here
               {tab.name}
             </Link>
           ))}
+          
+          {/* Mobile Admin Portal Link */}
+          {isApprover && (
+            <Link
+              to="/admin" 
+              onClick={() => setMenuOpen(false)}
+              className={`block w-full text-left px-3 py-2.5 rounded-lg text-sm transition
+                ${location.pathname === "/admin"
+                  ? "bg-green-50 text-green-700 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              Admin Portal
+            </Link>
+          )}
         </nav>
-        <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+        
+        <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
             style={{ background: "linear-gradient(135deg, #14532d, #1e3a5f)" }}>
-            A
+            {user?.name ? user.name[0].toUpperCase() : "U"}
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800">Admin User</p>
-            <p className="text-xs text-gray-400">admin@rcss.ac.in</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900 truncate">{user?.name || "Loading..."}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.email || "No email"}</p>
           </div>
-          <button className="ml-auto text-xs text-red-500 font-medium">Sign out</button>
+          <button onClick={handleLogout} className="ml-auto text-xs text-red-600 font-bold bg-white px-3 py-1.5 rounded border border-red-100 shadow-sm">
+            Sign out
+          </button>
         </div>
       </div>
     </header>
