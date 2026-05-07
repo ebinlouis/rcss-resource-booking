@@ -3,6 +3,39 @@ import { createPortal } from "react-dom"
 import api from "../api/axios"
 
 // ─────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────
+
+const toLocalISO = (date, time) => {
+  const [year, month, day] = date.split('-');
+  const [hours, minutes] = time.split(':');
+  const d = new Date(year, month - 1, day, hours, minutes);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d - offset).toISOString().slice(0, -1); // Optional: .slice(0, -1) removes the 'Z' if backend expects naive local datetime, but full ISO is standard. Keeping full ISO below per your snippet.
+};
+
+const formatAMPM = (timeStr) => {
+  if (!timeStr) return null
+
+  let [hours, minutes] = timeStr.split(":")
+  let ampm = hours >= 12 ? "PM" : "AM"
+
+  hours = hours % 12
+  hours = hours ? hours : 12
+
+  return `${hours}:${minutes} ${ampm}`
+}
+
+const inputCls = (err) =>
+  `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition
+   focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400
+   ${
+     err
+       ? "border-red-300 bg-red-50"
+       : "border-gray-200 hover:border-gray-300"
+   }`
+
+// ─────────────────────────────────────────────────────────────
 // Reusable Components
 // ─────────────────────────────────────────────────────────────
 
@@ -39,27 +72,6 @@ function SectionLabel({ children }) {
   )
 }
 
-const inputCls = (err) =>
-  `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition
-   focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400
-   ${
-     err
-       ? "border-red-300 bg-red-50"
-       : "border-gray-200 hover:border-gray-300"
-   }`
-
-const formatAMPM = (timeStr) => {
-  if (!timeStr) return null
-
-  let [hours, minutes] = timeStr.split(":")
-  let ampm = hours >= 12 ? "PM" : "AM"
-
-  hours = hours % 12
-  hours = hours ? hours : 12
-
-  return `${hours}:${minutes} ${ampm}`
-}
-
 // ─────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────
@@ -80,7 +92,6 @@ function BookingModal({
   const [form, setForm] = useState(() => {
 
     if (initialData) {
-
       const startD = new Date(initialData.start_datetime)
       const endD = new Date(initialData.end_datetime)
 
@@ -122,11 +133,8 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-
     const fetchDynamicData = async () => {
-
       try {
-
         const [deptRes, eqRes] = await Promise.all([
           api.get("/auth/departments/"),
           api.get("/spaces/inventory/"),
@@ -139,22 +147,17 @@ function BookingModal({
         setDynamicEquipment(
           equips.filter((eq) => eq.is_active !== false)
         )
-
       } catch (err) {
-
         console.error("Failed loading dynamic data:", err)
-
       }
     }
 
     fetchDynamicData()
-
   }, [])
 
   // ─────────────────────────────────────────────────────────────
 
   const set = (key, val) => {
-
     setForm((p) => ({
       ...p,
       [key]: val,
@@ -169,7 +172,6 @@ function BookingModal({
   }
 
   const toggleReq = (id) => {
-
     setForm((p) => ({
       ...p,
       requirements: p.requirements.includes(id)
@@ -181,7 +183,6 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   const validate = () => {
-
     const e = {}
 
     if (!form.purpose.trim()) {
@@ -232,7 +233,6 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-
     const e = validate()
 
     if (Object.keys(e).length) {
@@ -244,14 +244,9 @@ function BookingModal({
     setErrors({})
 
     try {
-
-      const start_datetime = new Date(
-        `${form.date}T${form.start}:00`
-      ).toISOString()
-
-      const end_datetime = new Date(
-        `${form.date}T${form.end}:00`
-      ).toISOString()
+      // 1. Properly construct local datetime and preserve timezone
+      const start_datetime = toLocalISO(form.date, form.start);
+      const end_datetime   = toLocalISO(form.date, form.end);
 
       // Availability Check
       const availRes = await api.post(
@@ -263,11 +258,9 @@ function BookingModal({
       )
 
       if (!availRes.data.available && !isEdit) {
-
         setErrors({
           end: availRes.data.message,
         })
-
         setIsSubmitting(false)
         return
       }
@@ -280,12 +273,13 @@ function BookingModal({
         .filter(Boolean)
         .join(", ")
 
+      // 2. Updated Payload Keys
       const payload = {
         space: spaceId,
         start_datetime,
         end_datetime,
         attendee_count: Number(form.attendees),
-        purpose_of_booking: form.purpose,
+        purpose_of_booking_input: form.purpose,  // ← Updated key
         department: Number(form.department),
         user_notes: form.notes
           ? `${equipmentString} | Notes: ${form.notes}`
@@ -294,14 +288,11 @@ function BookingModal({
 
       // CREATE / UPDATE
       if (isEdit) {
-
         await api.patch(
           `/spaces/requests/${initialData.id}/`,
           payload
         )
-
       } else {
-
         await api.post(
           "/spaces/requests/",
           payload
@@ -311,11 +302,9 @@ function BookingModal({
       setSubmitted(true)
 
     } catch (error) {
-
       console.error(error.response?.data)
 
       const errData = error.response?.data || {}
-
       const mappedErrors = {}
 
       if (errData.attendee_count) {
@@ -332,11 +321,11 @@ function BookingModal({
             : errData.department
       }
 
-      if (errData.purpose_of_booking) {
-        mappedErrors.purpose =
-          Array.isArray(errData.purpose_of_booking)
-            ? errData.purpose_of_booking[0]
-            : errData.purpose_of_booking
+      // 3. Updated Error Mapping
+      if (errData.purpose_of_booking_input) {
+        mappedErrors.purpose = Array.isArray(errData.purpose_of_booking_input)
+          ? errData.purpose_of_booking_input[0]
+          : errData.purpose_of_booking_input
       }
 
       if (errData.non_field_errors) {
@@ -353,9 +342,7 @@ function BookingModal({
       setErrors(mappedErrors)
 
     } finally {
-
       setIsSubmitting(false)
-
     }
   }
 
@@ -364,13 +351,9 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   if (submitted) {
-
     return createPortal(
-
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-
         <div className="bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 max-w-sm w-full text-center">
-
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
             <svg
               className="w-7 h-7 text-green-700"
@@ -408,9 +391,7 @@ function BookingModal({
           >
             Done
           </button>
-
         </div>
-
       </div>,
       document.body
     )
@@ -435,15 +416,12 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   return createPortal(
-
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-
       <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
 
         {/* ═══════════════════════════════════════════════════ */}
         {/* LEFT PANEL */}
         {/* ═══════════════════════════════════════════════════ */}
-
         <div
           className="hidden md:flex md:w-[32%] shrink-0 flex-col justify-between p-7"
           style={{
@@ -451,9 +429,7 @@ function BookingModal({
               "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)",
           }}
         >
-
           <div>
-
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
               {isEdit ? "Editing Request" : "New Booking"}
             </p>
@@ -466,14 +442,11 @@ function BookingModal({
               Request a space, choose your time,
               and add any details needed for approval.
             </p>
-
           </div>
 
           {/* SLOT CARD */}
           <div className="space-y-2.5">
-
             <div className="bg-white/10 rounded-xl p-4">
-
               <p className="text-[10px] text-green-300 uppercase tracking-wide font-semibold mb-1">
                 Selected Slot
               </p>
@@ -506,11 +479,8 @@ function BookingModal({
 
               {/* TIMELINE */}
               <div className="mt-4 flex gap-[2px]">
-
                 {Array.from({ length: 20 }).map((_, i) => {
-
                   const seg = 8 + i * 0.5
-
                   const fill =
                     startH !== null &&
                     endH !== null &&
@@ -528,31 +498,24 @@ function BookingModal({
                     />
                   )
                 })}
-
               </div>
 
               <div className="flex justify-between text-[9px] text-green-300/50 mt-1">
                 <span>08:00</span>
                 <span>18:00</span>
               </div>
-
             </div>
-
           </div>
-
         </div>
 
         {/* ═══════════════════════════════════════════════════ */}
         {/* RIGHT PANEL */}
         {/* ═══════════════════════════════════════════════════ */}
-
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* HEADER */}
           <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
-
             <div>
-
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-0.5">
                 Booking Details
               </p>
@@ -562,7 +525,6 @@ function BookingModal({
                   ? "Edit your booking"
                   : "Fill in your booking"}
               </h2>
-
             </div>
 
             <button
@@ -571,19 +533,14 @@ function BookingModal({
             >
               ✕
             </button>
-
           </div>
 
           {/* FORM BODY */}
           <div className="flex-1 overflow-y-auto px-7 py-5 space-y-5">
 
             {/* EVENT DETAILS */}
-            <SectionLabel>
-              Event details
-            </SectionLabel>
-
+            <SectionLabel>Event details</SectionLabel>
             <div className="grid grid-cols-2 gap-4">
-
               <Field
                 label="Purpose"
                 required
@@ -591,11 +548,11 @@ function BookingModal({
               >
                 <input
                   className={inputCls(errors.purpose)}
-                  placeholder="Department seminar, cultural event..."
                   value={form.purpose}
                   onChange={(e) =>
                     set("purpose", e.target.value)
                   }
+                  placeholder="e.g. MCA Cloud Security Seminar"
                 />
               </Field>
 
@@ -611,30 +568,19 @@ function BookingModal({
                     set("department", e.target.value)
                   }
                 >
-                  <option value="">
-                    Select department
-                  </option>
-
+                  <option value="">Select department</option>
                   {dynamicDepartments.map((d) => (
-                    <option
-                      key={d.id}
-                      value={d.id}
-                    >
+                    <option key={d.id} value={d.id}>
                       {d.department_name}
                     </option>
                   ))}
                 </select>
               </Field>
-
             </div>
 
             {/* DATE TIME */}
-            <SectionLabel>
-              Date & Time
-            </SectionLabel>
-
+            <SectionLabel>Date & Time</SectionLabel>
             <div className="grid grid-cols-3 gap-3">
-
               <Field
                 label="Date"
                 required
@@ -679,14 +625,10 @@ function BookingModal({
                   }
                 />
               </Field>
-
             </div>
 
             {/* ATTENDEES */}
-            <SectionLabel>
-              Attendees
-            </SectionLabel>
-
+            <SectionLabel>Attendees</SectionLabel>
             <Field
               label="Expected attendees"
               required
@@ -705,19 +647,12 @@ function BookingModal({
             </Field>
 
             {/* REQUIREMENTS */}
-            <SectionLabel>
-              Requirements
-            </SectionLabel>
-
+            <SectionLabel>Requirements</SectionLabel>
             <div className="grid grid-cols-3 gap-2">
-
               {dynamicEquipment.map((req) => {
-
-                const active =
-                  form.requirements.includes(req.id)
+                const active = form.requirements.includes(req.id)
 
                 return (
-
                   <button
                     key={req.id}
                     type="button"
@@ -729,7 +664,6 @@ function BookingModal({
                           : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                       }`}
                   >
-
                     <span
                       className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition
                         ${
@@ -758,18 +692,13 @@ function BookingModal({
                     <span className="text-xs font-medium">
                       {req.name}
                     </span>
-
                   </button>
                 )
               })}
-
             </div>
 
             {/* NOTES */}
-            <SectionLabel>
-              Notes
-            </SectionLabel>
-
+            <SectionLabel>Notes</SectionLabel>
             <textarea
               rows={3}
               className={`${inputCls(false)} resize-none`}
@@ -779,14 +708,11 @@ function BookingModal({
                 set("notes", e.target.value)
               }
             />
-
           </div>
 
           {/* FOOTER */}
           <div className="shrink-0 flex justify-between items-center px-7 py-4 border-t border-gray-100 bg-gray-50/60">
-
             <div>
-
               {errors.server && (
                 <p className="text-xs text-red-500 font-medium">
                   {errors.server}
@@ -799,11 +725,9 @@ function BookingModal({
                   for admin approval.
                 </p>
               )}
-
             </div>
 
             <div className="flex gap-2">
-
               <button
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition"
@@ -822,15 +746,10 @@ function BookingModal({
                   ? "Update Request"
                   : "Send Request"}
               </button>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
     </div>,
     document.body
   )
