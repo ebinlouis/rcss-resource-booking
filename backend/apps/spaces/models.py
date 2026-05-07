@@ -24,6 +24,7 @@ class Space(models.Model):
     space_type    = models.CharField(max_length=20, choices=SpaceType.choices)
     capacity_hard = models.IntegerField()
     location      = models.CharField(max_length=100)
+    description   = models.TextField(blank=True, default='')
     image_1       = models.ImageField(upload_to='spaces/', null=True, blank=True)
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)
