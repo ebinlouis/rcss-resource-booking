@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, memo } from "react"
 import BookingModal from "./BookingModal"
 import api from "../api/axios"
 
@@ -69,7 +69,7 @@ function getDayStatus(bookings) {
 }
 
 // ─────────────────────────────────────────────
-// HELPERS — shared fetch logic (pure, no setState)
+// HELPERS — shared fetch logic
 // ─────────────────────────────────────────────
 async function loadBookings(spaceId) {
   const res  = await api.get("/spaces/requests/")
@@ -102,7 +102,7 @@ async function loadBookings(spaceId) {
 // ─────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────
-function AvailabilityModal({ spaceId, spaceName, onClose }) {
+const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, onClose }) {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [currentDate,  setCurrentDate]  = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey())
@@ -122,7 +122,6 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
     setCurrentDate(d)
   }
 
-  // ── Initial load — fully inline so linter sees no external setState call ──
   useEffect(() => {
     if (!spaceId) return
     let cancelled = false
@@ -142,7 +141,6 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
     return () => { cancelled = true }
   }, [spaceId])
 
-  // ── Manual refresh (called from event handlers, never from effects) ──
   const refresh = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -155,9 +153,14 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
     }
   }, [spaceId])
 
-  // Keep a stable ref so the BookingModal onClose closure always calls the latest refresh
   const refreshRef = useRef(refresh)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
+
+  // Stabilize the close handler for BookingModal
+  const handleCloseBooking = useCallback(() => {
+    setOpenBooking(false)
+    refreshRef.current()
+  }, [])
 
   const dayBookings = roomBookings[selectedDate] || []
   const timeline    = buildTimeline(dayBookings)
@@ -166,11 +169,8 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2">
       <div className="bg-white w-full max-w-5xl rounded-2xl flex shadow-xl overflow-hidden">
-
         {/* ── LEFT: CALENDAR ── */}
         <div className="w-[62%] p-6 border-r border-gray-100">
-
-          {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Space Availability</p>
@@ -188,7 +188,6 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
             </div>
           </div>
 
-          {/* Legend */}
           <div className="flex gap-4 mb-3">
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Free
@@ -201,14 +200,12 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
             </span>
           </div>
 
-          {/* Day-of-week headers */}
           <div className="grid grid-cols-7 mb-1">
             {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => (
               <div key={d} className="text-center text-[11px] font-medium text-gray-400 py-1">{d}</div>
             ))}
           </div>
 
-          {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
               <div key={`e-${i}`} />
@@ -239,11 +236,9 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
                 <div
                   key={day}
                   onClick={() => setSelectedDate(dateKey)}
-                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start
-                    pt-1.5 pb-1 gap-1 min-h-[44px] transition-all ${cellBg}`}
+                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[44px] transition-all ${cellBg}`}
                 >
-                  <span className={`text-[12px] font-medium leading-none
-                    ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
+                  <span className={`text-[12px] font-medium leading-none ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
                     {day}
                   </span>
                   <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
@@ -264,10 +259,9 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
                 })}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5"
-            >✕</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5">
+              ✕
+            </button>
           </div>
 
           <div className="text-xs text-gray-400 mb-3">
@@ -276,7 +270,6 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
 
           <div className="border-t border-gray-100 mb-3" />
 
-          {/* Timeline blocks */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {isLoading ? (
               <p className="text-sm text-center text-gray-400 mt-10 animate-pulse">Syncing calendar...</p>
@@ -295,11 +288,9 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
                   return (
                     <div
                       key={idx}
-                      className={`border rounded-xl p-4 flex items-start gap-3
-                        ${isPending ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}
+                      className={`border rounded-xl p-4 flex items-start gap-3 ${isPending ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}
                     >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1
-                        ${isPending ? "bg-orange-500" : "bg-blue-500"}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-orange-500" : "bg-blue-500"}`} />
                       <div className="flex flex-col gap-1.5">
                         <p className={`text-sm font-semibold ${isPending ? "text-orange-900" : "text-blue-900"}`}>
                           {block.start} – {block.end}
@@ -307,8 +298,7 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
                         <p className={`text-xs leading-relaxed ${isPending ? "text-orange-600" : "text-blue-600"}`}>
                           {block.title}
                         </p>
-                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium
-                          ${isPending ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-700"}`}>
+                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-700"}`}>
                           {isPending ? "Pending Approval" : "Booked"}
                         </span>
                       </div>
@@ -352,14 +342,11 @@ function AvailabilityModal({ spaceId, spaceName, onClose }) {
           prefillDate={selectedDate}
           prefillStart={selectedSlot?.start || ""}
           prefillEnd={selectedSlot?.end   || ""}
-          onClose={() => {
-            setOpenBooking(false)
-            refreshRef.current()
-          }}
+          onClose={handleCloseBooking}
         />
       )}
     </div>
   )
-}
+})
 
 export default AvailabilityModal
