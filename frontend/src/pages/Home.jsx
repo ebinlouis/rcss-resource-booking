@@ -85,9 +85,7 @@ function Home() {
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{greeting}, User!</h1>
-        <p className="text-gray-400 mt-1 text-sm">
-          Manage your space reservations and submit new booking requests.
-        </p>
+        
       </div>
 
       {/* TOP SPLIT LAYOUT */}
@@ -175,11 +173,14 @@ function Home() {
       <div className="mt-10">
 
         <div className="mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Bookable spaces</h2>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Main, lab, and conference spaces — click a card to view availability
-          </p>
-        </div>
+  <h2 className="text-lg font-semibold text-gray-900">
+    Bookable spaces
+  </h2>
+
+  <p className="text-sm text-gray-400 mt-0.5">
+    Browse available halls, labs, and meeting spaces for your next booking
+  </p>
+</div>
 
         {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
