@@ -1,12 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Link } from "react-router-dom"
 
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
-
 import MainLayout from "../layouts/MainLayout"
-
 import api from "../api/axios"
 
 const FILTERS = ["All", "Available", "In use"]
@@ -25,55 +23,51 @@ function Home() {
   const [openAvailability, setOpenAvailability] = useState(false)
 
   const [dbRooms, setDbRooms] = useState([])
+  const [myBookings, setMyBookings] = useState([])
+  
+  // Unified loading state
   const [isLoading, setIsLoading] = useState(true)
 
-  const [myBookings, setMyBookings] = useState([])
-  const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
-
   useEffect(() => {
-    const fetchSpaces = async () => {
+    const loadInitialData = async () => {
       try {
-        const response = await api.get("/spaces/catalog/")
-        const spaceData = response.data.results ?? response.data
-        setDbRooms(spaceData || [])
+        const [spacesRes, bookingsRes] = await Promise.all([
+          api.get("/spaces/catalog/"),
+          api.get("/spaces/requests/?view=mine")
+        ])
+        setDbRooms(spacesRes.data.results ?? spacesRes.data ?? [])
+        setMyBookings(bookingsRes.data.results ?? bookingsRes.data ?? [])
       } catch (error) {
-        console.error("Failed to fetch spaces:", error)
-        setDbRooms([])
+        console.error("Failed to load dashboard data:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    const fetchMyBookings = async () => {
-      try {
-        const response = await api.get("/spaces/requests/?view=mine")
-        const data = response.data.results ?? response.data ?? []
-        setMyBookings(data)
-      } catch (error) {
-        console.error("Failed to fetch my bookings:", error)
-      } finally {
-        setIsLoadingMyBookings(false)
-      }
-    }
-
-    fetchSpaces()
-    fetchMyBookings()
+    loadInitialData()
   }, [])
 
-  const handleEditBooking = (booking) => {
+  const handleEditBooking = useCallback((booking) => {
     const room = dbRooms.find(
       (r) => r.name.toLowerCase() === booking.hall.toLowerCase()
     )
     setSelectedRoom(room || { name: booking.hall })
     setOpenAvailability(true)
-  }
+  }, [dbRooms])
 
-  const filteredRooms = dbRooms.filter((r) => {
-    const matchesSearch =
-      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (r.space_type || "").toLowerCase().includes(search.toLowerCase())
-    return matchesSearch
-  })
+  const handleCloseModal = useCallback(() => {
+    setOpenAvailability(false)
+  }, [])
+
+  // Memoize the filtered list so it only recalculates when search or dbRooms change
+  const filteredRooms = useMemo(() => {
+    return dbRooms.filter((r) => {
+      const matchesSearch =
+        (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (r.space_type || "").toLowerCase().includes(search.toLowerCase())
+      return matchesSearch
+    })
+  }, [dbRooms, search])
 
   const hour = new Date().getHours()
   const greeting =
@@ -81,16 +75,13 @@ function Home() {
 
   return (
     <MainLayout>
-
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{greeting}, User!</h1>
-        
       </div>
 
       {/* TOP SPLIT LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-
         {/* LEFT: General campus activity feed */}
         <div className="lg:col-span-2">
           <TodayBookings onEditBooking={handleEditBooking} />
@@ -99,7 +90,6 @@ function Home() {
         {/* RIGHT: This user's own requests — max 3 shown */}
         <div className="lg:col-span-1 lg:mt-4">
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 sticky top-6">
-
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-900">My Requests</h2>
               {myBookings.length > 0 && (
@@ -109,7 +99,7 @@ function Home() {
               )}
             </div>
 
-            {isLoadingMyBookings ? (
+            {isLoading ? (
               <div className="space-y-2.5">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-[68px] bg-gray-50 rounded-lg animate-pulse" />
@@ -125,7 +115,6 @@ function Home() {
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Only 3 max */}
                 {myBookings.slice(0, 3).map((booking) => (
                   <div
                     key={booking.id}
@@ -163,24 +152,18 @@ function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </Link>
-
           </div>
         </div>
-
       </div>
 
       {/* SPACES SECTION */}
       <div className="mt-10">
-
         <div className="mb-5">
-  <h2 className="text-lg font-semibold text-gray-900">
-    Bookable spaces
-  </h2>
-
-  <p className="text-sm text-gray-400 mt-0.5">
-    Browse available halls, labs, and meeting spaces for your next booking
-  </p>
-</div>
+          <h2 className="text-lg font-semibold text-gray-900">Bookable spaces</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Browse available halls, labs, and meeting spaces for your next booking
+          </p>
+        </div>
 
         {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -255,17 +238,15 @@ function Home() {
             <p className="text-xs text-gray-400 mt-1">Try a different name or filter</p>
           </div>
         )}
-
       </div>
 
       {openAvailability && selectedRoom && (
         <AvailabilityModal
           spaceId={selectedRoom.id}
           spaceName={selectedRoom.name}
-          onClose={() => setOpenAvailability(false)}
+          onClose={handleCloseModal}
         />
       )}
-
     </MainLayout>
   )
 }
