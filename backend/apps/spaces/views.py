@@ -9,16 +9,19 @@ from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Space, SpaceBooking, Equipment
 from .serializers import SpaceSerializer, SpaceBookingSerializer, EquipmentSerializer
 
-
+# ==========================================
+# RESOURCE CATALOG MANAGEMENT
+# ==========================================
 class EquipmentViewSet(viewsets.ModelViewSet):
     queryset = Equipment.objects.filter(is_active=True)
     serializer_class = EquipmentSerializer
+    # Only true IT Admins / Staff can add/edit equipment. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
-
 
 class SpaceViewSet(viewsets.ModelViewSet):
     queryset = Space.objects.filter(is_active=True)
     serializer_class = SpaceSerializer
+    # Only true IT Admins / Staff can add/edit spaces. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -47,7 +50,9 @@ class SpaceViewSet(viewsets.ModelViewSet):
             )
         return Response({"available": True, "message": "Space is available."}, status=status.HTTP_200_OK)
 
-
+# ==========================================
+# BOOKING SUBMISSIONS
+# ==========================================
 class SpaceBookingViewSet(viewsets.ModelViewSet):
     serializer_class = SpaceBookingSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrAdminOrReadOnly]
@@ -79,6 +84,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
+        # NOTE: If your React App uses the UnifiedApprovalQueue, 
+        # this endpoint might be redundant, but it's safe to keep as a fallback.
         user = request.user
         if not (user.is_staff or user.is_superuser):
             return Response(
