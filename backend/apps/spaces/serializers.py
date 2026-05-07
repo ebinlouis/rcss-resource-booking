@@ -36,7 +36,7 @@ class SpaceSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Space
         fields = [
-            'id', 'name', 'space_type', 'capacity_hard', 'location',
+            'id', 'name', 'description', 'space_type', 'capacity_hard', 'location',
             'image_1', 'is_active', 'built_in_equipment', 'equipment_data',
         ]
 
@@ -86,7 +86,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     # ── Permission-aware computed fields ──────────────────────────────────────
     # Both fields pull the request from serializer context, which DRF populates
     # automatically when the serializer is instantiated inside a ViewSet.
-
     purpose_of_booking = serializers.SerializerMethodField()
     can_modify         = serializers.SerializerMethodField()
 
@@ -102,7 +101,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         read_only_fields = ['reference_code', 'status', 'created_at', 'updated_at', 'user']
 
     # ── Helpers ───────────────────────────────────────────────────────────────
-
     def _request(self):
         return self.context.get('request')
 
@@ -111,7 +109,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return req.user if req else None
 
     # ── SerializerMethodField implementations ─────────────────────────────────
-
     def get_purpose_of_booking(self, obj):
         """
         Role-gated field:
@@ -150,8 +147,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return False
         return obj.user_id == user.pk or user.is_staff or user.is_superuser
 
-    # ── Write logic (unchanged from your original) ────────────────────────────
-
+    # ── Write logic ───────────────────────────────────────────────────────────
     def create(self, validated_data):
         equipment_data = validated_data.pop('equipment_requests', [])
         booking = super().create(validated_data)
