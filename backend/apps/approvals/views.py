@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.db.models import Q
 
 from apps.users.permissions import IsApprover
-from apps.users.models import RoleOverride # <-- NEW IMPORT
+from apps.users.models import RoleOverride
 
 from apps.spaces.models import SpaceBooking
 from apps.fleet.models import FleetBooking
@@ -43,7 +43,7 @@ class UnifiedApprovalQueueView(APIView):
             
         elif effective_role == 'HOD':
             # Department Scope: Can only see requests from students/staff in their own department
-            if user.department:
+            if getattr(user, 'department', None):
                 spaces = spaces.filter(user__department=user.department)
                 fleet = fleet.filter(user__department=user.department)
                 mess = mess.filter(user__department=user.department)
@@ -52,10 +52,6 @@ class UnifiedApprovalQueueView(APIView):
                 # Security fallback: If an HOD somehow has no department assigned, show nothing.
                 spaces, fleet, mess, media = spaces.none(), fleet.none(), mess.none(), media.none()
                 
-        # (Optional) You can add other roles here later, e.g.:
-        # elif effective_role == 'FACILITY_MANAGER':
-        #     mess, media = mess.none(), media.none() # Facility only sees Space/Fleet
-            
         else:
             # Absolute fallback: If role doesn't match known approval rules, return empty queues
             spaces, fleet, mess, media = spaces.none(), fleet.none(), mess.none(), media.none()
@@ -69,8 +65,12 @@ class UnifiedApprovalQueueView(APIView):
                 "domain": "spaces",
                 "reference_code": item.reference_code,
                 "requester": item.user.email,
+                "department": str(item.user.department) if getattr(item.user, 'department', None) else 'General',
                 "created_at": item.created_at,
-                "resource_name": item.space.name,          
+                "start_datetime": getattr(item, 'start_datetime', None),
+                "end_datetime": getattr(item, 'end_datetime', None),
+                "attendee_count": getattr(item, 'attendee_count', None),
+                "resource_name": getattr(item.space, 'name', 'Space Resource'),          
                 "purpose": item.purpose_of_booking          
             })
 
@@ -80,9 +80,13 @@ class UnifiedApprovalQueueView(APIView):
                 "domain": "fleet",
                 "reference_code": item.reference_code,
                 "requester": item.user.email,
+                "department": str(item.user.department) if getattr(item.user, 'department', None) else 'General',
                 "created_at": item.created_at,
-                "resource_name": item.vehicle.name,        
-                "purpose": item.purpose                    
+                "start_datetime": getattr(item, 'start_datetime', getattr(item, 'departure_time', None)),
+                "end_datetime": getattr(item, 'end_datetime', getattr(item, 'return_time', None)),
+                "attendee_count": getattr(item, 'passenger_count', getattr(item, 'passengers', None)),
+                "resource_name": getattr(item.vehicle, 'name', 'Fleet Vehicle'),        
+                "purpose": getattr(item, 'purpose', 'No purpose provided')                    
             })
 
         for item in mess:
@@ -91,9 +95,13 @@ class UnifiedApprovalQueueView(APIView):
                 "domain": "mess",
                 "reference_code": item.reference_code,
                 "requester": item.user.email,
+                "department": str(item.user.department) if getattr(item.user, 'department', None) else 'General',
                 "created_at": item.created_at,
-                "resource_name": f"Catering ({item.total_persons} Pax)", 
-                "purpose": item.purpose_of_programme
+                "start_datetime": getattr(item, 'date_of_programme', getattr(item, 'delivery_time', None)),
+                "end_datetime": getattr(item, 'end_time', None),
+                "attendee_count": getattr(item, 'total_persons', None),
+                "resource_name": f"Catering ({getattr(item, 'total_persons', 0)} Pax)", 
+                "purpose": getattr(item, 'purpose_of_programme', 'No purpose provided')
             })
 
         for item in media:
@@ -102,9 +110,13 @@ class UnifiedApprovalQueueView(APIView):
                 "domain": "media",
                 "reference_code": item.reference_code,
                 "requester": item.user.email,
+                "department": str(item.user.department) if getattr(item.user, 'department', None) else 'General',
                 "created_at": item.created_at,
+                "start_datetime": getattr(item, 'event_date', getattr(item, 'start_datetime', None)),
+                "end_datetime": getattr(item, 'end_datetime', None),
+                "attendee_count": getattr(item, 'attendees', None),
                 "resource_name": "Equipment/Media Support",    
-                "purpose": item.event_name
+                "purpose": getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided'))
             })
 
         # --- 5. SORT BY OLDEST FIRST ---

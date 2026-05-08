@@ -44,7 +44,6 @@ const inputCls =
 const numberInputCls =
   `${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none m-0`
 
-
 // ── Default state ─────────────────────────────────────────────────────────────
 
 const defaultFormState = {
@@ -79,8 +78,6 @@ const defaultFormState = {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 function MessBookingForm({ onClose, onSave, editData }) {
-  // Sanitize any null values coming from the server so controlled inputs
-  // never receive null (which React treats as uncontrolled).
   const sanitizeData = (data) =>
     Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === null ? "" : v]))
 
@@ -88,13 +85,17 @@ function MessBookingForm({ onClose, onSave, editData }) {
     ...defaultFormState,
     ...(editData ? sanitizeData(editData) : {}),
   })
-  const [error, setError]             = useState(null)
+  const [error, setError]               = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Prevents setState calls after the component has unmounted (e.g. if onClose
-  // fires while an in-flight request is still pending).
+  // FIX: React 18 Strict Mode double-invocation bug.
+  // We MUST set it to true inside the effect, so that when Strict Mode
+  // unmounts and remounts the component, it resets to true.
   const isMounted = useRef(true)
-  useEffect(() => () => { isMounted.current = false }, [])
+  useEffect(() => {
+    isMounted.current = true
+    return () => { isMounted.current = false }
+  }, [])
 
   const set = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -126,7 +127,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       const time = form[meal.timeKey]
       const menu = form[meal.menuKey]
 
-      if (!time)       return `Please specify a delivery time for ${meal.label}.`
+      if (!time)         return `Please specify a delivery time for ${meal.label}.`
       if (!menu?.trim()) return `Please specify the ${meal.menuLabel} for ${meal.label}.`
 
       requestedTimes.push(time)
@@ -135,7 +136,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
     if (requestedTimes.length === 0)
       return "You must select and provide details for at least one meal."
 
-    // 24-hour SLA check against the earliest meal
     const earliest         = requestedTimes.sort()[0]
     const earliestDateTime = new Date(`${form.booking_date}T${earliest}`)
     const deadline         = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -155,14 +155,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
     const validationError = validate()
     if (validationError) return setError(validationError)
 
-    // For each meal: if required → normalise time to HH:MM:SS; if not required →
-    // null out the time field so Django never receives an empty string on a
-    // TimeField (which it rejects as invalid format).
     const mealOverrides = {}
     for (const meal of MEALS) {
       const required = form[`${meal.id}_required`]
-      // Time: null for unselected meals (Django rejects empty strings on TimeField)
-      // Menu: "" is fine as Django accepts blank strings on CharField
       mealOverrides[meal.timeKey] = required ? normalizeTime(form[meal.timeKey]) : null
       mealOverrides[meal.menuKey] = required ? form[meal.menuKey] : ""
     }
@@ -177,13 +172,15 @@ function MessBookingForm({ onClose, onSave, editData }) {
         nonveg_persons: parseInt(form.nonveg_persons, 10),
       }
 
-      const savedBooking = editData?.id
-        ? await messService.updateBooking(editData.id, payload)
-        : await messService.createBooking(payload)
+      if (editData?.id) {
+        await messService.updateBooking(editData.id, payload)
+      } else {
+        await messService.createBooking(payload)
+      }
 
       if (isMounted.current) {
         setIsSubmitting(false)
-        onSave?.(savedBooking)
+        onSave?.() 
       }
 
     } catch (err) {
@@ -201,8 +198,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
         setError("Failed to submit request. Please check your connection and try again.")
       }
     } finally {
-      // Only needed for the error path; success path sets this before onSave
-      // closes the modal (which would unmount the component).
       if (isMounted.current) setIsSubmitting(false)
     }
   }

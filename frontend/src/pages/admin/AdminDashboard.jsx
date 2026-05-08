@@ -4,52 +4,361 @@ import approvalService from '../../api/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 
 // ==========================================
+// STYLES  (injected once)
+// ==========================================
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+
+  .adc-root {
+    --c-bg:        #F7F6F3;
+    --c-surface:   #FFFFFF;
+    --c-border:    rgba(0,0,0,0.08);
+    --c-border-md: rgba(0,0,0,0.12);
+    --c-text-1:    #0F0F0F;
+    --c-text-2:    #6B6B6B;
+    --c-text-3:    #A8A8A8;
+    --c-blue-bg:   #EBF2FF;
+    --c-blue:      #1A56DB;
+    --c-blue-dark: #1140AA;
+    --c-green-bg:  #ECFDF5;
+    --c-green:     #0D9F6E;
+    --c-red-bg:    #FEF2F2;
+    --c-red:       #DC2626;
+    --c-amber-bg:  #FFFBEB;
+    --c-amber:     #B45309;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--c-bg);
+    min-height: 100vh;
+    color: var(--c-text-1);
+  }
+
+  /* ---- layout ---- */
+  .adc-page   { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+  .adc-topbar { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:2rem; gap:1rem; flex-wrap:wrap; }
+  .adc-eyebrow{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--c-text-3); font-weight:500; margin-bottom:4px; }
+  .adc-title  { font-size:24px; font-weight:500; color:var(--c-text-1); letter-spacing:-.02em; }
+  .adc-sub    { font-size:13px; color:var(--c-text-2); margin-top:3px; }
+
+  /* ---- stat strip ---- */
+  .adc-stats  { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:1.5rem; }
+  .adc-stat   { background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; padding:14px 18px; }
+  .adc-stat-n { font-size:26px; font-weight:300; color:var(--c-text-1); letter-spacing:-.03em; line-height:1; }
+  .adc-stat-l { font-size:11px; color:var(--c-text-3); margin-top:5px; letter-spacing:.03em; }
+
+  /* ---- queue panel ---- */
+  .adc-panel  { background:var(--c-surface); border:1px solid var(--c-border); border-radius:16px; overflow:hidden; }
+  .adc-phead  { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--c-border); }
+  .adc-phead-l{ font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--c-text-3); font-weight:500; }
+
+  /* ---- booking row ---- */
+  .adc-row    { padding:20px 24px; border-bottom:1px solid var(--c-border); transition:background .12s; cursor:default; }
+  .adc-row:last-child{ border-bottom:none; }
+  .adc-row:hover{ background:#FBFAF8; }
+
+  .adc-row-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  .adc-row-top-left{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+  .adc-ref    { font-family:'DM Mono',monospace; font-size:11.5px; color:var(--c-text-2); background:#F4F3F0; padding:3px 8px; border-radius:5px; border:1px solid var(--c-border); }
+  .adc-pax    { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--c-text-2); }
+  .adc-pax svg{ width:13px; height:13px; opacity:.6; }
+  .adc-ts     { font-size:11px; color:var(--c-text-3); white-space:nowrap; }
+
+  /* ---- 3-col info grid ---- */
+  .adc-grid   { display:grid; grid-template-columns:1.8fr 1.6fr 2.6fr; gap:24px; }
+  .adc-col-lbl{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--c-text-3); font-weight:500; margin-bottom:8px; }
+
+  .adc-resource{ display:flex; align-items:flex-start; gap:12px; }
+  .adc-ricon   { width:38px; height:38px; border-radius:10px; background:var(--c-blue-bg); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .adc-ricon svg{ width:18px; height:18px; color:var(--c-blue); stroke:var(--c-blue); }
+  .adc-rname   { font-size:14px; font-weight:500; color:var(--c-text-1); line-height:1.3; }
+  .adc-rdomain { font-size:11px; color:var(--c-text-3); margin-top:3px; }
+
+  .adc-sched   { display:flex; flex-direction:column; gap:0; }
+  .adc-srow    { display:flex; align-items:flex-start; gap:10px; }
+  .adc-sline-wrap{ display:flex; flex-direction:column; align-items:center; padding-top:3px; }
+  .adc-sdot    { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+  .adc-sdot.s  { background:var(--c-green); }
+  .adc-sdot.e  { background:var(--c-red); }
+  .adc-sconnect{ width:1px; height:18px; background:var(--c-border-md); margin:3px 0; }
+  .adc-slabel  { font-size:10px; color:var(--c-text-3); letter-spacing:.03em; display:block; margin-bottom:1px; }
+  .adc-sval    { font-size:13px; font-weight:500; color:var(--c-text-1); }
+
+  .adc-requester{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .adc-avatar  { width:30px; height:30px; border-radius:50%; background:var(--c-blue-bg); color:var(--c-blue); font-size:12px; font-weight:500; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .adc-rqname  { font-size:13px; font-weight:500; color:var(--c-text-1); }
+  .adc-rqdept  { font-size:11px; color:var(--c-text-3); margin-top:1px; }
+  .adc-purpose { font-size:12px; color:var(--c-text-2); background:#F7F6F3; padding:9px 11px; border-radius:8px; border:1px solid var(--c-border); line-height:1.55; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+
+  /* ---- actions ---- */
+  .adc-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; padding-top:16px; border-top:1px solid var(--c-border); }
+  .adc-btn-rej { display:inline-flex; align-items:center; gap:5px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:400; padding:7px 16px; border-radius:8px; border:1px solid var(--c-border-md); background:transparent; color:var(--c-text-2); cursor:pointer; transition:all .15s; }
+  .adc-btn-rej:hover{ background:var(--c-red-bg); color:var(--c-red); border-color:rgba(220,38,38,.2); }
+  .adc-btn-rej:disabled{ opacity:.45; cursor:default; }
+  .adc-btn-app { display:inline-flex; align-items:center; gap:6px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; padding:7px 18px; border-radius:8px; border:none; background:var(--c-text-1); color:#fff; cursor:pointer; transition:opacity .15s; }
+  .adc-btn-app:hover{ opacity:.82; }
+  .adc-btn-app:disabled{ opacity:.45; cursor:default; }
+  .adc-btn-app svg, .adc-btn-rej svg{ width:14px; height:14px; }
+
+  /* ---- refresh btn ---- */
+  .adc-refresh { display:inline-flex; align-items:center; gap:6px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:400; padding:8px 16px; border-radius:8px; border:1px solid var(--c-border-md); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; transition:background .15s; }
+  .adc-refresh:hover{ background:#F4F3F0; }
+  .adc-refresh:disabled{ opacity:.45; cursor:default; }
+  .adc-refresh svg{ width:14px; height:14px; }
+  .adc-refresh svg.spin{ animation:adc-spin .7s linear infinite; }
+  @keyframes adc-spin{ to{ transform:rotate(360deg); } }
+
+  /* ---- empty / loading / error states ---- */
+  .adc-state  { padding:4rem 2rem; text-align:center; }
+  .adc-state-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+  .adc-state-icon svg{ width:22px; height:22px; }
+  .adc-state-icon.green{ background:var(--c-green-bg); color:var(--c-green); stroke:var(--c-green); }
+  .adc-state-icon.red  { background:var(--c-red-bg);   color:var(--c-red);   stroke:var(--c-red); }
+  .adc-state-title{ font-size:15px; font-weight:500; color:var(--c-text-1); }
+  .adc-state-sub  { font-size:13px; color:var(--c-text-3); margin-top:5px; }
+
+  /* ---- modal overlay ---- */
+  .adc-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.4); backdrop-filter:blur(4px); z-index:50; display:flex; align-items:center; justify-content:center; padding:1.5rem; }
+  .adc-modal  { background:var(--c-surface); border-radius:16px; border:1px solid var(--c-border-md); padding:1.75rem; width:100%; max-width:420px; }
+  .adc-modal-title{ font-size:16px; font-weight:500; color:var(--c-text-1); margin-bottom:4px; letter-spacing:-.01em; }
+  .adc-modal-sub  { font-size:13px; color:var(--c-text-2); margin-bottom:1.25rem; padding-bottom:1.25rem; border-bottom:1px solid var(--c-border); }
+  .adc-modal-sub strong{ color:var(--c-text-1); font-weight:500; }
+  .adc-modal-lbl  { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--c-text-3); font-weight:500; margin-bottom:7px; }
+  .adc-modal-ta   { width:100%; border:1px solid var(--c-border-md); border-radius:8px; padding:10px 13px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--c-text-1); background:var(--c-surface); resize:none; outline:none; min-height:88px; transition:border .15s; box-sizing:border-box; }
+  .adc-modal-ta:focus{ border-color:var(--c-text-1); }
+  .adc-modal-hint { font-size:11px; color:var(--c-text-3); margin-top:5px; }
+  .adc-modal-acts { display:flex; gap:8px; justify-content:flex-end; margin-top:1.25rem; }
+  .adc-modal-cancel{ display:inline-flex; align-items:center; font-family:'DM Sans',sans-serif; font-size:13px; padding:7px 16px; border-radius:8px; border:1px solid var(--c-border-md); background:transparent; color:var(--c-text-2); cursor:pointer; transition:background .15s; }
+  .adc-modal-cancel:hover{ background:#F4F3F0; }
+  .adc-modal-cancel:disabled{ opacity:.45; }
+  .adc-modal-confirm{ display:inline-flex; align-items:center; gap:5px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; padding:7px 18px; border-radius:8px; border:none; background:var(--c-red); color:#fff; cursor:pointer; transition:opacity .15s; }
+  .adc-modal-confirm:hover{ opacity:.85; }
+  .adc-modal-confirm:disabled{ opacity:.4; cursor:default; }
+
+  /* ---- success modal ---- */
+  .adc-success-icon{ width:48px; height:48px; border-radius:50%; background:var(--c-green-bg); display:flex; align-items:center; justify-content:center; margin:0 auto 1rem; }
+  .adc-success-icon svg{ width:22px; height:22px; stroke:var(--c-green); }
+  .adc-success-title{ font-size:16px; font-weight:500; color:var(--c-text-1); text-align:center; letter-spacing:-.01em; }
+  .adc-success-sub  { font-size:13px; color:var(--c-text-2); text-align:center; margin-top:6px; line-height:1.5; }
+  .adc-success-btn  { width:100%; margin-top:1.25rem; padding:9px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; border-radius:8px; border:none; background:var(--c-text-1); color:#fff; cursor:pointer; transition:opacity .15s; }
+  .adc-success-btn:hover{ opacity:.8; }
+`;
+
+// ==========================================
+// UTILITIES
+// ==========================================
+const formatDateTime = (isoString) => {
+    if (!isoString) return 'TBD';
+    return new Intl.DateTimeFormat('en-IN', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    }).format(new Date(isoString));
+};
+
+const timeAgo = (isoString) => {
+    if (!isoString) return '';
+    const mins = Math.round((Date.now() - new Date(isoString)) / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+};
+
+// ==========================================
+// SVG ICONS
+// ==========================================
+const IconBuilding = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01"/>
+    </svg>
+);
+const IconCheck = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M5 13l4 4L19 7"/>
+    </svg>
+);
+const IconX = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+);
+const IconRefresh = ({ spin }) => (
+    <svg className={spin ? 'spin' : ''} viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M1 4v6h6M23 20v-6h-6"/>
+        <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
+    </svg>
+);
+const IconUsers = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+);
+const IconAlert = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+);
+
+// ==========================================
 // REJECT MODAL
 // ==========================================
 const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
     const [remarks, setRemarks] = useState('');
-
     return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h3 className="text-base font-bold text-gray-900 mb-1">Reject Booking</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                    <span className="font-medium text-gray-700">{booking.reference_code}</span> · {booking.resource_name}
-                </p>
-
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">
-                    Reason for Rejection <span className="text-red-500">*</span>
-                </label>
+        <div className="adc-overlay">
+            <div className="adc-modal">
+                <div className="adc-modal-title">Reject booking</div>
+                <div className="adc-modal-sub">
+                    <strong>{booking.reference_code}</strong> · {booking.resource_name}
+                </div>
+                <div className="adc-modal-lbl">
+                    Reason for rejection <span style={{ color: 'var(--c-red)' }}>*</span>
+                </div>
                 <textarea
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200 resize-none"
-                    rows={4}
+                    className="adc-modal-ta"
                     placeholder="e.g. Conflicting schedule, missing documentation..."
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                     autoFocus
                 />
-                <p className="text-[10px] text-gray-400 mt-1">This message will be recorded against the booking.</p>
-
-                <div className="flex gap-3 mt-5 justify-end">
-                    <button
-                        onClick={onCancel}
-                        disabled={isLoading}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition disabled:opacity-50"
-                    >
+                <div className="adc-modal-hint">This message will be recorded against the booking.</div>
+                <div className="adc-modal-acts">
+                    <button className="adc-modal-cancel" onClick={onCancel} disabled={isLoading}>
                         Cancel
                     </button>
                     <button
+                        className="adc-modal-confirm"
                         onClick={() => onConfirm(remarks)}
                         disabled={isLoading || !remarks.trim()}
-                        className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition disabled:opacity-50"
                     >
-                        {isLoading ? 'Rejecting...' : 'Confirm Reject'}
+                        {isLoading ? 'Rejecting…' : 'Confirm rejection'}
                     </button>
                 </div>
             </div>
         </div>
     );
 };
+
+// ==========================================
+// SUCCESS MODAL
+// ==========================================
+const SuccessModal = ({ booking, onClose }) => {
+    if (!booking) return null;
+    return (
+        <div className="adc-overlay">
+            <div className="adc-modal" style={{ maxWidth: 360, textAlign: 'center' }}>
+                <div className="adc-success-icon"><IconCheck /></div>
+                <div className="adc-success-title">Booking approved</div>
+                <div className="adc-success-sub">
+                    Request <strong>{booking.reference_code}</strong> for{' '}
+                    <strong>{booking.resource_name}</strong> has been approved.
+                </div>
+                <button className="adc-success-btn" onClick={onClose}>Continue</button>
+            </div>
+        </div>
+    );
+};
+
+// ==========================================
+// BOOKING ROW
+// ==========================================
+const BookingRow = ({ booking, onApprove, onReject, isActing }) => (
+    <div className="adc-row">
+        {/* top strip */}
+        <div className="adc-row-top">
+            <div className="adc-row-top-left">
+                <span className="adc-ref">{booking.reference_code}</span>
+                {booking.attendee_count && (
+                    <span className="adc-pax">
+                        <IconUsers /> {booking.attendee_count} pax
+                    </span>
+                )}
+            </div>
+            <span className="adc-ts">Requested {timeAgo(booking.created_at)}</span>
+        </div>
+
+        {/* 3-col info */}
+        <div className="adc-grid">
+            {/* Resource */}
+            <div>
+                <div className="adc-col-lbl">Resource</div>
+                <div className="adc-resource">
+                    <div className="adc-ricon"><IconBuilding /></div>
+                    <div>
+                        <div className="adc-rname">{booking.resource_name || 'Space'}</div>
+                        <div className="adc-rdomain">Spaces · {booking.reference_code}</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Schedule */}
+            <div>
+                <div className="adc-col-lbl">Schedule</div>
+                <div className="adc-sched">
+                    <div className="adc-srow">
+                        <div className="adc-sline-wrap">
+                            <span className="adc-sdot s" />
+                            <span className="adc-sconnect" />
+                        </div>
+                        <div>
+                            <span className="adc-slabel">Starts</span>
+                            <span className="adc-sval">{formatDateTime(booking.start_datetime)}</span>
+                        </div>
+                    </div>
+                    <div className="adc-srow">
+                        <div className="adc-sline-wrap">
+                            <span className="adc-sdot e" />
+                        </div>
+                        <div>
+                            <span className="adc-slabel">Ends</span>
+                            <span className="adc-sval">{formatDateTime(booking.end_datetime)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Requester + Purpose */}
+            <div>
+                <div className="adc-col-lbl">Requester & purpose</div>
+                <div className="adc-requester">
+                    <div className="adc-avatar">
+                        {booking.requester?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                    <div>
+                        <div className="adc-rqname">{booking.requester}</div>
+                        <div className="adc-rqdept">{booking.department || 'General Member'}</div>
+                    </div>
+                </div>
+                <div className="adc-purpose">{booking.purpose || 'No purpose provided.'}</div>
+            </div>
+        </div>
+
+        {/* Actions */}
+        <div className="adc-actions">
+            <button
+                className="adc-btn-rej"
+                onClick={() => onReject(booking)}
+                disabled={isActing}
+            >
+                <IconX /> Reject
+            </button>
+            <button
+                className="adc-btn-app"
+                onClick={() => onApprove(booking)}
+                disabled={isActing}
+            >
+                {isActing
+                    ? 'Processing…'
+                    : <><IconCheck /> Approve</>}
+            </button>
+        </div>
+    </div>
+);
 
 // ==========================================
 // MAIN DASHBOARD
@@ -63,14 +372,12 @@ const AdminDashboard = () => {
     const [actionLoading, setActionLoading] = useState(null);
     const [error, setError] = useState(null);
     const [refreshCount, setRefreshCount] = useState(0);
-
-    // Tracks which booking is pending rejection (opens modal)
     const [rejectTarget, setRejectTarget] = useState(null);
+    const [successTarget, setSuccessTarget] = useState(null);
 
     useEffect(() => {
         let isMounted = true;
 
-        // Auto-Bouncer: If they only have Mess clearance, reroute them immediately
         if (can_manage_mess && !can_manage_system) {
             navigate('/admin/mess', { replace: true });
             return;
@@ -80,70 +387,55 @@ const AdminDashboard = () => {
             setIsLoading(true);
             try {
                 const data = await approvalService.getPendingApprovals();
-                
                 if (isMounted) {
-                    // Filter out Mess bookings so they don't clutter the IT Admin dashboard
                     const cleanQueue = (data.queue || []).filter(
-                        (booking) => booking.domain?.toLowerCase() !== 'mess'
+                        (b) => b.domain?.toLowerCase() !== 'mess'
                     );
-                    
                     setPendingBookings(cleanQueue);
                     setError(null);
                 }
             } catch (err) {
-                console.error("Fetch error:", err);
+                console.error('Fetch error:', err);
                 if (isMounted) {
-                    if (err.response?.status === 401) {
-                        setError("UNAUTHORIZED: Your account lacks IsApprover privileges.");
-                    } else {
-                        setError("Connection failed. Please check your backend server.");
-                    }
+                    setError(
+                        err.response?.status === 401
+                            ? 'Your account lacks approver privileges.'
+                            : 'Connection failed. Please check your backend server.'
+                    );
                 }
             } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
+                if (isMounted) setIsLoading(false);
             }
         };
 
         fetchQueue();
-
-        // Cleanup function prevents state updates if the component unmounts
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [refreshCount, can_manage_system, can_manage_mess, navigate]);
 
     const handleRefresh = () => {
         setIsLoading(true);
-        setRefreshCount(c => c + 1);
+        setRefreshCount((c) => c + 1);
     };
 
-    // Approve - no remarks needed
-    const handleApprove = async (id, domain) => {
-        setActionLoading(id);
+    const handleApprove = async (booking) => {
+        setActionLoading(booking.id);
         try {
             await approvalService.resolveBooking({
-                module: domain,
-                id: id,
+                module: booking.domain,
+                id: booking.id,
                 status: 'APPROVED',
-                remarks: ''
+                remarks: '',
             });
-            handleRefresh();
+            setPendingBookings((prev) => prev.filter((b) => b.id !== booking.id));
+            setSuccessTarget(booking);
         } catch (err) {
-            console.error("Approve error:", err);
-            alert(err.response?.data?.error || "Approval failed. Check admin permissions.");
+            console.error('Approve error:', err);
+            alert(err.response?.data?.error || 'Approval failed. Check admin permissions.');
         } finally {
             setActionLoading(null);
         }
     };
 
-    // Step 1: Open modal
-    const handleRejectClick = (booking) => {
-        setRejectTarget(booking);
-    };
-
-    // Step 2: Submit with remarks from modal
     const handleRejectConfirm = async (remarks) => {
         if (!rejectTarget) return;
         setActionLoading(rejectTarget.id);
@@ -152,22 +444,22 @@ const AdminDashboard = () => {
                 module: rejectTarget.domain,
                 id: rejectTarget.id,
                 status: 'REJECTED',
-                remarks: remarks
+                remarks,
             });
+            setPendingBookings((prev) => prev.filter((b) => b.id !== rejectTarget.id));
             setRejectTarget(null);
-            handleRefresh();
         } catch (err) {
-            console.error("Reject error:", err);
-            alert(err.response?.data?.error || "Rejection failed. Check admin permissions.");
+            console.error('Reject error:', err);
+            alert(err.response?.data?.error || 'Rejection failed. Check admin permissions.');
         } finally {
             setActionLoading(null);
         }
     };
 
     return (
-        <div className="max-w-screen-xl mx-auto px-6 py-8 font-geist text-gray-900">
+        <div className="adc-root">
+            <style>{STYLES}</style>
 
-            {/* Reject Modal */}
             {rejectTarget && (
                 <RejectModal
                     booking={rejectTarget}
@@ -176,106 +468,98 @@ const AdminDashboard = () => {
                     isLoading={actionLoading === rejectTarget.id}
                 />
             )}
+            {successTarget && (
+                <SuccessModal
+                    booking={successTarget}
+                    onClose={() => setSuccessTarget(null)}
+                />
+            )}
 
-            {/* Header */}
-            <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Action Center</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {error ? "Authentication Required" : `Reviewing ${pendingBookings.length} pending requests across Rajagiri resources.`}
-                    </p>
-                </div>
-                <button
-                    onClick={handleRefresh}
-                    disabled={isLoading}
-                    className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
-                >
-                    <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh Queue
-                </button>
-            </div>
-
-            {/* Main Content */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px] flex flex-col">
-                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Pending Approvals</h2>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Phase 1 Live</span>
-                </div>
-
-                {error ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-4 text-red-600">
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <div className="adc-page">
+                {/* Top bar */}
+                <div className="adc-topbar">
+                    <div>
+                        <div className="adc-eyebrow">Rajagiri College · Admin</div>
+                        <div className="adc-title">Action center</div>
+                        <div className="adc-sub">
+                            {error
+                                ? 'Authentication required'
+                                : `${pendingBookings.length} pending request${pendingBookings.length !== 1 ? 's' : ''} awaiting review`}
                         </div>
-                        <p className="text-sm font-medium">{error}</p>
-                        <p className="text-xs text-gray-400 mt-2">Log out and log back in to refresh your administrative session.</p>
                     </div>
-                ) : isLoading && pendingBookings.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center p-12 text-sm text-gray-400 animate-pulse italic">
-                        Synchronizing with Rajagiri resource database...
+                    <button
+                        className="adc-refresh"
+                        onClick={handleRefresh}
+                        disabled={isLoading}
+                    >
+                        <IconRefresh spin={isLoading} />
+                        Refresh
+                    </button>
+                </div>
+
+                {/* Stat strip */}
+                <div className="adc-stats">
+                    <div className="adc-stat">
+                        <div className="adc-stat-n">{pendingBookings.length}</div>
+                        <div className="adc-stat-l">Total pending</div>
                     </div>
-                ) : pendingBookings.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-16 text-center">
-                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 mb-4">
-                            <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
+                    <div className="adc-stat">
+                        <div className="adc-stat-n">
+                            {pendingBookings.filter((b) => {
+                                if (!b.start_datetime) return false;
+                                const d = new Date(b.start_datetime);
+                                const now = new Date();
+                                return (
+                                    d.getDate() === now.getDate() &&
+                                    d.getMonth() === now.getMonth() &&
+                                    d.getFullYear() === now.getFullYear()
+                                );
+                            }).length}
                         </div>
-                        <p className="text-sm font-medium">Queue Clear</p>
-                        <p className="text-xs text-gray-500 mt-1">All booking requests have been processed.</p>
+                        <div className="adc-stat-l">Scheduled today</div>
                     </div>
-                ) : (
-                    <div className="divide-y divide-gray-100">
-                        {pendingBookings.map((booking) => (
-                            <div key={`${booking.domain}-${booking.id}`} className="p-6 flex flex-col lg:flex-row gap-8 hover:bg-gray-50/30 transition">
-
-                                {/* Info Grid */}
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Resource / Type</p>
-                                        <p className="text-sm font-semibold">{booking.resource_name || 'System Resource'}</p>
-                                        <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-bold rounded uppercase">
-                                            {booking.domain}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Booking Reference</p>
-                                        <p className="text-sm font-medium">{booking.reference_code}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">Requested on {new Date(booking.created_at).toLocaleDateString()}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Requester</p>
-                                        <p className="text-sm font-medium">{booking.requester}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Purpose</p>
-                                        <p className="text-sm text-gray-600 italic line-clamp-1">"{booking.purpose}"</p>
-                                    </div>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-3 lg:border-l lg:border-gray-100 lg:pl-8">
-                                    <button
-                                        onClick={() => handleRejectClick(booking)}
-                                        disabled={actionLoading === booking.id}
-                                        className="px-5 py-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
-                                    >
-                                        Reject
-                                    </button>
-                                    <button
-                                        onClick={() => handleApprove(booking.id, booking.domain)}
-                                        disabled={actionLoading === booking.id}
-                                        className="px-5 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg transition shadow-sm disabled:opacity-50"
-                                    >
-                                        {actionLoading === booking.id ? 'Processing...' : 'Approve'}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                    <div className="adc-stat">
+                        <div className="adc-stat-n">
+                            {pendingBookings.reduce((s, b) => s + (b.attendee_count || 0), 0)}
+                        </div>
+                        <div className="adc-stat-l">Total expected pax</div>
                     </div>
-                )}
+                </div>
+
+                {/* Queue panel */}
+                <div className="adc-panel">
+                    <div className="adc-phead">
+                        <span className="adc-phead-l">Pending approvals · Spaces</span>
+                    </div>
+
+                    {error ? (
+                        <div className="adc-state">
+                            <div className="adc-state-icon red"><IconAlert /></div>
+                            <div className="adc-state-title">{error}</div>
+                            <div className="adc-state-sub">Log out and back in to refresh your session.</div>
+                        </div>
+                    ) : isLoading && pendingBookings.length === 0 ? (
+                        <div className="adc-state">
+                            <div className="adc-state-sub">Loading resource queue…</div>
+                        </div>
+                    ) : pendingBookings.length === 0 ? (
+                        <div className="adc-state">
+                            <div className="adc-state-icon green"><IconCheck /></div>
+                            <div className="adc-state-title">Queue clear</div>
+                            <div className="adc-state-sub">All requests have been processed.</div>
+                        </div>
+                    ) : (
+                        pendingBookings.map((booking) => (
+                            <BookingRow
+                                key={`${booking.domain}-${booking.id}`}
+                                booking={booking}
+                                onApprove={handleApprove}
+                                onReject={setRejectTarget}
+                                isActing={actionLoading === booking.id}
+                            />
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     );
