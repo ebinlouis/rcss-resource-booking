@@ -9,48 +9,67 @@ from rest_framework.exceptions import ValidationError
 
 from apps.mess.models import MessBooking
 from apps.mess.serializers import MessBookingSerializer
+from apps.users.models import RoleOverride
 
-ADMIN_ROLES = {'MESS', 'MESS ADMIN', 'IT_ADMIN', 'SYSTEM OPS', 'CATERING MANAGER'}
+# ── Role resolution ───────────────────────────────────────────────────────────
+# Lowercase constant so DB casing ('Mess', 'MESS', 'mess') never matters.
+MESS_ROLE = 'mess'
 
+
+def _normalize(role):
+    """Lowercase + strip so DB casing never matters for comparisons."""
+    return (role or "").strip().lower()
+
+
+def _get_effective_role(user):
+    """
+    Resolve the user's active role name (raw, as stored in DB).
+    Priority: active RoleOverride -> user.role FK -> first Django group.
+    is_superuser / is_staff are deliberately excluded — they are
+    Django-admin concerns only and must not grant module access.
+    """
+    now = timezone.now()
+
+    active_override = RoleOverride.objects.filter(
+        user=user,
+        is_active=True,
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).first()
+
+    if active_override:
+        return active_override.overridden_role.name
+
+    if getattr(user, 'role', None):
+        return user.role.name
+
+    if user.groups.exists():
+        return user.groups.first().name
+
+    return ""
+
+
+def _is_mess_admin(user):
+    """Returns True only if the user's effective role resolves to the mess role."""
+    return _normalize(_get_effective_role(user)) == MESS_ROLE
+
+
+# ── ViewSet ───────────────────────────────────────────────────────────────────
 
 class MessBookingViewSet(viewsets.ModelViewSet):
-    queryset = MessBooking.objects.all().order_by('-created_at')
-    serializer_class = MessBookingSerializer
+    queryset           = MessBooking.objects.all().order_by('-created_at')
+    serializer_class   = MessBookingSerializer
     permission_classes = [IsAuthenticated]
-
-    def _get_effective_role(self, user):
-        """
-        Determine the user's active role, accounting for role overrides
-        and falling back to Django groups if the custom role FK is missing.
-        """
-        if user.is_superuser:
-            return 'IT_ADMIN'
-
-        now = timezone.now()
-        active_override = user.role_overrides.filter(
-            is_active=True
-        ).filter(
-            Q(expires_at__isnull=True) | Q(expires_at__gt=now)
-        ).first()
-
-        if active_override:
-            return active_override.overridden_role.name.upper()
-
-        base_role = user.role.name if getattr(user, 'role', None) else None
-        if not base_role and user.groups.exists():
-            base_role = user.groups.first().name
-
-        return base_role.upper() if base_role else ""
 
     def get_queryset(self):
         """
-        Standard users see only their own bookings.
-        Authorized admin roles see all bookings for logistics management.
+        Mess admins see all bookings.
+        Everyone else sees only their own.
+        No is_staff / is_superuser shortcut — role is the only gate.
         """
         user = self.request.user
-        effective_role = self._get_effective_role(user)
 
-        if user.is_staff or effective_role in ADMIN_ROLES:
+        if _is_mess_admin(user):
             return MessBooking.objects.all().order_by('-created_at')
 
         return MessBooking.objects.filter(user=user).order_by('-created_at')
@@ -58,8 +77,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         """
-        Enforce that the booking is always tied to the authenticated user
-        and their assigned department.
+        Booking is always tied to the authenticated user and their department.
         """
         user_dept = getattr(self.request.user, 'department', None)
 
@@ -80,12 +98,11 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
         """
-        Endpoint: GET /api/mess/bookings/my-bookings/
+        GET /api/mess/bookings/my-bookings/
 
-        Returns only the authenticated user's own bookings, unconditionally.
-        This endpoint exists specifically so the personal dashboard is never
-        affected by the caller's role. Admin users checking their own
-        bookings as individuals use this endpoint, not the list endpoint.
+        Always returns only the authenticated user's own bookings regardless
+        of role. Mess admins checking their personal bookings use this, not
+        the list endpoint.
         """
         bookings = MessBooking.objects.filter(
             user=request.user
@@ -98,21 +115,21 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def approve(self, request, pk=None):
         """
-        Endpoint: PATCH /api/mess/bookings/{id}/approve/
+        PATCH /api/mess/bookings/{id}/approve/
+        Mess admin only.
         """
-        booking = self.get_object()
-        effective_role = self._get_effective_role(request.user)
-
-        if effective_role not in ADMIN_ROLES:
+        if not _is_mess_admin(request.user):
             return Response(
-                {"detail": "Only authorized administrators can approve catering requests."},
-                status=status.HTTP_403_FORBIDDEN
+                {"detail": "Only the Mess administrator can approve catering requests."},
+                status=status.HTTP_403_FORBIDDEN,
             )
+
+        booking = self.get_object()
 
         if booking.status == 'confirmed':
             return Response(
                 {"detail": "This booking is already confirmed."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         booking.status = 'confirmed'
@@ -124,35 +141,31 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def reject(self, request, pk=None):
         """
-        Endpoint: PATCH /api/mess/bookings/{id}/reject/
-
-        Requires a non-empty `rejection_remark` in the request body.
-        The remark is stored on the booking record so the requester
-        can see the reason when they view their personal dashboard.
+        PATCH /api/mess/bookings/{id}/reject/
+        Mess admin only. Requires a non-empty rejection_remark.
         """
-        booking = self.get_object()
-        effective_role = self._get_effective_role(request.user)
-
-        if effective_role not in ADMIN_ROLES:
+        if not _is_mess_admin(request.user):
             return Response(
-                {"detail": "Only authorized administrators can reject catering requests."},
-                status=status.HTTP_403_FORBIDDEN
+                {"detail": "Only the Mess administrator can reject catering requests."},
+                status=status.HTTP_403_FORBIDDEN,
             )
+
+        booking = self.get_object()
 
         if booking.status == 'rejected':
             return Response(
                 {"detail": "This booking is already rejected."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         remark = request.data.get('rejection_remark', '').strip()
         if not remark:
             return Response(
                 {"rejection_remark": "A rejection remark is required."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status = 'rejected'
+        booking.status           = 'rejected'
         booking.rejection_remark = remark
         booking.save()
 
