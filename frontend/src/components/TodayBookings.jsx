@@ -72,17 +72,17 @@ function CancelSuccessModal({ booking, onClose }) {
 
 const STATUS_STYLES = {
   confirmed: {
-    row: "bg-green-50/60 border-l-2 border-l-green-400",
+    row: "bg-green-50/100",
     badge: "bg-green-100 text-green-700",
     dot: "bg-green-500",
   },
   pending: {
-    row: "bg-amber-50/60 border-l-2 border-l-amber-400",
+    row: "bg-amber-50/100",
     badge: "bg-amber-100 text-amber-700",
     dot: "bg-amber-500",
   },
   rejected: {
-    row: "bg-red-50/60 border-l-2 border-l-red-400",
+    row: "bg-red-50/100",
     badge: "bg-red-100 text-red-700",
     dot: "bg-red-500",
   },
@@ -124,8 +124,12 @@ function TodayBookings({ onEditBooking }) {
     return () => { cancelled = true }
   }, [])
 
-  const formatTime = (dateObj) =>
-    `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`
+const formatTime = (dateObj) =>
+  dateObj.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 
   const statusMap = { APPROVED: "confirmed", PENDING: "pending", REJECTED: "rejected" }
 
@@ -175,95 +179,83 @@ function TodayBookings({ onEditBooking }) {
     <>
       <div className="mt-4">
 
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {isToday ? "Today's bookings" : `Bookings for ${formattedDate}`}
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Campus-wide confirmed and pending reservations
-            </p>
-          </div>
+<div className="relative flex flex-col w-full overflow-hidden rounded-[28px] bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_12px_50px_rgba(0,0,0,0.08)]">
+  {/* HEADER */}
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 pt-6 pb-5">
 
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={handleDateChange}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
-            {!isToday && (
-              <button
-                onClick={() => { setSelectedDate(todayKey()); setShowAll(false) }}
-                className="text-xs text-emerald-700 font-medium hover:underline whitespace-nowrap"
-              >
-                Back to today
-              </button>
-            )}
-          </div>
-        </div>
+    <div>
+      <h2 className="text-2xl font-bold text-gray-900">
+        {isToday ? "Today's bookings" : `Bookings for ${formattedDate}`}
+      </h2>
 
-        {/* CONTENT */}
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
-            ))}
-          </div>
-        ) : activeBookings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-            <svg className="w-8 h-8 mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-sm font-medium text-gray-500">No bookings found</p>
-            <p className="text-xs mt-0.5">Nothing scheduled for this date</p>
-          </div>
-        ) : (
-          <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+      <p className="text-sm text-gray-400 mt-1">
+        Campus-wide confirmed and pending reservations
+      </p>
+    </div>
 
-            {/* TABLE HEADER */}
-            <div className="hidden md:grid grid-cols-12 px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              <div className="col-span-2">Time</div>
-              <div className="col-span-5">Space & Purpose</div>
-              <div className="col-span-3">Duration</div>
-              <div className="col-span-2 text-right">Status</div>
-            </div>
+    <div className="flex items-center gap-2">
+      <input
+        type="date"
+        value={selectedDate}
+        onChange={handleDateChange}
+        className="border border-gray-200 rounded-xl px-4 py-2 text-sm bg-white/80 backdrop-blur-md shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+      />
+
+      {!isToday && (
+        <button
+          onClick={() => {
+            setSelectedDate(todayKey())
+            setShowAll(false)
+          }}
+          className="text-xs text-emerald-700 font-medium hover:underline whitespace-nowrap"
+        >
+          Back to today
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* TABLE HEADER */}
+<div className="hidden md:grid grid-cols-12 px-8 py-3 bg-gradient-to-r from-gray-50 to-white border-y border-gray-100/80 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+<div className="col-span-2 pl-6">Time</div>
+<div className="col-span-5 pl-2">Space & Purpose</div>
+<div className="col-span-3 text-center">Duration</div>
+  <div className="col-span-2 text-center">Status</div>
+</div>
 
             {/* ROWS */}
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-200">
               {activeBookings.map((b) => {
                 const styles = STATUS_STYLES[b.status] ?? STATUS_STYLES.pending
                 return (
                   <div
                     key={b.id}
-                    className={`grid grid-cols-12 px-4 py-3 gap-x-3 items-center group hover:bg-gray-50/80 transition-colors ${styles.row}`}
-                  >
+className={`grid grid-cols-12 px-8 py-5 items-center group hover:bg-gray-50/80 transition-colors ${styles.row}`}                  >
                     {/* TIME */}
-                    <div className="col-span-4 md:col-span-2">
-                      <span className="text-sm font-bold text-gray-800 tabular-nums">{b.time}</span>
-                    </div>
+<div className="col-span-4 md:col-span-2 pl-6">  <span className="text-sm font-bold text-gray-800 tabular-nums">
+    {b.time}
+  </span>
+</div>
 
                     {/* SPACE + PURPOSE */}
-                    <div className="col-span-8 md:col-span-5">
-                      <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{b.hall}</p>
+<div className="col-span-8 md:col-span-5 pl-2">
+                        <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{b.hall}</p>
                       <p className="text-xs text-gray-400 truncate mt-0.5">{b.title}</p>
                     </div>
 
-                    {/* DURATION */}
-                    <div className="hidden md:block col-span-3">
-                      <span className="text-xs text-gray-500 tabular-nums">{b.duration}</span>
-                    </div>
+                    <div className="hidden md:flex col-span-3 justify-center">
+  <span className="text-xs text-gray-500 tabular-nums">
+    {b.duration}
+  </span>
+</div>
 
                     {/* STATUS + ACTIONS */}
-                    <div className="col-span-12 md:col-span-2 flex items-center justify-between md:justify-end gap-2 mt-2 md:mt-0">
-                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md ${styles.badge}`}>
+<div className="col-span-12 md:col-span-2 flex items-center justify-between md:justify-center gap-2 mt-2 md:mt-0">                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full shadow-sm ${styles.badge}`}>
                         {b.status}
                       </span>
 
                       {b.canModify && (
-                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
+<div className="absolute right-6 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">                          <button
                             onClick={() => onEditBooking?.(b)}
                             className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                             title="Edit Booking"
@@ -308,7 +300,6 @@ function TodayBookings({ onEditBooking }) {
             )}
 
           </div>
-        )}
       </div>
 
       {confirmBooking && (
