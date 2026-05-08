@@ -1,175 +1,141 @@
 import { useState } from "react"
-import Navbar from "../components/Navbar"
+import MainLayout from "../layouts/MainLayout"
 import MediaBookings from "../components/MediaBookings"
 import MediaBookingModal from "../components/MediaBookingModal"
+import { mediaBookings } from "../data/mediaBookings"
+
+const FILTERS = [
+  { label: "All", value: "all" },
+  { label: "Photography", value: "Photography" },
+  { label: "Videography", value: "Videography" }
+]
 
 function Media() {
+  const today = new Date()
+  const formatDate = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+
   const [open, setOpen] = useState(false)
-  const [filter, setFilter] = useState("all")
+  const [serviceFilter, setServiceFilter] = useState("all")
+  const [selectedDate, setSelectedDate] = useState(formatDate(today))
+  const [search, setSearch] = useState("")
+
+  const filteredBookings = mediaBookings.filter((booking) => {
+    const matchesDate = booking.date === selectedDate
+    const matchesService =
+      serviceFilter === "all" ? true : booking.service === serviceFilter
+    const matchesSearch =
+      search.trim() === "" ||
+      booking.event.toLowerCase().includes(search.toLowerCase()) ||
+      booking.location.toLowerCase().includes(search.toLowerCase())
+
+    return matchesDate && matchesService && matchesSearch
+  })
+
+  const displayDate = new Date(selectedDate).toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short"
+  })
 
   return (
-    <div className="w-full min-h-screen bg-gray-50">
-      {/* Navbar */}
-      <Navbar />
+    <MainLayout>
+      {/* Header Section */}
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Media Booking</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage and track all media requests in one place.
+          </p>
+        </div>
 
-      <div className="px-6 py-6">
-        {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center justify-center rounded-xl bg-green-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-green-800"
+        >
+          + Book Media
+        </button>
+      </div>
+
+      {/* Filters + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        {/* Filters */}
+        <div className="flex gap-2 flex-wrap">
+          {FILTERS.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setServiceFilter(item.value)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                serviceFilter === item.value
+                  ? "bg-green-700 text-white shadow-sm"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date & Search */}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Date Picker */}
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full sm:w-40 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-green-700/20 focus:border-green-700 shadow-sm transition text-gray-600"
+          />
+
+          {/* Search */}
+          <div className="relative w-full sm:w-64">
+            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
               <svg
-                className="w-7 h-7 text-green-600"
+                className="w-4 h-4 text-gray-400"
                 fill="none"
-                stroke="currentColor"
                 viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
                 />
               </svg>
-            </div>
-
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Media Booking
-              </h1>
-              <p className="text-gray-500 mt-1 text-sm">
-                Manage and track all media requests in one place
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setOpen(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium text-sm"
-          >
-            + Book Media
-          </button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Bookings</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">24</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Confirmed</p>
-              <p className="text-3xl font-bold text-green-600 mt-1">18</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 2m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Pending</p>
-              <p className="text-3xl font-bold text-yellow-600 mt-1">6</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Today</p>
-              <p className="text-3xl font-bold text-blue-600 mt-1">2</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters & Search */}
-        <div className="flex justify-between items-center flex-wrap gap-4 mb-6 bg-white rounded-lg p-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === "all"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              All Bookings
-            </button>
-            <button
-              onClick={() => setFilter("photography")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === "photography"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Photography
-            </button>
-            <button
-              onClick={() => setFilter("videography")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === "videography"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Videography
-            </button>
-            <button
-              onClick={() => setFilter("today")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === "today"
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Today
-            </button>
-          </div>
-          <div className="flex gap-3">
+            </span>
             <input
               type="text"
               placeholder="Search bookings..."
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-10 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-green-700/20 focus:border-green-700 placeholder:text-gray-400 shadow-sm transition"
             />
-            <input
-              type="date"
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 transition"
+              >
+                ✕
+              </button>
+            )}
           </div>
-        </div>
-
-        {/* Bookings Section */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Bookings for Today
-          </h2>
-          <MediaBookings onOpen={() => setOpen(true)} />
         </div>
       </div>
 
+      {/* Results Count */}
+      <p className="text-xs text-gray-400 mb-4">
+        {filteredBookings.length} booking{filteredBookings.length !== 1 ? "s" : ""} found for {displayDate}
+      </p>
+
+      {/* Bookings Section */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-gray-900">Today's Bookings</h2>
+        <MediaBookings bookings={filteredBookings} />
+      </section>
+
       {/* Modal */}
       {open && <MediaBookingModal onClose={() => setOpen(false)} />}
-    </div>
+    </MainLayout>
   )
 }
 
