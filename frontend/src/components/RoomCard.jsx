@@ -160,6 +160,7 @@ function RoomCard({ room, onOpenAvailability }) {
             <span className="text-[10px] text-gray-300 uppercase font-bold">
               Check Status
             </span>
+
           </div>
 
           <div className="flex gap-2">
