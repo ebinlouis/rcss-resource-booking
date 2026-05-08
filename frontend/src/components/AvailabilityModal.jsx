@@ -288,17 +288,17 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
                   return (
                     <div
                       key={idx}
-                      className={`border rounded-xl p-4 flex items-start gap-3 ${isPending ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}
+                      className={`border rounded-xl p-4 flex items-start gap-3 ${isPending ? "border-yellow-200 bg-yellow-50" : "border-blue-200 bg-blue-50"}`}
                     >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-orange-500" : "bg-blue-500"}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-yellow-500" : "bg-blue-500"}`} />
                       <div className="flex flex-col gap-1.5">
-                        <p className={`text-sm font-semibold ${isPending ? "text-orange-900" : "text-blue-900"}`}>
+                        <p className={`text-sm font-semibold ${isPending ? "text-yellow-900" : "text-blue-900"}`}>
                           {block.start} – {block.end}
                         </p>
-                        <p className={`text-xs leading-relaxed ${isPending ? "text-orange-600" : "text-blue-600"}`}>
+                        <p className={`text-xs leading-relaxed ${isPending ? "text-yellow-600" : "text-blue-600"}`}>
                           {block.title}
                         </p>
-                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-700"}`}>
+                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
                           {isPending ? "Pending Approval" : "Booked"}
                         </span>
                       </div>

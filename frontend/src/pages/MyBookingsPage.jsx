@@ -1,200 +1,544 @@
-import { useState, useEffect } from 'react';
-import api from '../api/axios'; 
-import MainLayout from '../layouts/MainLayout';
-import BookingModal from '../components/BookingModal'; 
+import { useState, useEffect, useMemo } from "react"
+import api from "../api/axios"
+import MainLayout from "../layouts/MainLayout"
+import BookingModal from "../components/BookingModal"
+
+import { useNavigate } from "react-router-dom"
+
+import {
+  RefreshCcw,
+  Trash2,
+  Pencil,
+  CalendarClock,
+  Search,
+  X as XIcon,
+} from "lucide-react"
 
 const MyBookingsPage = () => {
-    const [myBookings, setMyBookings] = useState([]);
-    const [isLoading, setIsLoading] = useState(true); 
-    const [error, setError] = useState(null);
-    const [isActionLoading, setIsActionLoading] = useState(false);
+  const [myBookings, setMyBookings] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [isActionLoading, setIsActionLoading] = useState(false)
 
-    // Modal State
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [selectedBooking, setSelectedBooking] = useState(null);
+  const navigate = useNavigate()
 
-    // 1. Initial Data Fetching Effect (Linter-safe & No setState issues)
-    useEffect(() => {
-        let isMounted = true;
+  // Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedBooking, setSelectedBooking] = useState(null)
 
-        async function loadInitialData() {
-            try {
-                // We rely on the initial 'true' state of isLoading to avoid sync updates
-                const response = await api.get('/spaces/requests/');
-                if (isMounted) {
-                    const data = response.data.results || response.data || [];
-                    setMyBookings(data);
-                    setError(null);
-                }
-            } catch (err) {
-                console.error("Fetch error:", err);
-                if (isMounted) setError("Failed to load your booking history.");
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
+  // Search
+  const [searchTerm, setSearchTerm] = useState("")
+
+  // ================= FETCH =================
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadInitialData() {
+      try {
+        const response = await api.get("/spaces/requests/")
+
+        if (isMounted) {
+          const data = response.data.results || response.data || []
+
+          setMyBookings(data)
+          setError(null)
         }
+      } catch (err) {
+        console.error("Fetch error:", err)
 
-        loadInitialData();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
-
-    // 2. Refresh function for manual actions (Cancel/Edit)
-    const refreshData = async () => {
-        try {
-            const response = await api.get('/spaces/requests/');
-            const data = response.data.results || response.data || [];
-            setMyBookings(data);
-        } catch (err) {
-            console.error("Refresh error:", err);
+        if (isMounted) {
+          setError("Failed to load your booking history.")
         }
-    };
+      } finally {
+        if (isMounted) setIsLoading(false)
+      }
+    }
 
-    const handleCancelBooking = async (id) => {
-        if (!window.confirm("Are you sure? This will free up the space for others.")) return;
-        
-        setIsActionLoading(true);
-        try {
-            await api.delete(`/spaces/requests/${id}/`);
-            await refreshData();
-        } catch {
-            alert("Could not cancel booking.");
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
+    loadInitialData()
 
-    const handleEditClick = (booking) => {
-        setSelectedBooking(booking);
-        setIsEditModalOpen(true);
-    };
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
-    const getStatusBadge = (status) => {
-        const styles = {
-            'APPROVED': 'bg-green-100 text-green-700 border-green-200',
-            'REJECTED': 'bg-red-100 text-red-700 border-red-200',
-            'CANCELLED': 'bg-gray-100 text-gray-700 border-gray-200',
-            'PENDING': 'bg-yellow-100 text-yellow-700 border-yellow-200'
-        };
-        const currentStyle = styles[status] || styles['PENDING'];
-        const label = status === 'PENDING' ? 'Pending Review' : status.charAt(0) + status.slice(1).toLowerCase();
+  // ================= FILTER =================
 
-        return (
-            <span className={`px-2.5 py-0.5 border text-[10px] font-bold rounded-md uppercase tracking-wider ${currentStyle}`}>
-                {label}
-            </span>
-        );
-    };
+  const filteredBookings = useMemo(() => {
+
+    if (!searchTerm.trim()) return myBookings
+
+    const q = searchTerm.toLowerCase()
+
+    return myBookings.filter((booking) => {
+
+      const hall =
+        booking.space_details?.name?.toLowerCase() || ""
+
+      const purpose =
+        booking.purpose_of_booking?.toLowerCase() || ""
+
+      const reference =
+        booking.reference_code?.toLowerCase() || ""
+
+      const status =
+        booking.status?.toLowerCase() || ""
+
+      return (
+        hall.includes(q) ||
+        purpose.includes(q) ||
+        reference.includes(q) ||
+        status.includes(q)
+      )
+    })
+
+  }, [myBookings, searchTerm])
+
+  // ================= REFRESH =================
+
+  const refreshData = async () => {
+    try {
+      const response = await api.get("/spaces/requests/")
+      const data = response.data.results || response.data || []
+
+      setMyBookings(data)
+    } catch (err) {
+      console.error("Refresh error:", err)
+    }
+  }
+
+  // ================= CANCEL =================
+
+  const handleCancelBooking = async (id) => {
+    if (
+      !window.confirm(
+        "Are you sure? This will free up the space for others."
+      )
+    )
+      return
+
+    setIsActionLoading(true)
+
+    try {
+      await api.delete(`/spaces/requests/${id}/`)
+      await refreshData()
+    } catch {
+      alert("Could not cancel booking.")
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+  // ================= EDIT =================
+
+  const handleEditClick = (booking) => {
+    setSelectedBooking(booking)
+    setIsEditModalOpen(true)
+  }
+
+  // ================= STATUS =================
+
+  const getStatusBadge = (status) => {
+    const styles = {
+      APPROVED:
+        "bg-emerald-100 text-emerald-700 border-emerald-200",
+
+      REJECTED:
+        "bg-red-100 text-red-700 border-red-200",
+
+      CANCELLED:
+        "bg-gray-100 text-gray-700 border-gray-200",
+
+      PENDING:
+        "bg-amber-100 text-amber-700 border-amber-200",
+    }
+
+    const currentStyle = styles[status] || styles["PENDING"]
+
+    const label =
+      status === "PENDING"
+        ? "Pending Review"
+        : status.charAt(0) + status.slice(1).toLowerCase()
 
     return (
-        <MainLayout>
-            <div className="max-w-5xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Booking History</h1>
-                    <p className="text-sm text-gray-500 mt-1">View and manage your resource requests.</p>
-                </div>
+      <span
+        className={`px-2.5 py-1 border text-[10px] font-bold rounded-full uppercase tracking-wider ${currentStyle}`}
+      >
+        {label}
+      </span>
+    )
+  }
 
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[450px]">
-                    {isLoading ? (
-                        <div className="flex flex-col items-center justify-center p-24 space-y-4 text-center">
-                            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                            <p className="text-sm text-gray-400 font-medium animate-pulse">Syncing with database...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="flex flex-col items-center justify-center p-12 text-center">
-                            <p className="text-sm font-semibold text-red-600">{error}</p>
-                            <button onClick={() => window.location.reload()} className="mt-4 text-emerald-600 text-sm font-medium hover:underline">Reload page</button>
-                        </div>
-                    ) : myBookings.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-20 text-center">
-                            <p className="text-base font-semibold text-gray-900">No bookings found</p>
-                            <p className="text-sm text-gray-500 mt-1">You haven't made any reservation requests yet.</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-50">
-                            {myBookings.map((booking) => (
-                                <div key={booking.id} className="p-6 hover:bg-gray-50/50 transition-colors">
-                                    <div className="flex flex-col md:flex-row justify-between gap-6">
-                                        <div className="flex-1 space-y-4">
-                                            <div className="flex items-center gap-3">
-                                                <h3 className="text-lg font-bold text-gray-900">{booking.space_details?.name || 'Unknown Space'}</h3>
-                                                {getStatusBadge(booking.status)}
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Reference</span>
-                                                    <span className="text-gray-700 font-mono text-xs">{booking.reference_code}</span>
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Date & Duration</span>
-                                                    <span className="text-gray-700">
-                                                        {new Date(booking.start_datetime).toLocaleDateString('en-IN')} • 
-                                                        <span className="font-medium ml-1">
-                                                            {/* Showing full start and end time range */}
-                                                            {new Date(booking.start_datetime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - 
-                                                            {new Date(booking.end_datetime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                                        </span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-gray-600 italic">"{booking.purpose_of_booking}"</p>
-                                        </div>
+  return (
+    <MainLayout>
 
-                                        <div className="flex flex-col justify-center items-end gap-2 min-w-[160px]">
-                                            {booking.can_modify && (booking.status === 'PENDING' || booking.status === 'APPROVED') ? (
-                                                <>
-                                                    {booking.status === 'PENDING' && (
-                                                        <button 
-                                                            onClick={() => handleEditClick(booking)}
-                                                            className="w-full px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-100 transition-all mb-1"
-                                                        >
-                                                            Edit Request
-                                                        </button>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => handleCancelBooking(booking.id)}
-                                                        disabled={isActionLoading}
-                                                        className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:underline transition-all disabled:opacity-50"
-                                                    >
-                                                        {isActionLoading ? 'Wait...' : 'Cancel Request'}
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-gray-300 uppercase py-2">No Actions Available</span>
-                                            )}
+      <div className="max-w-6xl mx-auto">
 
-                                            {booking.status === 'REJECTED' && booking.remarks_by_admin && (
-                                                <div className="w-full mt-2 bg-red-50 p-3 rounded-xl border border-red-100">
-                                                    <p className="text-[9px] font-bold text-red-800 uppercase tracking-widest mb-1">Admin Feedback</p>
-                                                    <p className="text-xs text-red-900 italic leading-snug">"{booking.remarks_by_admin}"</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+        {/* HEADER */}
+        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+
+          {/* LEFT */}
+          <div>
+            <h1 className="text-[38px] font-bold text-gray-900 tracking-tight">
+              My Booking History
+            </h1>
+
+            <p className="text-sm text-gray-500 mt-1">
+              View and manage your resource requests.
+            </p>
+          </div>
+
+          {/* RIGHT */}
+          <div className="flex items-center gap-3">
+
+            {/* SEARCH */}
+            <div className="relative w-full sm:w-64">
+
+              {/* Search Icon */}
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+
+                <Search
+                  className="w-4 h-4 text-gray-500"
+                  strokeWidth={2.2}
+                />
+
+              </div>
+
+              {/* Input */}
+              <input
+                type="text"
+                placeholder="Search bookings..."
+                value={searchTerm}
+                onChange={(e) =>
+                  setSearchTerm(e.target.value)
+                }
+                className="w-full pl-9 pr-10 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-600 placeholder:text-gray-400 shadow-sm transition-all"
+              />
+
+              {/* Clear */}
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 transition"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              )}
+
             </div>
 
-            {/* EDIT MODAL TRIGGER */}
-            {isEditModalOpen && selectedBooking && (
-                <BookingModal
-                    spaceId={selectedBooking.space}
-                    spaceName={selectedBooking.space_details?.name}
-                    initialData={selectedBooking} 
-                    onClose={() => {
-                        setIsEditModalOpen(false);
-                        setSelectedBooking(null);
-                        refreshData(); 
-                    }}
-                />
-            )}
-        </MainLayout>
-    );
-};
+            {/* REFRESH */}
+            <button
+              onClick={() => window.location.reload()}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all duration-300 shadow-sm hover:shadow-md"
+            >
 
-export default MyBookingsPage;
+              <RefreshCcw className="w-4 h-4" />
+
+              <span className="text-sm font-semibold">
+                Refresh
+              </span>
+
+            </button>
+
+          </div>
+
+        </div>
+
+        {/* MAIN WRAPPER */}
+        <div className="relative overflow-hidden bg-white/90 backdrop-blur-xl rounded-[22px] border border-gray-100 shadow-[0_10px_40px_rgba(0,0,0,0.05)] min-h-[450px]">
+
+          {/* GRID BG */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
+
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, #10b981 1px, transparent 1px), linear-gradient(to bottom, #10b981 1px, transparent 1px)",
+                backgroundSize: "36px 36px",
+              }}
+            />
+
+          </div>
+
+          {/* LOADING */}
+          {isLoading ? (
+
+            <div className="relative flex flex-col items-center justify-center p-24 space-y-4 text-center">
+
+              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+
+              <p className="text-sm text-gray-400 font-medium animate-pulse">
+                Syncing with database...
+              </p>
+
+            </div>
+
+          ) : error ? (
+
+            /* ERROR */
+            <div className="relative flex flex-col items-center justify-center p-16 text-center">
+
+              <p className="text-sm font-semibold text-red-600">
+                {error}
+              </p>
+
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 text-emerald-600 text-sm font-medium hover:underline"
+              >
+                Reload page
+              </button>
+
+            </div>
+
+          ) : filteredBookings.length === 0 ? (
+
+            /* EMPTY */
+            <div className="relative flex flex-col items-center justify-center p-24 text-center">
+
+              <div className="w-14 h-14 rounded-xl bg-emerald-50 flex items-center justify-center mb-4">
+
+                <CalendarClock className="w-7 h-7 text-emerald-600" />
+
+              </div>
+
+              <p className="text-base font-bold text-gray-900">
+                {searchTerm
+                  ? "No matching bookings"
+                  : "No bookings yet"}
+              </p>
+
+              <p className="text-sm text-gray-500 mt-1">
+                {searchTerm
+                  ? "Try another keyword."
+                  : "Your reservation requests will appear here."}
+              </p>
+
+            </div>
+
+          ) : (
+
+            /* BOOKINGS */
+            <div className="relative space-y-3 p-4">
+
+              {filteredBookings.map((booking) => (
+
+                <div
+                  key={booking.id}
+                  className="group relative overflow-hidden rounded-[20px] border border-gray-100 bg-white shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(16,185,129,0.08)] transition-all duration-300"
+                >
+
+                  {/* GREEN BAR */}
+                  <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-400" />
+
+                  {/* CONTENT */}
+                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5 p-4">
+
+                    {/* LEFT */}
+                    <div className="flex-1 space-y-3">
+
+                      {/* TITLE */}
+                      <div className="flex items-center gap-3 flex-wrap">
+
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {booking.space_details?.name ||
+                            "Unknown Space"}
+                        </h3>
+
+                        {getStatusBadge(booking.status)}
+
+                      </div>
+
+                      {/* INFO GRID */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                        {/* REF */}
+                        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+
+                          <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">
+                            Reference
+                          </p>
+
+                          <p className="text-xs font-mono text-gray-700 break-all">
+                            {booking.reference_code}
+                          </p>
+
+                        </div>
+
+                        {/* DATE */}
+                        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+
+                          <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">
+                            Date & Duration
+                          </p>
+
+                          <p className="text-sm text-gray-700">
+                            {new Date(
+                              booking.start_datetime
+                            ).toLocaleDateString("en-IN")}
+                          </p>
+
+                          <p className="text-sm font-semibold text-gray-900 mt-1">
+
+                            {new Date(
+                              booking.start_datetime
+                            ).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+
+                            {" - "}
+
+                            {new Date(
+                              booking.end_datetime
+                            ).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      {/* PURPOSE */}
+                      <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-xl p-3.5 shadow-sm">
+
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">
+                          Purpose
+                        </p>
+
+                        <p className="text-sm text-gray-700 italic leading-relaxed">
+                          "{booking.purpose_of_booking}"
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    {/* RIGHT */}
+                    <div className="flex flex-col gap-2 min-w-[170px] lg:items-end">
+
+                      {/* EDIT */}
+                      {booking.can_modify &&
+                        booking.status === "PENDING" && (
+
+                          <button
+                            onClick={() =>
+                              handleEditClick(booking)
+                            }
+                            className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-100 transition-all duration-300 shadow-sm hover:shadow-md"
+                          >
+
+                            <Pencil className="w-3.5 h-3.5" />
+
+                            Edit Request
+
+                          </button>
+                        )}
+
+                      {/* CANCEL */}
+                      {booking.can_modify &&
+                        (booking.status === "PENDING" ||
+                          booking.status === "APPROVED") && (
+
+                          <button
+                            onClick={() =>
+                              handleCancelBooking(booking.id)
+                            }
+                            disabled={isActionLoading}
+                            className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-100 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
+                          >
+
+                            <Trash2 className="w-3.5 h-3.5" />
+
+                            {isActionLoading
+                              ? "Please wait..."
+                              : "Cancel Request"}
+
+                          </button>
+                        )}
+
+                      {/* REJECTED */}
+                      {booking.status === "REJECTED" && (
+
+                        <button
+                          onClick={() =>
+                            navigate("/dashboard")
+                          }
+                          className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-100 transition-all duration-300 shadow-sm hover:shadow-md"
+                        >
+
+                          <RefreshCcw className="w-3.5 h-3.5" />
+
+                          Reschedule
+
+                        </button>
+                      )}
+
+                      {/* NO ACTION */}
+                      {!booking.can_modify &&
+                        booking.status !== "REJECTED" && (
+
+                          <div className="w-full bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-center">
+
+                            <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                              No Actions
+                            </p>
+
+                          </div>
+                        )}
+
+                      {/* ADMIN FEEDBACK */}
+                      {booking.status === "REJECTED" &&
+                        booking.remarks_by_admin && (
+
+                          <div className="w-full bg-red-50 p-3 rounded-xl border border-red-100 mt-1">
+
+                            <p className="text-[9px] font-bold text-red-800 uppercase tracking-widest mb-1">
+                              Admin Feedback
+                            </p>
+
+                            <p className="text-xs text-red-900 italic leading-relaxed">
+                              "{booking.remarks_by_admin}"
+                            </p>
+
+                          </div>
+                        )}
+
+                    </div>
+
+                  </div>
+
+                </div>
+              ))}
+
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+      {/* EDIT MODAL */}
+      {isEditModalOpen && selectedBooking && (
+        <BookingModal
+          spaceId={selectedBooking.space}
+          spaceName={selectedBooking.space_details?.name}
+          initialData={selectedBooking}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedBooking(null)
+            refreshData()
+          }}
+        />
+      )}
+
+    </MainLayout>
+  )
+}
+
+export default MyBookingsPage

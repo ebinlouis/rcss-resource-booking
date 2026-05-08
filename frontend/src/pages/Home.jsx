@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
-
+import { useNavigate } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 
 import api from "../api/axios"
@@ -77,7 +77,7 @@ function Home() {
 
 const auth = useAuth();
 const user = auth?.user;
-
+const navigate = useNavigate()
 const hour = new Date().getHours()
 const greeting =
   hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
@@ -238,15 +238,27 @@ const greeting =
               </div>
             )}
 
-            <Link
-              to="/my-bookings"
-              className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 border border-green-100 hover:bg-green-100 rounded-lg transition"
-            >
-              View all bookings
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+            <button
+  onClick={() => navigate("/my-bookings")}
+  className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-100 hover:bg-green-700 rounded-lg transition"
+>
+  View all bookings
+
+  <svg
+    className="w-3.5 h-3.5"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M9 5l7 7-7 7"
+    />
+  </svg>
+
+</button>
 
           </div>
         </div>

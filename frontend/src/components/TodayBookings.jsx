@@ -94,10 +94,8 @@ function TodayBookings({ onEditBooking }) {
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [dbBookings, setDbBookings] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isCancelling, setIsCancelling] = useState(false)
-  const [confirmBooking, setConfirmBooking] = useState(null)
-  const [cancelledRecord, setCancelledRecord] = useState(null)
-
+const [requestBooking, setRequestBooking] = useState(null)
+const [requestSent, setRequestSent] = useState(null)
   const isToday = selectedDate === todayKey()
 
   const formattedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
@@ -160,20 +158,13 @@ const formatTime = (dateObj) =>
   const activeBookings = showAll ? allActiveBookings : allActiveBookings.slice(0, 3)
   const hasMore = allActiveBookings.length > 3
 
-  const handleCancelConfirm = async () => {
-    setIsCancelling(true)
-    try {
-      await api.delete(`/spaces/requests/${confirmBooking.id}/`)
-      setDbBookings((prev) => prev.filter((b) => b.id !== confirmBooking.id))
-      setCancelledRecord(confirmBooking)
-      setConfirmBooking(null)
-    } catch (err) {
-      console.error("Failed to cancel booking:", err)
-      alert("Failed to cancel booking. It may have already been processed by an admin.")
-    } finally {
-      setIsCancelling(false)
-    }
-  }
+const handleRequestConfirm = async () => {
+
+  // Later you can connect backend request API here
+
+  setRequestSent(requestBooking)
+  setRequestBooking(null)
+}
 
   return (
     <>
@@ -254,29 +245,32 @@ className={`grid grid-cols-12 px-8 py-5 items-center group hover:bg-gray-50/80 t
                         {b.status}
                       </span>
 
-                      {b.canModify && (
-<div className="absolute right-6 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">                          <button
-                            onClick={() => onEditBooking?.(b)}
-                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                            title="Edit Booking"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setConfirmBooking(b)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Cancel Booking"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
+<div className="absolute right-6 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+
+  <button
+    onClick={() => setRequestBooking(b)}
+    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+    title="Request Swap"
+  >
+
+    {/* Request icon */}
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 7h8m0 0l-3-3m3 3l-3 3M16 17H8m0 0l3 3m-3-3l3-3"
+      />
+    </svg>
+
+  </button>
+
+</div>
                     </div>
 
                   </div>
@@ -302,20 +296,112 @@ className={`grid grid-cols-12 px-8 py-5 items-center group hover:bg-gray-50/80 t
           </div>
       </div>
 
-      {confirmBooking && (
-        <CancelConfirmModal
-          booking={confirmBooking}
-          onConfirm={handleCancelConfirm}
-          onClose={() => setConfirmBooking(null)}
-          isCancelling={isCancelling}
-        />
-      )}
-      {cancelledRecord && (
-        <CancelSuccessModal
-          booking={cancelledRecord}
-          onClose={() => setCancelledRecord(null)}
-        />
-      )}
+{/* REQUEST CONFIRM MODAL */}
+{requestBooking && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+
+    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center">
+
+      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
+
+        <svg
+          className="w-6 h-6 text-blue-600"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h8m0 0l-3-3m3 3l-3 3M16 17H8m0 0l3 3m-3-3l3-3"
+          />
+        </svg>
+
+      </div>
+
+      <h2 className="text-base font-bold text-gray-900 mb-1">
+        Request This Space?
+      </h2>
+
+      <p className="text-sm text-gray-500 mb-2">
+        Send a swap request for
+      </p>
+
+      <p className="text-sm font-semibold text-gray-800">
+        {requestBooking.hall}
+      </p>
+
+      <p className="text-xs text-gray-400 mt-1 mb-6">
+        {requestBooking.duration}
+      </p>
+
+      <div className="flex gap-3">
+
+        <button
+          onClick={() => setRequestBooking(null)}
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={handleRequestConfirm}
+          className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition"
+        >
+          Send Request
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+{/* REQUEST SUCCESS MODAL */}
+{requestSent && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+
+    <div className="bg-white rounded-2xl shadow-xl p-6 text-center">
+
+      <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+
+        <svg
+          className="w-5 h-5 text-emerald-600"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+
+      </div>
+
+      <h2 className="font-bold text-gray-900 text-sm">
+        Request Sent
+      </h2>
+
+      <p className="text-xs text-gray-500 mt-1">
+        Your request for {requestSent.hall} has been submitted.
+      </p>
+
+      <button
+        onClick={() => setRequestSent(null)}
+        className="mt-4 bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition hover:bg-green-700"
+      >
+        Done
+      </button>
+
+    </div>
+
+  </div>
+)}
     </>
   )
 }

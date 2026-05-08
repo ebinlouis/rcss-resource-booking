@@ -7,12 +7,19 @@ import api from "../api/axios"
 // ─────────────────────────────────────────────────────────────
 
 const toLocalISO = (date, time) => {
-  const [year, month, day] = date.split('-');
-  const [hours, minutes] = time.split(':');
-  const d = new Date(year, month - 1, day, hours, minutes);
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d - offset).toISOString().slice(0, -1); // Optional: .slice(0, -1) removes the 'Z' if backend expects naive local datetime, but full ISO is standard. Keeping full ISO below per your snippet.
-};
+  const [year, month, day] = date.split("-")
+  const [hours, minutes] = time.split(":")
+
+  const d = new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes
+  )
+
+  return d.toISOString()
+}
 
 const formatAMPM = (timeStr) => {
   if (!timeStr) return null
