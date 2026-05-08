@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../hooks/useAuth";
 import messService from "../../api/messService";
 import { MEALS, getEarliestTime, getRequestedMeals } from "../../api/messConfig";
 import {
   CheckCircle2, XCircle, Clock3, Users, UtensilsCrossed,
   X, CalendarDays, ChefHat, ChevronRight, History,
-  MapPin, User, Building, AlertCircle,
+  MapPin, User, Building, AlertCircle, ShieldOff,
 } from "lucide-react";
 
-// ── Pure helpers (defined outside components — never recreated on re-render) ──
+// ── Pure helpers ──────────────────────────────────────────────────────────────
 
 const formatDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -20,11 +21,31 @@ const getTomorrowStr = () => {
 
 const getRequesterName  = (b) => b.requester_name || "Staff Member";
 const getDepartmentName = (b) => {
-  if (b.department_name)               return b.department_name;
+  if (b.department_name)                return b.department_name;
   if (typeof b.department === "number") return "Department Pending";
   if (typeof b.department === "string") return b.department;
   return "General";
 };
+
+// ── Access denied screen ──────────────────────────────────────────────────────
+
+function AccessDenied() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-6">
+      <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+        <ShieldOff size={28} className="text-red-400" />
+      </div>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+      <p className="text-sm text-gray-500 max-w-sm leading-relaxed">
+        You don't have permission to view this page. Mess Operations is only
+        accessible to users with the <span className="font-semibold text-gray-700">Mess</span> role.
+      </p>
+      <p className="text-xs text-gray-400 mt-4">
+        Contact your IT administrator if you believe this is a mistake.
+      </p>
+    </div>
+  );
+}
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
@@ -40,7 +61,7 @@ function BookingCard({ booking, onSelect }) {
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-            statusLower === "pending"   ? "bg-amber-50 text-amber-700"   :
+            statusLower === "pending"   ? "bg-amber-50 text-amber-700"    :
             statusLower === "confirmed" ? "bg-emerald-50 text-emerald-700" :
                                           "bg-red-50 text-red-700"
           }`}>
@@ -88,6 +109,11 @@ function BookingCard({ booking, onSelect }) {
 // ── AdminMess ─────────────────────────────────────────────────────────────────
 
 function AdminMess() {
+  // ── Role guard ──────────────────────────────────────────────────────────────
+  // can_manage_mess is derived purely from the user's effective role on the
+  // backend (/api/auth/me/) — no is_superuser shortcuts involved.
+  const { can_manage_mess, isLoading: authLoading } = useAuth();
+
   const [activeTab,      setActiveTab]      = useState("pending");
   const [bookings,       setBookings]       = useState([]);
   const [isLoading,      setIsLoading]      = useState(true);
@@ -101,9 +127,11 @@ function AdminMess() {
   const [rejectRemark,     setRejectRemark]     = useState("");
   const [remarkError,      setRemarkError]      = useState("");
 
-  // ── Data fetching ───────────────────────────────────────────────────────────
+  // ── Data fetching — only runs if user is authorised ─────────────────────────
 
   useEffect(() => {
+    if (!can_manage_mess) return;
+
     const isMounted = { current: true };
 
     const fetchBookings = async () => {
@@ -121,9 +149,9 @@ function AdminMess() {
 
     fetchBookings();
     return () => { isMounted.current = false; };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, can_manage_mess]);
 
-  // ── Panel helpers ───────────────────────────────────────────────────────────
+  // ── Panel helpers ────────────────────────────────────────────────────────────
 
   const openPanel = useCallback((booking) => {
     setSelectedBooking(booking);
@@ -139,7 +167,7 @@ function AdminMess() {
     setTimeout(() => setToastMsg(""), 4000);
   }, []);
 
-  // ── Derived lists ───────────────────────────────────────────────────────────
+  // ── Derived lists ────────────────────────────────────────────────────────────
 
   const pendingBookings = bookings.filter((b) => b.status?.toLowerCase() === "pending");
 
@@ -160,7 +188,7 @@ function AdminMess() {
     { total: 0, veg: 0, nonveg: 0 }
   );
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   const handleApprove = async (id) => {
     setActionLoading(true);
@@ -198,7 +226,9 @@ function AdminMess() {
       await messService.rejectBooking(selectedBooking.id, trimmed);
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === selectedBooking.id ? { ...b, status: "rejected", rejection_remark: trimmed } : b
+          b.id === selectedBooking.id
+            ? { ...b, status: "rejected", rejection_remark: trimmed }
+            : b
         )
       );
       showToast("Booking rejected.");
@@ -214,7 +244,23 @@ function AdminMess() {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Auth loading state ───────────────────────────────────────────────────────
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[60vh]">
+        <span className="w-6 h-6 border-2 border-gray-200 border-t-emerald-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Access denied ────────────────────────────────────────────────────────────
+
+  if (!can_manage_mess) {
+    return <AccessDenied />;
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   const TABS = [
     { id: "pending",  label: "Needs Approval",        count: pendingBookings.length,  icon: Clock3  },
@@ -380,7 +426,6 @@ function AdminMess() {
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm">
           <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
 
-            {/* Panel header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gray-50 shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Booking Details</h2>
@@ -391,10 +436,8 @@ function AdminMess() {
               </button>
             </div>
 
-            {/* Panel body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
 
-              {/* Event info */}
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Event Information</p>
                 <h3 className="text-lg font-bold text-gray-900">{selectedBooking.purpose_of_programme}</h3>
@@ -427,14 +470,13 @@ function AdminMess() {
                 </div>
               </div>
 
-              {/* Headcount */}
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Headcount</p>
                 <div className="flex items-center justify-between bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
                   {[
-                    { value: selectedBooking.veg_persons,    label: "Veg Plates",     color: "text-emerald-600" },
-                    { value: selectedBooking.nonveg_persons,  label: "Non-Veg Plates", color: "text-red-600"     },
-                    { value: selectedBooking.total_persons,   label: "Total Plates",   color: "text-gray-900"    },
+                    { value: selectedBooking.veg_persons,   label: "Veg Plates",     color: "text-emerald-600" },
+                    { value: selectedBooking.nonveg_persons, label: "Non-Veg Plates", color: "text-red-600"     },
+                    { value: selectedBooking.total_persons,  label: "Total Plates",   color: "text-gray-900"    },
                   ].map(({ value, label, color }, i, arr) => (
                     <React.Fragment key={label}>
                       <div className="text-center w-1/3">
@@ -447,7 +489,6 @@ function AdminMess() {
                 </div>
               </div>
 
-              {/* Catering menu — driven by MEALS constant */}
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Catering Menu</p>
                 <div className="space-y-3">
@@ -471,7 +512,7 @@ function AdminMess() {
               </div>
             </div>
 
-            {/* Admin action footer — only shown for pending bookings */}
+            {/* Action footer — only for pending bookings */}
             {selectedBooking.status?.toLowerCase() === "pending" && (
               <div className="border-t border-gray-100 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {showRejectInput && (

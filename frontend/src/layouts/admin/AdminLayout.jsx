@@ -2,25 +2,46 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
-// 1. Updated NAV_LINKS with Role-Based flags
+// ── Nav links — each entry declares which capability unlocks it.
+// capability() receives the capabilities object from /api/auth/me/
+// and returns true/false. No is_superuser checks anywhere.
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Action Center',  end: true,  requiresSuperUser: true },
-    { to: '/admin/spaces',         label: 'Spaces',         end: false, requiresSuperUser: true },
-    { to: '/admin/equipment',      label: 'Equipment',      end: false, requiresSuperUser: true },
-    { to: '/admin/departments',    label: 'Departments',    end: false, requiresSuperUser: true },
-    { to: '/admin/role-overrides', label: 'Role Overrides', end: false, requiresSuperUser: true },
-    // Mess Operations is visible to both Super Users and Mess Admins
-    { to: '/admin/mess',           label: 'Mess Operations',end: false, requiresSuperUser: false },
+    { to: '/admin',                label: 'Action Center',   end: true,  capability: (c) => c?.can_manage_system    },
+    { to: '/admin/spaces',         label: 'Spaces',          end: false, capability: (c) => c?.can_manage_spaces    },
+    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_equipment },
+    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system    },
+    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system    },
+    { to: '/admin/mess',           label: 'Mess Operations', end: false, capability: (c) => c?.can_manage_mess      },
 ];
 
+// ── Derive a readable module label from the effective_role string.
+// Falls back gracefully if role is null (shouldn't happen in practice
+// since ProtectedRoute guards the portal, but defensive is good).
+const getRoleDisplay = (effectiveRole) => {
+    if (!effectiveRole) return { title: 'Admin Portal', subtitle: 'Staff' };
+    const normalized = effectiveRole.trim().toLowerCase();
+
+    const map = {
+        'it admin':         { title: 'IT Admin',          subtitle: 'System Operations'  },
+        'mess':             { title: 'Mess Admin',         subtitle: 'Mess Operations'    },
+        'facility manager': { title: 'Facility Manager',   subtitle: 'Spaces & Facilities'},
+        'receptionist':     { title: 'Receptionist',       subtitle: 'Space Bookings'     },
+        'lab in-charge':    { title: 'Lab In-charge',      subtitle: 'Lab Management'     },
+        'librarian':        { title: 'Librarian',          subtitle: 'Library Spaces'     },
+        'principal':        { title: 'Principal',          subtitle: 'Institution Head'   },
+        'hod':              { title: 'Head of Department', subtitle: 'Department Head'    },
+    };
+
+    return map[normalized] ?? { title: effectiveRole, subtitle: 'Admin Portal' };
+};
+
 const AdminLayout = () => {
-    const { logout, user } = useAuth();
+    const { logout, user, effectiveRole } = useAuth();
     const navigate = useNavigate();
 
     const [profileOpen, setProfileOpen] = useState(false);
     const profileRef = useRef(null);
 
-    // Close profile dropdown on outside click
     useEffect(() => {
         const handler = (e) => {
             if (profileRef.current && !profileRef.current.contains(e.target)) {
@@ -36,17 +57,19 @@ const AdminLayout = () => {
         navigate('/');
     };
 
-    // 2. Filter links based on the user's role
-    const visibleLinks = NAV_LINKS.filter(link => {
-        // Superusers see everything
-        if (user?.is_superuser) return true;
-        // Non-superusers (e.g., Mess Admin) only see links that don't require superuser privileges
-        return !link.requiresSuperUser;
-    });
+    // Build capabilities object from auth context — spread into context
+    // by AuthProvider so each capability is a top-level key.
+    const capabilities = {
+        can_manage_system:    user?.capabilities?.can_manage_system,
+        can_manage_spaces:    user?.capabilities?.can_manage_spaces,
+        can_manage_equipment: user?.capabilities?.can_manage_equipment,
+        can_manage_mess:      user?.capabilities?.can_manage_mess,
+    };
 
-    // 3. Dynamic UI labels based on role
-    const roleTitle = user?.is_superuser ? 'IT Admin' : 'Mess Admin';
-    const roleSubtitle = user?.is_superuser ? 'System Ops' : 'Mess Operations';
+    // Filter nav links — each link decides its own visibility via capability()
+    const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));
+
+    const { title: roleTitle, subtitle: roleSubtitle } = getRoleDisplay(effectiveRole);
 
     return (
         <div className="flex h-screen bg-gray-50 font-geist w-full">
@@ -62,8 +85,7 @@ const AdminLayout = () => {
 
                 <nav className="flex-1 space-y-1 p-4">
                     <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Modules</p>
-                    
-                    {/* Render only the links this specific role is allowed to see */}
+
                     {visibleLinks.map(({ to, label, end }) => (
                         <NavLink
                             key={to}
@@ -89,7 +111,6 @@ const AdminLayout = () => {
                 {/* Top Header */}
                 <header className="h-16 bg-white border-b border-gray-100 shrink-0 z-10 flex items-center justify-between px-5 md:px-8">
                     <div className="flex items-center gap-4">
-                        {/* Mobile Logo */}
                         <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 md:hidden">
                             <img src="/logo.png" alt="RCSS Logo" className="w-full h-full object-contain" />
                         </div>
@@ -124,7 +145,8 @@ const AdminLayout = () => {
                             <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
                                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
                                     <p className="text-sm font-semibold text-gray-800">{user?.name || 'Admin User'}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{user?.email || 'admin@rcss.ac.in'}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">{user?.email || ''}</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">{roleTitle}</p>
                                 </div>
                                 <div className="py-1">
                                     <button
