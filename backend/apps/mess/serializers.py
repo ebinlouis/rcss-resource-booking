@@ -116,3 +116,16 @@ class MessBookingSerializer(serializers.ModelSerializer):
                     })
 
         return data
+
+    def update(self, instance, validated_data):
+        # 1. Force the status back to PENDING on any modification
+        validated_data['status'] = 'PENDING'
+        
+        # 2. Clear out any previous admin rejection/approval remarks
+        validated_data['rejection_remark'] = ''
+        
+        # 3. Clear the resolution tracking fields (assuming inheritance from BaseBooking)
+        validated_data['resolved_by'] = None
+        validated_data['resolved_at'] = None
+
+        return super().update(instance, validated_data)

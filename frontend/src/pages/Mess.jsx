@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
@@ -30,6 +30,12 @@ const getStatusStyle = (status) => {
   }
 }
 
+/** True for any status where edit/cancel should be available. */
+const isEditable = (status) => {
+  const s = status?.toLowerCase()
+  return s === "pending" || s === "confirmed"
+}
+
 /** Renders a compact pill for each selected meal with its time. */
 const MealTimePills = ({ booking }) => {
   const selected = MEALS.filter((m) => booking[`${m.id}_required`])
@@ -38,7 +44,7 @@ const MealTimePills = ({ booking }) => {
   return (
     <div className="flex flex-wrap gap-1 mt-1">
       {selected.map(({ id, label, timeKey }) => {
-        const raw = booking[timeKey]
+        const raw  = booking[timeKey]
         const time = raw && typeof raw === "string" && raw.length >= 5 ? raw.slice(0, 5) : null
         return (
           <span
@@ -62,39 +68,51 @@ const MealTimePills = ({ booking }) => {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function Mess() {
-  const [bookings,       setBookings]       = useState([])
-  const [isLoading,      setIsLoading]      = useState(true)
-  const [toastMsg,       setToastMsg]       = useState("")
+  const [bookings,                setBookings]                = useState([])
+  const [isLoading,               setIsLoading]               = useState(true)
+  const [toastMsg,                setToastMsg]                = useState("")
+  const [refreshTrigger,          setRefreshTrigger]          = useState(0) 
 
-  const [selectedDate,     setSelectedDate]     = useState("")
-  const [mealFilter,       setMealFilter]       = useState("All")
-  const [showAllUpcoming,  setShowAllUpcoming]  = useState(false)
+  const [selectedDate,            setSelectedDate]            = useState("")
+  const [mealFilter,              setMealFilter]              = useState("All")
+  const [showAllUpcoming,         setShowAllUpcoming]         = useState(false)
 
-  const [selectedViewBooking,    setSelectedViewBooking]    = useState(null)
-  const [showForm,               setShowForm]               = useState(false)
-  const [editMode,               setEditMode]               = useState(false)
-  const [selectedEditBooking,    setSelectedEditBooking]    = useState(null)
-  const [showDeleteModal,        setShowDeleteModal]        = useState(false)
+  const [selectedViewBooking,     setSelectedViewBooking]     = useState(null)
+  const [showForm,                setShowForm]                = useState(false)
+  const [editMode,                setEditMode]                = useState(false)
+  const [selectedEditBooking,     setSelectedEditBooking]     = useState(null)
+  const [showDeleteModal,         setShowDeleteModal]         = useState(false)
   const [selectedBookingToDelete, setSelectedBookingToDelete] = useState(null)
-  const [isDeleting,             setIsDeleting]             = useState(false)
+  const [isDeleting,              setIsDeleting]              = useState(false)
+
+  // Used to avoid setting isLoading to true on background refetches
+  const isFirstLoad = useRef(true)
 
   // ── Data fetching ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     let isMounted = true
     const fetchBookings = async () => {
+      if (isFirstLoad.current) {
+        setIsLoading(true)
+        isFirstLoad.current = false
+      }
+      
       try {
         const data = await messService.getMyBookings()
-        if (isMounted) setBookings(data)
+        if (isMounted) {
+          setBookings(data)
+          setIsLoading(false)
+        }
       } catch (err) {
         console.error("Failed to fetch mess bookings:", err)
-      } finally {
         if (isMounted) setIsLoading(false)
       }
     }
+    
     fetchBookings()
     return () => { isMounted = false }
-  }, [])
+  }, [refreshTrigger]) 
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
@@ -126,7 +144,7 @@ function Mess() {
     setTimeout(() => setToastMsg(""), 4000)
   }
 
-  const closeSidePanel  = () => setSelectedViewBooking(null)
+  const closeSidePanel = () => setSelectedViewBooking(null)
 
   const openDeleteModal = (booking) => {
     setSelectedBookingToDelete(booking)
@@ -154,7 +172,7 @@ function Mess() {
     setIsDeleting(true)
     try {
       await messService.deleteBooking(selectedBookingToDelete.id)
-      setBookings((prev) => prev.filter((b) => b.id !== selectedBookingToDelete.id))
+      setRefreshTrigger(prev => prev + 1) 
       setShowDeleteModal(false)
       showToast("Booking cancelled successfully.")
     } catch (err) {
@@ -166,16 +184,11 @@ function Mess() {
     }
   }
 
-  const handleSave = (updatedBooking) => {
-    if (editMode) {
-      setBookings((prev) => prev.map((b) => b.id === updatedBooking.id ? updatedBooking : b))
-      showToast("Booking updated successfully!")
-    } else {
-      setBookings((prev) => [updatedBooking, ...prev])
-      showToast("Booking submitted! Awaiting admin approval.")
-      setSelectedDate("")
-    }
+  const handleSave = () => {
     closeForm()
+    showToast(editMode ? "Booking updated successfully!" : "Booking submitted! Awaiting admin approval.")
+    setSelectedDate("")
+    setRefreshTrigger(prev => prev + 1) 
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -261,7 +274,6 @@ function Mess() {
 
         {/* Booking list */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          {/* Table header — col widths adjusted: Date & Time col replaced by wider Meal Timings */}
           <div className="grid grid-cols-12 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-400 px-5 py-4 border-b border-gray-100">
             <span className="col-span-2">Ref Code</span>
             <span className="col-span-3">Event Purpose</span>
@@ -289,13 +301,11 @@ function Mess() {
               onClick={() => setSelectedViewBooking(b)}
               className="grid grid-cols-12 items-center px-5 py-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
             >
-              {/* Ref code + date */}
               <div className="col-span-2">
                 <span className="font-medium text-gray-700 text-sm">{b.reference_code || "N/A"}</span>
                 <p className="text-xs text-gray-400 mt-0.5">{b.booking_date}</p>
               </div>
 
-              {/* Purpose + earliest start */}
               <div className="col-span-3 pr-4">
                 <p className="font-semibold text-gray-900 text-sm truncate">{b.purpose_of_programme}</p>
                 <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
@@ -304,19 +314,16 @@ function Mess() {
                 </p>
               </div>
 
-              {/* Individual meal time pills */}
               <div className="col-span-5 pr-2">
                 <MealTimePills booking={b} />
               </div>
 
-              {/* Status badge */}
               <div className="col-span-1">
                 <span className={`text-[10px] uppercase tracking-wide font-bold px-2.5 py-1 rounded-full ${getStatusStyle(b.status)}`}>
                   {b.status}
                 </span>
               </div>
 
-              {/* Arrow */}
               <div className="col-span-1 flex justify-end">
                 <ChevronRight size={18} className="text-gray-400" />
               </div>
@@ -383,8 +390,8 @@ function Mess() {
                   </div>
                   <div>
                     <p className="text-gray-500 mb-1">First Delivery</p>
-                    <p className="font-medium text-gray-900 flex items-center gap-1.5">
-                      <Clock3 size={14} className="text-gray-400" />
+                    <p className="font-semibold text-emerald-600 text-base flex items-center gap-1.5">
+                      <Clock3 size={15} className="text-emerald-500" />
                       {getEarliestTime(selectedViewBooking)}
                     </p>
                   </div>
@@ -407,26 +414,34 @@ function Mess() {
 
               <hr className="border-gray-100" />
 
-              {/* Catering menu — driven by MEALS constant */}
+              {/* Catering menu */}
               <section>
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
                   Catering Menu
                 </h3>
-                <div className="space-y-4">
-                  {MEALS.filter((m) => selectedViewBooking[`${m.id}_required`]).map(({ id, label, menuKey, timeKey }) => (
-                    <div key={id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-gray-500">{label}</span>
-                        {selectedViewBooking[timeKey] && (
-                          <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
-                            <Clock3 size={10} />
-                            {selectedViewBooking[timeKey].slice(0, 5)}
-                          </span>
-                        )}
+                <div className="space-y-3">
+                  {MEALS.filter((m) => selectedViewBooking[`${m.id}_required`]).map(({ id, label, menuKey, timeKey }) => {
+                    const raw  = selectedViewBooking[timeKey]
+                    const time = raw && typeof raw === "string" && raw.length >= 5 ? raw.slice(0, 5) : null
+                    return (
+                      <div key={id} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-white">
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
+                          {time ? (
+                            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1">
+                              <Clock3 size={13} className="text-emerald-500" />
+                              <span className="text-sm font-bold text-emerald-700">{time}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">No time set</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-800 px-4 py-3 leading-relaxed">
+                          {selectedViewBooking[menuKey]}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-800">{selectedViewBooking[menuKey]}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
                   {getRequestedMeals(selectedViewBooking).length === 0 && (
                     <p className="text-sm text-gray-400 italic">No meals selected.</p>
                   )}
@@ -434,8 +449,8 @@ function Mess() {
               </section>
             </div>
 
-            {/* Footer — edit/cancel only for pending bookings */}
-            {selectedViewBooking.status?.toLowerCase() === "pending" && (
+            {/* Footer — edit/cancel available for pending AND confirmed bookings */}
+            {isEditable(selectedViewBooking.status) && (
               <div className="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3">
                 <button
                   onClick={() => openDeleteModal(selectedViewBooking)}
