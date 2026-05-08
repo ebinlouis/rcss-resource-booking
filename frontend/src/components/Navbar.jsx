@@ -42,9 +42,14 @@ function Navbar({ onTabChange }) {
 
   const profileRef = useRef(null)
 
-  const { user, logout } = useAuth()
-
-  const isApprover = user?.can_access_admin_portal
+  // Backend permission logic preserved
+  const {
+    user,
+    logout,
+    can_access_admin_portal,
+    can_manage_system,
+    can_manage_mess,
+  } = useAuth()
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -75,6 +80,19 @@ function Navbar({ onTabChange }) {
   const handleLogout = async () => {
     await logout()
     navigate("/")
+  }
+
+  // Backend admin routing logic preserved
+  const handleAdminPortalClick = (e) => {
+    e.preventDefault()
+
+    if (user?.is_superuser || can_manage_system) {
+      navigate("/admin")
+    } else if (can_manage_mess) {
+      navigate("/admin/mess")
+    } else {
+      navigate("/admin")
+    }
   }
 
   return (
@@ -120,20 +138,20 @@ function Navbar({ onTabChange }) {
             })}
 
             {/* Admin Portal */}
-            {isApprover && (
-              <Link
-                to="/admin"
+            {can_access_admin_portal && (
+              <button
+                onClick={handleAdminPortalClick}
                 className={`relative px-5 text-sm font-medium transition-all duration-300
                   flex items-center border-b-2 gap-2
                   ${
-                    location.pathname === "/admin"
+                    location.pathname.startsWith("/admin")
                       ? "border-green-700 text-green-700"
                       : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
                   }`}
               >
                 <ShieldCheck className="w-[16px] h-[16px]" />
                 Admin Portal
-              </Link>
+              </button>
             )}
 
           </nav>
@@ -364,20 +382,22 @@ function Navbar({ onTabChange }) {
           })}
 
           {/* Mobile Admin */}
-          {isApprover && (
-            <Link
-              to="/admin"
-              onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition
+          {can_access_admin_portal && (
+            <button
+              onClick={(e) => {
+                setMenuOpen(false)
+                handleAdminPortalClick(e)
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition text-left
                 ${
-                  location.pathname === "/admin"
+                  location.pathname.startsWith("/admin")
                     ? "bg-green-50 text-green-700 font-semibold"
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
             >
               <ShieldCheck className="w-4 h-4" />
               Admin Portal
-            </Link>
+            </button>
           )}
 
         </nav>

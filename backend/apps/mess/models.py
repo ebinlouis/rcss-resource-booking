@@ -3,29 +3,38 @@ from django.db import models
 from django.db.models import Q, F
 from apps.approvals.models import BaseBooking
 
+
 class MessBooking(BaseBooking):
     booking_date = models.DateField(db_index=True)
-    delivery_time = models.TimeField()
     delivery_location = models.CharField(max_length=255)
     purpose_of_programme = models.TextField()
-    
+
     total_persons = models.IntegerField()
     veg_persons = models.IntegerField(default=0)
     nonveg_persons = models.IntegerField(default=0)
-    
+
+    # Populated by the admin when rejecting a booking.
+    rejection_remark = models.TextField(blank=True, null=True)
+
+    # Meal timings and menus
     breakfast_required = models.BooleanField(default=False)
+    breakfast_time = models.TimeField(blank=True, null=True)
     breakfast_menu = models.TextField(blank=True, null=True)
-    
+
     morning_tea_required = models.BooleanField(default=False)
+    morning_tea_time = models.TimeField(blank=True, null=True)
     morning_snack_option = models.CharField(max_length=50, blank=True, null=True)
-    
+
     lunch_required = models.BooleanField(default=False)
+    lunch_time = models.TimeField(blank=True, null=True)
     lunch_menu = models.TextField(blank=True, null=True)
-    
+
     evening_tea_required = models.BooleanField(default=False)
+    evening_tea_time = models.TimeField(blank=True, null=True)
     evening_snack_option = models.CharField(max_length=50, blank=True, null=True)
-    
+
     dinner_required = models.BooleanField(default=False)
+    dinner_time = models.TimeField(blank=True, null=True)
     dinner_menu = models.TextField(blank=True, null=True)
 
     class Meta(BaseBooking.Meta):
@@ -41,7 +50,7 @@ class MessBooking(BaseBooking):
             models.CheckConstraint(
                 condition=Q(veg_persons__gte=0) & Q(nonveg_persons__gte=0),
                 name='mess_booking_no_negative_meals'
-            )
+            ),
         ]
 
     def save(self, *args, **kwargs):

@@ -129,50 +129,44 @@ const greeting =
     <div className="grid grid-cols-2 gap-4 min-w-[260px]">
 
       {/* Spaces card */}
-      <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-7 py-2 min-w-[110px] shadow-lg">
-        <div className="flex items-center justify-between h-full">
+<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
 
-          {/* Number */}
-          <h2 className="text-4xl font-bold leading-none text-white">
-            {dbRooms?.length || 0}
-          </h2>
+  <div className="flex flex-col h-full">
 
-          {/* Vertical text */}
-          <div
-            className="text-[12px] font-medium uppercase tracking-[0.35em] text-white/75"
-            style={{
-              writingMode: "vertical-rl",
-              textOrientation: "mixed",
-            }}
-          >
-            SPACES
-          </div>
+    {/* Label */}
+    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+      Spaces
+    </p>
 
-        </div>
-      </div>
+    {/* Number */}
+  <div className="flex-1 flex items-center justify-center">
+    <h2 className="text-4xl font-bold leading-none text-white">
+      {dbRooms?.length || 0}
+    </h2>
+  </div>
+
+  </div>
+</div>
 
       {/* Requests card */}
-      <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-7 py-2 min-w-[110px] shadow-lg">
-        <div className="flex items-center justify-between h-full">
+<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
 
-          {/* Number */}
-          <h2 className="text-4xl font-bold leading-none text-white">
-            {myBookings?.length || 0}
-          </h2>
+  <div className="flex flex-col h-full">
 
-          {/* Vertical text */}
-          <div
-            className="text-[12px] font-medium uppercase tracking-[0.35em] text-white/75"
-            style={{
-              writingMode: "vertical-rl",
-              textOrientation: "mixed",
-            }}
-          >
-            REQUESTS
-          </div>
+    {/* Label */}
+    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+      Requests
+    </p>
 
-        </div>
-      </div>
+    {/* Number */}
+    <div className="flex-1 flex items-center justify-center">
+    <h2 className="text-4xl font-bold leading-none text-white">
+      {myBookings?.length || 0}
+    </h2>
+  </div>
+
+  </div>
+</div>
 
     </div>
   </div>

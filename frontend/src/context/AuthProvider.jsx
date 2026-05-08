@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AuthContext } from './AuthContext';
+import { AuthContext } from './AuthContext'; 
 
 export const AuthProvider = ({ children }) => {
-    // The user object now holds EVERYTHING: id, email, effective_role, 
-    // can_access_admin_portal, and can_manage_system.
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -17,7 +15,7 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 const userData = await response.json();
-                setUser(userData); // All capabilities are now safely in state!
+                setUser(userData); 
             } else {
                 setUser(null);
             }
@@ -47,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 await checkAuthStatus(); 
-                return { success: true };
+                return { success: true, user: await response.json() };
             }
             return { success: false, error: 'Invalid credentials' };
         } catch (error) {
@@ -73,11 +71,14 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{ 
             user, 
-            // For backward compatibility if any of your older components still look for effectiveRole:
             effectiveRole: user?.effective_role || null, 
             isLoading, 
             login, 
-            logout 
+            logout,
+            
+            // Spread the capabilities directly into context so 
+            // `const { can_manage_mess } = useAuth()` works cleanly.
+            ...user?.capabilities 
         }}>
             {children}
         </AuthContext.Provider>

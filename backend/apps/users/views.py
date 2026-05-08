@@ -95,8 +95,11 @@ class CurrentUserView(APIView):
         user = request.user
         now = timezone.now()
         
-        # 1. Get base role
-        base_role = user.role.name if user.role else None
+        # 1. Get base role (Fallback to groups if role FK is null)
+        base_role = user.role.name if getattr(user, 'role', None) else None
+        if not base_role and user.groups.exists():
+            base_role = user.groups.first().name
+
         effective_role = base_role
         has_active_override = False
         override_expires_at = None
@@ -115,24 +118,26 @@ class CurrentUserView(APIView):
             override_expires_at = active_override.expires_at
 
         # 3. SUPERUSER SAFETY NET 
-        # If the user is a superuser but has no explicit role assigned via group/override,
-        # default their effective_role to 'IT_ADMIN' so frontend access is granted.
         if not effective_role and user.is_superuser:
             effective_role = 'IT_ADMIN'
 
         # ==========================================
-        # 4. CAPABILITY MAPPING (DYNAMIC PBAC)
+        # 4. CAPABILITY MAPPING (DYNAMIC CBAC)
         # ==========================================
-        # Normalize the role string to make matching safer
         safe_role = effective_role.upper() if effective_role else ""
         
-        # Define which roles have God Mode (Create/Edit Spaces, Roles, Departments)
-        SYSTEM_ADMIN_ROLES = ['IT ADMIN', 'IT_ADMIN', 'PRINCIPAL', 'SYSTEM OPS'] 
-        
+        # Define Group Mappings (Added exact matches based on DB screenshot)
+        SYSTEM_ADMIN_ROLES = ['IT ADMIN', 'IT_ADMIN', 'SYSTEM OPS']
+        HOD_ROLES = ['HOD', 'HEAD OF DEPARTMENT']
+        MESS_ADMIN_ROLES = ['MESS', 'MESS ADMIN', 'CATERING MANAGER']
+        SPACES_ADMIN_ROLES = ['SPACES', 'SPACES ADMIN', 'FACILITY MANAGER']
+
         can_manage_system = user.is_superuser or safe_role in SYSTEM_ADMIN_ROLES
-        
-        # Anyone with an elevated role (HOD, Father, etc.) or System Admins can access the portal
-        can_access_admin_portal = can_manage_system or bool(effective_role)
+        can_manage_spaces = can_manage_system or safe_role in HOD_ROLES or safe_role in SPACES_ADMIN_ROLES
+        can_manage_equipment = can_manage_system or safe_role in HOD_ROLES
+        can_manage_mess = can_manage_system or safe_role in MESS_ADMIN_ROLES
+
+        can_access_admin_portal = can_manage_system or can_manage_spaces or can_manage_equipment or can_manage_mess or bool(effective_role)
 
         return Response({
             "id": user.id,
@@ -146,8 +151,13 @@ class CurrentUserView(APIView):
             "is_superuser": user.is_superuser,
             
             # --- Dynamic Capabilities for Frontend ---
-            "can_access_admin_portal": can_access_admin_portal,
-            "can_manage_system": can_manage_system
+            "capabilities": {
+                "can_access_admin_portal": can_access_admin_portal,
+                "can_manage_system": can_manage_system,
+                "can_manage_spaces": can_manage_spaces,
+                "can_manage_equipment": can_manage_equipment,
+                "can_manage_mess": can_manage_mess
+            }
         })
 
 # ==========================================
@@ -160,31 +170,30 @@ class DashboardAPIView(APIView):
         user = request.user
         today = timezone.now().date()
 
-        # 1. Spaces (Uses start_datetime)
+        # 1. Spaces
         spaces = SpaceBooking.objects.filter(
             user=user, 
             start_datetime__date__gte=today
         ).exclude(status='REJECTED').order_by('start_datetime')
 
-        # 2. Fleet (Uses start_datetime)
+        # 2. Fleet
         fleet = FleetBooking.objects.filter(
             user=user, 
             start_datetime__date__gte=today
         ).exclude(status='REJECTED').order_by('start_datetime')
 
-        # 3. Mess (Uses booking_date)
+        # 3. Mess
         mess = MessBooking.objects.filter(
             user=user, 
             booking_date__gte=today
         ).exclude(status='REJECTED').order_by('booking_date', 'delivery_time')
 
-        # 4. Media (Uses booking_date)
+        # 4. Media
         media = MediaBooking.objects.filter(
             user=user, 
             booking_date__gte=today
         ).exclude(status='REJECTED').order_by('booking_date', 'start_time')
 
-        # Calculate "Action Center" Badge (Total Pending across all modules)
         total_pending = (
             spaces.filter(status='PENDING').count() +
             fleet.filter(status='PENDING').count() +
@@ -222,21 +231,14 @@ class DashboardAPIView(APIView):
 # ADMIN MANAGEMENT VIEWS
 # ==========================================
 class RoleOverrideViewSet(ModelViewSet):
-    """
-    Handles GET (list/retrieve), POST (create), and PATCH (revoke) for Role Overrides.
-    """
     queryset = RoleOverride.objects.all().select_related('user', 'overridden_role', 'granted_by').order_by('-created_at')
     serializer_class = RoleOverrideSerializer
-    
-    # Strictly limit access to IT Admins
     permission_classes = [IsAuthenticated, IsITAdmin]
 
     def perform_create(self, serializer):
-        # Automatically set the 'granted_by' to the admin making the request
         serializer.save(granted_by=self.request.user)
 
     def get_queryset(self):
-        # Allow frontend filtering by active status (/api/role-overrides/?active=true)
         queryset = super().get_queryset()
         is_active = self.request.query_params.get('active', None)
         if is_active == 'true':
@@ -244,31 +246,21 @@ class RoleOverrideViewSet(ModelViewSet):
         return queryset
 
 class RoleListView(APIView):
-    """
-    Returns a simple list of all available roles (Django Groups) for dropdowns.
-    """
     permission_classes = [IsAuthenticated, IsITAdmin]
 
     def get(self, request):
-        # Querying the built-in Group model now
         roles = Group.objects.all().values('id', 'name')
         return Response(roles)
 
-# --- NEW: USER SEARCH VIEW ---
 class UserSearchView(APIView):
-    """
-    Allows admins to search for users by email, name, or ID for the override modal.
-    """
     permission_classes = [IsAuthenticated, IsITAdmin]
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()
         
-        # Require at least 2 characters to prevent massive unoptimized queries
         if len(query) < 2:
             return Response([])
 
-        # Search across email, first name, or employee/student ID
         users = CustomUser.objects.filter(
             Q(email__icontains=query) |
             Q(first_name__icontains=query) |
