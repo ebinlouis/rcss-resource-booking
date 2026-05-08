@@ -17,6 +17,7 @@ import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
 import AdminSpacesPage from "./pages/admin/AdminSpacesPage";
 import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; 
 import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage";
+import AdminMess from "./pages/admin/AdminMess"; 
 
 function App() {
   return (
@@ -42,8 +43,15 @@ function App() {
           <Route element={<ProtectedRoute requiredCapability="can_access_admin_portal" />}>
             <Route element={<AdminLayout />}>
               
-              {/* Ensure this is EXACTLY "/admin" to match the Navbar */}
+              {/* Global Dashboard */}
               <Route path="/admin" element={<AdminDashboard />} />
+
+              {/* ========================================== */}
+              {/* MESS ADMIN ROUTE */}
+              {/* ========================================== */}
+              <Route element={<ProtectedRoute requiredCapability="can_manage_mess" />}>
+                <Route path="/admin/mess" element={<AdminMess />} />
+              </Route>
 
               {/* ========================================== */}
               {/* TIER 2: SYSTEM ADMIN ROUTES */}

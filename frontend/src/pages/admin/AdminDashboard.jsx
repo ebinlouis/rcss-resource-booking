@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import approvalService from '../../api/approvalService';
+import { useAuth } from '../../hooks/useAuth';
 
 // ==========================================
 // REJECT MODAL
@@ -53,6 +55,9 @@ const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
 // MAIN DASHBOARD
 // ==========================================
 const AdminDashboard = () => {
+    const { can_manage_system, can_manage_mess } = useAuth();
+    const navigate = useNavigate();
+
     const [pendingBookings, setPendingBookings] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
@@ -62,35 +67,59 @@ const AdminDashboard = () => {
     // Tracks which booking is pending rejection (opens modal)
     const [rejectTarget, setRejectTarget] = useState(null);
 
-    const fetchQueue = useCallback(async () => {
-        try {
-            const data = await approvalService.getPendingApprovals();
-            setPendingBookings(data.queue || []);
-            setError(null);
-        } catch (err) {
-            console.error("Fetch error:", err);
-            if (err.response?.status === 401) {
-                setError("UNAUTHORIZED: Your account lacks IsApprover privileges.");
-            } else {
-                setError("Connection failed. Please check your backend server.");
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
     useEffect(() => {
-        (async () => {
-            await fetchQueue();
-        })();
-    }, [fetchQueue, refreshCount]);
+        let isMounted = true;
+
+        // Auto-Bouncer: If they only have Mess clearance, reroute them immediately
+        if (can_manage_mess && !can_manage_system) {
+            navigate('/admin/mess', { replace: true });
+            return;
+        }
+
+        const fetchQueue = async () => {
+            setIsLoading(true);
+            try {
+                const data = await approvalService.getPendingApprovals();
+                
+                if (isMounted) {
+                    // Filter out Mess bookings so they don't clutter the IT Admin dashboard
+                    const cleanQueue = (data.queue || []).filter(
+                        (booking) => booking.domain?.toLowerCase() !== 'mess'
+                    );
+                    
+                    setPendingBookings(cleanQueue);
+                    setError(null);
+                }
+            } catch (err) {
+                console.error("Fetch error:", err);
+                if (isMounted) {
+                    if (err.response?.status === 401) {
+                        setError("UNAUTHORIZED: Your account lacks IsApprover privileges.");
+                    } else {
+                        setError("Connection failed. Please check your backend server.");
+                    }
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        fetchQueue();
+
+        // Cleanup function prevents state updates if the component unmounts
+        return () => {
+            isMounted = false;
+        };
+    }, [refreshCount, can_manage_system, can_manage_mess, navigate]);
 
     const handleRefresh = () => {
         setIsLoading(true);
         setRefreshCount(c => c + 1);
     };
 
-    // Approve — no remarks needed
+    // Approve - no remarks needed
     const handleApprove = async (id, domain) => {
         setActionLoading(id);
         try {
