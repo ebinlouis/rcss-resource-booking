@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // Swapped authService for useAuth
+import { useAuth } from '../hooks/useAuth'; 
 
 export default function Login() {
     const [email, setEmail]         = useState('');
@@ -10,7 +10,7 @@ export default function Login() {
     const [isLoading, setIsLoading] = useState(false);
     
     const navigate = useNavigate();
-    const { login } = useAuth(); // Extract login from global context
+    const { login } = useAuth();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -18,11 +18,25 @@ export default function Login() {
         setIsLoading(true);
         
         try {
-            // Pass credentials as an object to match the AuthProvider logic
             const result = await login({ email, password });
             
             if (result.success) {
-                navigate('/dashboard');
+                const userData = result.user;
+
+                // Capability-Based Routing
+                if (userData?.is_superuser || userData?.capabilities?.can_manage_system) {
+                    // System admins go to the global Action Center
+                    navigate('/admin');
+                } else if (userData?.capabilities?.can_manage_mess) {
+                    // Mess admins go directly to their dedicated dashboard
+                    navigate('/admin/mess');
+                } else if (userData?.capabilities?.can_access_admin_portal) {
+                    // Fallback for other module admins (Spaces, Fleet, etc.)
+                    navigate('/admin');
+                } else {
+                    // Standard users go to the personal dashboard
+                    navigate('/dashboard');
+                }
             } else {
                 setError(result.error || 'Invalid credentials. Please try again.');
             }
@@ -218,7 +232,7 @@ export default function Login() {
 
             <div style={{ display:'flex', minHeight:'100vh', fontFamily:'Geist, sans-serif' }}>
 
-                {/* ── LEFT: Brand Panel ── */}
+                {/* LEFT: Brand Panel */}
                 <div className="panel-left grid-bg"
                     style={{
                         width: '42%',
@@ -336,7 +350,7 @@ export default function Login() {
                     </div>
                 </div>
 
-                {/* ── RIGHT: Form Panel ── */}
+                {/* RIGHT: Form Panel */}
                 <div className="panel-right"
                     style={{
                         flex:1,

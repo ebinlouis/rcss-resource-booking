@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { useAuth } from "../hooks/useAuth" // IMPORTANT: Adjust path if you export this from '../context/AuthProvider'
+import { useAuth } from "../hooks/useAuth" 
 
 const TABS = [
   { name: "Spaces", path: "/dashboard" },
@@ -16,8 +16,14 @@ function Navbar({ onTabChange }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
 
-  // 1. Pull the user and logout functions directly from our global Auth Context
-  const { user, logout } = useAuth()
+  // 1. Pull everything we need from Context
+  const { 
+    user, 
+    logout,
+    can_access_admin_portal,
+    can_manage_system,
+    can_manage_mess
+  } = useAuth()
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -40,12 +46,21 @@ function Navbar({ onTabChange }) {
     return () => window.removeEventListener("click", handler)
   }, [menuOpen])
 
-  // 2. Use the new dynamic PBAC capability flag!
-  const isApprover = user?.can_access_admin_portal;
-
   const handleLogout = async () => {
-    await logout(); // Context handles hitting the backend API and clearing state
+    await logout(); 
     navigate("/");
+  };
+
+  // 2. Logic to route the admin to their highest-clearance dashboard when they click the tab
+  const handleAdminPortalClick = (e) => {
+    e.preventDefault();
+    if (user?.is_superuser || can_manage_system) {
+        navigate('/admin');
+    } else if (can_manage_mess) {
+        navigate('/admin/mess');
+    } else {
+        navigate('/admin'); // Fallback
+    }
   };
 
   return (
@@ -61,7 +76,7 @@ function Navbar({ onTabChange }) {
             />
           </div>
 
-          {/* ── Center tabs — underline style (desktop) ── */}
+          {/* ── Center tabs (desktop) ── */}
           <nav className="hidden md:flex items-stretch gap-1 self-stretch">
             {TABS.map((tab) => {
               const isActive = location.pathname === tab.path
@@ -94,17 +109,17 @@ function Navbar({ onTabChange }) {
             })}
 
             {/* Seamless Admin Portal Tab */}
-            {isApprover && (
-              <Link
-                to="/admin" 
+            {can_access_admin_portal && (
+              <button
+                onClick={handleAdminPortalClick}
                 className={`relative px-4 text-sm font-medium transition-colors
                   flex items-center border-b-2
-                  ${location.pathname === "/admin"
+                  ${location.pathname.startsWith("/admin")
                     ? "border-green-700 text-green-700"
                     : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
               >
                 Admin Portal
-              </Link>
+              </button>
             )}
           </nav>
 
@@ -228,17 +243,16 @@ function Navbar({ onTabChange }) {
           ))}
           
           {/* Mobile Admin Portal Link */}
-          {isApprover && (
-            <Link
-              to="/admin" 
-              onClick={() => setMenuOpen(false)}
+          {can_access_admin_portal && (
+            <button
+              onClick={(e) => { setMenuOpen(false); handleAdminPortalClick(e); }}
               className={`block w-full text-left px-3 py-2.5 rounded-lg text-sm transition
-                ${location.pathname === "/admin"
+                ${location.pathname.startsWith("/admin")
                   ? "bg-green-50 text-green-700 font-semibold"
                   : "text-gray-600 hover:bg-gray-50"}`}
             >
               Admin Portal
-            </Link>
+            </button>
           )}
         </nav>
         

@@ -2,12 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
+// 1. Updated NAV_LINKS with Role-Based flags
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Dashboard',      end: true  },
-    { to: '/admin/spaces',         label: 'Spaces',         end: false },
-    { to: '/admin/equipment',      label: 'Equipment',      end: false },
-    { to: '/admin/departments',    label: 'Departments',    end: false }, // <-- ADDED THIS
-    { to: '/admin/role-overrides', label: 'Role Overrides', end: false },
+    { to: '/admin',                label: 'Action Center',  end: true,  requiresSuperUser: true },
+    { to: '/admin/spaces',         label: 'Spaces',         end: false, requiresSuperUser: true },
+    { to: '/admin/equipment',      label: 'Equipment',      end: false, requiresSuperUser: true },
+    { to: '/admin/departments',    label: 'Departments',    end: false, requiresSuperUser: true },
+    { to: '/admin/role-overrides', label: 'Role Overrides', end: false, requiresSuperUser: true },
+    // Mess Operations is visible to both Super Users and Mess Admins
+    { to: '/admin/mess',           label: 'Mess Operations',end: false, requiresSuperUser: false },
 ];
 
 const AdminLayout = () => {
@@ -33,21 +36,35 @@ const AdminLayout = () => {
         navigate('/');
     };
 
+    // 2. Filter links based on the user's role
+    const visibleLinks = NAV_LINKS.filter(link => {
+        // Superusers see everything
+        if (user?.is_superuser) return true;
+        // Non-superusers (e.g., Mess Admin) only see links that don't require superuser privileges
+        return !link.requiresSuperUser;
+    });
+
+    // 3. Dynamic UI labels based on role
+    const roleTitle = user?.is_superuser ? 'IT Admin' : 'Mess Admin';
+    const roleSubtitle = user?.is_superuser ? 'System Ops' : 'Mess Operations';
+
     return (
         <div className="flex h-screen bg-gray-50 font-geist w-full">
 
-            {/* ── Desktop Sidebar ── */}
+            {/* Desktop Sidebar */}
             <aside className="w-64 bg-white border-r border-gray-100 hidden md:flex flex-col z-20">
                 <div className="flex h-16 items-center px-6 border-b border-gray-100">
                     <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
                         <img src="/logo.png" alt="RCSS Logo" className="w-full h-full object-contain" />
                     </div>
-                    <span className="ml-3 font-bold text-gray-900 tracking-tight">IT Admin</span>
+                    <span className="ml-3 font-bold text-gray-900 tracking-tight">{roleTitle}</span>
                 </div>
 
                 <nav className="flex-1 space-y-1 p-4">
                     <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Modules</p>
-                    {NAV_LINKS.map(({ to, label, end }) => (
+                    
+                    {/* Render only the links this specific role is allowed to see */}
+                    {visibleLinks.map(({ to, label, end }) => (
                         <NavLink
                             key={to}
                             to={to}
@@ -66,10 +83,10 @@ const AdminLayout = () => {
                 </nav>
             </aside>
 
-            {/* ── Main Content Area ── */}
+            {/* Main Content Area */}
             <div className="flex-1 flex flex-col overflow-hidden">
 
-                {/* ── Top Header ── */}
+                {/* Top Header */}
                 <header className="h-16 bg-white border-b border-gray-100 shrink-0 z-10 flex items-center justify-between px-5 md:px-8">
                     <div className="flex items-center gap-4">
                         {/* Mobile Logo */}
@@ -92,8 +109,8 @@ const AdminLayout = () => {
                                 {user?.name?.charAt(0)?.toUpperCase() || 'A'}
                             </div>
                             <div className="hidden md:block text-left leading-tight">
-                                <p className="text-xs font-semibold text-gray-800">{user?.name || 'IT Admin'}</p>
-                                <p className="text-[10px] text-gray-400">System Ops</p>
+                                <p className="text-xs font-semibold text-gray-800">{user?.name || 'Admin User'}</p>
+                                <p className="text-[10px] text-gray-400">{roleSubtitle}</p>
                             </div>
                             <svg
                                 className={`hidden md:block w-3.5 h-3.5 text-gray-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
@@ -130,7 +147,7 @@ const AdminLayout = () => {
                     </div>
                 </header>
 
-                {/* ── Dynamic Page Content ── */}
+                {/* Dynamic Page Content */}
                 <main className="flex-1 overflow-y-auto w-full">
                     <Outlet />
                 </main>
