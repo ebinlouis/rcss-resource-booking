@@ -10,7 +10,7 @@ function MainLayout({ children }) {
 
       {/* Page Content */}
       <main className="flex-1">
-        <div className="max-w-screen-xl mx-auto px-6 py-8">
+        <div className="max-w-[1400px] mx-auto px-8 py-10">
           {children}
         </div>
       </main>

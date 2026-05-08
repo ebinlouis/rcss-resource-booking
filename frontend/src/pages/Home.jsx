@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-
+import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
+
 import MainLayout from "../layouts/MainLayout"
+
 import api from "../api/axios"
 
 const FILTERS = ["All", "Available", "In use"]
@@ -23,73 +25,171 @@ function Home() {
   const [openAvailability, setOpenAvailability] = useState(false)
 
   const [dbRooms, setDbRooms] = useState([])
-  const [myBookings, setMyBookings] = useState([])
-  
-  // Unified loading state
   const [isLoading, setIsLoading] = useState(true)
 
+  const [myBookings, setMyBookings] = useState([])
+  const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
+
   useEffect(() => {
-    const loadInitialData = async () => {
+    const fetchSpaces = async () => {
       try {
-        const [spacesRes, bookingsRes] = await Promise.all([
-          api.get("/spaces/catalog/"),
-          api.get("/spaces/requests/?view=mine")
-        ])
-        setDbRooms(spacesRes.data.results ?? spacesRes.data ?? [])
-        setMyBookings(bookingsRes.data.results ?? bookingsRes.data ?? [])
+        const response = await api.get("/spaces/catalog/")
+        const spaceData = response.data.results ?? response.data
+        setDbRooms(spaceData || [])
       } catch (error) {
-        console.error("Failed to load dashboard data:", error)
+        console.error("Failed to fetch spaces:", error)
+        setDbRooms([])
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadInitialData()
+    const fetchMyBookings = async () => {
+      try {
+        const response = await api.get("/spaces/requests/?view=mine")
+        const data = response.data.results ?? response.data ?? []
+        setMyBookings(data)
+      } catch (error) {
+        console.error("Failed to fetch my bookings:", error)
+      } finally {
+        setIsLoadingMyBookings(false)
+      }
+    }
+
+    fetchSpaces()
+    fetchMyBookings()
   }, [])
 
-  const handleEditBooking = useCallback((booking) => {
+  const handleEditBooking = (booking) => {
     const room = dbRooms.find(
       (r) => r.name.toLowerCase() === booking.hall.toLowerCase()
     )
     setSelectedRoom(room || { name: booking.hall })
     setOpenAvailability(true)
-  }, [dbRooms])
+  }
 
-  const handleCloseModal = useCallback(() => {
-    setOpenAvailability(false)
-  }, [])
+  const filteredRooms = dbRooms.filter((r) => {
+    const matchesSearch =
+      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.space_type || "").toLowerCase().includes(search.toLowerCase())
+    return matchesSearch
+  })
 
-  // Memoize the filtered list so it only recalculates when search or dbRooms change
-  const filteredRooms = useMemo(() => {
-    return dbRooms.filter((r) => {
-      const matchesSearch =
-        (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (r.space_type || "").toLowerCase().includes(search.toLowerCase())
-      return matchesSearch
-    })
-  }, [dbRooms, search])
+const auth = useAuth();
+const user = auth?.user;
 
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+const hour = new Date().getHours()
+const greeting =
+  hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
 
   return (
     <MainLayout>
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{greeting}, User!</h1>
+
+{/* Welcome */}
+<div className="relative overflow-hidden rounded-[32px] p-5 text-white shadow-[0_20px_60px_rgba(16,185,129,0.35)]">
+
+  {/* Background Image */}
+  <div
+    className="absolute inset-0 bg-cover bg-center scale-105"
+    style={{
+      backgroundImage: "url('/Rectangle.png')",
+    }}
+  />
+
+  {/* Dark overlay */}
+  <div className="absolute inset-0 bg-black/10" />
+
+  {/* Grid pattern
+  <div className="absolute inset-0 opacity-20">
+    <div
+      className="h-full w-full"
+      style={{
+        backgroundImage:
+          "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }}
+    />
+  </div> */}
+
+  {/* Content */}
+  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+
+    {/* Left side */}
+    <div>
+      <h1 className="mt-3 text-4xl text-white lg:text-5xl font-bold tracking-tight drop-shadow-lg">
+        {greeting}, {user?.name || "User"}
+      </h1>
+
+      <p className="mt-4 ml-5 text-[12px] font-medium uppercase tracking-[0.25em] text-white/80">
+        Resource Booking made simple
+      </p>
+    </div>
+
+    {/* Right side mini cards */}
+    <div className="grid grid-cols-2 gap-4 min-w-[260px]">
+
+      {/* Spaces card */}
+      <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-7 py-2 min-w-[110px] shadow-lg">
+        <div className="flex items-center justify-between h-full">
+
+          {/* Number */}
+          <h2 className="text-4xl font-bold leading-none text-white">
+            {dbRooms?.length || 0}
+          </h2>
+
+          {/* Vertical text */}
+          <div
+            className="text-[12px] font-medium uppercase tracking-[0.35em] text-white/75"
+            style={{
+              writingMode: "vertical-rl",
+              textOrientation: "mixed",
+            }}
+          >
+            SPACES
+          </div>
+
+        </div>
       </div>
 
-      {/* TOP SPLIT LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* LEFT: General campus activity feed */}
-        <div className="lg:col-span-2">
-          <TodayBookings onEditBooking={handleEditBooking} />
+      {/* Requests card */}
+      <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-7 py-2 min-w-[110px] shadow-lg">
+        <div className="flex items-center justify-between h-full">
+
+          {/* Number */}
+          <h2 className="text-4xl font-bold leading-none text-white">
+            {myBookings?.length || 0}
+          </h2>
+
+          {/* Vertical text */}
+          <div
+            className="text-[12px] font-medium uppercase tracking-[0.35em] text-white/75"
+            style={{
+              writingMode: "vertical-rl",
+              textOrientation: "mixed",
+            }}
+          >
+            REQUESTS
+          </div>
+
         </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+      {/* TOP SPLIT LAYOUT */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+
+{/* LEFT: General campus activity feed */}
+<div className="relative lg:col-span-2">
+  <TodayBookings onEditBooking={handleEditBooking} />
+</div>
 
         {/* RIGHT: This user's own requests — max 3 shown */}
         <div className="lg:col-span-1 lg:mt-4">
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 sticky top-6">
+
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-900">My Requests</h2>
               {myBookings.length > 0 && (
@@ -99,7 +199,7 @@ function Home() {
               )}
             </div>
 
-            {isLoading ? (
+            {isLoadingMyBookings ? (
               <div className="space-y-2.5">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-[68px] bg-gray-50 rounded-lg animate-pulse" />
@@ -115,6 +215,7 @@ function Home() {
               </div>
             ) : (
               <div className="space-y-2">
+                {/* Only 3 max */}
                 {myBookings.slice(0, 3).map((booking) => (
                   <div
                     key={booking.id}
@@ -145,25 +246,31 @@ function Home() {
 
             <Link
               to="/my-bookings"
-              className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-100 hover:bg-green-100 rounded-lg transition"
+              className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 border border-green-100 hover:bg-green-100 rounded-lg transition"
             >
               View all bookings
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </Link>
+
           </div>
         </div>
+
       </div>
 
       {/* SPACES SECTION */}
       <div className="mt-10">
+
         <div className="mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Bookable spaces</h2>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Browse available halls, labs, and meeting spaces for your next booking
-          </p>
-        </div>
+  <h2 className="text-lg font-semibold text-gray-900">
+    Bookable spaces
+  </h2>
+
+  <p className="text-sm text-gray-400 mt-0.5">
+    Browse available halls, labs, and meeting spaces for your next booking
+  </p>
+</div>
 
         {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -238,15 +345,17 @@ function Home() {
             <p className="text-xs text-gray-400 mt-1">Try a different name or filter</p>
           </div>
         )}
+
       </div>
 
       {openAvailability && selectedRoom && (
         <AvailabilityModal
           spaceId={selectedRoom.id}
           spaceName={selectedRoom.name}
-          onClose={handleCloseModal}
+          onClose={() => setOpenAvailability(false)}
         />
       )}
+
     </MainLayout>
   )
 }

@@ -27,7 +27,7 @@ function RoomCard({ room, onOpenAvailability }) {
     : []
 
   return (
-    <div className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 hover:-translate-y-1 transition-all duration-300 overflow-hidden">
+    <div className="group relative overflow-hidden rounded-3xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
 
       {/* Top Section */}
       <div className="relative h-48 bg-gradient-to-br from-gray-50 to-emerald-50/40 flex items-center justify-center overflow-hidden">
