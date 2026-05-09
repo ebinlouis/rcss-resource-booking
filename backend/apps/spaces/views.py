@@ -9,19 +9,19 @@ from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Space, SpaceBooking, Equipment
 from .serializers import SpaceSerializer, SpaceBookingSerializer, EquipmentSerializer
 
+
 # ==========================================
 # RESOURCE CATALOG MANAGEMENT
 # ==========================================
 class EquipmentViewSet(viewsets.ModelViewSet):
     queryset = Equipment.objects.filter(is_active=True)
     serializer_class = EquipmentSerializer
-    # Only true IT Admins / Staff can add/edit equipment. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
+
 
 class SpaceViewSet(viewsets.ModelViewSet):
     queryset = Space.objects.filter(is_active=True)
     serializer_class = SpaceSerializer
-    # Only true IT Admins / Staff can add/edit spaces. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -50,6 +50,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
             )
         return Response({"available": True, "message": "Space is available."}, status=status.HTTP_200_OK)
 
+
 # ==========================================
 # BOOKING SUBMISSIONS
 # ==========================================
@@ -62,16 +63,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         view_param = self.request.query_params.get('view', 'mine')
 
         if view_param == 'general':
-            # All users can see the general activity feed.
-            # Privacy is enforced in the serializer, not here.
             return (
                 SpaceBooking.objects
                 .select_related('space', 'user')
-                .exclude(status='REJECTED')   # Hide rejected from general view
+                .exclude(status='REJECTED')
                 .order_by('start_datetime')
             )
 
-        # Default: 'mine' — only this user's own bookings (all statuses)
         return (
             SpaceBooking.objects
             .filter(user=user)
@@ -82,10 +80,30 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        instance = serializer.instance
+
+        # Staff edits do not trigger a re-review cycle.
+        if user.is_staff or user.is_superuser:
+            serializer.save(updated_by=user)
+            return
+
+        # When a regular user edits an approved booking, reset it to pending
+        # so the admin re-reviews the updated details.
+        extra_fields = {"updated_by": user}
+        if instance.status == 'APPROVED':
+            extra_fields.update({
+                "status": 'PENDING',
+                "resolved_by": None,
+                "resolved_at": None,
+                "remarks_by_admin": None,
+            })
+
+        serializer.save(**extra_fields)
+
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
-        # NOTE: If your React App uses the UnifiedApprovalQueue, 
-        # this endpoint might be redundant, but it's safe to keep as a fallback.
         user = request.user
         if not (user.is_staff or user.is_superuser):
             return Response(
