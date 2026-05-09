@@ -89,6 +89,18 @@ const STYLES = `
   .adc-rqdept  { font-size:11px; color:var(--c-text-3); margin-top:1px; }
   .adc-purpose { font-size:12px; color:var(--c-text-2); background:#F7F6F3; padding:9px 11px; border-radius:8px; border:1px solid var(--c-border); line-height:1.55; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 
+  /* ---- equipment tags ---- */
+  .adc-eq-row  { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .adc-eq-tag  { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; color:var(--c-blue); background:var(--c-blue-bg); border:1px solid rgba(26,86,219,0.15); padding:2px 8px; border-radius:99px; white-space:nowrap; }
+  .adc-eq-tag svg{ width:10px; height:10px; opacity:.7; }
+
+  /* ---- notes block ---- */
+  .adc-notes   { font-size:12px; color:var(--c-text-2); background:var(--c-amber-bg); padding:8px 11px; border-radius:8px; border:1px solid rgba(180,83,9,0.15); line-height:1.55; margin-top:8px; }
+  .adc-notes-lbl{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--c-amber); font-weight:500; margin-bottom:3px; }
+
+  /* ---- supplemental info row below the 3-col grid ---- */
+  .adc-extras  { margin-top:14px; padding-top:14px; border-top:1px solid var(--c-border); display:flex; flex-direction:column; gap:8px; }
+
   /* ---- actions ---- */
   .adc-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; padding-top:16px; border-top:1px solid var(--c-border); }
   .adc-btn-rej { display:inline-flex; align-items:center; gap:5px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:400; padding:7px 16px; border-radius:8px; border:1px solid var(--c-border-md); background:transparent; color:var(--c-text-2); cursor:pointer; transition:all .15s; }
@@ -203,6 +215,13 @@ const IconAlert = () => (
         <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
 );
+const IconBox = () => (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+        <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+);
 
 // ==========================================
 // REJECT MODAL
@@ -267,98 +286,134 @@ const SuccessModal = ({ booking, onClose }) => {
 // ==========================================
 // BOOKING ROW
 // ==========================================
-const BookingRow = ({ booking, onApprove, onReject, isActing }) => (
-    <div className="adc-row">
-        {/* top strip */}
-        <div className="adc-row-top">
-            <div className="adc-row-top-left">
-                <span className="adc-ref">{booking.reference_code}</span>
-                {booking.attendee_count && (
-                    <span className="adc-pax">
-                        <IconUsers /> {booking.attendee_count} pax
-                    </span>
-                )}
-            </div>
-            <span className="adc-ts">Requested {timeAgo(booking.created_at)}</span>
-        </div>
+const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
+    const hasEquipment = booking.equipment_requests && booking.equipment_requests.length > 0;
+    const hasNotes = booking.user_notes && booking.user_notes.trim().length > 0;
 
-        {/* 3-col info */}
-        <div className="adc-grid">
-            {/* Resource */}
-            <div>
-                <div className="adc-col-lbl">Resource</div>
-                <div className="adc-resource">
-                    <div className="adc-ricon"><IconBuilding /></div>
-                    <div>
-                        <div className="adc-rname">{booking.resource_name || 'Space'}</div>
-                        <div className="adc-rdomain">Spaces · {booking.reference_code}</div>
+    return (
+        <div className="adc-row">
+            {/* top strip */}
+            <div className="adc-row-top">
+                <div className="adc-row-top-left">
+                    <span className="adc-ref">{booking.reference_code}</span>
+                    {booking.attendee_count && (
+                        <span className="adc-pax">
+                            <IconUsers /> {booking.attendee_count} pax
+                        </span>
+                    )}
+                </div>
+                <span className="adc-ts">Requested {timeAgo(booking.created_at)}</span>
+            </div>
+
+            {/* 3-col info grid */}
+            <div className="adc-grid">
+                {/* Resource */}
+                <div>
+                    <div className="adc-col-lbl">Resource</div>
+                    <div className="adc-resource">
+                        <div className="adc-ricon"><IconBuilding /></div>
+                        <div>
+                            <div className="adc-rname">{booking.resource_name || 'Space'}</div>
+                            <div className="adc-rdomain">Spaces · {booking.reference_code}</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Schedule */}
-            <div>
-                <div className="adc-col-lbl">Schedule</div>
-                <div className="adc-sched">
-                    <div className="adc-srow">
-                        <div className="adc-sline-wrap">
-                            <span className="adc-sdot s" />
-                            <span className="adc-sconnect" />
+                {/* Schedule */}
+                <div>
+                    <div className="adc-col-lbl">Schedule</div>
+                    <div className="adc-sched">
+                        <div className="adc-srow">
+                            <div className="adc-sline-wrap">
+                                <span className="adc-sdot s" />
+                                <span className="adc-sconnect" />
+                            </div>
+                            <div>
+                                <span className="adc-slabel">Starts</span>
+                                <span className="adc-sval">{formatDateTime(booking.start_datetime)}</span>
+                            </div>
+                        </div>
+                        <div className="adc-srow">
+                            <div className="adc-sline-wrap">
+                                <span className="adc-sdot e" />
+                            </div>
+                            <div>
+                                <span className="adc-slabel">Ends</span>
+                                <span className="adc-sval">{formatDateTime(booking.end_datetime)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Requester + Purpose */}
+                <div>
+                    <div className="adc-col-lbl">Requester & purpose</div>
+                    <div className="adc-requester">
+                        <div className="adc-avatar">
+                            {booking.requester?.charAt(0).toUpperCase() || '?'}
                         </div>
                         <div>
-                            <span className="adc-slabel">Starts</span>
-                            <span className="adc-sval">{formatDateTime(booking.start_datetime)}</span>
+                            <div className="adc-rqname">{booking.requester}</div>
+                            <div className="adc-rqdept">{booking.department || 'General Member'}</div>
                         </div>
                     </div>
-                    <div className="adc-srow">
-                        <div className="adc-sline-wrap">
-                            <span className="adc-sdot e" />
-                        </div>
+                    <div className="adc-purpose">{booking.purpose || 'No purpose provided.'}</div>
+                </div>
+            </div>
+
+            {/* Equipment and notes — rendered only when present */}
+            {(hasEquipment || hasNotes) && (
+                <div className="adc-extras">
+                    {hasEquipment && (
                         <div>
-                            <span className="adc-slabel">Ends</span>
-                            <span className="adc-sval">{formatDateTime(booking.end_datetime)}</span>
+                            <div className="adc-col-lbl" style={{ marginBottom: 6 }}>
+                                Equipment requested
+                            </div>
+                            <div className="adc-eq-row">
+                                {booking.equipment_requests.map((er) => (
+                                    <span key={er.id} className="adc-eq-tag">
+                                        <IconBox />
+                                        {er.equipment_name}
+                                        {er.quantity > 1 && (
+                                            <span style={{ opacity: 0.65 }}>
+                                                &nbsp;&times;&nbsp;{er.quantity}
+                                            </span>
+                                        )}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </div>
+                    )}
 
-            {/* Requester + Purpose */}
-            <div>
-                <div className="adc-col-lbl">Requester & purpose</div>
-                <div className="adc-requester">
-                    <div className="adc-avatar">
-                        {booking.requester?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                    <div>
-                        <div className="adc-rqname">{booking.requester}</div>
-                        <div className="adc-rqdept">{booking.department || 'General Member'}</div>
-                    </div>
+                    {hasNotes && (
+                        <div>
+                            <div className="adc-notes-lbl">User notes</div>
+                            <div className="adc-notes">{booking.user_notes}</div>
+                        </div>
+                    )}
                 </div>
-                <div className="adc-purpose">{booking.purpose || 'No purpose provided.'}</div>
+            )}
+
+            {/* Actions */}
+            <div className="adc-actions">
+                <button
+                    className="adc-btn-rej"
+                    onClick={() => onReject(booking)}
+                    disabled={isActing}
+                >
+                    <IconX /> Reject
+                </button>
+                <button
+                    className="adc-btn-app"
+                    onClick={() => onApprove(booking)}
+                    disabled={isActing}
+                >
+                    {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
+                </button>
             </div>
         </div>
-
-        {/* Actions */}
-        <div className="adc-actions">
-            <button
-                className="adc-btn-rej"
-                onClick={() => onReject(booking)}
-                disabled={isActing}
-            >
-                <IconX /> Reject
-            </button>
-            <button
-                className="adc-btn-app"
-                onClick={() => onApprove(booking)}
-                disabled={isActing}
-            >
-                {isActing
-                    ? 'Processing…'
-                    : <><IconCheck /> Approve</>}
-            </button>
-        </div>
-    </div>
-);
+    );
+};
 
 // ==========================================
 // MAIN DASHBOARD
