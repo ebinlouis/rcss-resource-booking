@@ -584,7 +584,7 @@ const AdminDashboard = () => {
                 {/* Queue panel */}
                 <div className="adc-panel">
                     <div className="adc-phead">
-                        <span className="adc-phead-l">Pending approvals · Spaces</span>
+                        <span className="adc-phead-l">Pending approvals · All Modules</span>
                     </div>
 
                     {error ? (

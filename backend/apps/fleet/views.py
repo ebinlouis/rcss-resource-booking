@@ -1,41 +1,310 @@
 """
-views.py — Fleet, Mess, and Media apps
-Follows the SpaceViewSet / SpaceBookingViewSet pattern from apps/spaces/views.py
-Uses ModelViewSet for full CRUD. Permissions mirror the spaces app convention.
+views.py — apps/fleet
+Mirrors the SpaceViewSet / SpaceBookingViewSet pattern exactly.
 """
 
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from apps.users.permissions import IsAdminOrReadOnly  # Same custom permission as spaces app
+from rest_framework.response import Response
+from django.utils import timezone
 
-# ---------------------------------------------------------------------------
-# FLEET
-# ---------------------------------------------------------------------------
+from apps.users.permissions import IsAdminOrReadOnly, IsApprover
 from apps.fleet.models import Vehicle, FleetBooking
 from apps.fleet.serializers import VehicleSerializer, FleetBookingSerializer
 
 
+# ==========================================
+# INLINE PERMISSION — IsOwnerOrAdminOrReadOnly
+# Mirrors the spaces app pattern exactly.
+# ==========================================
+from rest_framework import permissions as drf_permissions
+
+
+class IsOwnerOrAdminOrReadOnly(drf_permissions.BasePermission):
+    """
+    - Safe methods (GET, HEAD, OPTIONS): any authenticated user.
+    - Unsafe methods (PATCH, PUT, DELETE): owner only, OR IT_ADMIN/superuser.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in drf_permissions.SAFE_METHODS:
+            return True
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+        if request.user.role and request.user.role.name == 'IT_ADMIN':
+            return True
+        return obj.user == request.user
+
+
+# ==========================================
+# VEHICLE VIEWSET
+# ==========================================
 class VehicleViewSet(viewsets.ModelViewSet):
     """
     Vehicle catalog.
-    - Any authenticated user can list/retrieve vehicles.
-    - Only admins can create, update, or deactivate vehicles.
-    Mirrors SpaceViewSet: catalog is read-only for regular users.
+    - Authenticated users: list & retrieve (GET).
+    - IT_ADMIN only: create, update, deactivate.
+    Mirrors SpaceViewSet.
     """
-    queryset = Vehicle.objects.filter(is_active=True)
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_queryset(self):
+        """
+        Regular users see only active vehicles.
+        Admins can pass ?all=true to see deactivated ones too.
+        """
+        user = self.request.user
+        is_admin = user.is_superuser or user.is_staff or (
+            user.role and user.role.name == 'IT_ADMIN'
+        )
+        if is_admin and self.request.query_params.get('all') == 'true':
+            return Vehicle.objects.all().order_by('name')
+        return Vehicle.objects.filter(is_active=True).order_by('name')
 
+
+# ==========================================
+# FLEET BOOKING VIEWSET
+# ==========================================
 class FleetBookingViewSet(viewsets.ModelViewSet):
     """
     Fleet booking requests.
-    - Any authenticated user can create and view their own bookings.
-    - Approval / rejection handled via separate action endpoints (Phase 1 Admin Dashboard).
-    Mirrors SpaceBookingViewSet.
+    Mirrors SpaceBookingViewSet pattern:
+      - perform_create()     → auto-assigns user + department
+      - get_queryset()       → owner-scoped, ?view=general/pending/active/resolved_by_me for admins
+      - review()             → approve / reject action (admin only)
+      - cancel()             → user cancels their own PENDING booking
+      - reschedule()         → admin reschedules/edits an APPROVED booking
     """
-    queryset = FleetBooking.objects.all().order_by('-created_at')
     serializer_class = FleetBookingSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrAdminOrReadOnly]
 
+    # ------------------------------------------------------------------
+    # HELPER — is the current user an admin/approver?
+    # ------------------------------------------------------------------
 
+    def _is_admin(self, user):
+        return user.is_superuser or user.is_staff or (
+            user.role and user.role.name in ['IT_ADMIN', 'HOD']
+        )
+
+    # ------------------------------------------------------------------
+    # QUERYSET
+    # ------------------------------------------------------------------
+
+    def get_queryset(self):
+        user = self.request.user
+        is_admin = self._is_admin(user)
+        view_param = self.request.query_params.get('view', '')
+
+        if is_admin and view_param == 'general':
+            # All bookings across all users
+            qs = FleetBooking.objects.all()
+
+        elif is_admin and view_param == 'pending':
+            # Only PENDING bookings (admin approval queue)
+            qs = FleetBooking.objects.filter(status='PENDING')
+
+        elif is_admin and view_param == 'active':
+            # Currently APPROVED bookings (operational view)
+            qs = FleetBooking.objects.filter(status='APPROVED')
+
+        elif is_admin and view_param == 'resolved_by_me':
+            # Bookings this admin approved or rejected
+            qs = FleetBooking.objects.filter(resolved_by=user)
+
+        else:
+            # Regular users (or admin without special view param) — own bookings only
+            qs = FleetBooking.objects.filter(user=user)
+
+        # --- Optional filters ---
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter.upper())
+
+        vehicle_filter = self.request.query_params.get('vehicle')
+        if vehicle_filter:
+            qs = qs.filter(vehicle_id=vehicle_filter)
+
+        date_filter = self.request.query_params.get('date')
+        if date_filter:
+            qs = qs.filter(start_datetime__date=date_filter)
+
+        return qs.select_related(
+            'user', 'vehicle', 'department', 'resolved_by', 'updated_by'
+        ).order_by('-created_at')
+
+    # ------------------------------------------------------------------
+    # CREATE — auto-assign user + department
+    # ------------------------------------------------------------------
+
+    def perform_create(self, serializer):
+        """
+        Mirrors SpaceBookingViewSet.perform_create():
+        Automatically sets the booking owner and their department.
+        The department is non-nullable on BaseBooking, so we pull it
+        from the user's profile.
+        """
+        user = self.request.user
+
+        if not user.department:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                "department": (
+                    "Your profile does not have a department assigned. "
+                    "Please complete your profile before making a booking."
+                )
+            })
+
+        serializer.save(
+            user=user,
+            department=user.department,
+        )
+
+    # ------------------------------------------------------------------
+    # REVIEW ACTION — approve / reject (admin only)
+    # ------------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, IsApprover],
+        url_path='review',
+    )
+    def review(self, request, pk=None):
+        """
+        PATCH /api/fleet/bookings/<id>/review/
+        Body: { "status": "APPROVED" | "REJECTED", "remarks": "..." }
+
+        Mirrors the SpaceBooking review action pattern.
+        """
+        booking = self.get_object()
+
+        if booking.status != 'PENDING':
+            return Response(
+                {"error": f"This booking is already {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_status = request.data.get('status', '').upper()
+        remarks = request.data.get('remarks', '').strip()
+
+        if new_status not in ['APPROVED', 'REJECTED']:
+            return Response(
+                {"error": "status must be APPROVED or REJECTED."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_status == 'REJECTED' and not remarks:
+            return Response(
+                {"error": "remarks are required when rejecting a booking."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking.status = new_status
+        booking.resolved_by = request.user
+        booking.resolved_at = timezone.now()
+        if remarks:
+            booking.remarks_by_admin = remarks
+
+        try:
+            booking.save()
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        serializer = self.get_serializer(booking)
+        return Response(serializer.data)
+
+    # ------------------------------------------------------------------
+    # CANCEL ACTION — owner can cancel their own PENDING booking
+    # ------------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated],
+        url_path='cancel',
+    )
+    def cancel(self, request, pk=None):
+        """
+        PATCH /api/fleet/bookings/<id>/cancel/
+        Allows the booking owner to cancel a PENDING booking.
+        """
+        booking = self.get_object()
+
+        if booking.user != request.user:
+            return Response(
+                {"error": "You can only cancel your own bookings."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if booking.status != 'PENDING':
+            return Response(
+                {"error": f"Only PENDING bookings can be cancelled. This booking is {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking.status = 'CANCELLED'
+        booking.save()
+
+        return Response({
+            "message": f"Booking {booking.reference_code} has been cancelled.",
+            "reference_code": booking.reference_code,
+            "status": booking.status,
+        })
+
+    # ------------------------------------------------------------------
+    # RESCHEDULE ACTION — admin edits an APPROVED booking
+    # ------------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        permission_classes=[IsAuthenticated, IsApprover],
+        url_path='reschedule',
+    )
+    def reschedule(self, request, pk=None):
+        """
+        PATCH /api/fleet/bookings/<id>/reschedule/
+        Admin-only: modify vehicle, dates, locations, passengers on
+        an already-APPROVED booking without going back to PENDING.
+
+        Payload (all optional, send only what changes):
+          vehicle, start_datetime, end_datetime,
+          pickup_location, destination, total_passengers,
+          remarks_by_admin
+        """
+        booking = self.get_object()
+
+        # Allow rescheduling APPROVED bookings (and PENDING as a convenience)
+        if booking.status not in ['APPROVED', 'PENDING']:
+            return Response(
+                {"error": f"Cannot reschedule a {booking.status} booking."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Use the existing serializer for validation — pass instance so the
+        # overlap check excludes this booking from the conflict query.
+        serializer = self.get_serializer(
+            booking,
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Persist admin remark if provided
+        remarks = request.data.get('remarks_by_admin', '').strip()
+        save_kwargs = {'updated_by': request.user}
+        if remarks:
+            save_kwargs['remarks_by_admin'] = remarks
+
+        try:
+            serializer.save(**save_kwargs)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(self.get_serializer(booking).data)

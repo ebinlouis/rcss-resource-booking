@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AuthContext } from './AuthContext'; 
+import api from '../api/axios';
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -7,20 +8,9 @@ export const AuthProvider = ({ children }) => {
 
     const checkAuthStatus = useCallback(async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/auth/me/', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include', 
-            });
-
-            if (response.ok) {
-                const userData = await response.json();
-                setUser(userData); 
-            } else {
-                setUser(null);
-            }
+            const response = await api.get('auth/me/');
+            setUser(response.data);
         } catch (error) {
-            console.error("Auth check failed:", error);
             setUser(null);
         } finally {
             setIsLoading(false);
@@ -28,41 +18,28 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        const initializeAuth = async () => {
-            await checkAuthStatus();
-        };
-        initializeAuth();
+        checkAuthStatus();
     }, [checkAuthStatus]);
 
     const login = async (credentials) => {
         try {
-            const response = await fetch('http://localhost:8000/api/auth/login/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(credentials),
-                credentials: 'include', 
-            });
-
-            if (response.ok) {
-                await checkAuthStatus(); 
-                return { success: true, user: await response.json() };
+            const response = await api.post('auth/login/', credentials);
+            if (response.status === 200) {
+                await checkAuthStatus();
+                return { success: true, user: response.data };
             }
             return { success: false, error: 'Invalid credentials' };
         } catch (error) {
-            console.error("Login network error:", error); 
-            return { success: false, error: 'Network error occurred' };
+            const message = error?.response?.data?.detail || 'Invalid credentials';
+            return { success: false, error: message };
         }
     };
 
     const logout = async () => {
         try {
-            await fetch('http://localhost:8000/api/auth/logout/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-            });
+            await api.post('auth/logout/');
         } catch (error) {
-            console.error("Logout request failed", error);
+            console.error('Logout request failed', error);
         } finally {
             setUser(null);
         }
@@ -83,4 +60,4 @@ export const AuthProvider = ({ children }) => {
             {children}
         </AuthContext.Provider>
     );
-};
+};
