@@ -10,24 +10,26 @@ from .views import (
     RoleOverrideViewSet,
     DepartmentViewSet,
     RoleListView, 
-    UserSearchView # <-- NEW IMPORT
+    UserSearchView,
+    UserProfileUpdateView,
 )
 
 # Initialize the router for viewsets
 router = DefaultRouter()
-router.register(r'role-overrides', RoleOverrideViewSet, basename='role-override')
-router.register(r'departments', DepartmentViewSet, basename='department')
+router.register('role-overrides', RoleOverrideViewSet, basename='role-override')
+router.register('departments', DepartmentViewSet, basename='department')
 
 urlpatterns = [
     path('login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
+    path('profile/', UserProfileUpdateView.as_view(), name='user-profile-update'),
     path('dashboard/', DashboardAPIView.as_view(), name='user-dashboard'),
     
     # --- STATIC ENDPOINTS ---
     path('roles/', RoleListView.as_view(), name='role-list'),
-    path('users/search/', UserSearchView.as_view(), name='user-search'), # <-- NEW ENDPOINT
+    path('users/search/', UserSearchView.as_view(), name='user-search'),
     
     # Include the router
     path('', include(router.urls)),

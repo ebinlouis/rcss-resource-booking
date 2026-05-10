@@ -5,8 +5,7 @@ from .models import RoleOverride
 
 
 def _normalize(role):
-    """Lowercase + strip so DB casing never matters for comparisons."""
-    return (role or "").strip().lower()
+    return (role or "").strip().lower().replace("_", " ")
 
 
 class IsSuperUser(permissions.BasePermission):
@@ -14,11 +13,10 @@ class IsSuperUser(permissions.BasePermission):
     Strictly for Django admin access only.
     Never use this to gate application module endpoints.
     """
+
     def has_permission(self, request, view):
         return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.is_superuser
+            request.user and request.user.is_authenticated and request.user.is_superuser
         )
 
 
@@ -35,6 +33,7 @@ class HasDynamicRole(permissions.BasePermission):
     Django-admin concerns only. Module access must always be explicitly
     assigned via RoleOverride or user.role, like any other user.
     """
+
     required_roles = []  # define as lowercase strings in subclasses
 
     def _normalized_required(self):
@@ -48,7 +47,7 @@ class HasDynamicRole(permissions.BasePermission):
 
         # 1. Permanent role check
         if (
-            getattr(request.user, 'role', None)
+            getattr(request.user, "role", None)
             and _normalize(request.user.role.name) in normalized
         ):
             return True
@@ -57,12 +56,14 @@ class HasDynamicRole(permissions.BasePermission):
         # Fetch all active override role names and normalize in Python
         # to avoid case-sensitive DB filtering issues.
         now = timezone.now()
-        active_role_names = RoleOverride.objects.filter(
-            user=request.user,
-            is_active=True,
-        ).filter(
-            Q(expires_at__isnull=True) | Q(expires_at__gt=now)
-        ).values_list('overridden_role__name', flat=True)
+        active_role_names = (
+            RoleOverride.objects.filter(
+                user=request.user,
+                is_active=True,
+            )
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+            .values_list("overridden_role__name", flat=True)
+        )
 
         return any(_normalize(name) in normalized for name in active_role_names)
 
@@ -70,34 +71,41 @@ class HasDynamicRole(permissions.BasePermission):
 # Concrete permission classes
 # required_roles as lowercase — _normalize() handles any DB casing variation.
 
+
 class IsITAdmin(HasDynamicRole):
     """System configuration, user management, role grants."""
-    required_roles = ['it admin']
+
+    required_roles = ["it admin"]
 
 
 class IsDepartmentHead(HasDynamicRole):
     """HOD-level approvals and department reports."""
-    required_roles = ['hod', 'it admin']
+
+    required_roles = ["hod", "it admin"]
 
 
 class IsApprover(HasDynamicRole):
     """Unified approval queue — HODs and IT Admin."""
-    required_roles = ['hod', 'it admin']
+
+    required_roles = ["hod", "it admin"]
 
 
 class IsMessAdmin(HasDynamicRole):
     """Mess / catering module — approve, reject, view all bookings."""
-    required_roles = ['mess']
+
+    required_roles = ["mess"]
 
 
 class CanBookResource(HasDynamicRole):
     """Anyone with a recognised institutional role can submit bookings."""
-    required_roles = ['faculty', 'staff', 'it admin', 'hod', 'student']
+
+    required_roles = ["faculty", "staff", "it admin", "hod", "student"]
 
 
 class IsAdminOrReadOnly(HasDynamicRole):
     """Safe methods open to all authenticated users; writes restricted to IT Admin."""
-    required_roles = ['it admin']
+
+    required_roles = ["it admin"]
 
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):

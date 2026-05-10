@@ -126,16 +126,18 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
         booking = self.get_object()
 
-        if booking.status == 'confirmed':
+        if booking.status == 'APPROVED':
             return Response(
-                {"detail": "This booking is already confirmed."},
+                {"detail": "This booking is already approved."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status = 'confirmed'
+        booking.status = 'APPROVED'
+        booking.resolved_by = request.user
+        booking.resolved_at = timezone.now()
         booking.save()
 
-        return Response({"status": "confirmed", "message": "Booking approved."})
+        return Response({"status": "APPROVED", "message": "Booking approved."})
 
     @action(detail=True, methods=['patch'])
     @transaction.atomic
@@ -152,7 +154,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
         booking = self.get_object()
 
-        if booking.status == 'rejected':
+        if booking.status == 'REJECTED':
             return Response(
                 {"detail": "This booking is already rejected."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -165,8 +167,12 @@ class MessBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status           = 'rejected'
+        booking.status           = 'REJECTED'
         booking.rejection_remark = remark
+        # remarks_by_admin must be non-null when status=REJECTED (DB constraint from BaseBooking)
+        booking.remarks_by_admin = remark
+        booking.resolved_by      = request.user
+        booking.resolved_at      = timezone.now()
         booking.save()
 
-        return Response({"status": "rejected", "message": "Booking rejected."})
+        return Response({"status": "REJECTED", "message": "Booking rejected."})

@@ -474,6 +474,9 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Queue panel */}
+                <div className="adc-panel">
+                    <div className="adc-phead">
+                        <span className="adc-phead-l">Pending approvals · All Modules</span>
                 <div className="bg-white border border-[#e8f5ee] rounded-2xl overflow-hidden shadow-sm">
 
                     {/* Panel header */}

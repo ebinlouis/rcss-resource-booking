@@ -7,8 +7,10 @@ const NAV_LINKS = [
     { to: '/admin/spaces',         label: 'Spaces',          end: false, capability: (c) => c?.can_manage_spaces    },
     { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_equipment },
     { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system    },
+    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system    },
+    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess      },
+    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_system    },
     { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system    },
-    { to: '/admin/mess',           label: 'Mess Operations', end: false, capability: (c) => c?.can_manage_mess      },
 ];
 
 const NAV_ICONS = {
