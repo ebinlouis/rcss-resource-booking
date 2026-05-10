@@ -1,4 +1,5 @@
 import json
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest
 
@@ -194,6 +195,12 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return instance
 
     def validate(self, data):
+        # Prevent modification of historical/expired records
+        if self.instance and self.instance.end_datetime < timezone.now():
+            raise serializers.ValidationError(
+                {"non_field_errors": ["Cannot modify a booking that has already expired."]}
+            )
+
         space     = data.get('space')
         attendees = data.get('attendee_count')
         start     = data.get('start_datetime')

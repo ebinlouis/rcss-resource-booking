@@ -3,6 +3,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 
 from apps.users.permissions import IsAdminOrReadOnly
 from .permissions import IsOwnerOrAdminOrReadOnly
@@ -101,6 +102,12 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             })
 
         serializer.save(**extra_fields)
+        
+    def perform_destroy(self, instance):
+        # Prevent deletion (cancellation) of past bookings
+        if instance.end_datetime < timezone.now():
+            raise ValidationError({"detail": "Cannot cancel a booking that has already expired."})
+        instance.delete()
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
