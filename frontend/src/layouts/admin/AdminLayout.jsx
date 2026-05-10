@@ -44,7 +44,7 @@ const Icon = ({ path, className = "w-[18px] h-[18px]" }) => (
 
 const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCloseMobile, onNavigate, onLogout }) => (
     <>
-        {/* Logo / Brand — same height as top bar (64px) */}
+        {/* Logo / Brand */}
         <div
             className={`border-b border-[#e8f5ee] transition-all duration-300 flex items-center ${
                 collapsed ? 'justify-center px-3 h-16' : 'px-5 h-16'
@@ -56,8 +56,8 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                 <div className="flex items-center gap-3">
                     <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain shrink-0" />
                     <div>
-                        <p className="text-[14px] font-bold text-[#14532d] leading-tight tracking-tight">{roleTitle}</p>
-                        <p className="text-[12px] text-[#86a898] leading-tight mt-0.5">{roleSubtitle}</p>
+                        <p className="text-[15.5px] font-bold text-[#14532d] leading-tight tracking-tight">{roleTitle}</p>
+                        <p className="text-[13px] text-[#86a898] leading-tight mt-0.5">{roleSubtitle}</p>
                     </div>
                 </div>
             )}
@@ -66,7 +66,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
         {/* Nav */}
         <nav className={`flex-1 pt-4 pb-4 space-y-0.5 transition-all duration-300 ${collapsed ? 'px-2' : 'px-3'}`}>
             {!collapsed && (
-                <p className="px-3 mb-3 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#a8c4b4]">Navigation</p>
+                <p className="px-3 mb-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#a8c4b4]">Navigation</p>
             )}
             {visibleLinks.map(({ to, label, end }) => (
                 <NavLink
@@ -77,22 +77,22 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                     title={collapsed ? label : undefined}
                     className={({ isActive }) =>
                         `group flex items-center rounded-xl transition-all duration-150 ${
-                            collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-[9px]'
-                        } text-[14px] font-medium ${
+                            collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-[10px]'
+                        } text-[15px] font-medium ${
                             isActive
                                 ? 'bg-[#dcfce7] text-[#15803d] font-semibold'
-                                : 'text-[#4a6b58] hover:bg-[#f0fdf4] hover:text-[#166534]'
+                                : 'text-[#4a6b58] hover:bg-[#f0fdf4] hover:text-[#166634]'
                         }`
                     }
                 >
                     {({ isActive }) => (
                         <>
                             <span className={`shrink-0 transition-colors duration-150 ${isActive ? 'text-[#16a34a]' : 'text-[#86a898] group-hover:text-[#22c55e]'}`}>
-                                <Icon path={NAV_ICONS[label] || NAV_ICONS['Spaces']} className="w-[17px] h-[17px]" />
+                                <Icon path={NAV_ICONS[label] || NAV_ICONS['Spaces']} className="w-[19px] h-[19px]" />
                             </span>
                             {!collapsed && <span className="leading-none">{label}</span>}
                             {!collapsed && isActive && (
-                                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#22c55e] shrink-0" />
+                                <span className="ml-auto w-2 h-2 rounded-full bg-[#22c55e] shrink-0" />
                             )}
                         </>
                     )}
@@ -106,20 +106,20 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                 onClick={() => onNavigate('/dashboard')}
                 title={collapsed ? 'User Portal' : undefined}
                 className={`w-full flex items-center transition-all duration-150 font-medium mb-1 rounded-xl hover:bg-[#f0fdf4] text-[#4a6b58] ${
-                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[9px] text-[13.5px]'
+                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
                 }`}
             >
-                <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[17px] h-[17px] text-[#86a898] shrink-0" />
+                <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[19px] h-[19px] text-[#86a898] shrink-0" />
                 {!collapsed && 'User Portal'}
             </button>
             <button
                 onClick={onLogout}
                 title={collapsed ? 'Sign out' : undefined}
                 className={`w-full flex items-center transition-all duration-150 font-medium rounded-xl hover:bg-[#fff1f2] text-[#dc2626] ${
-                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[9px] text-[13.5px]'
+                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
                 }`}
             >
-                <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" className="w-[17px] h-[17px] shrink-0" />
+                <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" className="w-[19px] h-[19px] shrink-0" />
                 {!collapsed && 'Sign out'}
             </button>
         </div>
@@ -200,14 +200,14 @@ const AdminLayout = () => {
                         {/* Desktop: collapse toggle */}
                         <button
                             onClick={() => setSidebarCollapsed(p => !p)}
-                            className="hidden md:flex w-9 h-9 items-center justify-center rounded-lg hover:bg-[#f0fdf4] text-[#86a898] hover:text-[#15803d] transition-all duration-150"
+                            className="hidden md:flex w-9 h-9 items-center justify-center rounded-lg hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d] transition-all duration-150"
                             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                         >
                             <Icon
                                 path={sidebarCollapsed
                                     ? 'M13 5l7 7-7 7M5 5l7 7-7 7'
                                     : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'}
-                                className="w-4 h-4"
+                                className="w-[18px] h-[18px]"
                             />
                         </button>
 
@@ -219,51 +219,51 @@ const AdminLayout = () => {
                             <Icon path="M4 6h16M4 12h16M4 18h16" className="w-[18px] h-[18px]" />
                         </button>
 
-                        {/* Date */}
-                        <span className="hidden md:block text-[13px] text-[#a8c4b4] font-medium tracking-tight select-none">
-                            {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        {/* Date — visible, readable */}
+                        <span className="hidden md:block text-[15px] text-[#4a6b58] font-medium tracking-tight select-none">
+                            {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                     </div>
 
                     {/* Right */}
                     <div className="flex items-center gap-2.5">
 
-                        {/* Notifications */}
-                        <button className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f0fdf4] text-[#86a898] hover:text-[#15803d] transition-all duration-150">
+                        {/* Notifications — bigger, more visible */}
+                        <button className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d] transition-all duration-150">
                             <Icon
                                 path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                                className="w-[19px] h-[19px]"
+                                className="w-[22px] h-[22px]"
                             />
-                            <span className="absolute top-[9px] right-[9px] w-[7px] h-[7px] rounded-full bg-[#22c55e] border-2 border-white" />
+                            <span className="absolute top-[8px] right-[8px] w-2 h-2 rounded-full bg-[#22c55e] border-2 border-white" />
                         </button>
 
                         {/* Divider */}
-                        <div className="hidden md:block w-px h-5 bg-[#e8f5ee]" />
+                        <div className="hidden md:block w-px h-6 bg-[#e8f5ee]" />
 
                         {/* Avatar + dropdown */}
                         <div className="relative" ref={profileRef}>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setProfileOpen(p => !p); }}
-                                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-bold hover:opacity-90 active:scale-95 transition-all duration-150 ring-2 ring-[#d1fae5] ring-offset-1"
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px] font-bold hover:opacity-90 active:scale-95 transition-all duration-150 ring-2 ring-[#d1fae5] ring-offset-1"
                                 style={{ background: 'linear-gradient(135deg, #166534 0%, #22c55e 100%)' }}
                             >
                                 {initial}
                             </button>
 
                             {profileOpen && (
-                                <div className="absolute right-0 top-full mt-2.5 w-60 bg-white rounded-2xl shadow-xl shadow-black/8 border border-[#e8f5ee] overflow-hidden z-50">
+                                <div className="absolute right-0 top-full mt-2.5 w-64 bg-white rounded-2xl shadow-xl shadow-black/8 border border-[#e8f5ee] overflow-hidden z-50">
                                     <div className="px-4 py-4 bg-[#f6fbf8] border-b border-[#e8f5ee]">
-                                        <p className="text-[14px] font-semibold text-[#14532d]">{user?.name || 'Admin User'}</p>
-                                        <p className="text-[12px] text-[#86a898] mt-0.5">{user?.email || ''}</p>
+                                        <p className="text-[15px] font-semibold text-[#14532d]">{user?.name || 'Admin User'}</p>
+                                        <p className="text-[13px] text-[#86a898] mt-0.5">{user?.email || ''}</p>
                                         <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#dcfce7] rounded-full">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-                                            <span className="text-[11px] font-semibold text-[#15803d]">{roleTitle}</span>
+                                            <span className="text-[12px] font-semibold text-[#15803d]">{roleTitle}</span>
                                         </div>
                                     </div>
                                     <div className="py-1.5">
                                         <button
                                             onClick={() => { navigate('/dashboard'); setProfileOpen(false); }}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#374151] hover:bg-[#f6fbf8] transition text-left"
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-[#374151] hover:bg-[#f6fbf8] transition text-left"
                                         >
                                             <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-4 h-4 text-[#86a898]" />
                                             Back to User Portal
@@ -272,7 +272,7 @@ const AdminLayout = () => {
                                     <div className="border-t border-[#e8f5ee] py-1.5">
                                         <button
                                             onClick={handleLogout}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#dc2626] hover:bg-[#fff1f2] transition text-left"
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-[#dc2626] hover:bg-[#fff1f2] transition text-left"
                                         >
                                             <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" className="w-4 h-4" />
                                             Sign out
