@@ -186,11 +186,21 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         attendees = data.get('attendee_count')
         start     = data.get('start_datetime')
         end       = data.get('end_datetime')
+        notes     = data.get('user_notes', '')
 
-        if space and attendees and attendees > space.capacity_hard:
-            raise serializers.ValidationError(
-                {"attendee_count": f"Max capacity is {space.capacity_hard}."}
-            )
+        if space and attendees:
+            # 1. HARD LIMIT: Over-capacity check
+            if attendees > space.capacity_hard:
+                raise serializers.ValidationError(
+                    {"attendee_count": f"Max capacity is {space.capacity_hard}."}
+                )
+            
+            # 2. SOFT LIMIT: Underutilization Guardrail (< 30% requires notes)
+            min_expected = space.capacity_hard * 0.30
+            if attendees < min_expected and not notes.strip():
+                raise serializers.ValidationError({
+                    "user_notes": f"This space seats {space.capacity_hard}. For a group of {attendees}, you must provide a justification in the notes."
+                })
 
         if start and end:
             if start >= end:
