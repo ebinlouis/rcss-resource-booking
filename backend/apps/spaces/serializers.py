@@ -38,7 +38,7 @@ class SpaceSerializer(serializers.ModelSerializer):
         model  = Space
         fields = [
             'id', 'name', 'description', 'space_type', 'capacity_hard', 'location',
-            'image_1', 'is_active', 'built_in_equipment', 'equipment_data',
+            'image_1', 'is_active', 'is_special_purpose', 'built_in_equipment', 'equipment_data',
         ]
 
     def create(self, validated_data):
