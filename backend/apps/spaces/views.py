@@ -34,6 +34,10 @@ class SpaceViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass  # Ignore malformed values — return unfiltered list
 
+        # <-- THE NEW FILTER LOGIC -->
+        if self.request.query_params.get('for_suggestion') == 'true':
+            qs = qs.filter(is_special_purpose=False)
+
         return qs
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
