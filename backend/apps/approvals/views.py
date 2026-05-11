@@ -130,6 +130,7 @@ class UnifiedApprovalQueueView(APIView):
                 "purpose":           item.purpose_of_booking,
                 "user_notes":        item.user_notes or "",
                 "equipment_requests": equipment_list,
+                "is_external":       getattr(item, 'is_external', False), # <-- ADDED THIS
             })
 
         for item in fleet:
@@ -144,6 +145,7 @@ class UnifiedApprovalQueueView(APIView):
                 "attendee_count": getattr(item, 'passenger_count', getattr(item, 'passengers', None)),
                 "resource_name":  getattr(item.vehicle, 'name', 'Fleet Vehicle'),
                 "purpose":        getattr(item, 'purpose', 'No purpose provided'),
+                "is_external":    getattr(item, 'is_external', False), # Added for safety
             })
 
         for item in mess:
@@ -158,6 +160,7 @@ class UnifiedApprovalQueueView(APIView):
                 "attendee_count": getattr(item, 'total_persons', None),
                 "resource_name":  f"Catering ({getattr(item, 'total_persons', 0)} persons)",
                 "purpose":        getattr(item, 'purpose_of_programme', 'No purpose provided'),
+                "is_external":    getattr(item, 'is_external', False), # Added for safety
             })
 
         for item in media:
@@ -172,10 +175,13 @@ class UnifiedApprovalQueueView(APIView):
                 "attendee_count": getattr(item, 'attendees', None),
                 "resource_name":  "Equipment/Media Support",
                 "purpose":        getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided')),
+                "is_external":    getattr(item, 'is_external', False), # Added for safety
             })
 
-        # --- 5. SORT BY OLDEST FIRST ---
-        unified_queue.sort(key=lambda x: x['created_at'])
+        # --- 5. SORT: PRIORITY (External) FIRST, THEN OLDEST ---
+        # `not x.get('is_external')` evaluates to False (0) for external events, and True (1) for internal.
+        # This pushes external events to the top, and resolves ties using `created_at`.
+        unified_queue.sort(key=lambda x: (not x.get('is_external', False), x['created_at']))
 
         return Response({
             "total_pending": len(unified_queue),

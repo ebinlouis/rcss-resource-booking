@@ -21,9 +21,20 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 
 
 class SpaceViewSet(viewsets.ModelViewSet):
-    queryset = Space.objects.filter(is_active=True)
     serializer_class = SpaceSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Space.objects.filter(is_active=True)
+
+        min_capacity = self.request.query_params.get('min_capacity')
+        if min_capacity is not None:
+            try:
+                qs = qs.filter(capacity_hard__gte=int(min_capacity))
+            except ValueError:
+                pass  # Ignore malformed values — return unfiltered list
+
+        return qs
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def check_availability(self, request, pk=None):
@@ -102,7 +113,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             })
 
         serializer.save(**extra_fields)
-        
+
     def perform_destroy(self, instance):
         # Prevent deletion (cancellation) of past bookings
         if instance.end_datetime < timezone.now():
