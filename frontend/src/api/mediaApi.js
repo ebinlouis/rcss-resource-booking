@@ -3,7 +3,6 @@
  *
  * Axios-based API layer for the Media booking module.
  * Mirrors the pattern used by messService.js and fleetApi.js.
- * All requests use the shared axios instance (HttpOnly cookie auth + CSRF).
  */
 import api from './axios';
 
@@ -11,7 +10,7 @@ const MEDIA_ENDPOINT = 'media/bookings/';
 
 const mediaService = {
   /**
-   * GET /api/spaces/spaces/
+   * GET /api/spaces/catalog/
    * Returns spaces for media booking form.
    */
   getSpaces: async () => {
@@ -21,19 +20,22 @@ const mediaService = {
   },
 
   /**
-   * GET /api/media/bookings/?view=mine
-   * Returns only the current user's own bookings.
+   * GET /api/media/bookings/check_availability/
+   * Returns exact inventory math for the selected time window.
    */
+  checkAvailability: async (date, start, end) => {
+    const response = await api.get(`${MEDIA_ENDPOINT}check_availability/`, {
+      params: { date, start, end }
+    });
+    return response.data;
+  },
+
   getMyBookings: async () => {
     const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'mine' } });
     const data = response.data;
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
-  /**
-   * GET /api/media/bookings/?view=general
-   * Returns all non-rejected bookings (general activity feed).
-   */
   getAllBookings: async () => {
     const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'general' } });
     const data = response.data;
@@ -60,8 +62,6 @@ const mediaService = {
 
   /**
    * POST /api/media/bookings/
-   * Creates a new media booking.
-   * Backend auto-assigns user and department from the JWT session.
    */
   createBooking: async (bookingData) => {
     const response = await api.post(MEDIA_ENDPOINT, bookingData);
@@ -70,7 +70,6 @@ const mediaService = {
 
   /**
    * PATCH /api/media/bookings/<id>/
-   * Updates a PENDING media booking (owner only).
    */
   updateBooking: async (id, updateData) => {
     const response = await api.patch(`${MEDIA_ENDPOINT}${id}/`, updateData);
@@ -79,7 +78,6 @@ const mediaService = {
 
   /**
    * DELETE /api/media/bookings/<id>/
-   * Deletes a booking. Django returns 204 No Content on success.
    */
   deleteBooking: async (id) => {
     await api.delete(`${MEDIA_ENDPOINT}${id}/`);
@@ -87,8 +85,6 @@ const mediaService = {
 
   /**
    * PATCH /api/media/bookings/<id>/review/
-   * Admin action: approve or reject a PENDING media booking.
-   * Payload: { status: 'APPROVED' | 'REJECTED', remarks_by_admin: string }
    */
   reviewBooking: async (id, { status, remarks_by_admin = '' }) => {
     const response = await api.patch(`${MEDIA_ENDPOINT}${id}/review/`, {

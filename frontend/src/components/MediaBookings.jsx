@@ -35,10 +35,9 @@ function CancelConfirmModal({ booking, onConfirm, onClose, deleting }) {
         <h2 className="text-lg font-bold text-gray-900 mb-1">Cancel Booking?</h2>
         <p className="text-sm text-gray-500 mb-1">You're about to cancel your booking for</p>
         <p className="text-sm font-semibold text-gray-800 mb-1">{booking.event_name}</p>
-        <p className="text-xs text-gray-400 mb-1">
-          {booking.booking_date} • {booking.start_time} – {booking.end_time}
+        <p className="text-xs text-gray-400 mb-6">
+          {booking.booking_date} • {booking.setup_start_time?.slice(0, 5)} – {booking.teardown_end_time?.slice(0, 5)}
         </p>
-        <p className="text-xs text-red-400 mb-6">This action cannot be undone.</p>
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -113,8 +112,8 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
           <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
             {/* TABLE HEADER (Desktop) */}
             <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              <div className="col-span-2">Time</div>
-              <div className="col-span-7">Booking Details</div>
+              <div className="col-span-3">Time Schedule</div>
+              <div className="col-span-6">Booking Details</div>
               <div className="col-span-3 text-right pr-12">Status & Actions</div>
             </div>
 
@@ -123,19 +122,30 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
               {bookings.map((b) => {
                 const isApproved = b.status === "APPROVED"
                 const isPending  = b.status === "PENDING"
+                const eqCount    = b.equipment_requests?.length || 0
+                
+                // Smart check to see if we need to display the nested event time
+                const hasBuffer = b.setup_start_time !== b.event_start_time || b.teardown_end_time !== b.event_end_time
 
                 return (
                   <div
                     key={b.id}
                     className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
                   >
-                    {/* TIME */}
-                    <div className="col-span-12 md:col-span-2 text-sm font-semibold text-gray-700">
-                      {b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}
+                    {/* TIME: Smart display based on buffer toggle */}
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-sm font-bold text-gray-700">
+                        {b.setup_start_time?.slice(0, 5)} – {b.teardown_end_time?.slice(0, 5)}
+                      </div>
+                      {hasBuffer && (
+                        <div className="text-[10px] font-medium text-gray-400 uppercase mt-0.5" title="Core Event Time">
+                          Event: {b.event_start_time?.slice(0, 5)} – {b.event_end_time?.slice(0, 5)}
+                        </div>
+                      )}
                     </div>
 
                     {/* BOOKING DETAILS */}
-                    <div className="col-span-12 md:col-span-7">
+                    <div className="col-span-12 md:col-span-6">
                       <div
                         className={`p-3 rounded-lg border ${
                           isApproved
@@ -145,11 +155,24 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                             : "bg-gray-50 border-gray-100 text-gray-700"
                         }`}
                       >
-                        <p className="font-semibold text-sm">{b.event_name}</p>
-                        <p className="text-xs opacity-70">
-                          {b.space_details?.name ?? "—"}
-                          {b.requested_services ? ` • ${b.requested_services}` : ""}
-                        </p>
+                        <p className="font-bold text-sm">{b.event_name}</p>
+                        <div className="text-xs opacity-75 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-medium">{b.space_details?.name ?? "—"}</span>
+                          
+                          {/* Hardware Badge */}
+                          {eqCount > 0 && (
+                            <span className="bg-black/10 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide">
+                              {eqCount} HARDWARE ITEM{eqCount !== 1 ? 'S' : ''}
+                            </span>
+                          )}
+                          
+                          {/* Services Text */}
+                          {b.requested_services && (
+                            <span className="truncate max-w-[200px]" title={b.requested_services}>
+                              • {b.requested_services}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
