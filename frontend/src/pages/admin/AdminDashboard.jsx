@@ -85,6 +85,12 @@ const IconChevron = ({ className = 'w-4 h-4', expanded }) => (
     </svg>
 );
 
+const IconLightning = ({ className = 'w-3 h-3' }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+    </svg>
+);
+
 // ─── Reject Modal ─────────────────────────────────────────────────────────────
 
 const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
@@ -166,9 +172,15 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const hasEquipment = booking.equipment_requests?.length > 0;
     const hasNotes     = booking.user_notes?.trim().length > 0;
+    const isExternal   = booking.is_external;
+
+    // Capacity check logic
+    const capacity = booking.space_details?.capacity_hard;
+    const attendees = booking.attendee_count;
+    const isUnderutilized = capacity && attendees && (attendees / capacity < 0.30);
 
     return (
-        <div className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'}`}>
+        <div className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'} ${isExternal && !isExpanded ? 'bg-[#fffdf8]' : ''}`}>
             
             {/* CLICKABLE QUICK-GLANCE HEADER */}
             <div 
@@ -181,10 +193,15 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                         <span className="font-mono text-[13.5px] font-semibold text-[#14532d] bg-[#f0fdf4] px-3 py-1 rounded-lg border border-[#d1fae5] tracking-wide">
                             {booking.reference_code}
                         </span>
-                        {booking.attendee_count > 0 && (
-                            <span className="flex items-center gap-1.5 text-[14px] text-[#374151] font-medium">
-                                <IconUsers className="w-4 h-4 text-[#15803d]" />
-                                {booking.attendee_count} {booking.attendee_count === 1 ? 'person' : 'people'}
+                        {isExternal && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#d97706] bg-[#fef3c7] px-2 py-0.5 rounded-md border border-[#fde68a]">
+                                <IconLightning className="w-3 h-3" /> Priority Event
+                            </span>
+                        )}
+                        {attendees > 0 && (
+                            <span className="flex items-center gap-1.5 text-[14px] text-[#374151] font-medium ml-1">
+                                <IconUsers className={`w-4 h-4 ${isUnderutilized ? 'text-[#ea580c]' : 'text-[#15803d]'}`} />
+                                {attendees} {attendees === 1 ? 'person' : 'people'}
                             </span>
                         )}
                     </div>
@@ -207,7 +224,7 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                             </div>
                             <div>
                                 <p className="text-[16px] font-semibold text-[#0f172a] leading-tight">{booking.resource_name || 'Space'}</p>
-                                <p className="text-[13px] text-[#6b7280] mt-0.5">{booking.reference_code}</p>
+                                <p className="text-[13px] text-[#6b7280] mt-0.5 capitalize">{booking.space_details?.space_type?.replace('_', ' ') || 'Workspace'}</p>
                             </div>
                         </div>
                     </div>
@@ -261,6 +278,22 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
             {isExpanded && (
                 <div className="pb-6 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="pt-6 border-t border-[#e8f5ee]">
+                        
+                        {/* UNDERUTILIZATION WARNING */}
+                        {isUnderutilized && (
+                            <div className="mb-6 bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-4 py-3.5 flex items-start gap-3">
+                                <IconAlert className="text-[#ea580c] shrink-0 w-5 h-5 mt-0.5" />
+                                <div>
+                                    <p className="text-[13.5px] font-bold text-[#9a3412] uppercase tracking-wide">
+                                        Capacity Warning ({attendees} / {capacity} seats)
+                                    </p>
+                                    <p className="text-[14px] text-[#c2410c] mt-1 leading-relaxed">
+                                        This booking utilizes less than 30% of the hall's capacity. Please read the requester's notes carefully for justification before approving.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Purpose */}
                         <div className="mb-6">
                             <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Purpose of Booking</p>
@@ -295,7 +328,7 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                                         <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#f59e0b] inline-block">
                                             Notes from Requester
                                         </p>
-                                        <div className="mt-2 bg-[#fffbeb] rounded-xl px-4 py-3.5">
+                                        <div className="mt-2 bg-[#fffbeb] rounded-xl px-4 py-3.5 border border-[#fef3c7]">
                                             <p className="text-[14.5px] text-[#374151] leading-relaxed">
                                                 {booking.user_notes}
                                             </p>
@@ -419,6 +452,10 @@ const AdminDashboard = () => {
 
     const totalPeople = pendingBookings.reduce((s, b) => s + (b.attendee_count || 0), 0);
 
+    // Grouping logic for Priority and Standard queues
+    const priorityBookings = pendingBookings.filter(b => b.is_external);
+    const standardBookings = pendingBookings.filter(b => !b.is_external);
+
     return (
         <div
             className="min-h-full bg-[#f6fbf8] p-6 md:p-8"
@@ -476,10 +513,10 @@ const AdminDashboard = () => {
                 {/* Queue panel */}
                 <div className="bg-white border border-[#e8f5ee] rounded-2xl overflow-hidden shadow-sm">
 
-                    {/* Panel header */}
-                    <div className="flex items-center px-7 py-4 border-b border-[#e8f5ee] bg-white relative z-10">
-                        <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#374151]">
-                            Pending bookings
+                    {/* Main Panel header */}
+                    <div className="flex items-center px-7 py-5 border-b border-[#e8f5ee] bg-white relative z-10">
+                        <span className="text-[14px] font-extrabold uppercase tracking-[0.1em] text-[#0f172a]">
+                            Pending Approvals
                         </span>
                     </div>
 
@@ -505,15 +542,49 @@ const AdminDashboard = () => {
                             <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">No bookings are waiting for review.</p>
                         </div>
                     ) : (
-                        pendingBookings.map((booking) => (
-                            <BookingRow
-                                key={`${booking.domain}-${booking.id}`}
-                                booking={booking}
-                                onApprove={handleApprove}
-                                onReject={setRejectTarget}
-                                isActing={actionLoading === booking.id}
-                            />
-                        ))
+                        <div className="flex flex-col">
+                            {/* PRIORITY QUEUE */}
+                            {priorityBookings.length > 0 && (
+                                <div className="border-b border-[#e8f5ee]">
+                                    <div className="flex items-center px-7 py-3 bg-[#fffbeb] border-b border-[#fde68a]">
+                                        <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#d97706]">
+                                            <IconLightning /> Priority Review Queue (External Events)
+                                        </span>
+                                    </div>
+                                    {priorityBookings.map((booking) => (
+                                        <BookingRow
+                                            key={`${booking.domain}-${booking.id}`}
+                                            booking={booking}
+                                            onApprove={handleApprove}
+                                            onReject={setRejectTarget}
+                                            isActing={actionLoading === booking.id}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* STANDARD QUEUE */}
+                            {standardBookings.length > 0 && (
+                                <div>
+                                    {priorityBookings.length > 0 && (
+                                        <div className="flex items-center px-7 py-3 bg-[#f8fafc] border-b border-[#e2e8f0]">
+                                            <span className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
+                                                Standard Queue (Internal Events)
+                                            </span>
+                                        </div>
+                                    )}
+                                    {standardBookings.map((booking) => (
+                                        <BookingRow
+                                            key={`${booking.domain}-${booking.id}`}
+                                            booking={booking}
+                                            onApprove={handleApprove}
+                                            onReject={setRejectTarget}
+                                            isActing={actionLoading === booking.id}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

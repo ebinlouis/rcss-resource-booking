@@ -92,6 +92,7 @@ class SpaceBooking(BaseBooking):
     end_datetime       = models.DateTimeField(db_index=True)
     attendee_count     = models.IntegerField()
     purpose_of_booking = models.TextField()
+    is_external        = models.BooleanField(default=False)  # <-- ADDED THIS FIELD
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [

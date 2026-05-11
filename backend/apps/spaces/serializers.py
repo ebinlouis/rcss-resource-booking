@@ -92,13 +92,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     )
 
     # ── Read: role-gated output ───────────────────────────────────────────────
-    # SerializerMethodField is read-only by design — it handles GET responses
-    # with privacy rules but never touches incoming write data.
     purpose_of_booking = serializers.SerializerMethodField()
 
     # ── Write: accepts incoming purpose from the frontend ────────────────────
-    # write_only=True keeps it out of responses (purpose_of_booking handles that).
-    # source='purpose_of_booking' maps it to the correct model field.
     purpose_of_booking_input = serializers.CharField(
         write_only=True,
         required=True,
@@ -113,8 +109,8 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'id', 'reference_code', 'user', 'department', 'status',
             'space', 'space_details', 'start_datetime', 'end_datetime',
             'attendee_count', 'purpose_of_booking', 'purpose_of_booking_input',
-            'user_notes', 'equipment_requests', 'created_at', 'updated_at',
-            'can_modify', 'remarks_by_admin',
+            'user_notes', 'equipment_requests', 'is_external',
+            'created_at', 'updated_at', 'can_modify', 'remarks_by_admin',
         ]
         # status and remarks_by_admin are intentionally excluded from
         # read_only_fields. They must remain writable so that perform_update
@@ -150,18 +146,12 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if obj.user_id == user.pk:
             return obj.purpose_of_booking
 
-        # Faculty group check (case-sensitive — matches the group name set in
-        # Django admin, e.g. "Faculty").
         if user.groups.filter(name='Faculty').exists():
             return obj.purpose_of_booking
 
         return "Occupied"
 
     def get_can_modify(self, obj):
-        """
-        True when the requesting user is the booking owner OR a staff/superadmin.
-        The frontend gates Edit and Delete buttons on this flag.
-        """
         user = self._user()
         if user is None:
             return False
@@ -169,8 +159,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     # ── Write logic ───────────────────────────────────────────────────────────
     def create(self, validated_data):
-        # Pop the nested equipment list before calling super(), which does not
-        # know how to handle it. Then create EquipmentRequest rows manually.
         equipment_data = validated_data.pop('requested_equipment', [])
         booking = super().create(validated_data)
         for eq_data in equipment_data:
@@ -178,16 +166,10 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return booking
 
     def update(self, instance, validated_data):
-        # Pop equipment data before delegating to super() for the same reason
-        # as create(). Then wipe the existing requests and recreate from the
-        # incoming payload so the admin always sees the current selections.
         equipment_data = validated_data.pop('requested_equipment', None)
         instance = super().update(instance, validated_data)
 
         if equipment_data is not None:
-            # Delete existing requests and replace them with the new set.
-            # This is intentional: the frontend sends the full desired state
-            # on every edit, so a wipe-and-recreate is correct and safe.
             instance.requested_equipment.all().delete()
             for eq_data in equipment_data:
                 EquipmentRequest.objects.create(space_booking=instance, **eq_data)
@@ -195,7 +177,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return instance
 
     def validate(self, data):
-        # Prevent modification of historical/expired records
         if self.instance and self.instance.end_datetime < timezone.now():
             raise serializers.ValidationError(
                 {"non_field_errors": ["Cannot modify a booking that has already expired."]}
