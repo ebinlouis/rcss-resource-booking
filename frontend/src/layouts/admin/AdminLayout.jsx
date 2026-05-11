@@ -3,19 +3,19 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                          },
-    { to: '/admin/spaces',         label: 'Spaces',          end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces   },
-    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment},
-    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                          },
-    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                          },
-    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                            },
-    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_system                          },
-    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                          },
+    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                           },
+    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces    },
+    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment },
+    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                           },
+    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                           },
+    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                             },
+    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_system                           },
+    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                           },
 ];
 
 const NAV_ICONS = {
     'Space Approval':  'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    'Spaces':          'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+    'Room Catalog':    'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
     'Equipment':       'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
     'Departments':     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport':       'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
@@ -99,7 +99,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                                 }`}
                             >
                                 <Icon
-                                    path={NAV_ICONS[label] ?? NAV_ICONS['Spaces']}
+                                    path={NAV_ICONS[label] ?? NAV_ICONS['Room Catalog']}
                                     className="w-[19px] h-[19px]"
                                 />
                             </span>
@@ -148,9 +148,9 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
 const AdminLayout = () => {
     const { logout, user, effectiveRole } = useAuth();
     const navigate = useNavigate();
-    const [profileOpen, setProfileOpen]         = useState(false);
-    const [mobileOpen, setMobileOpen]           = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [profileOpen,       setProfileOpen]       = useState(false);
+    const [mobileOpen,        setMobileOpen]        = useState(false);
+    const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
     const profileRef = useRef(null);
 
     useEffect(() => {
@@ -180,10 +180,10 @@ const AdminLayout = () => {
         roleTitle,
         roleSubtitle,
         visibleLinks,
-        collapsed:      sidebarCollapsed,
-        onCloseMobile:  () => setMobileOpen(false),
-        onNavigate:     navigate,
-        onLogout:       handleLogout,
+        collapsed:     sidebarCollapsed,
+        onCloseMobile: () => setMobileOpen(false),
+        onNavigate:    navigate,
+        onLogout:      handleLogout,
     };
 
     return (
@@ -222,7 +222,6 @@ const AdminLayout = () => {
 
                     {/* Left */}
                     <div className="flex items-center gap-3">
-                        {/* Desktop: collapse toggle */}
                         <button
                             onClick={() => setSidebarCollapsed((p) => !p)}
                             className="hidden md:flex w-9 h-9 items-center justify-center rounded-lg
@@ -239,7 +238,6 @@ const AdminLayout = () => {
                             />
                         </button>
 
-                        {/* Mobile: hamburger */}
                         <button
                             onClick={() => setMobileOpen(true)}
                             className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg
@@ -248,7 +246,6 @@ const AdminLayout = () => {
                             <Icon path="M4 6h16M4 12h16M4 18h16" className="w-[18px] h-[18px]" />
                         </button>
 
-                        {/* Date */}
                         <span className="hidden md:block text-[15px] text-[#4a6b58] font-medium tracking-tight select-none">
                             {new Date().toLocaleDateString('en-IN', {
                                 weekday: 'short',
@@ -261,8 +258,6 @@ const AdminLayout = () => {
 
                     {/* Right */}
                     <div className="flex items-center gap-2.5">
-
-                        {/* Notifications */}
                         <button className="relative w-10 h-10 flex items-center justify-center rounded-xl
                             hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d] transition-all duration-150">
                             <Icon
@@ -272,10 +267,8 @@ const AdminLayout = () => {
                             <span className="absolute top-[8px] right-[8px] w-2 h-2 rounded-full bg-[#22c55e] border-2 border-white" />
                         </button>
 
-                        {/* Divider */}
                         <div className="hidden md:block w-px h-6 bg-[#e8f5ee]" />
 
-                        {/* Avatar + dropdown */}
                         <div className="relative" ref={profileRef}>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setProfileOpen((p) => !p); }}

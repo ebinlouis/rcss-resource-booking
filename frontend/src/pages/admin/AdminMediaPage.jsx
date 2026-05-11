@@ -1,45 +1,77 @@
-import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+    Building2,
+    ChevronDown,
+    Check,
+    Mail,
+    MapPin,
+    Package,
+    Phone,
+    RefreshCw,
+    User,
+    Wrench,
+    X,
+} from 'lucide-react'
 import mediaApi from '../../api/mediaApi'
 
 const STATUS_STYLES = {
-    APPROVED:  { badge: 'bg-green-100 text-green-700' },
-    PENDING:   { badge: 'bg-yellow-100 text-yellow-700' },
-    REJECTED:  { badge: 'bg-blue-100 text-blue-700' },
-    CANCELLED: { badge: 'bg-gray-100 text-gray-500' },
+    APPROVED: 'bg-green-100 text-green-700 border-green-200',
+    PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    REJECTED: 'bg-red-100 text-red-700 border-red-200',
+    CANCELLED: 'bg-gray-100 text-gray-600 border-gray-200',
+}
+
+async function loadAdminMediaData() {
+    const [pending, resolved, active] = await Promise.all([
+        mediaApi.getPendingBookings(),
+        mediaApi.getResolvedByMe(),
+        mediaApi.getActiveBookings(),
+    ])
+    return { pending, resolved, active }
 }
 
 function StatusBadge({ status }) {
-    const s = STATUS_STYLES[status] ?? STATUS_STYLES.PENDING
+    const style = STATUS_STYLES[status] ?? STATUS_STYLES.PENDING
     return (
-        <span className={`text-[10px] font-bold uppercase tracking-tight px-2 py-1 rounded-md ${s.badge}`}>
+        <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide ${style}`}>
             {status}
         </span>
     )
 }
 
-function formatDT(iso) {
-    if (!iso) return '—'
-    return new Date(iso).toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
+function formatDate(dateString) {
+    if (!dateString) return 'TBD'
+    return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
     })
 }
 
-function formatTime(timeStr) {
-    if (!timeStr) return '—'
-    // Ensure timeStr is HH:MM:SS before parsing
-    const parts = timeStr.split(':')
-    if (parts.length >= 2) {
-        const date = new Date()
-        date.setHours(parseInt(parts[0]), parseInt(parts[1]), 0)
-        return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-    }
-    return timeStr
+function formatTime(timeString) {
+    if (!timeString) return 'TBD'
+    const [hours, minutes] = timeString.split(':')
+    const date = new Date()
+    date.setHours(Number(hours), Number(minutes), 0, 0)
+    return date.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    })
+}
+
+function timeAgo(isoString) {
+    if (!isoString) return ''
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(isoString)) / 60000))
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    return `${Math.round(hours / 24)}d ago`
 }
 
 function FieldLabel({ children }) {
     return (
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+        <p className="mb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[#6b7280]">
             {children}
         </p>
     )
@@ -47,40 +79,46 @@ function FieldLabel({ children }) {
 
 function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
     const [remarks, setRemarks] = useState('')
+
     return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h3 className="text-base font-bold text-gray-900 mb-1">Reject Booking</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                    <span className="font-medium text-gray-700">{booking.reference_code}</span>
-                    {' · '}{booking.event_name}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
+            <div
+                className="w-full max-w-[460px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+            >
+                <p className="text-[19px] font-semibold tracking-tight text-[#0f172a]">Reject media request?</p>
+                <p className="mt-1 border-b border-[#e8f5ee] pb-4 text-[14px] text-[#6b7280]">
+                    <span className="font-semibold text-[#0f172a]">{booking.reference_code}</span>
+                    {' - '}
+                    {booking.event_name}
                 </p>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">
-                    Reason for Rejection <span className="text-red-500">*</span>
+
+                <label className="mt-5 mb-2 block text-[12px] font-bold uppercase tracking-[0.1em] text-[#6b7280]">
+                    Reason <span className="text-red-600">*</span>
                 </label>
                 <textarea
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200 resize-none"
-                    rows={4}
-                    placeholder="e.g. Equipment unavailable, scheduling conflict…"
+                    className="min-h-[108px] w-full resize-none rounded-xl border border-[#dbe7df] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7]"
+                    placeholder="e.g. Equipment unavailable, scheduling conflict..."
                     value={remarks}
-                    onChange={e => setRemarks(e.target.value)}
+                    onChange={(event) => setRemarks(event.target.value)}
                     autoFocus
                 />
-                <p className="text-[10px] text-gray-400 mt-1">This message will be recorded against the booking.</p>
-                <div className="flex gap-3 mt-5 justify-end">
+                <p className="mt-2 text-[13px] text-[#6b7280]">This reason will be recorded against the booking.</p>
+
+                <div className="mt-6 flex justify-end gap-2.5">
                     <button
                         onClick={onCancel}
                         disabled={isLoading}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition disabled:opacity-50"
+                        className="rounded-xl border border-[#dbe7df] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4b5563] transition hover:bg-[#f6fbf8] disabled:opacity-40"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => onConfirm(remarks)}
                         disabled={isLoading || !remarks.trim()}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#dc2626] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#b91c1c] disabled:opacity-40"
                     >
-                        {isLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                        {isLoading ? 'Rejecting...' : 'Reject booking'}
                     </button>
                 </div>
             </div>
@@ -88,40 +126,311 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
     )
 }
 
+function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const equipment = booking.equipment_requests ?? []
+    const hasEquipment = equipment.length > 0
+    const hasServices = Boolean(booking.requested_services?.trim())
+    const hasNotes = Boolean(booking.user_notes?.trim())
+    const hasBuffer =
+        booking.setup_start_time !== booking.event_start_time ||
+        booking.teardown_end_time !== booking.event_end_time
+
+    const user = booking.user_details ?? {}
+    const requesterName = user.name || booking.user_name || `User #${booking.user}`
+    const requesterDepartment = user.department || user.department_code || booking.department_name || 'Department not provided'
+    const requesterPhone = user.phone || booking.requester_phone
+    const requesterEmail = user.email || booking.requester_email
+    const requesterId = user.employee_student_id
+    const spaceName = booking.space_details?.name || 'Any suitable space'
+    const location = booking.space_details?.location || 'Location not specified'
+
+    return (
+        <article className={`overflow-hidden rounded-2xl border border-[#e8f5ee] bg-white shadow-sm transition ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'}`}>
+            <button
+                type="button"
+                className="block w-full cursor-pointer select-none px-6 py-5 text-left"
+                onClick={() => setIsExpanded((value) => !value)}
+            >
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                        <span className="rounded-lg border border-[#d1fae5] bg-[#f0fdf4] px-3 py-1 font-mono text-[12.5px] font-semibold tracking-wide text-[#14532d]">
+                            {booking.reference_code}
+                        </span>
+                        <StatusBadge status={booking.status} />
+                        <h2 className="min-w-0 text-[18px] font-bold leading-tight tracking-tight text-[#0f172a]">
+                            {booking.event_name}
+                        </h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {booking.created_at && (
+                            <span className="text-[13px] font-medium text-[#6b7280]">
+                                Submitted {timeAgo(booking.created_at)}
+                            </span>
+                        )}
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full text-[#94a3b8] transition hover:bg-[#e8f5ee]">
+                            <ChevronDown className={`h-5 w-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </span>
+                    </div>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-3">
+                    <div>
+                        <FieldLabel>Space / Location</FieldLabel>
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d1fae5] bg-[#f0fdf4] text-[#15803d]">
+                                <Building2 className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="truncate text-[16px] font-semibold leading-tight text-[#0f172a]">{spaceName}</p>
+                                <p className="mt-1 truncate text-[13.5px] font-medium text-[#6b7280]">{location}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <FieldLabel>From / To</FieldLabel>
+                        <div className="space-y-2.5">
+                            <div className="flex items-center gap-3">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#22c55e]" />
+                                <p className="text-[14.5px] font-semibold text-[#0f172a]">
+                                    {formatDate(booking.booking_date)} · {formatTime(booking.setup_start_time)}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#dc2626]" />
+                                <p className="text-[14.5px] font-semibold text-[#0f172a]">
+                                    {formatDate(booking.booking_date)} · {formatTime(booking.teardown_end_time)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <FieldLabel>Requested By</FieldLabel>
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d1fae5] bg-[#f0fdf4] text-[15px] font-bold text-[#15803d]">
+                                {requesterName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                                <p className="truncate text-[15.5px] font-semibold leading-tight text-[#0f172a]">{requesterName}</p>
+                                <p className="mt-1 truncate text-[13.5px] font-semibold text-[#15803d]">{requesterDepartment}</p>
+                                {requesterPhone && (
+                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
+                                        <Phone className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                                        {requesterPhone}
+                                    </p>
+                                )}
+                                {requesterEmail && (
+                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
+                                        <Mail className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                                        {requesterEmail}
+                                    </p>
+                                )}
+                                {requesterId && (
+                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
+                                        <User className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                                        {requesterId}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </button>
+
+            {isExpanded && (
+                <div className="border-t border-[#e8f5ee] px-6 pb-6 pt-5">
+                    <div className="space-y-5">
+                        <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+                            <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-5">
+                                <FieldLabel>Media Schedule</FieldLabel>
+                                <div className="grid gap-4 md:grid-cols-4">
+                                    {[
+                                        ['Setup starts', booking.setup_start_time],
+                                        ['Event starts', booking.event_start_time],
+                                        ['Event ends', booking.event_end_time],
+                                        ['Teardown ends', booking.teardown_end_time],
+                                    ].map(([label, value]) => (
+                                        <div key={label}>
+                                            <p className="text-[12.5px] font-semibold text-[#6b7280]">{label}</p>
+                                            <p className="mt-1 text-[16px] font-bold text-[#0f172a]">{formatTime(value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="mt-4 text-[13.5px] font-medium text-[#6b7280]">
+                                    {hasBuffer ? 'Buffer time is included for setup and teardown.' : 'No extra setup or teardown buffer was requested.'}
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
+                                <FieldLabel>Event Context</FieldLabel>
+                                {booking.organization && (
+                                    <p className="mb-2 text-[14.5px] font-semibold text-[#0f172a]">
+                                        Organization: <span className="font-medium text-[#4b5563]">{booking.organization}</span>
+                                    </p>
+                                )}
+                                <p className="flex items-center gap-2 text-[14.5px] font-medium capitalize text-[#4b5563]">
+                                    <MapPin className="h-4 w-4 text-[#15803d]" />
+                                    {(booking.space_details?.space_type || 'Media venue').replaceAll('_', ' ')}
+                                </p>
+                                {booking.space_details?.capacity_hard && (
+                                    <p className="mt-2 text-[14.5px] font-medium text-[#4b5563]">
+                                        Capacity: {booking.space_details.capacity_hard}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid gap-5 md:grid-cols-2">
+                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
+                                <FieldLabel>Equipment</FieldLabel>
+                                {hasEquipment ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {equipment.map((item) => (
+                                            <span
+                                                key={item.id ?? item.equipment}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-[#dcfce7] px-3 py-1.5 text-[13.5px] font-semibold text-[#14532d]"
+                                            >
+                                                <Package className="h-4 w-4" />
+                                                {item.equipment_name || `Equipment #${item.equipment}`}
+                                                {item.quantity > 1 && <span className="text-[#4b5563]">x {item.quantity}</span>}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[14.5px] font-medium text-[#6b7280]">No equipment requested.</p>
+                                )}
+                            </div>
+
+                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
+                                <FieldLabel>Services</FieldLabel>
+                                {hasServices ? (
+                                    <p className="flex items-start gap-2 text-[14.5px] font-medium leading-relaxed text-[#0f172a]">
+                                        <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#15803d]" />
+                                        {booking.requested_services}
+                                    </p>
+                                ) : (
+                                    <p className="text-[14.5px] font-medium text-[#6b7280]">No extra media service requested.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {hasNotes && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+                                <FieldLabel>User Notes</FieldLabel>
+                                <p className="text-[14.5px] font-medium leading-relaxed text-amber-950">{booking.user_notes}</p>
+                            </div>
+                        )}
+
+                        {booking.status === 'REJECTED' && booking.remarks_by_admin && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+                                <FieldLabel>Rejection Reason</FieldLabel>
+                                <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">
+                                    {booking.remarks_by_admin}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {isPending && (
+                        <div className="mt-5 flex justify-end gap-2.5 border-t border-[#e8f5ee] pt-5">
+                            <button
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    onReject(booking)
+                                }}
+                                disabled={isActing}
+                                className="inline-flex items-center gap-2 rounded-xl border border-[#dbe7df] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#374151] transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
+                            >
+                                <X className="h-4 w-4" />
+                                Reject
+                            </button>
+                            <button
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    onApprove(booking.id)
+                                }}
+                                disabled={isActing}
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#166534] disabled:opacity-40"
+                            >
+                                {isActing ? (
+                                    'Processing...'
+                                ) : (
+                                    <>
+                                        <Check className="h-4 w-4" />
+                                        Approve
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </article>
+    )
+}
+
 function AdminMediaPage() {
     const [activeTab, setActiveTab] = useState('pending')
     const [data, setData] = useState({ pending: [], resolved: [], active: [] })
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
     const [actionLoading, setActionLoading] = useState(null)
     const [rejectTarget, setRejectTarget] = useState(null)
 
-    const fetchData = useCallback(async () => {
-        setLoading(true)
+    const fetchData = useCallback(async ({ showLoading = true } = {}) => {
+        if (showLoading) {
+            await Promise.resolve()
+            setLoading(true)
+        }
+
         try {
-            const [pending, resolved, active] = await Promise.all([
-                mediaApi.getPendingBookings(),
-                mediaApi.getResolvedByMe(),
-                mediaApi.getActiveBookings(),
-            ])
-            setData({ pending, resolved, active })
+            const nextData = await loadAdminMediaData()
+            setData(nextData)
+            setError('')
         } catch (err) {
-            console.error("Failed to load media admin data", err)
+            console.error('Failed to load media admin data', err)
+            setError('Could not load media requests. Please try again.')
         } finally {
             setLoading(false)
         }
     }, [])
 
     useEffect(() => {
-        fetchData()
-    }, [fetchData])
+        let isCurrent = true
+
+        const loadInitialData = async () => {
+            await Promise.resolve()
+            if (!isCurrent) return
+
+            setLoading(true)
+            try {
+                const nextData = await loadAdminMediaData()
+                if (!isCurrent) return
+                setData(nextData)
+                setError('')
+            } catch (err) {
+                console.error('Failed to load media admin data', err)
+                if (isCurrent) setError('Could not load media requests. Please try again.')
+            } finally {
+                if (isCurrent) setLoading(false)
+            }
+        }
+
+        loadInitialData()
+        return () => {
+            isCurrent = false
+        }
+    }, [])
 
     const handleApprove = async (id) => {
         setActionLoading(id)
         try {
             await mediaApi.reviewBooking(id, { status: 'APPROVED' })
-            await fetchData()
+            await fetchData({ showLoading: false })
         } catch (err) {
-            alert("Failed to approve booking. " + (err.response?.data?.error || ""))
+            alert(`Failed to approve booking. ${err.response?.data?.error || ''}`)
         } finally {
             setActionLoading(null)
         }
@@ -129,115 +438,40 @@ function AdminMediaPage() {
 
     const handleReject = async (remarks) => {
         if (!rejectTarget) return
+
         setActionLoading(rejectTarget.id)
         try {
-            await mediaApi.reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks_by_admin: remarks })
+            await mediaApi.reviewBooking(rejectTarget.id, {
+                status: 'REJECTED',
+                remarks_by_admin: remarks,
+            })
             setRejectTarget(null)
-            await fetchData()
+            await fetchData({ showLoading: false })
         } catch (err) {
-            alert("Failed to reject booking. " + (err.response?.data?.error || ""))
+            alert(`Failed to reject booking. ${err.response?.data?.error || ''}`)
         } finally {
             setActionLoading(null)
         }
     }
 
-    const renderCard = (b, isPending) => (
-        <div key={b.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition duration-200">
-            <div className="px-5 py-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/50">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                            {b.reference_code}
-                        </span>
-                        <StatusBadge status={b.status} />
-                    </div>
-                    <h3 className="font-bold text-gray-900">{b.event_name}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                        By <span className="font-medium text-gray-700">{b.user_name || `User #${b.user}`}</span>
-                        {b.department_name && ` · ${b.department_name}`}
-                    </p>
-                </div>
-            </div>
-
-            <div className="p-5">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6">
-                    <div>
-                        <FieldLabel>Date</FieldLabel>
-                        <p className="text-sm font-medium text-gray-900">{formatDT(b.booking_date)}</p>
-                    </div>
-                    <div>
-                        <FieldLabel>Time</FieldLabel>
-                        <p className="text-sm font-medium text-gray-900">
-                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                        </p>
-                    </div>
-                    <div>
-                        <FieldLabel>Space</FieldLabel>
-                        <p className="text-sm font-medium text-gray-900">{b.space_details?.name || 'Any suitable'}</p>
-                    </div>
-                    <div>
-                        <FieldLabel>Org / Club</FieldLabel>
-                        <p className="text-sm font-medium text-gray-900">{b.organization || '—'}</p>
-                    </div>
-                </div>
-
-                {(b.requested_equipment || b.requested_services) && (
-                    <div className="mt-4 pt-4 border-t border-gray-50 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {b.requested_equipment && (
-                            <div>
-                                <FieldLabel>Equipment</FieldLabel>
-                                <p className="text-sm text-gray-700">{b.requested_equipment}</p>
-                            </div>
-                        )}
-                        {b.requested_services && (
-                            <div>
-                                <FieldLabel>Services</FieldLabel>
-                                <p className="text-sm text-gray-700">{b.requested_services}</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {b.user_notes && (
-                    <div className="mt-4 pt-4 border-t border-gray-50 bg-amber-50/30 -mx-5 px-5 pb-2">
-                        <FieldLabel>User Notes</FieldLabel>
-                        <p className="text-sm text-amber-900 italic">"{b.user_notes}"</p>
-                    </div>
-                )}
-
-                {b.status === 'REJECTED' && b.remarks_by_admin && (
-                    <div className="mt-4 pt-4 border-t border-gray-50 bg-red-50/50 -mx-5 px-5 pb-2">
-                        <FieldLabel>Rejection Reason</FieldLabel>
-                        <p className="text-sm text-red-700 font-medium">{b.remarks_by_admin}</p>
-                    </div>
-                )}
-
-                {isPending && (
-                    <div className="mt-5 pt-4 border-t border-gray-100 flex gap-3 justify-end">
-                        <button
-                            onClick={() => setRejectTarget(b)}
-                            disabled={actionLoading === b.id}
-                            className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
-                        >
-                            Reject
-                        </button>
-                        <button
-                            onClick={() => handleApprove(b.id)}
-                            disabled={actionLoading === b.id}
-                            className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {actionLoading === b.id ? 'Processing...' : 'Approve Request'}
-                        </button>
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-
     const list = data[activeTab] || []
+    const activeTodayCount = data.active.filter((booking) => {
+        if (!booking.booking_date) return false
+        const today = new Date().toLocaleDateString('en-CA')
+        return booking.booking_date === today
+    }).length
+
+    const tabs = [
+        { id: 'pending', label: 'Pending Requests', count: data.pending.length },
+        { id: 'active', label: 'Active Bookings', count: data.active.length },
+        { id: 'resolved', label: 'Resolved by Me', count: data.resolved.length },
+    ]
 
     return (
-        <div className="p-6 md:p-8 max-w-7xl mx-auto">
+        <div
+            className="min-h-full bg-[#f6fbf8] p-6 md:p-8"
+            style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+        >
             {rejectTarget && (
                 <RejectModal
                     booking={rejectTarget}
@@ -247,59 +481,97 @@ function AdminMediaPage() {
                 />
             )}
 
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Media Operations</h1>
-                    <p className="text-sm text-gray-500 mt-1">Review and manage media, equipment, and service requests.</p>
-                </div>
-                <button
-                    onClick={fetchData}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition shadow-sm"
-                >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
-            </div>
+            <div className="mx-auto max-w-[1100px]">
+                <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">
+                            Rajagiri College - Admin
+                        </p>
+                        <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">
+                            Media Operations
+                        </h1>
+                        <p className="mt-2 text-[15px] text-[#374151]">
+                            Review media support, portable equipment, and service requests.
+                        </p>
+                    </div>
 
-            <div className="flex space-x-1 bg-gray-100/80 p-1 rounded-xl w-fit mb-6">
-                {[
-                    { id: 'pending', label: 'Pending Requests', count: data.pending.length },
-                    { id: 'active', label: 'Active Bookings', count: data.active.length },
-                    { id: 'resolved', label: 'Resolved by Me', count: data.resolved.length },
-                ].map(tab => (
                     <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg transition-all ${activeTab === tab.id
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-900/5'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
-                            }`}
+                        onClick={() => fetchData()}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4] disabled:opacity-40"
                     >
-                        {tab.label}
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-gray-100 text-gray-900' : 'bg-gray-200/50 text-gray-500'}`}>
-                            {tab.count}
-                        </span>
+                        <RefreshCw className={`h-[18px] w-[18px] ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
                     </button>
-                ))}
-            </div>
+                </div>
 
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="py-12 text-center">
-                        <div className="w-8 h-8 border-4 border-gray-200 border-t-green-600 rounded-full animate-spin mx-auto mb-3"></div>
-                        <p className="text-sm text-gray-500 font-medium">Loading requests...</p>
-                    </div>
-                ) : list.length === 0 ? (
-                    <div className="bg-white border border-gray-100 rounded-xl p-12 text-center shadow-sm">
-                        <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-                            🎬
+                <div className="mb-6 grid gap-3 md:grid-cols-3">
+                    {[
+                        { value: data.pending.length, label: 'Waiting for review' },
+                        { value: data.active.length, label: 'Approved active bookings' },
+                        { value: activeTodayCount, label: 'Approved for today' },
+                    ].map(({ value, label }) => (
+                        <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
+                            <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>
+                            <p className="mt-2 text-[14px] font-semibold text-[#374151]">{label}</p>
                         </div>
-                        <h3 className="text-sm font-bold text-gray-900 mb-1">No requests found</h3>
-                        <p className="text-xs text-gray-500">There are no {activeTab} media requests at the moment.</p>
+                    ))}
+                </div>
+
+                <div className="mb-5 flex w-fit flex-wrap gap-1 rounded-2xl bg-[#e8f5ee] p-1">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[13.5px] font-bold transition-all ${
+                                activeTab === tab.id
+                                    ? 'bg-white text-[#0f172a] shadow-sm ring-1 ring-black/5'
+                                    : 'text-[#4a6b58] hover:bg-white/60'
+                            }`}
+                        >
+                            {tab.label}
+                            <span className="rounded-full bg-[#f6fbf8] px-2 py-0.5 text-[12px] text-[#0f172a]">
+                                {tab.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                {error && (
+                    <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[15px] font-semibold text-red-700">
+                        {error}
                     </div>
-                ) : (
-                    list.map(b => renderCard(b, activeTab === 'pending'))
                 )}
+
+                <div className="space-y-4">
+                    {loading && list.length === 0 ? (
+                        <div className="rounded-2xl border border-[#e8f5ee] bg-white py-16 text-center shadow-sm">
+                            <RefreshCw className="mx-auto mb-3 h-8 w-8 animate-spin text-[#15803d]" />
+                            <p className="text-[15px] font-semibold text-[#6b7280]">Loading media requests...</p>
+                        </div>
+                    ) : list.length === 0 ? (
+                        <div className="rounded-2xl border border-[#e8f5ee] bg-white px-8 py-16 text-center shadow-sm">
+                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#dcfce7] text-[#15803d]">
+                                <Check className="h-6 w-6" />
+                            </div>
+                            <p className="text-[16px] font-semibold text-[#0f172a]">No requests found</p>
+                            <p className="mt-1.5 text-[14px] text-[#6b7280]">
+                                There are no {activeTab.replace('_', ' ')} media requests right now.
+                            </p>
+                        </div>
+                    ) : (
+                        list.map((booking) => (
+                            <BookingCard
+                                key={booking.id}
+                                booking={booking}
+                                isPending={activeTab === 'pending'}
+                                isActing={actionLoading === booking.id}
+                                onApprove={handleApprove}
+                                onReject={setRejectTarget}
+                            />
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     )
