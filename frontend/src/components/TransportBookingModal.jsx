@@ -2,953 +2,428 @@ import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { getVehicles, createBooking, updateBooking } from "../api/fleetApi"
 
-// ── FIELD ─────────────────────────────────────
+// ── Field Wrapper ──
 function Field({ label, required, children, error }) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium text-gray-600">
         {label}
-        {required && (
-          <span className="text-red-400 ml-0.5">*</span>
-        )}
+        {required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
-
       {children}
-
-      {error && (
-        <p className="text-xs text-red-500 mt-1">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
     </div>
   )
 }
 
-// ── INPUT STYLE ───────────────────────────────
 const inputCls =
-  "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-green-600 transition disabled:bg-gray-100 disabled:text-gray-400"
+  "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition disabled:bg-gray-50 disabled:text-gray-400"
 
-// ── SECTION LABEL ─────────────────────────────
+// ── Section Label ──
 function SectionLabel({ children }) {
   return (
     <div className="flex items-center gap-3 mt-2">
       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
         {children}
       </span>
-
       <div className="flex-1 h-px bg-gray-100" />
     </div>
   )
 }
 
-// ── ALERT ─────────────────────────────────────
+// ── Inline Alert ──
 function Alert({ message }) {
   if (!message) return null
-
   return (
-    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
       {message}
     </div>
   )
 }
 
-// ====================================================
-// TRANSPORT MODAL
-// ====================================================
-
-function TransportBookingModal({
-  onClose,
-  onSave,
-  editData = null
-}) {
-
+// ==========================================
+// TRANSPORT BOOKING MODAL
+// ==========================================
+function TransportBookingModal({ onClose, onSave, editData = null }) {
   const isEditMode = Boolean(editData)
 
   const [form, setForm] = useState({
-
-    purpose:
-      editData?.purpose ?? "",
-
-    pickup_date:
-      "",
-
-    pickup_time:
-      "",
-
-    pickup_period:
-      "AM",
-
-    pickup_time_24:
-      "",
-
-    return_required:
-      false,
-
-    return_date:
-      "",
-
-    return_time:
-      "",
-
-    return_period:
-      "PM",
-
-    return_time_24:
-      "",
-
-    pickup_location:
-      editData?.pickup_location ?? "",
-
-    destination:
-      editData?.destination ?? "",
-
-    return_pickup_location:
-      "",
-
-    return_destination:
-      "",
-
-    total_passengers:
-      editData?.total_passengers ?? "",
-
-    vehicle:
-      editData?.vehicle ?? "",
-
-    user_notes:
-      editData?.user_notes ?? ""
+    vehicle: editData?.vehicle ?? "",
+    purpose: editData?.purpose ?? "",
+    start_datetime: editData?.start_datetime
+      ? editData.start_datetime.slice(0, 16)   // "YYYY-MM-DDTHH:MM"
+      : "",
+    end_datetime: editData?.end_datetime
+      ? editData.end_datetime.slice(0, 16)
+      : "",
+    pickup_location: editData?.pickup_location ?? "",
+    destination: editData?.destination ?? "",
+    total_passengers: editData?.total_passengers ?? "",
+    user_notes: editData?.user_notes ?? "",
   })
 
   const [vehicles, setVehicles] = useState([])
+  const [loadingVehicles, setLoadingVehicles] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState({})
 
-  const [loadingVehicles, setLoadingVehicles] =
-    useState(true)
-
-  const [apiError, setApiError] =
-    useState("")
-
-  const [submitting, setSubmitting] =
-    useState(false)
-
-  const [fieldErrors, setFieldErrors] =
-    useState({})
-
-  // ── FETCH VEHICLES ─────────────────────────
-
+  // Fetch vehicle list on mount
   useEffect(() => {
-
     let cancelled = false
-
     getVehicles()
       .then((data) => {
-
         if (!cancelled) {
-
-          setVehicles(
-            Array.isArray(data)
-              ? data
-              : data.results ?? []
-          )
+          // data may be an array directly or paginated { results: [] }
+          setVehicles(Array.isArray(data) ? data : data.results ?? [])
         }
       })
-
       .catch(() => {
-
-        if (!cancelled) {
-
-          setApiError(
-            "Could not load vehicles."
-          )
-        }
+        if (!cancelled) setApiError("Could not load vehicles. Please try again.")
       })
-
       .finally(() => {
-
-        if (!cancelled) {
-
-          setLoadingVehicles(false)
-        }
+        if (!cancelled) setLoadingVehicles(false)
       })
-
-    return () => {
-      cancelled = true
-    }
-
+    return () => { cancelled = true }
   }, [])
 
-  // ── SETTER ─────────────────────────────────
+  const set = (key, val) =>
+    setForm((prev) => ({ ...prev, [key]: val }))
 
-  const set = (key, value) => {
-
-    setForm((prev) => ({
-      ...prev,
-      [key]: value
-    }))
+  // Flatten DRF field-level errors into fieldErrors state
+  const extractErrors = (errData) => {
+    if (typeof errData === "string") {
+      setApiError(errData)
+      return
+    }
+    const fields = {}
+    let generic = ""
+    Object.entries(errData).forEach(([key, val]) => {
+      const msg = Array.isArray(val) ? val.join(" ") : String(val)
+      if (key === "non_field_errors" || key === "detail") {
+        generic += msg + " "
+      } else {
+        fields[key] = msg
+      }
+    })
+    setFieldErrors(fields)
+    if (generic) setApiError(generic.trim())
   }
 
-  // ── DATE CHECK ─────────────────────────────
-
-  const today =
-    new Date().toISOString().split("T")[0]
-
-  const isPastPickupDate =
-    form.pickup_date &&
-    form.pickup_date < today
-
-  const isPastReturnDate =
-    form.return_date &&
-    form.return_date < today
-
-  // ── VEHICLE FILTER ─────────────────────────
-
-  const passengerCount =
-    Number(form.total_passengers)
-
-  const suggestedVehicles =
-    vehicles.filter(
-      (v) =>
-        passengerCount > 0 &&
-        v.capacity >= passengerCount
-    )
-
-  // ── SUBMIT ─────────────────────────────────
-
   const handleSubmit = async () => {
-
     setApiError("")
     setFieldErrors({})
 
-    if (isPastPickupDate) {
-
-      setApiError(
-        "Pickup date cannot be in the past."
-      )
-
-      return
-    }
-
-    if (
-      form.return_required &&
-      isPastReturnDate
-    ) {
-
-      setApiError(
-        "Return date cannot be in the past."
-      )
-
+    // Basic required-field guard (UX only — server validates too)
+    const required = [
+      "vehicle", "purpose", "start_datetime", "end_datetime",
+      "pickup_location", "destination", "total_passengers",
+    ]
+    const missing = {}
+    required.forEach((key) => {
+      if (!form[key] && form[key] !== 0) {
+        missing[key] = "This field is required."
+      }
+    })
+    if (Object.keys(missing).length > 0) {
+      setFieldErrors(missing)
       return
     }
 
     setSubmitting(true)
-
     try {
-
       const payload = {
-        vehicle:
-          Number(form.vehicle),
-
-        purpose:
-          form.purpose,
-
-        pickup_date:
-          form.pickup_date,
-
-        pickup_time:
-          `${form.pickup_time} ${form.pickup_period}`,
-
-        pickup_location:
-          form.pickup_location,
-
-        destination:
-          form.destination,
-
-        return_required:
-          form.return_required,
-
-        return_date:
-          form.return_date,
-
-        return_time:
-          `${form.return_time} ${form.return_period}`,
-
-        return_pickup_location:
-          form.return_pickup_location,
-
-        return_destination:
-          form.return_destination,
-
-        total_passengers:
-          Number(form.total_passengers),
-
-        user_notes:
-          form.user_notes
+        vehicle: Number(form.vehicle),
+        purpose: form.purpose,
+        start_datetime: form.start_datetime,
+        end_datetime: form.end_datetime,
+        pickup_location: form.pickup_location,
+        destination: form.destination,
+        total_passengers: Number(form.total_passengers),
+        user_notes: form.user_notes || "",
       }
 
       let result
-
       if (isEditMode) {
-
-        result =
-          await updateBooking(
-            editData.id,
-            payload
-          )
-
+        result = await updateBooking(editData.id, payload)
       } else {
-
-        result =
-          await createBooking(payload)
+        result = await createBooking(payload)
       }
 
       onSave(result)
-
     } catch (err) {
-
-      setApiError(
-        "Failed to submit booking."
-      )
-
+      const errData = err?.response?.data
+      if (errData) {
+        extractErrors(errData)
+      } else {
+        setApiError("Something went wrong. Please check your connection and try again.")
+      }
     } finally {
-
       setSubmitting(false)
     }
   }
 
-  // ====================================================
-  // UI
-  // ====================================================
-
   return createPortal(
-
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+      <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
 
-      <div className="bg-white w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex max-h-[94vh]">
-
-        {/* LEFT PANEL */}
-
+        {/* ── LEFT PANEL ── */}
         <div
           className="hidden md:flex md:w-[32%] flex-col justify-between p-7"
           style={{
             background:
-              "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)"
+              "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)",
           }}
         >
-
           <div>
-
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
-
-              {isEditMode
-                ? "Edit Booking"
-                : "New Booking"}
-
+              {isEditMode ? "Edit Booking" : "New Booking"}
             </p>
-
-            <h2 className="text-3xl font-bold text-white leading-tight">
-
-              Transport Request
-
+            <h2 className="text-2xl font-bold text-white">
+              {isEditMode ? "Update Request" : "Transport Request"}
             </h2>
-
-            <p className="text-sm text-green-200/80 mt-4 leading-relaxed">
-
-              Submit transport requirements with pickup schedule, passenger count and trip details.
-
+            <p className="text-sm text-green-200/75 mt-3">
+              {isEditMode
+                ? "Update the trip details below. Only PENDING bookings can be modified."
+                : "Submit a structured transport request with vehicle, timing, and trip details."}
             </p>
-
           </div>
 
-          <div className="space-y-3">
-
-            <div className="bg-white/10 rounded-2xl p-4">
-
-              <p className="text-[10px] uppercase text-green-300 font-semibold">
-
-                Smart Suggestion
-
+          <div className="space-y-2.5">
+            <div className="bg-white/10 rounded-xl p-4">
+              <p className="text-[10px] text-green-300 uppercase font-semibold">
+                Vehicle Allocation
               </p>
-
-              <p className="text-sm text-white font-semibold mt-1">
-
-                Vehicles auto-filter by capacity
-
+              <p className="text-white text-sm font-semibold mt-1">
+                Based on availability
               </p>
-
             </div>
-
-            <div className="bg-white/10 rounded-2xl p-4">
-
-              <p className="text-[10px] uppercase text-green-300 font-semibold">
-
-                Approval
-
-              </p>
-
-              <p className="text-sm text-white font-semibold mt-1">
-
-                Admin verification required
-
-              </p>
-
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/10 rounded-xl p-3">
+                <p className="text-[9px] text-green-300 uppercase font-semibold">
+                  Approval
+                </p>
+                <p className="text-white text-xs font-semibold mt-1">
+                  Admin review
+                </p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-3">
+                <p className="text-[9px] text-green-300 uppercase font-semibold">
+                  Status
+                </p>
+                <p className="text-white text-xs font-semibold mt-1">
+                  Tracked live
+                </p>
+              </div>
             </div>
-
           </div>
-
         </div>
 
-        {/* RIGHT PANEL */}
-
+        {/* ── RIGHT FORM ── */}
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* HEADER */}
-
-          <div className="flex justify-between items-start px-7 pt-6 pb-5 border-b border-gray-100">
-
+          <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100">
             <div>
-
               <p className="text-xs font-semibold text-green-700 uppercase">
-
                 Request Details
-
               </p>
-
-              <h2 className="text-3xl font-bold text-gray-900 mt-1">
-
-                Transport Booking Form
-
+              <h2 className="text-xl font-bold">
+                {isEditMode ? "Edit Transport Booking" : "Transport Booking Form"}
               </h2>
-
             </div>
-
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
+              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition"
             >
               ✕
             </button>
-
           </div>
 
           {/* BODY */}
+          <div className="flex-1 overflow-y-auto px-7 py-5 space-y-5">
 
-          <div className="flex-1 overflow-y-auto px-7 py-6 space-y-6">
-
+            {/* Global API error */}
             <Alert message={apiError} />
 
-            {/* PICKUP */}
-
-            <SectionLabel>
-              Pickup Schedule
-            </SectionLabel>
+            {/* TRANSPORT DETAILS */}
+            <SectionLabel>Transport Details</SectionLabel>
 
             <div className="grid grid-cols-2 gap-4">
-
-              {/* DATE */}
-
               <Field
-                label="Pickup date"
+                label="Vehicle"
                 required
+                error={fieldErrors.vehicle}
               >
-
-                <input
-                  type="date"
+                <select
                   className={inputCls}
-                  value={form.pickup_date}
-                  onChange={(e) =>
-                    set(
-                      "pickup_date",
-                      e.target.value
-                    )
-                  }
-                />
-
-              </Field>
-
-              {/* TIME */}
-
-              <Field
-                label="Pickup time"
-                required
-              >
-
-                <div className="grid grid-cols-[1fr_110px] gap-3">
-
-                  <input
-                    type="time"
-                    step="900"
-                    disabled={isPastPickupDate}
-                    className={inputCls}
-                    value={
-                      form.pickup_time_24 || ""
-                    }
-
-                    onChange={(e) => {
-
-                      const value =
-                        e.target.value
-
-                      if (!value) return
-
-                      let [hour, minute] =
-                        value.split(":")
-
-                      hour = parseInt(hour)
-
-                      let period = "AM"
-
-                      if (hour >= 12) {
-                        period = "PM"
-                      }
-
-                      if (hour > 12) {
-                        hour -= 12
-                      }
-
-                      if (hour === 0) {
-                        hour = 12
-                      }
-
-                      const formattedHour =
-                        String(hour).padStart(2, "0")
-
-                      set(
-                        "pickup_time",
-                        `${formattedHour}:${minute}`
-                      )
-
-                      set(
-                        "pickup_period",
-                        period
-                      )
-
-                      set(
-                        "pickup_time_24",
-                        value
-                      )
-                    }}
-                  />
-
-                  <select
-                    className={inputCls}
-                    disabled={isPastPickupDate}
-                    value={form.pickup_period}
-                    onChange={(e) =>
-                      set(
-                        "pickup_period",
-                        e.target.value
-                      )
-                    }
-                  >
-
-                    <option value="AM">
-                      AM
+                  value={form.vehicle}
+                  onChange={(e) => set("vehicle", e.target.value)}
+                  disabled={loadingVehicles}
+                >
+                  <option value="">
+                    {loadingVehicles ? "Loading vehicles…" : "Select vehicle"}
+                  </option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} — {v.registration_number} (cap: {v.capacity})
                     </option>
-
-                    <option value="PM">
-                      PM
-                    </option>
-
-                  </select>
-
-                </div>
-
+                  ))}
+                </select>
               </Field>
-
-            </div>
-
-            {isPastPickupDate && (
-
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-
-                Please choose a present or future pickup date.
-
-              </div>
-
-            )}
-
-            {/* DETAILS */}
-
-            <SectionLabel>
-              Transport Details
-            </SectionLabel>
-
-            <div className="grid grid-cols-2 gap-4">
 
               <Field
                 label="Total passengers"
                 required
+                error={fieldErrors.total_passengers}
               >
-
                 <input
                   type="number"
                   min={1}
                   className={inputCls}
+                  placeholder="e.g. 40"
                   value={form.total_passengers}
-                  onChange={(e) =>
-                    set(
-                      "total_passengers",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => set("total_passengers", e.target.value)}
                 />
+              </Field>
+            </div>
 
+            <Field label="Purpose" required error={fieldErrors.purpose}>
+              <input
+                className={inputCls}
+                placeholder="e.g. Industrial visit, Event transport…"
+                value={form.purpose}
+                onChange={(e) => set("purpose", e.target.value)}
+              />
+            </Field>
+
+            {/* DATE & TIME */}
+            <SectionLabel>Date & Time</SectionLabel>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field
+                label="Start date & time"
+                required
+                error={fieldErrors.start_datetime}
+              >
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={form.start_datetime}
+                  onChange={(e) => set("start_datetime", e.target.value)}
+                />
               </Field>
 
               <Field
-                label="Suggested vehicle"
+                label="End date & time"
                 required
+                error={fieldErrors.end_datetime}
               >
-
-                <select
+                <input
+                  type="datetime-local"
                   className={inputCls}
-                  value={form.vehicle}
-                  onChange={(e) =>
-                    set(
-                      "vehicle",
-                      e.target.value
-                    )
-                  }
-                >
-
-                  <option value="">
-                    Select vehicle
-                  </option>
-
-                  {suggestedVehicles.map((v) => (
-
-                    <option
-                      key={v.id}
-                      value={v.id}
-                    >
-
-                      {v.name} ({v.capacity} seats)
-
-                    </option>
-
-                  ))}
-
-                </select>
-
+                  value={form.end_datetime}
+                  onChange={(e) => set("end_datetime", e.target.value)}
+                />
               </Field>
-
             </div>
 
-            {/* PURPOSE */}
-
-            <Field
-              label="Purpose"
-              required
-            >
-
-              <input
-                className={inputCls}
-                placeholder="e.g. Industrial visit"
-                value={form.purpose}
-                onChange={(e) =>
-                  set(
-                    "purpose",
-                    e.target.value
-                  )
-                }
-              />
-
-            </Field>
-
             {/* TRIP DETAILS */}
-
-            <SectionLabel>
-              Trip Details
-            </SectionLabel>
+            <SectionLabel>Trip Details</SectionLabel>
 
             <div className="grid grid-cols-2 gap-4">
-
               <Field
                 label="Pickup location"
                 required
+                error={fieldErrors.pickup_location}
               >
-
                 <input
                   className={inputCls}
-                  placeholder="e.g. College gate"
+                  placeholder="e.g. College main gate"
                   value={form.pickup_location}
-                  onChange={(e) =>
-                    set(
-                      "pickup_location",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => set("pickup_location", e.target.value)}
                 />
-
               </Field>
 
               <Field
                 label="Destination"
                 required
+                error={fieldErrors.destination}
               >
-
                 <input
                   className={inputCls}
                   placeholder="e.g. Kochi"
                   value={form.destination}
-                  onChange={(e) =>
-                    set(
-                      "destination",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => set("destination", e.target.value)}
                 />
-
               </Field>
-
-            </div>
-
-            {/* RETURN */}
-
-            <div className="border border-gray-200 rounded-2xl p-5 space-y-5">
-
-              <label className="flex items-center gap-3 text-lg font-semibold text-gray-700">
-
-                <input
-                  type="checkbox"
-                  checked={form.return_required}
-                  onChange={(e) =>
-                    set(
-                      "return_required",
-                      e.target.checked
-                    )
-                  }
-                />
-
-                Require return pickup
-
-              </label>
-
-              {form.return_required && (
-
-                <>
-
-                  {/* RETURN DATE TIME */}
-
-                  <div className="grid grid-cols-2 gap-4">
-
-                    <Field label="Return date">
-
-                      <input
-                        type="date"
-                        className={inputCls}
-                        value={form.return_date}
-                        onChange={(e) =>
-                          set(
-                            "return_date",
-                            e.target.value
-                          )
-                        }
-                      />
-
-                    </Field>
-
-                    <Field label="Return time">
-
-                      <div className="grid grid-cols-[1fr_110px] gap-3">
-
-                        <input
-                          type="time"
-                          step="900"
-                          disabled={isPastReturnDate}
-                          className={inputCls}
-                          value={
-                            form.return_time_24 || ""
-                          }
-
-                          onChange={(e) => {
-
-                            const value =
-                              e.target.value
-
-                            if (!value) return
-
-                            let [hour, minute] =
-                              value.split(":")
-
-                            hour = parseInt(hour)
-
-                            let period = "AM"
-
-                            if (hour >= 12) {
-                              period = "PM"
-                            }
-
-                            if (hour > 12) {
-                              hour -= 12
-                            }
-
-                            if (hour === 0) {
-                              hour = 12
-                            }
-
-                            const formattedHour =
-                              String(hour).padStart(2, "0")
-
-                            set(
-                              "return_time",
-                              `${formattedHour}:${minute}`
-                            )
-
-                            set(
-                              "return_period",
-                              period
-                            )
-
-                            set(
-                              "return_time_24",
-                              value
-                            )
-                          }}
-                        />
-
-                        <select
-                          className={inputCls}
-                          disabled={isPastReturnDate}
-                          value={form.return_period}
-                          onChange={(e) =>
-                            set(
-                              "return_period",
-                              e.target.value
-                            )
-                          }
-                        >
-
-                          <option value="AM">
-                            AM
-                          </option>
-
-                          <option value="PM">
-                            PM
-                          </option>
-
-                        </select>
-
-                      </div>
-
-                    </Field>
-
-                  </div>
-
-                  {/* RETURN LOCATIONS */}
-
-                  <div className="grid grid-cols-2 gap-4">
-
-                    <Field label="Return pickup location">
-
-                      <input
-                        className={inputCls}
-                        placeholder="e.g. Kochi"
-                        value={form.return_pickup_location}
-                        onChange={(e) =>
-                          set(
-                            "return_pickup_location",
-                            e.target.value
-                          )
-                        }
-                      />
-
-                    </Field>
-
-                    <Field label="Return destination">
-
-                      <input
-                        className={inputCls}
-                        placeholder="e.g. College gate"
-                        value={form.return_destination}
-                        onChange={(e) =>
-                          set(
-                            "return_destination",
-                            e.target.value
-                          )
-                        }
-                      />
-
-                    </Field>
-
-                  </div>
-
-                  {isPastReturnDate && (
-
-                    <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-
-                      Please choose a future return date.
-
-                    </div>
-
-                  )}
-
-                </>
-
-              )}
-
             </div>
 
             {/* NOTES */}
-
-            <SectionLabel>
-              Notes for approving office
-            </SectionLabel>
+            <SectionLabel>Notes for approving office</SectionLabel>
 
             <textarea
-              rows={4}
+              rows={3}
               className={`${inputCls} resize-none`}
-              placeholder="Mention route details, special instructions..."
+              placeholder="Mention route details, stops, special instructions…"
               value={form.user_notes}
-              onChange={(e) =>
-                set(
-                  "user_notes",
-                  e.target.value
-                )
-              }
+              onChange={(e) => set("user_notes", e.target.value)}
             />
 
           </div>
 
           {/* FOOTER */}
-
-          <div className="flex justify-between items-center px-7 py-5 border-t bg-gray-50">
-
+          <div className="flex justify-between items-center px-7 py-4 border-t bg-gray-50">
             <p className="text-xs text-gray-400">
-
-              Submitting sends the request for admin approval.
-
+              {isEditMode
+                ? "Saving will update the existing request."
+                : "Submitting sends the request for admin approval."}
             </p>
-
-            <div className="flex gap-3">
-
+            <div className="flex gap-2">
               <button
                 onClick={onClose}
-                className="px-5 py-3 border rounded-2xl text-sm font-medium hover:bg-gray-100 transition"
+                disabled={submitting}
+                className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-100 transition disabled:opacity-50"
               >
                 Cancel
               </button>
-
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
-                className="px-6 py-3 rounded-2xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition disabled:opacity-60"
+                disabled={submitting || loadingVehicles}
+                className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition disabled:opacity-60 flex items-center gap-2"
               >
-
+                {submitting && (
+                  <svg
+                    className="animate-spin h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
+                  </svg>
+                )}
                 {submitting
-                  ? "Sending..."
-                  : "Send request"}
-
+                  ? isEditMode ? "Saving…" : "Sending…"
+                  : isEditMode ? "Save changes" : "Send request"}
               </button>
-
             </div>
-
           </div>
 
         </div>
-
       </div>
-
     </div>,
-
     document.body
   )
 }
