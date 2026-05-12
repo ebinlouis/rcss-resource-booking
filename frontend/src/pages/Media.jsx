@@ -4,8 +4,6 @@ import MediaBookings from "../components/MediaBookings"
 import MediaBookingModal from "../components/MediaBookingModal"
 import mediaService from "../api/mediaApi"
 
-// Status filter tabs — filtering by booking_date is now done client-side
-// against real backend data; service-type filter removed (not a backend field)
 const STATUS_FILTERS = [
   { label: "All", value: "all" },
   { label: "Pending", value: "PENDING" },
@@ -20,7 +18,6 @@ function Media() {
       date.getDate()
     ).padStart(2, "0")}`
 
-  // ── State ──────────────────────────────────────────────────────────────────
   const [open, setOpen] = useState(false)
   const [allBookings, setAllBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +27,7 @@ function Media() {
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
   const [search, setSearch] = useState("")
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  // ── Fetch — used for manual refresh (onSuccess, onRefresh) ────────────────
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true)
@@ -45,23 +42,38 @@ function Media() {
     }
   }, [])
 
+  // ── Initial load — inline async to satisfy the linter ────────────────────
   useEffect(() => {
-    fetchBookings()
-  }, [fetchBookings])
+    let isCurrent = true
+
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await mediaService.getMyBookings()
+        if (!isCurrent) return
+        setAllBookings(data)
+      } catch (err) {
+        console.error("Failed to fetch media bookings:", err)
+        if (isCurrent) setError("Could not load bookings. Please try again.")
+      } finally {
+        if (isCurrent) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { isCurrent = false }
+  }, [])
 
   // ── Filter ─────────────────────────────────────────────────────────────────
   const filteredBookings = allBookings.filter((booking) => {
     const matchesDate = booking.booking_date === selectedDate
-
-    const matchesStatus =
-      statusFilter === "all" ? true : booking.status === statusFilter
-
+    const matchesStatus = statusFilter === "all" ? true : booking.status === statusFilter
     const searchTerm = search.trim().toLowerCase()
     const matchesSearch =
       searchTerm === "" ||
       booking.event_name?.toLowerCase().includes(searchTerm) ||
       booking.space_details?.name?.toLowerCase().includes(searchTerm)
-
     return matchesDate && matchesStatus && matchesSearch
   })
 
@@ -71,10 +83,8 @@ function Media() {
     month: "short",
   })
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <MainLayout>
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Media Booking</h1>
@@ -91,9 +101,7 @@ function Media() {
         </button>
       </div>
 
-      {/* Filters + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        {/* Status Filter Tabs */}
         <div className="flex gap-2 flex-wrap">
           {STATUS_FILTERS.map((item) => (
             <button
@@ -110,7 +118,6 @@ function Media() {
           ))}
         </div>
 
-        {/* Date & Search */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <input
             type="date"
@@ -121,18 +128,8 @@ function Media() {
 
           <div className="relative w-full sm:w-64">
             <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <svg
-                className="w-4 h-4 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
-                />
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
               </svg>
             </span>
             <input
@@ -154,21 +151,18 @@ function Media() {
         </div>
       </div>
 
-      {/* Results Count */}
       <p className="text-xs text-gray-400 mb-4">
         {loading
           ? "Loading bookings..."
           : `${filteredBookings.length} booking${filteredBookings.length !== 1 ? "s" : ""} found for ${displayDate}`}
       </p>
 
-      {/* Error Banner */}
       {error && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
           {error}
         </div>
       )}
 
-      {/* Bookings Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">
           {selectedDate === formatDate(today) ? "Today's Bookings" : `Bookings for ${displayDate}`}
@@ -181,7 +175,6 @@ function Media() {
         />
       </section>
 
-      {/* Create Modal */}
       {open && (
         <MediaBookingModal
           onClose={() => setOpen(false)}

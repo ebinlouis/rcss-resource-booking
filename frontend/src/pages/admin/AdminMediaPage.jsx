@@ -39,6 +39,28 @@ function StatusBadge({ status }) {
     )
 }
 
+// External / Internal event type badge
+function EventTypeBadge({ isExternal }) {
+    if (isExternal) {
+        return (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-amber-700">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+                External Event
+            </span>
+        )
+    }
+    return (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-sky-600">
+            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838l-2.727 1.17 1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zm5.99 7.176A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+            </svg>
+            Internal Event
+        </span>
+    )
+}
+
 function formatDate(dateString) {
     if (!dateString) return 'TBD'
     return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-IN', {
@@ -146,7 +168,7 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
     const location = booking.space_details?.location || 'Location not specified'
 
     return (
-        <article className={`overflow-hidden rounded-2xl border border-[#e8f5ee] bg-white shadow-sm transition ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'}`}>
+        <article className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-amber-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'}`}>
             <button
                 type="button"
                 className="block w-full cursor-pointer select-none px-6 py-5 text-left"
@@ -158,6 +180,7 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
                             {booking.reference_code}
                         </span>
                         <StatusBadge status={booking.status} />
+                        <EventTypeBadge isExternal={booking.is_external_event} />
                         <h2 className="min-w-0 text-[18px] font-bold leading-tight tracking-tight text-[#0f172a]">
                             {booking.event_name}
                         </h2>
@@ -242,9 +265,10 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
             {isExpanded && (
                 <div className="border-t border-[#e8f5ee] px-6 pb-6 pt-5">
                     <div className="space-y-5">
-                        <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-                            <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-5">
-                                <FieldLabel>Media Schedule</FieldLabel>
+                        {/* Media Schedule — full grid only when buffer exists, simple row otherwise */}
+                        <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-5">
+                            <FieldLabel>Media Schedule</FieldLabel>
+                            {hasBuffer ? (
                                 <div className="grid gap-4 md:grid-cols-4">
                                     {[
                                         ['Setup starts', booking.setup_start_time],
@@ -258,28 +282,22 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
                                         </div>
                                     ))}
                                 </div>
-                                <p className="mt-4 text-[13.5px] font-medium text-[#6b7280]">
-                                    {hasBuffer ? 'Buffer time is included for setup and teardown.' : 'No extra setup or teardown buffer was requested.'}
-                                </p>
-                            </div>
-
-                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
-                                <FieldLabel>Event Context</FieldLabel>
-                                {booking.organization && (
-                                    <p className="mb-2 text-[14.5px] font-semibold text-[#0f172a]">
-                                        Organization: <span className="font-medium text-[#4b5563]">{booking.organization}</span>
-                                    </p>
-                                )}
-                                <p className="flex items-center gap-2 text-[14.5px] font-medium capitalize text-[#4b5563]">
-                                    <MapPin className="h-4 w-4 text-[#15803d]" />
-                                    {(booking.space_details?.space_type || 'Media venue').replaceAll('_', ' ')}
-                                </p>
-                                {booking.space_details?.capacity_hard && (
-                                    <p className="mt-2 text-[14.5px] font-medium text-[#4b5563]">
-                                        Capacity: {booking.space_details.capacity_hard}
-                                    </p>
-                                )}
-                            </div>
+                            ) : (
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {[
+                                        ['Event starts', booking.event_start_time],
+                                        ['Event ends', booking.event_end_time],
+                                    ].map(([label, value]) => (
+                                        <div key={label}>
+                                            <p className="text-[12.5px] font-semibold text-[#6b7280]">{label}</p>
+                                            <p className="mt-1 text-[16px] font-bold text-[#0f172a]">{formatTime(value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <p className="mt-4 text-[13.5px] font-medium text-[#6b7280]">
+                                {hasBuffer ? 'Buffer time is included for setup and teardown.' : 'No extra setup or teardown buffer was requested.'}
+                            </p>
                         </div>
 
                         <div className="grid gap-5 md:grid-cols-2">
@@ -454,7 +472,12 @@ function AdminMediaPage() {
         }
     }
 
-    const list = data[activeTab] || []
+    // Sort: external events float to top within any tab
+    const sortedList = (list) =>
+        [...list].sort((a, b) => (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0))
+
+    const list = sortedList(data[activeTab] || [])
+
     const activeTodayCount = data.active.filter((booking) => {
         if (!booking.booking_date) return false
         const today = new Date().toLocaleDateString('en-CA')

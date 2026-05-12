@@ -18,8 +18,10 @@ class MediaBooking(BaseBooking):
 
     requested_services = models.TextField(blank=True, null=True)
    
-    # organization is optional — external body running the event
-    organization = models.CharField(max_length=200, blank=True, null=True)
+    is_external_event = models.BooleanField(
+        default=False,
+        help_text="True if this event is organised by an external party outside the college."
+    )
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [
