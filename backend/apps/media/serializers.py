@@ -10,13 +10,8 @@ class SpaceSummarySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'space_type', 'location', 'capacity_hard']
 
 
-# ── FIXED: Nested Serializer for Equipment ────────────────────────────────────
 class MediaEquipmentRequestSerializer(serializers.ModelSerializer):
-    # For reading: Send the string name back to the frontend
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
-    
-    # FIXED: Removed source='equipment' because the field name 'equipment' 
-    # already matches the model attribute name.
     equipment = serializers.PrimaryKeyRelatedField(
         queryset=Equipment.objects.filter(is_active=True, is_portable=True)
     )
@@ -29,11 +24,7 @@ class MediaEquipmentRequestSerializer(serializers.ModelSerializer):
 
 class MediaBookingSerializer(serializers.ModelSerializer):
     space_details = SpaceSummarySerializer(source='space', read_only=True)
-    
-    # Nested relationship mapping
     equipment_requests = MediaEquipmentRequestSerializer(many=True, required=False)
-
-    # Permission-aware computed field
     can_modify = serializers.SerializerMethodField()
     user_details = serializers.SerializerMethodField()
 
@@ -45,13 +36,10 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'resolved_at', 'created_at', 'updated_at',
             'user_details',
             'space', 'space_details',
-            'event_name', 'booking_date', 
-            
-            # The 4 precise time fields
+            'event_name', 'booking_date',
             'setup_start_time', 'event_start_time', 'event_end_time', 'teardown_end_time',
-            
             'equipment_requests', 'requested_services',
-            'organization',
+            'is_external_event',
             'can_modify',
         ]
         read_only_fields = [
@@ -59,8 +47,6 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'resolved_by', 'updated_by', 'remarks_by_admin',
             'resolved_at', 'created_at', 'updated_at',
         ]
-
-    # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _user(self):
         req = self.context.get('request')
@@ -70,7 +56,6 @@ class MediaBookingSerializer(serializers.ModelSerializer):
         user = self._user()
         if user is None:
             return False
-        # Only PENDING bookings can be modified by their owner
         return obj.status == 'PENDING' and obj.user_id == user.pk
 
     def get_user_details(self, obj):
@@ -93,25 +78,20 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'employee_student_id': user.employee_student_id,
         }
 
-    # ── Validation ────────────────────────────────────────────────────────────
-
     def validate(self, data):
         booking_date = data.get('booking_date')
-        
-        # Grab times (falling back to existing instance times if this is a PATCH request)
+
         setup    = data.get('setup_start_time', getattr(self.instance, 'setup_start_time', None))
         estart   = data.get('event_start_time', getattr(self.instance, 'event_start_time', None))
         eend     = data.get('event_end_time', getattr(self.instance, 'event_end_time', None))
         teardown = data.get('teardown_end_time', getattr(self.instance, 'teardown_end_time', None))
 
-        # 1. Past date check (only on create)
         if booking_date and not self.instance:
             if booking_date < timezone.now().date():
                 raise serializers.ValidationError({
                     "booking_date": "Media requests cannot be made for past dates."
                 })
 
-        # 2. Strict Sequence Check: Setup <= Event Start < Event End <= Teardown
         if setup and estart and eend and teardown:
             if not (setup <= estart < eend <= teardown):
                 raise serializers.ValidationError({
@@ -120,40 +100,30 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
         return data
 
-    # ── Nested Creates & Updates ──────────────────────────────────────────────
-
     def create(self, validated_data):
-        # Extract the nested equipment list before saving the main booking
         equipment_data = validated_data.pop('equipment_requests', [])
-        
         booking = MediaBooking.objects.create(**validated_data)
-        
-        # Loop through the list and create the junction records
         for item in equipment_data:
             MediaEquipmentRequest.objects.create(
                 media_booking=booking,
-                equipment=item['equipment'], 
+                equipment=item['equipment'],
                 quantity=item.get('quantity', 1)
             )
-            
         return booking
 
     def update(self, instance, validated_data):
         equipment_data = validated_data.pop('equipment_requests', None)
-        
-        # Standard update for the main booking fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # If frontend sent new equipment data, we do a "full replace" logic
         if equipment_data is not None:
-            instance.equipment_requests.all().delete()  # Clear old selections
+            instance.equipment_requests.all().delete()
             for item in equipment_data:
                 MediaEquipmentRequest.objects.create(
                     media_booking=instance,
                     equipment=item['equipment'],
                     quantity=item.get('quantity', 1)
                 )
-                
+
         return instance
