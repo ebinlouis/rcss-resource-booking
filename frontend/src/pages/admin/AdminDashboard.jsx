@@ -77,8 +77,8 @@ const IconBox = ({ className = 'w-3 h-3' }) => (
 );
 
 const IconChevron = ({ className = 'w-4 h-4', expanded }) => (
-    <svg 
-        className={`${className} transition-transform duration-300 ease-in-out ${expanded ? 'rotate-180' : ''}`} 
+    <svg
+        className={`${className} transition-transform duration-300 ease-in-out ${expanded ? 'rotate-180' : ''}`}
         viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"
     >
         <path d="M6 9l6 6 6-6"/>
@@ -174,16 +174,15 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
     const hasNotes     = booking.user_notes?.trim().length > 0;
     const isExternal   = booking.is_external;
 
-    // Capacity check logic
-    const capacity = booking.space_details?.capacity_hard;
+    const capacity  = booking.space_details?.capacity_hard;
     const attendees = booking.attendee_count;
     const isUnderutilized = capacity && attendees && (attendees / capacity < 0.30);
 
     return (
         <div className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'} ${isExternal && !isExpanded ? 'bg-[#fffdf8]' : ''}`}>
-            
+
             {/* CLICKABLE QUICK-GLANCE HEADER */}
-            <div 
+            <div
                 className="py-6 cursor-pointer select-none"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -213,7 +212,7 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                     </div>
                 </div>
 
-                {/* 3-col info grid (Always Visible) */}
+                {/* 3-col info grid */}
                 <div className="grid gap-7 grid-cols-1 md:grid-cols-3">
                     {/* Space */}
                     <div>
@@ -278,7 +277,7 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
             {isExpanded && (
                 <div className="pb-6 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="pt-6 border-t border-[#e8f5ee]">
-                        
+
                         {/* UNDERUTILIZATION WARNING */}
                         {isUnderutilized && (
                             <div className="mb-6 bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-4 py-3.5 flex items-start gap-3">
@@ -364,6 +363,10 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
+// The domain this page manages. Passed to the API so the backend only
+// returns bookings for this module — no client-side filtering needed.
+const PAGE_DOMAIN = 'spaces';
+
 const AdminDashboard = () => {
     const { can_manage_system, can_manage_mess } = useAuth();
     const navigate = useNavigate();
@@ -387,12 +390,10 @@ const AdminDashboard = () => {
         const fetchQueue = async () => {
             setIsLoading(true);
             try {
-                const data = await approvalService.getPendingApprovals();
+                // Pass PAGE_DOMAIN — the backend scopes the response to spaces only.
+                const data = await approvalService.getPendingApprovals({ domain: PAGE_DOMAIN });
                 if (isMounted) {
-                    const cleanQueue = (data.queue || []).filter(
-                        (b) => b.domain?.toLowerCase() !== 'mess'
-                    );
-                    setPendingBookings(cleanQueue);
+                    setPendingBookings(data.queue || []);
                     setError(null);
                 }
             } catch (err) {
@@ -452,7 +453,6 @@ const AdminDashboard = () => {
 
     const totalPeople = pendingBookings.reduce((s, b) => s + (b.attendee_count || 0), 0);
 
-    // Grouping logic for Priority and Standard queues
     const priorityBookings = pendingBookings.filter(b => b.is_external);
     const standardBookings = pendingBookings.filter(b => !b.is_external);
 
@@ -513,14 +513,12 @@ const AdminDashboard = () => {
                 {/* Queue panel */}
                 <div className="bg-white border border-[#e8f5ee] rounded-2xl overflow-hidden shadow-sm">
 
-                    {/* Main Panel header */}
                     <div className="flex items-center px-7 py-5 border-b border-[#e8f5ee] bg-white relative z-10">
                         <span className="text-[14px] font-extrabold uppercase tracking-[0.1em] text-[#0f172a]">
                             Pending Approvals
                         </span>
                     </div>
 
-                    {/* States */}
                     {error ? (
                         <div className="py-20 text-center px-8">
                             <div className="w-12 h-12 rounded-full bg-[#fef2f2] flex items-center justify-center mx-auto mb-4 text-[#dc2626]">

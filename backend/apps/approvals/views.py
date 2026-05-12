@@ -14,8 +14,19 @@ from apps.media.models import MediaBooking
 
 
 # ==========================================
+# CONSTANTS
+# ==========================================
+
+# All known booking domains. Add new modules here as the system grows —
+# no changes needed anywhere else as long as the new domain follows the
+# same pattern in _build_queue_entry().
+VALID_DOMAINS = {'spaces', 'fleet', 'mess', 'media'}
+
+
+# ==========================================
 # HELPER
 # ==========================================
+
 def _requester_info(user):
     """
     Returns a dict of display-ready requester fields.
@@ -27,29 +38,85 @@ def _requester_info(user):
     dept_name = dept.department_name if dept else 'General'
     dept_code = dept.department_code if dept else 'General'
 
-    # phone is optional — only include if the field exists on CustomUser
     phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None) or ''
 
     return {
         "requester":       full_name,
         "requester_email": user.email,
         "requester_phone": phone,
-        "department":      dept_code,   # kept for backward compat
-        "department_name": dept_name,   # human-readable label for the UI
+        "department":      dept_code,
+        "department_name": dept_name,
+    }
+
+
+def _build_queue_entry(domain, item, **extra_fields):
+    """
+    Builds a normalised queue entry dict for any domain.
+    `extra_fields` carries domain-specific keys (resource_name, purpose, etc.)
+    that differ between modules.
+    """
+    return {
+        "id":             item.id,
+        "domain":         domain,
+        "reference_code": item.reference_code,
+        **_requester_info(item.user),
+        "created_at":     item.created_at,
+        "is_external":    getattr(item, 'is_external', False),
+        **extra_fields,
     }
 
 
 # ==========================================
 # 1. ADMIN QUEUE (GET)
 # ==========================================
+
 class UnifiedApprovalQueueView(APIView):
     permission_classes = [IsApprover]
 
     def get(self, request):
         user = request.user
-        now = timezone.now()
+        now  = timezone.now()
 
-        # --- 1. DETERMINE EFFECTIVE ROLE ---
+        # ── 1. DOMAIN SCOPING ────────────────────────────────────────────────
+        # Callers MUST pass ?domain=<domain> to receive only the bookings
+        # relevant to their page. Omitting the param or passing an unrecognised
+        # value returns a 400 so pages never accidentally receive mixed data.
+        #
+        # To add a new module in future:
+        #   1. Import its model at the top of this file.
+        #   2. Add it to VALID_DOMAINS.
+        #   3. Add its query + serialisation block in _get_domain_querysets()
+        #      and _serialise_domain() below.
+        #   That's it — no frontend or URL changes required.
+        requested_domains_param = request.query_params.get('domain', '').strip()
+
+        if not requested_domains_param:
+            return Response(
+                {
+                    "error": (
+                        "A 'domain' query parameter is required. "
+                        f"Valid values: {', '.join(sorted(VALID_DOMAINS))}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Support comma-separated values for future multi-domain admin views
+        # e.g. ?domain=spaces,fleet  (not used today but costs nothing to support)
+        requested_domains = {d.strip().lower() for d in requested_domains_param.split(',')}
+        invalid = requested_domains - VALID_DOMAINS
+        if invalid:
+            return Response(
+                {
+                    "error": (
+                        f"Unknown domain(s): {', '.join(sorted(invalid))}. "
+                        f"Valid values: {', '.join(sorted(VALID_DOMAINS))}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 2. EFFECTIVE ROLE ────────────────────────────────────────────────
         active_override = RoleOverride.objects.filter(
             user=user, is_active=True
         ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).first()
@@ -60,53 +127,88 @@ class UnifiedApprovalQueueView(APIView):
             else (user.role.name if user.role else None)
         )
 
-        # --- 2. BASE QUERIES (PENDING ONLY) ---
-        spaces = (
-            SpaceBooking.objects
-            .filter(status='PENDING')
-            .select_related('user', 'user__department', 'space')
-            .prefetch_related('requested_equipment__equipment')
-        )
-        fleet = (
-            FleetBooking.objects
-            .filter(status='PENDING')
-            .select_related('user', 'user__department', 'vehicle')
-        )
-        mess = (
-            MessBooking.objects
-            .filter(status='PENDING')
-            .select_related('user', 'user__department')
-        )
-        media = (
-            MediaBooking.objects
-            .filter(status='PENDING')
-            .select_related('user', 'user__department')
+        # ── 3. BUILD QUERYSETS FOR REQUESTED DOMAINS ONLY ───────────────────
+        domain_querysets = self._get_domain_querysets(
+            requested_domains, user, effective_role
         )
 
-        # --- 3. SCOPE FILTERING ---
-        if user.is_superuser or effective_role == 'IT_ADMIN':
-            pass
+        # ── 4. SERIALISE ─────────────────────────────────────────────────────
+        unified_queue = []
+        for domain, qs in domain_querysets.items():
+            for item in qs:
+                entry = self._serialise_domain(domain, item)
+                if entry:
+                    unified_queue.append(entry)
 
-        elif effective_role == 'HOD':
-            if getattr(user, 'department', None):
-                spaces = spaces.filter(user__department=user.department)
-                fleet  = fleet.filter(user__department=user.department)
-                mess   = mess.filter(user__department=user.department)
-                media  = media.filter(user__department=user.department)
-            else:
-                spaces, fleet, mess, media = (
-                    spaces.none(), fleet.none(), mess.none(), media.none()
-                )
+        # ── 5. SORT: PRIORITY (external) first, then oldest ──────────────────
+        unified_queue.sort(
+            key=lambda x: (not x.get('is_external', False), x['created_at'])
+        )
 
-        else:
-            spaces, fleet, mess, media = (
-                spaces.none(), fleet.none(), mess.none(), media.none()
+        return Response({
+            "total_pending": len(unified_queue),
+            "queue":         unified_queue,
+        })
+
+    # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _get_domain_querysets(self, requested_domains, user, effective_role):
+        """
+        Returns {domain: queryset} for each requested domain, pre-filtered
+        by status=PENDING and role-based department scope.
+        """
+        is_superuser_or_it = user.is_superuser or effective_role == 'IT_ADMIN'
+        is_hod             = effective_role == 'HOD'
+        user_dept          = getattr(user, 'department', None)
+
+        def _apply_role_scope(qs):
+            """Narrows a queryset to the approver's department if they are a HOD."""
+            if is_superuser_or_it:
+                return qs
+            if is_hod and user_dept:
+                return qs.filter(user__department=user_dept)
+            # Any other role sees nothing
+            return qs.none()
+
+        querysets = {}
+
+        if 'spaces' in requested_domains:
+            querysets['spaces'] = _apply_role_scope(
+                SpaceBooking.objects
+                .filter(status='PENDING')
+                .select_related('user', 'user__department', 'space')
+                .prefetch_related('requested_equipment__equipment')
             )
 
-        # --- 4. FORMAT FOR REACT TABLE ---
-        unified_queue = []
+        if 'fleet' in requested_domains:
+            querysets['fleet'] = _apply_role_scope(
+                FleetBooking.objects
+                .filter(status='PENDING')
+                .select_related('user', 'user__department', 'vehicle')
+            )
 
-        for item in spaces:
+        if 'mess' in requested_domains:
+            querysets['mess'] = _apply_role_scope(
+                MessBooking.objects
+                .filter(status='PENDING')
+                .select_related('user', 'user__department')
+            )
+
+        if 'media' in requested_domains:
+            querysets['media'] = _apply_role_scope(
+                MediaBooking.objects
+                .filter(status='PENDING')
+                .select_related('user', 'user__department')
+            )
+
+        return querysets
+
+    def _serialise_domain(self, domain, item):
+        """
+        Returns a normalised dict for a single booking item.
+        Add a new `elif domain == 'your_module':` block when adding modules.
+        """
+        if domain == 'spaces':
             equipment_list = [
                 {
                     "id":             er.id,
@@ -116,82 +218,64 @@ class UnifiedApprovalQueueView(APIView):
                 }
                 for er in item.requested_equipment.all()
             ]
+            return _build_queue_entry(
+                domain, item,
+                start_datetime    = getattr(item, 'start_datetime', None),
+                end_datetime      = getattr(item, 'end_datetime', None),
+                attendee_count    = getattr(item, 'attendee_count', None),
+                resource_name     = getattr(item.space, 'name', 'Space Resource'),
+                purpose           = item.purpose_of_booking,
+                purpose_of_booking= item.purpose_of_booking,
+                user_notes        = item.user_notes or "",
+                equipment_requests= equipment_list,
+                space_details     = {
+                    "space_type":    getattr(item.space, 'space_type', None),
+                    "capacity_hard": getattr(item.space, 'capacity_hard', None),
+                },
+            )
 
-            unified_queue.append({
-                "id":                item.id,
-                "domain":            "spaces",
-                "reference_code":    item.reference_code,
-                **_requester_info(item.user),
-                "created_at":        item.created_at,
-                "start_datetime":    getattr(item, 'start_datetime', None),
-                "end_datetime":      getattr(item, 'end_datetime', None),
-                "attendee_count":    getattr(item, 'attendee_count', None),
-                "resource_name":     getattr(item.space, 'name', 'Space Resource'),
-                "purpose":           item.purpose_of_booking,
-                "user_notes":        item.user_notes or "",
-                "equipment_requests": equipment_list,
-                "is_external":       getattr(item, 'is_external', False), # <-- ADDED THIS
-            })
+        elif domain == 'fleet':
+            return _build_queue_entry(
+                domain, item,
+                start_datetime = getattr(item, 'start_datetime', getattr(item, 'departure_time', None)),
+                end_datetime   = getattr(item, 'end_datetime',   getattr(item, 'return_time', None)),
+                attendee_count = getattr(item, 'passenger_count', getattr(item, 'passengers', None)),
+                resource_name  = getattr(item.vehicle, 'name', 'Fleet Vehicle'),
+                purpose        = getattr(item, 'purpose', 'No purpose provided'),
+                user_notes     = getattr(item, 'user_notes', '') or "",
+            )
 
-        for item in fleet:
-            unified_queue.append({
-                "id":             item.id,
-                "domain":         "fleet",
-                "reference_code": item.reference_code,
-                **_requester_info(item.user),
-                "created_at":     item.created_at,
-                "start_datetime": getattr(item, 'start_datetime', getattr(item, 'departure_time', None)),
-                "end_datetime":   getattr(item, 'end_datetime',   getattr(item, 'return_time', None)),
-                "attendee_count": getattr(item, 'passenger_count', getattr(item, 'passengers', None)),
-                "resource_name":  getattr(item.vehicle, 'name', 'Fleet Vehicle'),
-                "purpose":        getattr(item, 'purpose', 'No purpose provided'),
-                "is_external":    getattr(item, 'is_external', False), # Added for safety
-            })
+        elif domain == 'mess':
+            return _build_queue_entry(
+                domain, item,
+                start_datetime = getattr(item, 'date_of_programme', getattr(item, 'delivery_time', None)),
+                end_datetime   = getattr(item, 'end_time', None),
+                attendee_count = getattr(item, 'total_persons', None),
+                resource_name  = f"Catering ({getattr(item, 'total_persons', 0)} persons)",
+                purpose        = getattr(item, 'purpose_of_programme', 'No purpose provided'),
+                user_notes     = getattr(item, 'user_notes', '') or "",
+            )
 
-        for item in mess:
-            unified_queue.append({
-                "id":             item.id,
-                "domain":         "mess",
-                "reference_code": item.reference_code,
-                **_requester_info(item.user),
-                "created_at":     item.created_at,
-                "start_datetime": getattr(item, 'date_of_programme', getattr(item, 'delivery_time', None)),
-                "end_datetime":   getattr(item, 'end_time', None),
-                "attendee_count": getattr(item, 'total_persons', None),
-                "resource_name":  f"Catering ({getattr(item, 'total_persons', 0)} persons)",
-                "purpose":        getattr(item, 'purpose_of_programme', 'No purpose provided'),
-                "is_external":    getattr(item, 'is_external', False), # Added for safety
-            })
+        elif domain == 'media':
+            return _build_queue_entry(
+                domain, item,
+                start_datetime = getattr(item, 'event_date', getattr(item, 'start_datetime', None)),
+                end_datetime   = getattr(item, 'end_datetime', None),
+                attendee_count = getattr(item, 'attendees', None),
+                resource_name  = "Equipment/Media Support",
+                purpose        = getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided')),
+                user_notes     = getattr(item, 'user_notes', '') or "",
+            )
 
-        for item in media:
-            unified_queue.append({
-                "id":             item.id,
-                "domain":         "media",
-                "reference_code": item.reference_code,
-                **_requester_info(item.user),
-                "created_at":     item.created_at,
-                "start_datetime": getattr(item, 'event_date', getattr(item, 'start_datetime', None)),
-                "end_datetime":   getattr(item, 'end_datetime', None),
-                "attendee_count": getattr(item, 'attendees', None),
-                "resource_name":  "Equipment/Media Support",
-                "purpose":        getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided')),
-                "is_external":    getattr(item, 'is_external', False), # Added for safety
-            })
-
-        # --- 5. SORT: PRIORITY (External) FIRST, THEN OLDEST ---
-        # `not x.get('is_external')` evaluates to False (0) for external events, and True (1) for internal.
-        # This pushes external events to the top, and resolves ties using `created_at`.
-        unified_queue.sort(key=lambda x: (not x.get('is_external', False), x['created_at']))
-
-        return Response({
-            "total_pending": len(unified_queue),
-            "queue": unified_queue,
-        })
+        # Unknown domain — skip silently (should never reach here due to
+        # validation in get(), but defensive programming doesn't hurt).
+        return None
 
 
 # ==========================================
 # 2. APPROVAL ENGINE (PATCH)
 # ==========================================
+
 class AdminResolveBookingAPIView(APIView):
     permission_classes = [IsApprover]
 
@@ -211,7 +295,7 @@ class AdminResolveBookingAPIView(APIView):
 
         if module not in self.MODEL_MAP:
             return Response(
-                {"error": "Invalid module provided."},
+                {"error": f"Invalid module. Valid values: {', '.join(sorted(self.MODEL_MAP))}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
