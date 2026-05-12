@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 
-class SpacesConfig(AppConfig):
+
+class MediaConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.media'  # <-- THIS IS THE CRITICAL CHANGE
+    name = 'apps.media'

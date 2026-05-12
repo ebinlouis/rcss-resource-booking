@@ -9,6 +9,7 @@ import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
 import Media from "./pages/Media";
 import MyBookingsPage from "./pages/MyBookingsPage"; 
+import Profile from "./pages/Profile";
 
 // Admin Pages
 import AdminLayout from "./layouts/admin/AdminLayout";
@@ -17,6 +18,9 @@ import RoleOverridesPage from "./pages/admin/RoleOverridesPage";
 import AdminSpacesPage from "./pages/admin/AdminSpacesPage";
 import AdminEquipmentPage from "./pages/admin/AdminEquipmentPage"; 
 import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage";
+import AdminTransportPage from "./pages/admin/AdminTransportPage";
+import AdminMess from "./pages/admin/AdminMess"; 
+import AdminMediaPage from "./pages/admin/AdminMediaPage";
 
 function App() {
   return (
@@ -34,6 +38,7 @@ function App() {
             <Route path="/media" element={<Media />} />
             <Route path="/mess" element={<Mess />} />
             <Route path="/my-bookings" element={<MyBookingsPage />} /> 
+            <Route path="/profile" element={<Profile />} />
           </Route>
 
           {/* ========================================== */}
@@ -42,8 +47,15 @@ function App() {
           <Route element={<ProtectedRoute requiredCapability="can_access_admin_portal" />}>
             <Route element={<AdminLayout />}>
               
-              {/* Ensure this is EXACTLY "/admin" to match the Navbar */}
+              {/* Global Dashboard */}
               <Route path="/admin" element={<AdminDashboard />} />
+
+              {/* ========================================== */}
+              {/* MESS ADMIN ROUTE */}
+              {/* ========================================== */}
+              <Route element={<ProtectedRoute requiredCapability="can_manage_mess" />}>
+                <Route path="/admin/mess" element={<AdminMess />} />
+              </Route>
 
               {/* ========================================== */}
               {/* TIER 2: SYSTEM ADMIN ROUTES */}
@@ -52,6 +64,8 @@ function App() {
                 <Route path="/admin/spaces" element={<AdminSpacesPage />} />
                 <Route path="/admin/equipment" element={<AdminEquipmentPage />} /> 
                 <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
+                <Route path="/admin/transport" element={<AdminTransportPage />} />
+                <Route path="/admin/media" element={<AdminMediaPage />} />
                 <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
               </Route>
 

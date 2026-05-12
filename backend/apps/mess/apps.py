@@ -1,5 +1,5 @@
 from django.apps import AppConfig
 
-class SpacesConfig(AppConfig):
+class MessConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.mess'  # <-- THIS IS THE CRITICAL CHANGE
+    name = 'apps.mess'

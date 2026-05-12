@@ -20,15 +20,19 @@ class Space(models.Model):
         LAB          = 'LAB',          'Lab'
         GUEST_ROOM   = 'GUEST_ROOM',   'Guest Room'
 
-    name          = models.CharField(max_length=100)
-    space_type    = models.CharField(max_length=20, choices=SpaceType.choices)
-    capacity_hard = models.IntegerField()
-    location      = models.CharField(max_length=100)
-    description   = models.TextField(blank=True, default='')
-    image_1       = models.ImageField(upload_to='spaces/', null=True, blank=True)
-    is_active     = models.BooleanField(default=True)
-    created_at    = models.DateTimeField(auto_now_add=True)
-    updated_at    = models.DateTimeField(auto_now=True)
+    name               = models.CharField(max_length=100)
+    space_type         = models.CharField(max_length=20, choices=SpaceType.choices)
+    capacity_hard      = models.IntegerField()
+    location           = models.CharField(max_length=100)
+    description        = models.TextField(blank=True, default='')
+    image_1            = models.ImageField(upload_to='spaces/', null=True, blank=True)
+    is_active          = models.BooleanField(default=True)
+    is_special_purpose = models.BooleanField(
+        default=False,
+        help_text="If True, this space is reserved for specific workflows and won't be auto-suggested."
+    )
+    created_at         = models.DateTimeField(auto_now_add=True)
+    updated_at         = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
@@ -92,6 +96,7 @@ class SpaceBooking(BaseBooking):
     end_datetime       = models.DateTimeField(db_index=True)
     attendee_count     = models.IntegerField()
     purpose_of_booking = models.TextField()
+    is_external        = models.BooleanField(default=False)  # <-- ADDED THIS FIELD
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [

@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 
-class SpacesConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.users'  # <-- THIS IS THE CRITICAL CHANGE
+
+class UsersConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.users"

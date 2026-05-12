@@ -1,397 +1,422 @@
-import { useState, useEffect } from 'react';
-import api from '../../api/axios';
+import { useState, useEffect, useCallback, useMemo } from "react"
+import api from "../../api/axios"
+import SpaceFormModal from "../../components/admin/SpaceFormModal"
 
-const MEDIA_BASE = 'http://localhost:8000';
+// ─────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────
 
-const SPACE_TYPES = [
-    { value: 'GENERAL_HALL', label: 'General Hall' },
-    { value: 'LAB',          label: 'Lab'           },
-    { value: 'GUEST_ROOM',   label: 'Guest Room'    },
-];
+const SPACE_TYPE_META = {
+  GENERAL_HALL: { label: "General Hall", color: "bg-[#dcfce7] text-[#14532d] border-[#bbf7d0]" },
+  LAB:          { label: "Laboratory",   color: "bg-[#dbeafe] text-[#1e40af] border-[#bfdbfe]" },
+  GUEST_ROOM:   { label: "Guest Room",   color: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]" },
+}
 
-const EMPTY_FORM = {
-    name: '', space_type: 'GENERAL_HALL',
-    capacity_hard: '', location: '', is_active: true,
-};
+const TYPE_FILTERS = ["ALL", "GENERAL_HALL", "LAB", "GUEST_ROOM"]
+const ACTIVE_FILTERS = [
+  { value: "ALL",      label: "All" },
+  { value: "ACTIVE",   label: "Active" },
+  { value: "INACTIVE", label: "Inactive" },
+]
 
-const FieldLabel = ({ children }) => (
-    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
-        {children}
-    </label>
-);
+// ─────────────────────────────────────────────────────────────
+// Reusable SVG Icon
+// ─────────────────────────────────────────────────────────────
 
-const inputCls =
-    'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 ' +
-    'focus:outline-none focus:ring-2 focus:ring-green-500 bg-white transition';
+function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", strokeWidth = 2, children, style }) {
+  return (
+    <svg
+      className={className}
+      viewBox={viewBox}
+      fill={fill}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      stroke="currentColor"
+      style={style}
+    >
+      {children}
+    </svg>
+  )
+}
 
-// Resolves a Django image path to a full URL
-const mediaUrl = (path) =>
-    !path ? null : path.startsWith('http') ? path : `${MEDIA_BASE}/media/${path}`;
+// ─────────────────────────────────────────────────────────────
+// Space Card
+// ─────────────────────────────────────────────────────────────
+
+function SpaceCard({ space, onEdit }) {
+  const typeMeta = SPACE_TYPE_META[space.space_type] ?? {
+    label: space.space_type,
+    color: "bg-[#f1f5f9] text-[#475569] border-[#e2e8f0]",
+  }
+
+  return (
+    <div
+      className={`bg-white rounded-2xl border overflow-hidden flex flex-col transition-all duration-200
+        hover:shadow-md hover:-translate-y-0.5 group
+        ${space.is_active ? "border-[#e8f5ee]" : "border-[#e2e8f0] opacity-60"}`}
+    >
+      {/* Image */}
+      <div className="relative h-36 bg-[#f0fdf4] overflow-hidden shrink-0">
+        {space.image_1 ? (
+          <img
+            src={space.image_1}
+            alt={space.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#d1fae5]">
+            <Icon className="w-10 h-10">
+              <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" />
+            </Icon>
+          </div>
+        )}
+
+        {/* Badges */}
+        <div className="absolute top-2.5 left-2.5 flex gap-1.5 flex-wrap">
+          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${typeMeta.color}`}>
+            {typeMeta.label}
+          </span>
+          {space.is_special_purpose && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-200">
+              <Icon className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor" strokeWidth={0}>
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </Icon>
+              Special
+            </span>
+          )}
+        </div>
+
+        {/* Active dot */}
+        <div className="absolute top-2.5 right-2.5">
+          <span className={`block w-2 h-2 rounded-full ${space.is_active ? "bg-[#22c55e]" : "bg-[#94a3b8]"}`} />
+        </div>
+
+        {!space.is_active && (
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#94a3b8] bg-white/80 px-3 py-1 rounded-full border border-[#e2e8f0]">
+              Inactive
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-4 flex flex-col flex-1 gap-3">
+        <div>
+          <h3 className="text-[15px] font-bold text-[#0f172a] leading-tight tracking-tight">
+            {space.name}
+          </h3>
+          <p className="text-[12.5px] text-[#6b7280] mt-0.5 leading-tight">{space.location || "—"}</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {space.capacity_hard && (
+            <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#374151]">
+              <Icon className="w-3.5 h-3.5">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+              </Icon>
+              {space.capacity_hard} seats
+            </span>
+          )}
+          {space.built_in_equipment?.length > 0 && (
+            <span className="text-[11.5px] text-[#94a3b8] font-medium">
+              · {space.built_in_equipment.length} equipment
+            </span>
+          )}
+        </div>
+
+        {space.description && (
+          <p className="text-[12px] text-[#94a3b8] leading-relaxed line-clamp-2">
+            {space.description}
+          </p>
+        )}
+
+        <div className="mt-auto pt-1">
+          <button
+            onClick={() => onEdit(space)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#d1fae5]
+              text-[13px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
+          >
+            <Icon className="w-3.5 h-3.5">
+              <path d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" />
+            </Icon>
+            Edit Space
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────────────────────
 
 const AdminSpacesPage = () => {
-    const [spaces, setSpaces]                   = useState([]);
-    const [masterEquipment, setMasterEquipment] = useState([]);
-    const [isLoading, setIsLoading]             = useState(true);
-    const [refreshCount, setRefreshCount]       = useState(0);
+  const [spaces, setSpaces]           = useState([])
+  const [isLoading, setIsLoading]     = useState(true)
+  const [error, setError]             = useState(null)
+  const [refreshCount, setRefreshCount] = useState(0)
 
-    const [isModalOpen, setIsModalOpen]     = useState(false);
-    const [editingSpace, setEditingSpace]   = useState(null);
-    const [isSubmitting, setIsSubmitting]   = useState(false);
-    const [formData, setFormData]           = useState(EMPTY_FORM);
-    const [imageFile, setImageFile]         = useState(null);
-    const [equipmentRows, setEquipmentRows] = useState([]);
+  const [modalOpen, setModalOpen]     = useState(false)
+  const [editTarget, setEditTarget]   = useState(null)
 
-    // ── Fetch ─────────────────────────────────────────────────────────────────
-    useEffect(() => {
-        let isMounted = true;
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterType, setFilterType]   = useState("ALL")
+  const [filterActive, setFilterActive] = useState("ALL")
+  const [filterSpecial, setFilterSpecial] = useState(false)
 
-        const fetchData = async () => {
-            try {
-                const [catalogRes, inventoryRes] = await Promise.all([
-                    api.get('/spaces/catalog/'),
-                    api.get('/spaces/inventory/'),
-                ]);
-                if (!isMounted) return;
-                setSpaces(catalogRes.data.results ?? catalogRes.data ?? []);
-                setMasterEquipment(inventoryRes.data.results ?? inventoryRes.data ?? []);
-            } catch (err) {
-                if (!isMounted) return;
-                console.error('Failed to fetch data:', err);
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
-        };
+  // ── Fetch ──
+  useEffect(() => {
+    let isMounted = true
 
-        fetchData();
-        return () => { isMounted = false; };
-    }, [refreshCount]);
-
-    // ── Modal helpers ──────────────────────────────────────────────────────────
-    const handleOpenModal = (space = null) => {
-        setImageFile(null);
-        if (space) {
-            setEditingSpace(space);
-            setFormData({
-                name:          space.name,
-                space_type:    space.space_type,
-                capacity_hard: space.capacity_hard,
-                location:      space.location,
-                is_active:     space.is_active,
-            });
-            setEquipmentRows(
-                Array.isArray(space.built_in_equipment)
-                    ? space.built_in_equipment.map((i) => ({
-                          equipment_id: i.equipment,
-                          quantity:     i.quantity,
-                      }))
-                    : []
-            );
-        } else {
-            setEditingSpace(null);
-            setFormData(EMPTY_FORM);
-            setEquipmentRows([]);
+    api.get("/spaces/catalog/")
+      .then((res) => {
+        if (isMounted) {
+          setSpaces(res.data.results ?? res.data ?? [])
+          setError(null)
         }
-        setIsModalOpen(true);
-    };
+      })
+      .catch((err) => {
+        if (isMounted)
+          setError(
+            err.response?.status === 401
+              ? "You don't have permission to manage spaces."
+              : "Could not load spaces. Please check your connection."
+          )
+      })
+      .finally(() => { if (isMounted) setIsLoading(false) })
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingSpace(null);
-        setImageFile(null);
-        setEquipmentRows([]);
-    };
+    return () => { isMounted = false }
+  }, [refreshCount])
 
-    const addEquipmentRow    = () => setEquipmentRows((p) => [...p, { equipment_id: '', quantity: 1 }]);
-    const removeEquipmentRow = (i) => setEquipmentRows((p) => p.filter((_, idx) => idx !== i));
-    const updateEquipmentRow = (i, field, val) =>
-        setEquipmentRows((p) => p.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
+  // Fix: Set loading state directly in the action handlers, not in the effect
+  const handleRefresh = () => {
+    setIsLoading(true)
+    setRefreshCount((c) => c + 1)
+  }
 
-    // ── Save ──────────────────────────────────────────────────────────────────
-    const handleSave = async (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-        try {
-            const data = new FormData();
-            data.append('name',          formData.name);
-            data.append('space_type',    formData.space_type);
-            data.append('capacity_hard', parseInt(formData.capacity_hard, 10));
-            data.append('location',      formData.location);
-            data.append('is_active',     formData.is_active);
-            if (imageFile) data.append('image_1', imageFile);
-            const validRows = equipmentRows.filter((r) => r.equipment_id);
-            if (validRows.length > 0) {
-                data.append('equipment_data', JSON.stringify(
-                    validRows.map((r) => ({ equipment: r.equipment_id, quantity: r.quantity }))
-                ));
-            }
+  const openCreate = () => { 
+    setEditTarget(null)
+    setModalOpen(true) 
+  }
 
-            const cfg = { headers: { 'Content-Type': 'multipart/form-data' } };
-            if (editingSpace) {
-                await api.put(`/spaces/catalog/${editingSpace.id}/`, data, cfg);
-            } else {
-                await api.post('/spaces/catalog/', data, cfg);
-            }
+  const openEdit = useCallback((space) => { 
+    setEditTarget(space)
+    setModalOpen(true) 
+  }, [])
 
-            setRefreshCount((c) => c + 1);
-            handleCloseModal();
-        } catch (err) {
-            console.error('Failed to save space:', err);
-            alert(err.response?.data?.detail || 'An error occurred while saving.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+  const handleModalClose = () => {
+    setModalOpen(false)
+    setEditTarget(null)
+    setIsLoading(true) // Trigger loading state before fetch
+    setRefreshCount((c) => c + 1)
+  }
 
-    const handleDeactivate = async (id) => {
-        if (!window.confirm('Deactivate this space? It will no longer be bookable.')) return;
-        try {
-            await api.patch(`/spaces/catalog/${id}/`, { is_active: false });
-            setRefreshCount((c) => c + 1);
-        } catch {
-            alert('Failed to deactivate space.');
-        }
-    };
+  // ── Derived data ──
+  const stats = useMemo(() => ({
+    total:   spaces.length,
+    active:  spaces.filter((s) => s.is_active).length,
+    special: spaces.filter((s) => s.is_special_purpose).length,
+  }), [spaces])
 
-    // ── Render ────────────────────────────────────────────────────────────────
-    return (
-        <div className="max-w-screen-xl mx-auto px-6 py-8 font-geist text-gray-900">
+  const filtered = useMemo(() => spaces.filter((s) => {
+    if (searchQuery &&
+        !s.name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !s.location?.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    if (filterType !== "ALL" && s.space_type !== filterType) return false
+    if (filterActive === "ACTIVE"   && !s.is_active) return false
+    if (filterActive === "INACTIVE" &&  s.is_active) return false
+    if (filterSpecial && !s.is_special_purpose) return false
+    return true
+  }), [spaces, searchQuery, filterType, filterActive, filterSpecial])
 
-            {/* Header */}
-            <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Manage Spaces</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Add, edit, and manage physical resources across the campus.
-                    </p>
-                </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-green-800 transition shadow-sm"
-                >
-                    + Add New Space
-                </button>
-            </div>
+  const isFiltering = searchQuery || filterType !== "ALL" || filterActive !== "ALL" || filterSpecial
 
-            {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 uppercase tracking-wider text-[10px] font-bold whitespace-nowrap">
-                            <tr>
-                                <th className="px-6 py-4 w-16">Image</th>
-                                <th className="px-6 py-4">Name</th>
-                                <th className="px-6 py-4">Type</th>
-                                <th className="px-6 py-4">Location</th>
-                                <th className="px-6 py-4">Capacity</th>
-                                <th className="px-6 py-4">Equipment</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-400 italic animate-pulse">
-                                        Loading spaces…
-                                    </td>
-                                </tr>
-                            ) : spaces.length === 0 ? (
-                                <tr>
-                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                                        No active spaces found. Click "Add New Space" to create one.
-                                    </td>
-                                </tr>
-                            ) : (
-                                spaces.map((space) => (
-                                    <tr key={space.id} className="hover:bg-gray-50/50 transition align-top">
+  return (
+    <div className="min-h-full bg-[#f6fbf8] p-6 md:p-8">
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-                                        {/* Thumbnail */}
-                                        <td className="px-6 py-4">
-                                            {mediaUrl(space.image_1) ? (
-                                                <img
-                                                    src={mediaUrl(space.image_1)}
-                                                    alt={space.name}
-                                                    className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0"
-                                                />
-                                            ) : (
-                                                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                    </svg>
-                                                </div>
-                                            )}
-                                        </td>
+      {modalOpen && (
+        <SpaceFormModal
+          initialData={editTarget}
+          onClose={handleModalClose}
+          onSaved={handleModalClose} // Reuse the handler so it triggers loading
+        />
+      )}
 
-                                        <td className="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">{space.name}</td>
+      <div className="max-w-[1200px] mx-auto">
 
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">
-                                                {space.space_type.replace(/_/g, ' ')}
-                                            </span>
-                                        </td>
+        {/* ── Header ── */}
+        <div className="flex items-end justify-between flex-wrap gap-4 mb-7">
+          <div>
+            <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
+            <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
+              Manage Spaces
+            </h1>
+            <p className="text-[15px] text-[#374151] mt-2">
+              {error
+                ? "Something went wrong loading spaces"
+                : isLoading
+                  ? "Loading catalog…"
+                  : `${spaces.length} space${spaces.length !== 1 ? "s" : ""} in the booking catalog`}
+            </p>
+          </div>
 
-                                        <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{space.location}</td>
-                                        <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{space.capacity_hard} pax</td>
-
-                                        {/* Equipment badges */}
-                                        <td className="px-6 py-4 max-w-xs">
-                                            {Array.isArray(space.built_in_equipment) && space.built_in_equipment.length > 0 ? (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {space.built_in_equipment.map((eq) => (
-                                                        <span key={eq.id}
-                                                            className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap">
-                                                            {eq.equipment_name}
-                                                            <span className="text-green-400">×{eq.quantity}</span>
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span className="text-gray-300 italic text-xs">None</span>
-                                            )}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                                            <button onClick={() => handleOpenModal(space)}
-                                                className="text-blue-600 hover:text-blue-800 font-medium text-xs mr-4 transition">
-                                                Edit
-                                            </button>
-                                            <button onClick={() => handleDeactivate(space.id)}
-                                                className="text-red-500 hover:text-red-700 font-medium text-xs transition">
-                                                Deactivate
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* MODAL */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">
-                            {editingSpace ? 'Edit Space' : 'Create New Space'}
-                        </h3>
-                        <p className="text-xs text-gray-500 mb-5">
-                            Define the parameters for this bookable campus resource.
-                        </p>
-
-                        {/* Current image preview */}
-                        {editingSpace && mediaUrl(editingSpace.image_1) && !imageFile && (
-                            <div className="mb-4">
-                                <FieldLabel>Current Image</FieldLabel>
-                                <img
-                                    src={mediaUrl(editingSpace.image_1)}
-                                    alt={editingSpace.name}
-                                    className="w-full h-36 object-cover rounded-lg border border-gray-100"
-                                />
-                            </div>
-                        )}
-
-                        <form onSubmit={handleSave} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-
-                                <div className="col-span-2">
-                                    <FieldLabel>Space Name *</FieldLabel>
-                                    <input required type="text" placeholder="e.g. Golden Aureole"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className={inputCls} />
-                                </div>
-
-                                <div>
-                                    <FieldLabel>Type *</FieldLabel>
-                                    <select value={formData.space_type}
-                                        onChange={(e) => setFormData({ ...formData, space_type: e.target.value })}
-                                        className={inputCls}>
-                                        {SPACE_TYPES.map((t) => (
-                                            <option key={t.value} value={t.value}>{t.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <FieldLabel>Capacity *</FieldLabel>
-                                    <input required type="number" min="1" placeholder="e.g. 150"
-                                        value={formData.capacity_hard}
-                                        onChange={(e) => setFormData({ ...formData, capacity_hard: e.target.value })}
-                                        className={inputCls} />
-                                </div>
-
-                                <div className="col-span-2">
-                                    <FieldLabel>Location *</FieldLabel>
-                                    <input required type="text" placeholder="e.g. Main Block, 2nd Floor"
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                        className={inputCls} />
-                                </div>
-
-                                <div className="col-span-2">
-                                    <FieldLabel>
-                                        Space Image {editingSpace ? '(leave blank to keep current)' : '(Optional)'}
-                                    </FieldLabel>
-                                    <input type="file" accept="image/*"
-                                        onChange={(e) => setImageFile(e.target.files[0])}
-                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-colors" />
-                                </div>
-
-                                {/* Built-in equipment */}
-                                <div className="col-span-2">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <FieldLabel>Built-in Equipment</FieldLabel>
-                                        <button type="button" onClick={addEquipmentRow}
-                                            className="text-xs font-semibold text-green-700 hover:text-green-900 transition">
-                                            + Add Item
-                                        </button>
-                                    </div>
-                                    {equipmentRows.length === 0 ? (
-                                        <p className="text-xs text-gray-400 italic">No built-in equipment added.</p>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {equipmentRows.map((row, idx) => (
-                                                <div key={idx} className="flex gap-2 items-center">
-                                                    <select value={row.equipment_id}
-                                                        onChange={(e) => updateEquipmentRow(idx, 'equipment_id', e.target.value)}
-                                                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
-                                                        <option value="">Select equipment…</option>
-                                                        {masterEquipment.map((eq) => (
-                                                            <option key={eq.id} value={eq.id}>{eq.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    <input type="number" min="1" value={row.quantity}
-                                                        onChange={(e) => updateEquipmentRow(idx, 'quantity', parseInt(e.target.value, 10))}
-                                                        className="w-20 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                                        placeholder="Qty" />
-                                                    <button type="button" onClick={() => removeEquipmentRow(idx)}
-                                                        className="text-red-400 hover:text-red-600 text-xs font-bold transition px-1">
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-2">
-                                <button type="button" onClick={handleCloseModal}
-                                    className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={isSubmitting}
-                                    className="px-6 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded-lg transition shadow-sm disabled:opacity-50">
-                                    {isSubmitting ? 'Saving…' : 'Save Space'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] text-[#4a6b58] hover:bg-[#f0fdf4] transition disabled:opacity-40"
+            >
+              <Icon
+                className="w-4 h-4"
+                style={isLoading ? { animation: "spin 0.7s linear infinite" } : {}}
+              >
+                <path d="M1 4v6h6M23 20v-6h-6" />
+                <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" />
+              </Icon>
+              Refresh
+            </button>
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
+            >
+              <Icon strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></Icon>
+              Add New Space
+            </button>
+          </div>
         </div>
-    );
-};
 
-export default AdminSpacesPage;
+        {/* ── Stats ── */}
+        <div className="grid grid-cols-3 gap-3 mb-7">
+          {[
+            { value: stats.total,   label: "Total spaces" },
+            { value: stats.active,  label: "Active" },
+            { value: stats.special, label: "Special purpose" },
+          ].map(({ value, label }) => (
+            <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
+              <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
+              <p className="text-[13px] font-medium text-[#374151] mt-2">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Filters ── */}
+        <div className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4 mb-6 flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8] w-4 h-4">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </Icon>
+            <input
+              type="text"
+              placeholder="Search by name or location…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-[13.5px] border border-[#e2e8f0] rounded-xl
+                outline-none focus:ring-2 focus:ring-[#15803d] focus:border-transparent
+                text-[#0f172a] placeholder:text-[#94a3b8]"
+            />
+          </div>
+
+          {/* Type */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {TYPE_FILTERS.map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`px-3.5 py-1.5 rounded-xl text-[12.5px] font-semibold transition border
+                  ${filterType === type
+                    ? "bg-[#15803d] text-white border-[#15803d]"
+                    : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f0fdf4] hover:border-[#d1fae5]"}`}
+              >
+                {type === "ALL" ? "All types" : SPACE_TYPE_META[type]?.label ?? type}
+              </button>
+            ))}
+          </div>
+
+          {/* Active */}
+          <div className="flex items-center gap-1.5">
+            {ACTIVE_FILTERS.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setFilterActive(value)}
+                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
+                  ${filterActive === value
+                    ? "bg-[#0f172a] text-white border-[#0f172a]"
+                    : "bg-white text-[#374151] border-[#e2e8f0] hover:border-[#94a3b8]"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Special toggle */}
+          <button
+            onClick={() => setFilterSpecial((v) => !v)}
+            className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
+              ${filterSpecial
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-white text-[#374151] border-[#e2e8f0] hover:border-amber-300"}`}
+          >
+            Special only
+          </button>
+        </div>
+
+        {/* ── Content ── */}
+        {error ? (
+          <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
+            <div className="w-12 h-12 rounded-full bg-[#fef2f2] flex items-center justify-center mx-auto mb-4 text-[#dc2626]">
+              <Icon>
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </Icon>
+            </div>
+            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load spaces</p>
+            <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{error}</p>
+          </div>
+        ) : isLoading && spaces.length === 0 ? (
+          <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center">
+            <p className="text-[14px] text-[#94a3b8]">Loading spaces…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
+            <div className="w-12 h-12 rounded-full bg-[#f0fdf4] flex items-center justify-center mx-auto mb-4 text-[#15803d]">
+              <Icon>
+                <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" />
+              </Icon>
+            </div>
+            <p className="text-[15px] font-semibold text-[#0f172a]">
+              {spaces.length === 0 ? "No spaces yet" : "No spaces match your filters"}
+            </p>
+            <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
+              {spaces.length === 0
+                ? `Click "Add New Space" to create the first one.`
+                : "Try adjusting your search or filter options."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.map((space) => (
+              <SpaceCard key={space.id} space={space} onEdit={openEdit} />
+            ))}
+          </div>
+        )}
+
+        {!error && !isLoading && filtered.length > 0 && isFiltering && (
+          <p className="text-center text-[12.5px] text-[#94a3b8] font-medium mt-5">
+            Showing {filtered.length} of {spaces.length} spaces
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default AdminSpacesPage

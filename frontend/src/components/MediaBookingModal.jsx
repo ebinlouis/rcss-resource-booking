@@ -1,383 +1,456 @@
 import { createPortal } from "react-dom"
-import { useState } from "react"
-import { rooms } from "../data/rooms"
+import { useState, useEffect, useMemo } from "react"
+import mediaService from "../api/mediaApi"
+import ErrorBoundary from "./ErrorBoundary"
 
-const departments = [
-  { id: 1, name: "Computer Science" },
-  { id: 2, name: "Commerce" },
-  { id: 3, name: "Management" },
-  { id: 4, name: "Media Studies" }
-]
+// ── Field Wrapper ──────────────────────────────────────────────────────────
+function Field({ label, required, children, error, helpText }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-sm font-medium text-gray-700">
+        {label}
+        {required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+      {error && <span className="text-red-500 text-xs mt-0.5">{error}</span>}
+      {helpText && !error && <span className="text-gray-400 text-[11px] mt-0.5">{helpText}</span>}
+    </div>
+  )
+}
 
-function MediaBookingModal({ onClose }) {
-  const [formData, setFormData] = useState({
-    event_name: "",
-    hall_id: "",
-    hall_name: "",
-    booking_date: "",
-    start_time: "",
-    end_time: "",
-    requested_by: "",
-    organization: "",
-    department_id: "",
-    department_name: "",
-    remarks: ""
-  })
+const inputCls = (error) =>
+  `w-full border ${
+    error ? "border-red-500 focus:ring-red-500 bg-red-50" : "border-gray-200 focus:ring-green-600 bg-white"
+  } rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 transition-all`
+
+function SectionLabel({ children }) {
+  return (
+    <div className="flex items-center gap-3 mt-6 mb-4">
+      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+        {children.split('.')[0]}
+      </div>
+      <span className="text-sm font-bold text-gray-800 tracking-wide">{children.split('.')[1]}</span>
+      <div className="flex-1 h-px bg-gray-200" />
+    </div>
+  )
+}
+
+const INITIAL_FORM = {
+  event_name: "",
+  space: "",
+  booking_date: "",
+  event_start_time: "",
+  event_end_time: "",
+  setup_start_time: "",
+  teardown_end_time: "",
+  requested_services: "",
+  user_notes: "",
+}
+
+function MediaBookingModal({ onClose, onSuccess }) {
+  const [formData, setFormData] = useState(INITIAL_FORM)
+  const [needsBuffer, setNeedsBuffer] = useState(false)
+  
+  const [equipmentRequests, setEquipmentRequests] = useState([])
+  const [availableEquipment, setAvailableEquipment] = useState([])
+  const [checkingInventory, setCheckingInventory] = useState(false)
 
   const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [spaces, setSpaces] = useState([])
+
+  useEffect(() => {
+    mediaService.getSpaces()
+      .then((data) => setSpaces(data))
+      .catch((err) => console.error("Could not load spaces:", err))
+  }, [])
+
+  // ── LIVE INVENTORY CHECK ──────────────────────────────────────────────────
+  const { booking_date, event_start_time, event_end_time, setup_start_time, teardown_end_time } = formData
+
+  const actualSetup = needsBuffer && setup_start_time ? setup_start_time : event_start_time;
+  const actualTeardown = needsBuffer && teardown_end_time ? teardown_end_time : event_end_time;
+
+  useEffect(() => {
+    let isMounted = true; 
+
+    const timeoutId = setTimeout(() => {
+      if (!isMounted) return;
+
+      if (booking_date && event_start_time && event_end_time) {
+        if (actualSetup <= event_start_time && event_start_time < event_end_time && event_end_time <= actualTeardown) {
+          
+          setCheckingInventory(true);
+          
+          mediaService.checkAvailability(booking_date, actualSetup, actualTeardown)
+            .then((data) => {
+              if (!isMounted) return;
+              setAvailableEquipment(data);
+              
+              setEquipmentRequests(prev => prev.map(req => {
+                if (!req.equipment) return req;
+                const item = data.find(eq => eq.id.toString() === req.equipment.toString())
+                if (!item || item.currently_available < req.quantity) {
+                  return { equipment: "", quantity: 1 } 
+                }
+                return req
+              }))
+            })
+            .catch(err => console.error("Inventory check failed", err))
+            .finally(() => {
+              if (isMounted) setCheckingInventory(false);
+            });
+            
+          return; 
+        }
+      }
+
+      setAvailableEquipment([]);
+
+    }, 400);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    }
+  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown]) 
+
+  const groupedEquipment = useMemo(() => {
+    return availableEquipment.reduce((acc, eq) => {
+      if (!acc[eq.category]) acc[eq.category] = []
+      acc[eq.category].push(eq)
+      return acc
+    }, {})
+  }, [availableEquipment])
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }))
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: ""
-      }))
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }))
   }
 
-  const validateForm = () => {
-    const newErrors = {}
+  const addEquipmentRow = () => {
+    setEquipmentRequests([...equipmentRequests, { equipment: "", quantity: 1 }])
+  }
 
-    if (!formData.event_name.trim()) {
-      newErrors.event_name = "Event name is required"
+  const removeEquipmentRow = (index) => {
+    setEquipmentRequests(equipmentRequests.filter((_, i) => i !== index))
+  }
+
+  const handleEquipmentChange = (index, field, value) => {
+    const newReqs = [...equipmentRequests]
+    newReqs[index][field] = value
+    setEquipmentRequests(newReqs)
+  }
+
+  // ── STRICT VALIDATION ─────────────────────────────────────────────────────
+  const validate = () => {
+    const e = {}
+    if (!formData.event_name.trim()) e.event_name = "Required"
+    if (!formData.space) e.space = "Required"
+
+    if (!formData.booking_date) e.booking_date = "Required"
+    if (!formData.event_start_time) e.event_start_time = "Required"
+    if (!formData.event_end_time) e.event_end_time = "Required"
+
+    if (needsBuffer) {
+      if (!formData.setup_start_time) e.setup_start_time = "Required"
+      if (!formData.teardown_end_time) e.teardown_end_time = "Required"
+      if (formData.setup_start_time > formData.event_start_time) e.setup_start_time = "Must be before event starts"
+      if (formData.teardown_end_time < formData.event_end_time) e.teardown_end_time = "Must be after event ends"
     }
-    if (!formData.hall_id) {
-      newErrors.hall_id = "Hall is required"
+
+    if (formData.event_start_time >= formData.event_end_time) {
+      e.timeError = "End time must be after Start time"
     }
-    if (!formData.booking_date) {
-      newErrors.booking_date = "Booking date is required"
-    }
-    if (!formData.start_time) {
-      newErrors.start_time = "Start time is required"
-    }
-    if (!formData.end_time) {
-      newErrors.end_time = "End time is required"
-    }
-    if (formData.start_time && formData.end_time) {
-      if (formData.start_time >= formData.end_time) {
-        newErrors.timeError = "End time must be after start time"
+
+    if (formData.booking_date) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (new Date(formData.booking_date) < today) {
+        e.booking_date = "Cannot book in the past"
       }
     }
-    if (!formData.requested_by.trim()) {
-      newErrors.requested_by = "Requested by is required"
-    }
-    if (!formData.department_id) {
-      newErrors.department_id = "Department ID is required"
-    }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    equipmentRequests.forEach((req, idx) => {
+      if (!req.equipment) e[`eq_${idx}`] = "Select item"
+      if (req.quantity < 1) e[`qty_${idx}`] = "Min 1"
+    })
+
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const handleSubmit = async (e) => {
+    e?.preventDefault()
+    if (!validate()) return
 
-    if (validateForm()) {
-      console.log("Media booking submitted:", formData)
+    const payload = {
+      ...formData,
+      setup_start_time: actualSetup,
+      teardown_end_time: actualTeardown,
+      equipment_requests: equipmentRequests.filter(req => req.equipment).map(req => ({
+        equipment: parseInt(req.equipment),
+        quantity: parseInt(req.quantity)
+      }))
+    }
+
+    try {
+      setSubmitting(true)
+      await mediaService.createBooking(payload)
+      onSuccess?.()
       onClose()
+    } catch (err) {
+      const data = err.response?.data
+      if (data && typeof data === "object") {
+        const mapped = {}
+        Object.keys(data).forEach(key => {
+          mapped[key] = Array.isArray(data[key]) ? data[key][0] : data[key]
+        })
+        if (data.non_field_errors) mapped.timeError = data.non_field_errors[0]
+        setErrors(mapped)
+      } else {
+        setErrors({ timeError: "Submission failed. Please try again." })
+      }
+    } finally {
+      setSubmitting(false)
     }
   }
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-      <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden">
-        <div className="md:flex w-full">
-          {/* Left Preview Panel */}
-          <div className="w-full md:w-1/3 bg-gradient-to-b from-green-900 to-blue-900 text-white p-5 space-y-6">
-            <div className="space-y-2">
-              <p className="text-xs tracking-[0.24em] uppercase text-white/70">Equipment Request</p>
-              <h3 className="text-2xl font-semibold">
-                Media Request
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed">
-                Request media team and equipment support for your scheduled event.
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+      <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
+        <ErrorBoundary>
+
+        {/* LEFT PANEL */}
+        <div
+          className="hidden md:flex md:w-[30%] flex-col justify-between p-7"
+          style={{ background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)" }}
+        >
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">Media & Gear</p>
+            <h2 className="text-2xl font-bold text-white">New Request</h2>
+            <p className="text-sm text-green-200/80 mt-3 leading-relaxed">
+              Step 1: Pick a time.<br/>Step 2: Secure your gear.<br/>Step 3: Add event details.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <div className="bg-white/10 rounded-xl p-4 border border-white/5">
+              <p className="text-[10px] text-green-300 uppercase font-semibold">Total Blocked Time</p>
+              <p className="text-white text-sm font-semibold mt-1">
+                {actualSetup || "--:--"} to {actualTeardown || "--:--"}
               </p>
             </div>
-
-            <div className="space-y-3 rounded-3xl bg-white/10 p-4">
-              <div className="text-sm text-white/80">Selected slot</div>
-              <div className="text-xl font-semibold">
-                {formData.start_time || "--:--"} - {formData.end_time || "--:--"}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="rounded-2xl bg-white/10 p-4">
-                <p className="text-sm text-white/80">Admin review</p>
-                <p className="mt-2 text-base font-medium">Pending approval</p>
-              </div>
-              <div className="rounded-2xl bg-white/10 p-4">
-                <p className="text-sm text-white/80">48h notice</p>
-                <p className="mt-2 text-base font-medium">Plan ahead for media support</p>
-              </div>
-            </div>
-
-            <div className="space-y-2 rounded-3xl bg-white/10 p-4">
-              <p className="text-sm text-white/80">Booking preview</p>
-              <div className="text-sm">
-                <span className="font-medium">Event:</span> {formData.event_name || "Not specified"}
-              </div>
-              <div className="text-sm">
-                <span className="font-medium">Requested by:</span> {formData.requested_by || "Not specified"}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Form Panel */}
-          <div className="w-full md:w-2/3 p-5">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-xl font-semibold">Media & Equipment Request</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Fill in the details to request media team and equipment support for your event.
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="text-gray-500 hover:text-gray-700 text-2xl font-light"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Name / Purpose *
-                </label>
-                <input
-                  type="text"
-                  name="event_name"
-                  value={formData.event_name}
-                  onChange={handleChange}
-                  placeholder="e.g., College Annual Fest"
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.event_name
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.event_name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.event_name}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Location (Hall) *
-                </label>
-                <select
-                  name="hall_id"
-                  value={formData.hall_id}
-                  onChange={(e) => {
-                    const selected = rooms.find((r) => r.id === parseInt(e.target.value))
-                    setFormData({
-                      ...formData,
-                      hall_id: selected?.id || "",
-                      hall_name: selected?.name || ""
-                    })
-                  }}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.hall_id
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                >
-                  <option value="">Select Hall</option>
-                  {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.hall_id && (
-                  <p className="text-red-500 text-sm mt-1">{errors.hall_id}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department *
-                </label>
-                <select
-                  value={formData.department_id}
-                  onChange={(e) => {
-                    const selected = departments.find(
-                      (d) => d.id === parseInt(e.target.value)
-                    )
-
-                    setFormData({
-                      ...formData,
-                      department_id: selected?.id || "",
-                      department_name: selected?.name || ""
-                    })
-                  }}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.department_id
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.department_id && (
-                  <p className="text-red-500 text-sm mt-1">{errors.department_id}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Booking Date *
-                </label>
-                <input
-                  type="date"
-                  name="booking_date"
-                  value={formData.booking_date}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.booking_date
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.booking_date && (
-                  <p className="text-red-500 text-sm mt-1">{errors.booking_date}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time *
-                </label>
-                <input
-                  type="time"
-                  name="start_time"
-                  value={formData.start_time}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.start_time
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.start_time && (
-                  <p className="text-red-500 text-sm mt-1">{errors.start_time}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Time *
-                </label>
-                <input
-                  type="time"
-                  name="end_time"
-                  value={formData.end_time}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.end_time
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.end_time && (
-                  <p className="text-red-500 text-sm mt-1">{errors.end_time}</p>
-                )}
-              </div>
-
-              {errors.timeError && (
-                <div className="col-span-2">
-                  <p className="text-red-500 text-sm px-4 py-2 bg-red-50 rounded-md">
-                    {errors.timeError}
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Requested By *
-                </label>
-                <input
-                  type="text"
-                  name="requested_by"
-                  value={formData.requested_by}
-                  onChange={handleChange}
-                  placeholder="Requested By"
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.requested_by
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.requested_by && (
-                  <p className="text-red-500 text-sm mt-1">{errors.requested_by}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Organization (Optional)
-                </label>
-                <input
-                  type="text"
-                  name="organization"
-                  value={formData.organization}
-                  onChange={handleChange}
-                  placeholder="Enter organization or leave empty"
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 ${
-                    errors.organization
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-green-500"
-                  }`}
-                />
-                {errors.organization && (
-                  <p className="text-red-500 text-sm mt-1">{errors.organization}</p>
-                )}
-              </div>
-
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Remarks
-                </label>
-                <textarea
-                  name="remarks"
-                  value={formData.remarks}
-                  onChange={handleChange}
-                  placeholder="Additional remarks (optional)"
-                  rows="4"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-
-              <div className="col-span-2 flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium"
-                >
-                  Send Request
-                </button>
-              </div>
-            </form>
+            {needsBuffer && (
+              <p className="text-xs text-green-200/70 italic px-1">
+                * Includes setup and pack-up buffer times.
+              </p>
+            )}
           </div>
         </div>
+
+        {/* RIGHT FORM */}
+        <div className="flex-1 flex flex-col min-h-0 bg-gray-50/30">
+          <div className="flex justify-between items-center px-8 pt-6 pb-4 border-b border-gray-100 bg-white">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Media Booking Form</h2>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">✕</button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-8 py-2 space-y-2">
+            
+            {errors.timeError && (
+              <div className="p-3 mt-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg font-medium">
+                {errors.timeError}
+              </div>
+            )}
+
+            {/* STEP 1: DATE & TIME FIRST */}
+            <SectionLabel>1. Schedule Context</SectionLabel>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+              <Field label="Date" required error={errors.booking_date}>
+                <input type="date" name="booking_date" className={inputCls(errors.booking_date)} value={formData.booking_date} onChange={handleChange} />
+              </Field>
+              <Field label="Event Starts" required error={errors.event_start_time}>
+                <input type="time" name="event_start_time" className={inputCls(errors.event_start_time)} value={formData.event_start_time} onChange={handleChange} />
+              </Field>
+              <Field label="Event Ends" required error={errors.event_end_time}>
+                <input type="time" name="event_end_time" className={inputCls(errors.event_end_time)} value={formData.event_end_time} onChange={handleChange} />
+              </Field>
+            </div>
+
+            <div className="mb-4 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer w-max">
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-600 cursor-pointer"
+                  checked={needsBuffer}
+                  onChange={(e) => setNeedsBuffer(e.target.checked)}
+                />
+                <span className="text-sm font-medium text-gray-700 select-none">
+                  Add extra prep & pack-up time (For Media Team support)
+                </span>
+              </label>
+            </div>
+
+            {needsBuffer && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
+                <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_time} helpText="When does the team need to arrive?">
+                  <input type="time" name="setup_start_time" className={inputCls(errors.setup_start_time)} value={formData.setup_start_time} onChange={handleChange} />
+                </Field>
+                <Field label="Pack-up Finish Time" required={needsBuffer} error={errors.teardown_end_time} helpText="When will the room be totally clear?">
+                  <input type="time" name="teardown_end_time" className={inputCls(errors.teardown_end_time)} value={formData.teardown_end_time} onChange={handleChange} />
+                </Field>
+              </div>
+            )}
+
+            {/* STEP 2: HARDWARE & EQUIPMENT */}
+            <SectionLabel>2. Hardware & Gear</SectionLabel>
+
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
+              <div className="flex justify-between items-center mb-4">
+                <label className="text-sm font-bold text-gray-800">Available Inventory</label>
+                {checkingInventory && <span className="text-xs text-blue-600 animate-pulse font-medium bg-blue-50 px-2 py-1 rounded">Syncing inventory...</span>}
+              </div>
+
+              {availableEquipment.length === 0 ? (
+                <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-500 font-medium">
+                    Please select a Date and Time above to unlock the gear catalog.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {equipmentRequests.map((req, index) => {
+                    const selectedEq = availableEquipment.find(eq => eq.id.toString() === req.equipment.toString())
+                    const maxQty = selectedEq ? selectedEq.currently_available : 1
+
+                    return (
+                      <div key={index} className="flex gap-3 items-start">
+                        <div className="flex-1">
+                          <select
+                            className={inputCls(errors[`eq_${index}`])}
+                            value={req.equipment}
+                            onChange={(e) => handleEquipmentChange(index, "equipment", e.target.value)}
+                          >
+                            <option value="">-- Select Item --</option>
+                            {Object.entries(groupedEquipment).map(([category, items]) => (
+                              <optgroup key={category} label={category}>
+                                {items.map(eq => {
+                                  // Smart Check: Is this exact equipment already selected in a DIFFERENT row?
+                                  const isSelectedElsewhere = equipmentRequests.some(
+                                    (otherReq, otherIdx) => otherIdx !== index && otherReq.equipment.toString() === eq.id.toString()
+                                  )
+                                  
+                                  // Disable if it's out of stock OR already selected above
+                                  const isDisabled = eq.currently_available === 0 || isSelectedElsewhere;
+
+                                  // Dynamic text based on state
+                                  let optionText = `${eq.name} (${eq.currently_available} available)`;
+                                  if (eq.currently_available === 0) optionText = `${eq.name} (Out of stock)`;
+                                  else if (isSelectedElsewhere) optionText = `${eq.name} (Already added)`;
+
+                                  return (
+                                    <option key={eq.id} value={eq.id} disabled={isDisabled}>
+                                      {optionText}
+                                    </option>
+                                  )
+                                })}
+                              </optgroup>
+                            ))}
+                          </select>
+                          {errors[`eq_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`eq_${index}`]}</p>}
+                        </div>
+                        
+                        <div className="w-24">
+                          <input
+                            type="number" min="1" max={maxQty}
+                            className={inputCls(errors[`qty_${index}`])}
+                            value={req.quantity}
+                            onChange={(e) => handleEquipmentChange(index, "quantity", e.target.value)}
+                            disabled={!req.equipment}
+                          />
+                          {errors[`qty_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`qty_${index}`]}</p>}
+                        </div>
+
+                        <button 
+                          type="button" 
+                          onClick={() => removeEquipmentRow(index)}
+                          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
+                  
+                  <button 
+                    type="button" 
+                    onClick={addEquipmentRow}
+                    className="text-sm font-semibold text-green-700 hover:text-green-800 flex items-center gap-1 mt-2 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors w-max"
+                  >
+                    <span>+ Add Equipment</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* STEP 3: EVENT DETAILS */}
+            <SectionLabel>3. Event Details</SectionLabel>
+            
+            <div className="mb-4">
+              <Field label="Event Name / Purpose" required error={errors.event_name}>
+                <input type="text" name="event_name" className={inputCls(errors.event_name)}
+                  placeholder="e.g., Annual Tech Fest or Project Shoot" value={formData.event_name} onChange={handleChange} />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <Field label="Location (Hall/Room)" required error={errors.space}>
+                <select name="space" className={inputCls(errors.space)} value={formData.space} onChange={handleChange}>
+                  <option value="">Select Location...</option>
+                  {spaces.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Human Resources (Optional)" error={errors.requested_services} helpText="Do you need media staff?">
+                <input type="text" name="requested_services" className={inputCls(errors.requested_services)}
+                  placeholder="e.g., 2 Photographers" value={formData.requested_services} onChange={handleChange} />
+              </Field>
+            </div>
+
+            <div className="mb-6">
+              <Field label="Remarks / Notes (Optional)" error={errors.user_notes}>
+                <textarea
+                  name="user_notes" rows={2}
+                  className={`${inputCls(errors.user_notes)} resize-none`}
+                  placeholder="Any extra details for the media team..."
+                  value={formData.user_notes} onChange={handleChange}
+                />
+              </Field>
+            </div>
+
+          </div>
+
+          <div className="flex justify-between items-center px-8 py-5 border-t bg-white mt-auto">
+            <p className="text-xs text-gray-400 font-medium">Request will be sent for admin approval.</p>
+            <div className="flex gap-3">
+              <button onClick={onClose} disabled={submitting} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50 font-semibold transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit} disabled={submitting}
+                className="px-6 py-2.5 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-800 transition-colors shadow-sm disabled:opacity-60"
+              >
+                {submitting ? "Submitting..." : "Submit Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+        </ErrorBoundary>
       </div>
     </div>,
     document.body

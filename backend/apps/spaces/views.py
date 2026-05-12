@@ -3,11 +3,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 
 from apps.users.permissions import IsAdminOrReadOnly
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Space, SpaceBooking, Equipment
 from .serializers import SpaceSerializer, SpaceBookingSerializer, EquipmentSerializer
+
 
 # ==========================================
 # RESOURCE CATALOG MANAGEMENT
@@ -15,14 +17,28 @@ from .serializers import SpaceSerializer, SpaceBookingSerializer, EquipmentSeria
 class EquipmentViewSet(viewsets.ModelViewSet):
     queryset = Equipment.objects.filter(is_active=True)
     serializer_class = EquipmentSerializer
-    # Only true IT Admins / Staff can add/edit equipment. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
 
+
 class SpaceViewSet(viewsets.ModelViewSet):
-    queryset = Space.objects.filter(is_active=True)
     serializer_class = SpaceSerializer
-    # Only true IT Admins / Staff can add/edit spaces. Everyone else reads.
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Space.objects.filter(is_active=True)
+
+        min_capacity = self.request.query_params.get('min_capacity')
+        if min_capacity is not None:
+            try:
+                qs = qs.filter(capacity_hard__gte=int(min_capacity))
+            except ValueError:
+                pass  # Ignore malformed values — return unfiltered list
+
+        # <-- THE NEW FILTER LOGIC -->
+        if self.request.query_params.get('for_suggestion') == 'true':
+            qs = qs.filter(is_special_purpose=False)
+
+        return qs
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def check_availability(self, request, pk=None):
@@ -50,6 +66,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
             )
         return Response({"available": True, "message": "Space is available."}, status=status.HTTP_200_OK)
 
+
 # ==========================================
 # BOOKING SUBMISSIONS
 # ==========================================
@@ -62,16 +79,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         view_param = self.request.query_params.get('view', 'mine')
 
         if view_param == 'general':
-            # All users can see the general activity feed.
-            # Privacy is enforced in the serializer, not here.
             return (
                 SpaceBooking.objects
                 .select_related('space', 'user')
-                .exclude(status='REJECTED')   # Hide rejected from general view
+                .exclude(status='REJECTED')
                 .order_by('start_datetime')
             )
 
-        # Default: 'mine' — only this user's own bookings (all statuses)
         return (
             SpaceBooking.objects
             .filter(user=user)
@@ -82,10 +96,36 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        instance = serializer.instance
+
+        # Staff edits do not trigger a re-review cycle.
+        if user.is_staff or user.is_superuser:
+            serializer.save(updated_by=user)
+            return
+
+        # When a regular user edits an approved booking, reset it to pending
+        # so the admin re-reviews the updated details.
+        extra_fields = {"updated_by": user}
+        if instance.status == 'APPROVED':
+            extra_fields.update({
+                "status": 'PENDING',
+                "resolved_by": None,
+                "resolved_at": None,
+                "remarks_by_admin": None,
+            })
+
+        serializer.save(**extra_fields)
+
+    def perform_destroy(self, instance):
+        # Prevent deletion (cancellation) of past bookings
+        if instance.end_datetime < timezone.now():
+            raise ValidationError({"detail": "Cannot cancel a booking that has already expired."})
+        instance.delete()
+
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
-        # NOTE: If your React App uses the UnifiedApprovalQueue, 
-        # this endpoint might be redundant, but it's safe to keep as a fallback.
         user = request.user
         if not (user.is_staff or user.is_superuser):
             return Response(

@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 
-class SpacesConfig(AppConfig):
+
+class FleetConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.fleet'  # <-- THIS IS THE CRITICAL CHANGE
+    name = 'apps.fleet'

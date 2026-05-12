@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-
+import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
-
+import { useNavigate } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 
 import api from "../api/axios"
@@ -75,28 +75,110 @@ function Home() {
     return matchesSearch
   })
 
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+const auth = useAuth();
+const user = auth?.user;
+const navigate = useNavigate()
+const hour = new Date().getHours()
+const greeting =
+  hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
 
   return (
     <MainLayout>
 
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{greeting}, User!</h1>
-        <p className="text-gray-400 mt-1 text-sm">
-          Manage your space reservations and submit new booking requests.
-        </p>
-      </div>
+{/* Welcome */}
+<div className="relative overflow-hidden rounded-[32px] p-5 text-white shadow-[0_20px_60px_rgba(16,185,129,0.35)]">
+
+  {/* Background Image */}
+  <div
+    className="absolute inset-0 bg-cover bg-center scale-105"
+    style={{
+      backgroundImage: "url('/Rectangle.png')",
+    }}
+  />
+
+  {/* Dark overlay */}
+  <div className="absolute inset-0 bg-black/10" />
+
+  {/* Grid pattern
+  <div className="absolute inset-0 opacity-20">
+    <div
+      className="h-full w-full"
+      style={{
+        backgroundImage:
+          "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }}
+    />
+  </div> */}
+
+  {/* Content */}
+  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+
+    {/* Left side */}
+    <div>
+      <h1 className="mt-3 text-4xl text-white lg:text-5xl font-bold tracking-tight drop-shadow-lg">
+        {greeting}, {user?.name || "User"}
+      </h1>
+
+      <p className="mt-4 ml-5 text-[12px] font-medium uppercase tracking-[0.25em] text-white/80">
+        Resource Booking made simple
+      </p>
+    </div>
+
+    {/* Right side mini cards */}
+    <div className="grid grid-cols-2 gap-4 min-w-[260px]">
+
+      {/* Spaces card */}
+<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
+
+  <div className="flex flex-col h-full">
+
+    {/* Label */}
+    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+      Spaces
+    </p>
+
+    {/* Number */}
+  <div className="flex-1 flex items-center justify-center">
+    <h2 className="text-4xl font-bold leading-none text-white">
+      {dbRooms?.length || 0}
+    </h2>
+  </div>
+
+  </div>
+</div>
+
+      {/* Requests card */}
+<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
+
+  <div className="flex flex-col h-full">
+
+    {/* Label */}
+    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+      Requests
+    </p>
+
+    {/* Number */}
+    <div className="flex-1 flex items-center justify-center">
+    <h2 className="text-4xl font-bold leading-none text-white">
+      {myBookings?.length || 0}
+    </h2>
+  </div>
+
+  </div>
+</div>
+
+    </div>
+  </div>
+</div>
 
       {/* TOP SPLIT LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
 
-        {/* LEFT: General campus activity feed */}
-        <div className="lg:col-span-2">
-          <TodayBookings onEditBooking={handleEditBooking} />
-        </div>
+{/* LEFT: General campus activity feed */}
+<div className="relative lg:col-span-2">
+  <TodayBookings onEditBooking={handleEditBooking} />
+</div>
 
         {/* RIGHT: This user's own requests — max 3 shown */}
         <div className="lg:col-span-1 lg:mt-4">
@@ -156,15 +238,27 @@ function Home() {
               </div>
             )}
 
-            <Link
-              to="/my-bookings"
-              className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-100 hover:bg-green-100 rounded-lg transition"
-            >
-              View all bookings
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+            <button
+  onClick={() => navigate("/my-bookings")}
+  className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-100 hover:bg-green-700 rounded-lg transition"
+>
+  View all bookings
+
+  <svg
+    className="w-3.5 h-3.5"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M9 5l7 7-7 7"
+    />
+  </svg>
+
+</button>
 
           </div>
         </div>
@@ -175,11 +269,14 @@ function Home() {
       <div className="mt-10">
 
         <div className="mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Bookable spaces</h2>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Main, lab, and conference spaces — click a card to view availability
-          </p>
-        </div>
+  <h2 className="text-lg font-semibold text-gray-900">
+    Bookable spaces
+  </h2>
+
+  <p className="text-sm text-gray-400 mt-0.5">
+    Browse available halls, labs, and meeting spaces for your next booking
+  </p>
+</div>
 
         {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">

@@ -3,7 +3,6 @@ import BookingModal from "./BookingModal"
 
 const MEDIA_BASE = "http://localhost:8000"
 
-// Resolves Django relative image path to full URL
 const mediaUrl = (path) =>
   !path ? null : path.startsWith("http") ? path : `${MEDIA_BASE}/media/${path}`
 
@@ -27,7 +26,7 @@ function RoomCard({ room, onOpenAvailability }) {
     : []
 
   return (
-    <div className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 hover:-translate-y-1 transition-all duration-300 overflow-hidden">
+    <div className="group relative overflow-hidden rounded-3xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
 
       {/* Top Section */}
       <div className="relative h-48 bg-gradient-to-br from-gray-50 to-emerald-50/40 flex items-center justify-center overflow-hidden">
@@ -40,16 +39,11 @@ function RoomCard({ room, onOpenAvailability }) {
               alt={room.name}
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
-
-            {/* Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
           </>
         ) : (
           <>
-            {/* Placeholder Pattern */}
             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
-
-            {/* Placeholder Icon */}
             <div className="text-gray-200 group-hover:scale-110 transition-transform duration-500">
               <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M19 13H5v-2h14v2z" />
@@ -88,7 +82,6 @@ function RoomCard({ room, onOpenAvailability }) {
                 d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
               />
             </svg>
-
             {capacity}
           </span>
         </div>
@@ -128,7 +121,6 @@ function RoomCard({ room, onOpenAvailability }) {
               d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
             />
           </svg>
-
           {location}
         </p>
 
@@ -138,7 +130,6 @@ function RoomCard({ room, onOpenAvailability }) {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
               What's inside
             </p>
-
             <div className="flex flex-wrap gap-1.5">
               {equipment.map((eq) => (
                 <span
@@ -159,10 +150,6 @@ function RoomCard({ room, onOpenAvailability }) {
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-300 uppercase font-bold">
               Check Status
-            </span>
-
-            <span className="text-xs text-gray-600 font-medium">
-              View Calendar
             </span>
           </div>
 
@@ -187,7 +174,6 @@ function RoomCard({ room, onOpenAvailability }) {
                   d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-
               Schedule
             </button>
 
@@ -207,6 +193,7 @@ function RoomCard({ room, onOpenAvailability }) {
         <BookingModal
           spaceId={room.id}
           spaceName={room.name}
+          spaceCap={room.capacity_hard ?? null}
           onClose={() => setOpenBooking(false)}
         />
       )}
