@@ -3,14 +3,16 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                           },
-    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces    },
-    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment },
-    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                           },
-    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                           },
-    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                             },
-    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_system                           },
-    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                           },
+    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                                       },
+    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces                },
+    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment             },
+    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                                       },
+    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                                       },
+    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                                         },
+    // Issue 2 fix: media page is only for the dedicated media admin role,
+    // not for IT Admin / system admins.
+    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_media                                        },
+    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                                       },
 ];
 
 const NAV_ICONS = {
@@ -30,6 +32,7 @@ const getRoleDisplay = (effectiveRole) => {
     const map = {
         'it admin':         { title: 'IT Admin',          subtitle: 'System Operations'   },
         'mess':             { title: 'Mess Admin',         subtitle: 'Mess Operations'     },
+        'media':            { title: 'Media Admin',        subtitle: 'Media Operations'    },
         'facility manager': { title: 'Facility Manager',   subtitle: 'Spaces & Facilities' },
         'receptionist':     { title: 'Receptionist',       subtitle: 'Space Bookings'      },
         'lab in-charge':    { title: 'Lab In-charge',      subtitle: 'Lab Management'      },
@@ -122,10 +125,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                     collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
                 }`}
             >
-                <Icon
-                    path="M10 19l-7-7m0 0l7-7m-7 7h18"
-                    className="w-[19px] h-[19px] text-[#86a898] shrink-0"
-                />
+                <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[19px] h-[19px] text-[#86a898] shrink-0" />
                 {!collapsed && 'User Portal'}
             </button>
             <button
@@ -148,9 +148,9 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
 const AdminLayout = () => {
     const { logout, user, effectiveRole } = useAuth();
     const navigate = useNavigate();
-    const [profileOpen,       setProfileOpen]       = useState(false);
-    const [mobileOpen,        setMobileOpen]        = useState(false);
-    const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
+    const [profileOpen,      setProfileOpen]      = useState(false);
+    const [mobileOpen,       setMobileOpen]        = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed]  = useState(false);
     const profileRef = useRef(null);
 
     useEffect(() => {
@@ -170,6 +170,8 @@ const AdminLayout = () => {
         can_manage_spaces:    user?.capabilities?.can_manage_spaces,
         can_manage_equipment: user?.capabilities?.can_manage_equipment,
         can_manage_mess:      user?.capabilities?.can_manage_mess,
+        // Issue 2 fix: track can_manage_media independently of can_manage_system
+        can_manage_media:     user?.capabilities?.can_manage_media,
     };
 
     const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));
@@ -216,11 +218,7 @@ const AdminLayout = () => {
 
             {/* ── Main ── */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
-                {/* Top Bar */}
                 <header className="h-16 bg-white border-b border-[#e8f5ee] shrink-0 flex items-center justify-between px-5 md:px-7">
-
-                    {/* Left */}
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarCollapsed((p) => !p)}
@@ -229,15 +227,10 @@ const AdminLayout = () => {
                             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                         >
                             <Icon
-                                path={
-                                    sidebarCollapsed
-                                        ? 'M13 5l7 7-7 7M5 5l7 7-7 7'
-                                        : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'
-                                }
+                                path={sidebarCollapsed ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'}
                                 className="w-[18px] h-[18px]"
                             />
                         </button>
-
                         <button
                             onClick={() => setMobileOpen(true)}
                             className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg
@@ -245,18 +238,13 @@ const AdminLayout = () => {
                         >
                             <Icon path="M4 6h16M4 12h16M4 18h16" className="w-[18px] h-[18px]" />
                         </button>
-
                         <span className="hidden md:block text-[15px] text-[#4a6b58] font-medium tracking-tight select-none">
                             {new Date().toLocaleDateString('en-IN', {
-                                weekday: 'short',
-                                day:     'numeric',
-                                month:   'long',
-                                year:    'numeric',
+                                weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
                             })}
                         </span>
                     </div>
 
-                    {/* Right */}
                     <div className="flex items-center gap-2.5">
                         <button className="relative w-10 h-10 flex items-center justify-center rounded-xl
                             hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d] transition-all duration-150">
@@ -266,9 +254,7 @@ const AdminLayout = () => {
                             />
                             <span className="absolute top-[8px] right-[8px] w-2 h-2 rounded-full bg-[#22c55e] border-2 border-white" />
                         </button>
-
                         <div className="hidden md:block w-px h-6 bg-[#e8f5ee]" />
-
                         <div className="relative" ref={profileRef}>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setProfileOpen((p) => !p); }}
@@ -279,22 +265,15 @@ const AdminLayout = () => {
                             >
                                 {initial}
                             </button>
-
                             {profileOpen && (
                                 <div className="absolute right-0 top-full mt-2.5 w-64 bg-white rounded-2xl
                                     shadow-xl shadow-black/8 border border-[#e8f5ee] overflow-hidden z-50">
                                     <div className="px-4 py-4 bg-[#f6fbf8] border-b border-[#e8f5ee]">
-                                        <p className="text-[15px] font-semibold text-[#14532d]">
-                                            {user?.name ?? 'Admin User'}
-                                        </p>
-                                        <p className="text-[13px] text-[#86a898] mt-0.5">
-                                            {user?.email ?? ''}
-                                        </p>
+                                        <p className="text-[15px] font-semibold text-[#14532d]">{user?.name ?? 'Admin User'}</p>
+                                        <p className="text-[13px] text-[#86a898] mt-0.5">{user?.email ?? ''}</p>
                                         <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#dcfce7] rounded-full">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-                                            <span className="text-[12px] font-semibold text-[#15803d]">
-                                                {roleTitle}
-                                            </span>
+                                            <span className="text-[12px] font-semibold text-[#15803d]">{roleTitle}</span>
                                         </div>
                                     </div>
                                     <div className="py-1.5">
@@ -326,7 +305,6 @@ const AdminLayout = () => {
                     </div>
                 </header>
 
-                {/* Page Content */}
                 <main className="flex-1 overflow-y-auto w-full">
                     <Outlet />
                 </main>

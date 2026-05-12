@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
-import api from "../api/axios"
 import MainLayout from "../layouts/MainLayout"
-import BookingModal from "../components/BookingModal"
+import MediaBookingModal from "../components/MediaBookingModal" 
 
 import { useNavigate } from "react-router-dom"
 
@@ -15,17 +14,24 @@ import {
   Package,
   ChevronDown,
   Building2,
-  Users
+  Wrench,
+  Clapperboard
 } from "lucide-react"
+
+import mediaApi from "../api/mediaApi"
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-const formatDateTime = (isoString) => {
-  if (!isoString) return 'TBD';
+const formatDateTime = (dateString, timeString) => {
+  if (!dateString || !timeString) return 'TBD';
+  const [hours, minutes] = timeString.split(':');
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+  
   return new Intl.DateTimeFormat('en-IN', {
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true,
-  }).format(new Date(isoString));
+  }).format(date);
 };
 
 const timeAgo = (isoString) => {
@@ -37,17 +43,34 @@ const timeAgo = (isoString) => {
   return `${Math.round(hrs / 24)}d ago`;
 };
 
-// ─── Booking Card Component (Admin Style) ─────────────────────────────────────
+// ─── Booking Card Component (Media Style) ─────────────────────────────────────
 
 const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadge, navigate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const hasEquipment = booking.equipment_requests && booking.equipment_requests.length > 0;
-  const hasNotes = booking.user_notes && booking.user_notes.trim().length > 0;
+  const equipment    = booking.equipment_requests ?? [];
+  const hasEquipment = equipment.length > 0;
+  const hasServices  = Boolean(booking.requested_services?.trim());
+  const hasNotes     = Boolean(booking.user_notes?.trim());
   
-  // Expiry check
-  const isExpired = new Date(booking.end_datetime) < new Date();
-  const showEditCancel = booking.can_modify && (booking.status === "PENDING" || booking.status === "APPROVED") && !isExpired;
+  // Expiry check - if the teardown time has passed on the booking date
+  let isExpired = false;
+  try {
+      const dateStr = booking.booking_date || booking.event_date;
+      const timeStr = booking.teardown_end_time || booking.event_end_time || '23:59:00';
+      if (dateStr) {
+          const endDateTime = new Date(`${dateStr}T${timeStr}`);
+          isExpired = endDateTime < new Date();
+      }
+  } catch (e) {
+      console.error(e);
+  }
+
+  // Media allows modification if PENDING or APPROVED
+  const showEditCancel = booking.can_modify !== false && (booking.status === "PENDING" || booking.status === "APPROVED") && !isExpired;
+
+  const spaceName = booking.space_details?.name || 'Any suitable space';
+  const location  = booking.space_details?.location || 'Location not specified';
 
   return (
     <div className={`px-7 border-b border-gray-100 last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f8fafc]' : 'bg-white hover:bg-[#f8fafc]'}`}>
@@ -61,12 +84,9 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
         <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
           <div className="flex items-center gap-2.5 flex-wrap">
             {getStatusBadge(booking.status)}
-            {booking.attendee_count > 0 && (
-              <span className="flex items-center gap-1.5 text-[14px] text-gray-600 font-medium ml-2">
-                <Users className="w-4 h-4 text-emerald-700" />
-                {booking.attendee_count} {booking.attendee_count === 1 ? 'person' : 'people'}
-              </span>
-            )}
+            <span className="font-mono text-[13.5px] font-semibold text-emerald-900 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100 tracking-wide ml-2">
+                {booking.reference_code}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[13px] text-gray-500 font-medium">Submitted {timeAgo(booking.created_at)}</span>
@@ -79,19 +99,19 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
         {/* 3-col info grid (Always Visible) */}
         <div className="grid gap-7 grid-cols-1 md:grid-cols-3" style={{ gridTemplateColumns: '1.8fr 1.6fr 2.6fr' }}>
           
-          {/* Space */}
+          {/* Space / Location */}
           <div>
-            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2.5">Space</p>
+            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2.5">Space & Location</p>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
                 <Building2 className="w-5 h-5" />
               </div>
-              <div>
-                <p className="text-[16px] font-semibold text-gray-900 leading-tight">
-                  {booking.space_details?.name || "Unknown Space"}
+              <div className="min-w-0">
+                <p className="truncate text-[16px] font-semibold text-gray-900 leading-tight">
+                  {spaceName}
                 </p>
-                <p className="text-[13px] text-gray-500 mt-0.5 capitalize">
-                  {booking.space_details?.space_type?.replace('_', ' ') || "Workspace"}
+                <p className="truncate text-[13px] text-gray-500 mt-0.5">
+                  {location}
                 </p>
               </div>
             </div>
@@ -104,21 +124,21 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                 <div>
-                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">From</span>
-                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.start_datetime)}</span>
+                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Start</span>
+                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.booking_date, booking.setup_start_time)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
                 <div>
-                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">To</span>
-                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.end_datetime)}</span>
+                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">End</span>
+                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.booking_date, booking.teardown_end_time)}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Status Context (Replaces Requester in User View) */}
+          {/* Status Context */}
           <div>
             <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2.5">Current Status</p>
             <div className="flex items-start gap-3">
@@ -129,20 +149,20 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                     : booking.status === "PENDING" 
                       ? "Awaiting Admin Review" 
                       : booking.status === "APPROVED" 
-                        ? "Space Reserved Successfully"
+                        ? "Equipment/Services Confirmed"
                         : booking.status === "REJECTED"
                           ? "Declined / Cancelled by Admin"
-                          : "Booking Cancelled"}
+                          : "Request Cancelled"}
                 </p>
                 <p className="text-[13px] text-gray-500 mt-1 leading-relaxed">
                    {isExpired 
-                    ? "This booking has already taken place." 
+                    ? "This media request has already taken place." 
                     : booking.status === "PENDING" 
-                      ? "You will be notified once an administrator processes this request." 
+                      ? "You will be notified once the media team processes this." 
                       : booking.status === "APPROVED" 
-                        ? "Your slot is confirmed. You may edit or cancel if plans change."
+                        ? "Your media request is confirmed. You may edit or cancel if needed."
                         : booking.status === "REJECTED"
-                          ? "Please check the admin feedback notes below."
+                          ? "Please check the feedback notes below."
                           : "This request has been withdrawn."}
                 </p>
               </div>
@@ -157,48 +177,65 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
         <div className="pb-6 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="pt-6 border-t border-gray-200">
             
-            {/* Purpose */}
+            {/* Event Name */}
             <div className="mb-6">
-              <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2">Purpose of Booking</p>
+              <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2">Event Details</p>
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3.5">
-                <p className="text-[14.5px] text-emerald-900 font-medium leading-relaxed">
-                  {booking.purpose_of_booking || booking.purpose || 'No purpose provided.'}
+                <p className="text-[14.5px] text-emerald-900 font-medium leading-relaxed flex items-center gap-2">
+                  <Clapperboard className="w-4 h-4 text-emerald-700" />
+                  {booking.event_name || 'No event name provided.'}
                 </p>
               </div>
             </div>
 
-            {/* Equipment & Notes */}
-            {(hasEquipment || hasNotes) && (
-              <div className="flex flex-col gap-5 mb-6">
-                {hasEquipment && (
-                  <div>
+            {/* Equipment & Services */}
+            <div className="grid gap-5 md:grid-cols-2 mb-6">
+                <div>
                     <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-emerald-600 inline-block">
-                      Equipment Requested
+                        Equipment Requested
                     </p>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {booking.equipment_requests.map((er) => (
-                        <span key={er.id} className="inline-flex items-center gap-2 text-[14px] font-semibold text-emerald-900 bg-emerald-100 px-3.5 py-1.5 rounded-xl">
-                          <Package className="w-3.5 h-3.5 text-emerald-700" />
-                          {er.equipment_name}
-                          {er.quantity > 1 && <span className="text-emerald-700 opacity-70 font-medium">× {er.quantity}</span>}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {hasNotes && (
-                  <div>
+                    {hasEquipment ? (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                            {equipment.map((item) => (
+                                <span key={item.id ?? item.equipment} className="inline-flex items-center gap-2 text-[14px] font-semibold text-emerald-900 bg-emerald-100 px-3.5 py-1.5 rounded-xl">
+                                    <Package className="w-3.5 h-3.5 text-emerald-700" />
+                                    {item.equipment_name || `Equipment #${item.equipment}`}
+                                    {item.quantity > 1 && <span className="text-emerald-700 opacity-70 font-medium">× {item.quantity}</span>}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[14px] text-gray-500 mt-1">No equipment requested.</p>
+                    )}
+                </div>
+                
+                <div>
+                    <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-indigo-500 inline-block">
+                        Services Requested
+                    </p>
+                    {hasServices ? (
+                        <p className="flex items-start gap-2 text-[14.5px] text-gray-700 leading-relaxed mt-1">
+                            <Wrench className="w-4 h-4 shrink-0 text-indigo-600 mt-0.5" />
+                            {booking.requested_services}
+                        </p>
+                    ) : (
+                        <p className="text-[14px] text-gray-500 mt-1">No extra services requested.</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Notes */}
+            {hasNotes && (
+                <div className="mb-6">
                     <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-amber-500 inline-block">
-                      Additional Notes
+                        Additional Notes
                     </p>
-                    <div className="mt-2 bg-amber-50/50 border border-amber-100 rounded-xl px-4 py-3.5">
-                      <p className="text-[14.5px] text-gray-700 leading-relaxed">
-                        {booking.user_notes}
-                      </p>
+                    <div className="mt-1 bg-amber-50/50 border border-amber-100 rounded-xl px-4 py-3.5">
+                        <p className="text-[14.5px] text-gray-700 leading-relaxed">
+                            {booking.user_notes}
+                        </p>
                     </div>
-                  </div>
-                )}
-              </div>
+                </div>
             )}
 
             {/* ADMIN FEEDBACK */}
@@ -220,7 +257,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               {/* NO ACTIONS STATUS */}
               {!showEditCancel && booking.status !== "REJECTED" && (
                 <p className="text-[11.5px] font-bold text-gray-400 uppercase tracking-widest mt-2 mr-auto">
-                  {isExpired ? "Booking Completed" : "No Further Actions"}
+                  {isExpired ? "Event Completed" : "No Further Actions"}
                 </p>
               )}
 
@@ -250,11 +287,11 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               {/* RESCHEDULE */}
               {booking.status === "REJECTED" && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); navigate("/dashboard"); }}
+                  onClick={(e) => { e.stopPropagation(); navigate("/media"); }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 text-white text-[14.5px] font-semibold hover:bg-amber-700 transition-all duration-150"
                 >
                   <RefreshCcw className="w-4 h-4" />
-                  Find Another Space
+                  Submit New Request
                 </button>
               )}
             </div>
@@ -269,7 +306,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
-const MyBookingsPage = () => {
+const MyMediaBookingsPage = () => {
   const [myBookings, setMyBookings] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -278,6 +315,7 @@ const MyBookingsPage = () => {
   const navigate = useNavigate()
 
   // Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState(null)
 
@@ -291,17 +329,16 @@ const MyBookingsPage = () => {
 
     async function loadInitialData() {
       try {
-        const response = await api.get("/spaces/requests/")
+        const data = await mediaApi.getMyBookings()
 
         if (isMounted) {
-          const data = response.data.results || response.data || []
           setMyBookings(data)
           setError(null)
         }
       } catch (err) {
         console.error("Fetch error:", err)
         if (isMounted) {
-          setError("Failed to load your booking history.")
+          setError("Failed to load your media history.")
         }
       } finally {
         if (isMounted) setIsLoading(false)
@@ -323,14 +360,14 @@ const MyBookingsPage = () => {
     const q = searchTerm.toLowerCase()
 
     return myBookings.filter((booking) => {
-      const hall      = booking.space_details?.name?.toLowerCase() || ""
-      const purpose   = booking.purpose_of_booking?.toLowerCase() || ""
+      const eventName = booking.event_name?.toLowerCase() || ""
       const status    = booking.status?.toLowerCase() || ""
+      const refCode   = booking.reference_code?.toLowerCase() || ""
 
       return (
-        hall.includes(q) ||
-        purpose.includes(q) ||
-        status.includes(q)
+        eventName.includes(q) ||
+        status.includes(q) ||
+        refCode.includes(q)
       )
     })
   }, [myBookings, searchTerm])
@@ -339,8 +376,7 @@ const MyBookingsPage = () => {
 
   const refreshData = async () => {
     try {
-      const response = await api.get("/spaces/requests/")
-      const data = response.data.results || response.data || []
+      const data = await mediaApi.getMyBookings()
       setMyBookings(data)
     } catch (err) {
       console.error("Refresh error:", err)
@@ -350,12 +386,12 @@ const MyBookingsPage = () => {
   // ================= CANCEL =================
 
   const handleCancelBooking = async (id) => {
-    if (!window.confirm("Are you sure? This will free up the space for others.")) return;
+    if (!window.confirm("Are you sure you want to cancel this media request?")) return;
 
     setIsActionLoading(true)
 
     try {
-      await api.delete(`/spaces/requests/${id}/`)
+      await mediaApi.deleteBooking(id)
       await refreshData()
     } catch {
       alert("Could not cancel booking.")
@@ -402,14 +438,23 @@ const MyBookingsPage = () => {
               Personal Workspace
             </p>
             <h1 className="text-[26px] font-bold text-gray-900 tracking-tight leading-none">
-              My Bookings
+              My Media Requests
             </h1>
             <p className="text-[15px] text-gray-600 mt-2">
-              Review and manage your current and past space reservations.
+              Review and manage your current and past equipment and media services.
             </p>
           </div>
           
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-[14px] font-semibold hover:bg-emerald-800 transition-all duration-150 shadow-sm"
+            >
+              <Clapperboard className="w-4 h-4" />
+              <span className="hidden sm:inline">New Request</span>
+              <span className="sm:hidden">New</span>
+            </button>
+
              {/* SEARCH */}
              <div className="relative w-full sm:w-64">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
@@ -417,7 +462,7 @@ const MyBookingsPage = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search spaces, purposes..."
+                placeholder="Search event names, codes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl text-[14px] bg-white outline-none focus:ring-2 focus:ring-emerald-50 focus:border-emerald-500 placeholder:text-gray-400 shadow-sm transition-all"
@@ -449,14 +494,14 @@ const MyBookingsPage = () => {
           {/* Panel header */}
           <div className="flex items-center px-7 py-4 border-b border-gray-200 bg-gray-50/50">
             <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
-              Booking History
+              Media History
             </span>
           </div>
 
           {/* States */}
           {isLoading ? (
             <div className="py-20 text-center">
-               <p className="text-[14px] text-gray-500 font-medium">Loading your bookings…</p>
+               <p className="text-[14px] text-gray-500 font-medium">Loading your media requests…</p>
             </div>
           ) : error ? (
             <div className="py-20 text-center px-8">
@@ -471,13 +516,13 @@ const MyBookingsPage = () => {
           ) : filteredBookings.length === 0 ? (
             <div className="py-20 text-center px-8">
               <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-                <CalendarClock className="w-6 h-6 text-emerald-700" />
+                <Clapperboard className="w-6 h-6 text-emerald-700" />
               </div>
               <p className="text-[15px] font-semibold text-gray-900">
-                 {searchTerm ? "No matching bookings found" : "No bookings yet"}
+                 {searchTerm ? "No matching requests found" : "No requests yet"}
               </p>
               <p className="text-[13.5px] text-gray-500 mt-1.5">
-                 {searchTerm ? "Try adjusting your search terms." : "When you reserve a space, it will appear here."}
+                 {searchTerm ? "Try adjusting your search terms." : "When you request equipment, it will appear here."}
               </p>
             </div>
           ) : (
@@ -499,11 +544,20 @@ const MyBookingsPage = () => {
         </div>
       </div>
 
+      {/* CREATE MODAL */}
+      {isCreateModalOpen && (
+        <MediaBookingModal
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            setIsCreateModalOpen(false)
+            refreshData()
+          }}
+        />
+      )}
+
       {/* EDIT MODAL */}
       {isEditModalOpen && selectedBooking && (
-        <BookingModal
-          spaceId={selectedBooking.space}
-          spaceName={selectedBooking.space_details?.name}
+        <MediaBookingModal
           initialData={selectedBooking}
           onClose={() => {
             setIsEditModalOpen(false)
@@ -516,4 +570,4 @@ const MyBookingsPage = () => {
   )
 }
 
-export default MyBookingsPage
+export default MyMediaBookingsPage

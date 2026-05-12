@@ -1,23 +1,22 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
     Building2,
     ChevronDown,
     Check,
     Mail,
-    MapPin,
     Package,
     Phone,
     RefreshCw,
-    User,
     Wrench,
     X,
 } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
 
 const STATUS_STYLES = {
-    APPROVED: 'bg-green-100 text-green-700 border-green-200',
-    PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    REJECTED: 'bg-red-100 text-red-700 border-red-200',
+    APPROVED:  'bg-green-100 text-green-700 border-green-200',
+    PENDING:   'bg-yellow-100 text-yellow-800 border-yellow-200',
+    REJECTED:  'bg-red-100 text-red-700 border-red-200',
     CANCELLED: 'bg-gray-100 text-gray-600 border-gray-200',
 }
 
@@ -39,7 +38,6 @@ function StatusBadge({ status }) {
     )
 }
 
-// External / Internal event type badge
 function EventTypeBadge({ isExternal }) {
     if (isExternal) {
         return (
@@ -64,9 +62,7 @@ function EventTypeBadge({ isExternal }) {
 function formatDate(dateString) {
     if (!dateString) return 'TBD'
     return new Date(`${dateString}T00:00:00`).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
+        day: '2-digit', month: 'short', year: 'numeric',
     })
 }
 
@@ -75,11 +71,7 @@ function formatTime(timeString) {
     const [hours, minutes] = timeString.split(':')
     const date = new Date()
     date.setHours(Number(hours), Number(minutes), 0, 0)
-    return date.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-    })
+    return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
 function timeAgo(isoString) {
@@ -99,48 +91,39 @@ function FieldLabel({ children }) {
     )
 }
 
-function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
-    const [remarks, setRemarks] = useState('')
+// ─── Modals ───────────────────────────────────────────────────────────────────
 
+function ApproveModal({ booking, onConfirm, onCancel, isLoading }) {
+    if (!booking) return null;
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm" onClick={onCancel}>
             <div
-                className="w-full max-w-[460px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
+                className="w-full max-w-[400px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
+                onClick={(e) => e.stopPropagation()}
                 style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
             >
-                <p className="text-[19px] font-semibold tracking-tight text-[#0f172a]">Reject media request?</p>
-                <p className="mt-1 border-b border-[#e8f5ee] pb-4 text-[14px] text-[#6b7280]">
-                    <span className="font-semibold text-[#0f172a]">{booking.reference_code}</span>
-                    {' - '}
-                    {booking.event_name}
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
+                    <Check className="h-6 w-6 text-[#15803d]" />
+                </div>
+                <p className="text-center text-[18px] font-bold tracking-tight text-[#0f172a]">Approve Booking?</p>
+                <p className="mt-2 text-center text-[14.5px] leading-relaxed text-[#4b5563]">
+                    Are you sure you want to approve this media request for <span className="font-semibold text-[#0f172a]">{booking.user_details?.name || booking.user_name || 'this user'}</span>?
                 </p>
 
-                <label className="mt-5 mb-2 block text-[12px] font-bold uppercase tracking-[0.1em] text-[#6b7280]">
-                    Reason <span className="text-red-600">*</span>
-                </label>
-                <textarea
-                    className="min-h-[108px] w-full resize-none rounded-xl border border-[#dbe7df] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7]"
-                    placeholder="e.g. Equipment unavailable, scheduling conflict..."
-                    value={remarks}
-                    onChange={(event) => setRemarks(event.target.value)}
-                    autoFocus
-                />
-                <p className="mt-2 text-[13px] text-[#6b7280]">This reason will be recorded against the booking.</p>
-
-                <div className="mt-6 flex justify-end gap-2.5">
+                <div className="mt-6 flex justify-center gap-2.5">
                     <button
                         onClick={onCancel}
                         disabled={isLoading}
-                        className="rounded-xl border border-[#dbe7df] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4b5563] transition hover:bg-[#f6fbf8] disabled:opacity-40"
+                        className="rounded-xl border border-[#e2e8f0] bg-white px-6 py-2.5 text-[14.5px] font-medium text-[#4b5563] transition hover:bg-[#f6fbf8] disabled:opacity-40"
                     >
                         Cancel
                     </button>
                     <button
-                        onClick={() => onConfirm(remarks)}
-                        disabled={isLoading || !remarks.trim()}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#dc2626] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#b91c1c] disabled:opacity-40"
+                        onClick={() => onConfirm()}
+                        disabled={isLoading}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-6 py-2.5 text-[14.5px] font-semibold text-white transition hover:bg-[#166534] disabled:opacity-40"
                     >
-                        {isLoading ? 'Rejecting...' : 'Reject booking'}
+                        {isLoading ? 'Approving...' : 'Yes, Approve'}
                     </button>
                 </div>
             </div>
@@ -148,31 +131,108 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
     )
 }
 
-function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
+function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
+    const [remarks, setRemarks] = useState('')
+    
+    // Adapt text depending on if it's a new request or an already approved one being cancelled
+    const isCancellation = booking?.status === 'APPROVED';
+    const title = isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?';
+    const buttonText = isCancellation ? 'Revoke & Cancel' : 'Reject Booking';
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
+            <div
+                className="w-full max-w-[460px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+            >
+                <p className="text-[19px] font-semibold tracking-tight text-[#0f172a]">{title}</p>
+                <p className="mt-1 border-b border-[#e8f5ee] pb-4 text-[14px] text-[#6b7280]">
+                    <span className="font-semibold text-[#0f172a]">{booking.reference_code}</span>
+                    {' - '}
+                    {booking.event_name}
+                </p>
+                <label className="mt-5 mb-2 block text-[12px] font-bold uppercase tracking-[0.1em] text-[#6b7280]">
+                    Reason <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                    className="min-h-[108px] w-full resize-none rounded-xl border border-[#dbe7df] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7]"
+                    placeholder="e.g. Equipment unavailable, scheduling conflict..."
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    autoFocus
+                />
+                <p className="mt-2 text-[13px] text-[#6b7280]">This reason will be recorded and notified to the user.</p>
+                <div className="mt-6 flex justify-end gap-2.5">
+                    <button
+                        onClick={onCancel}
+                        disabled={isLoading}
+                        className="rounded-xl border border-[#dbe7df] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4b5563] transition hover:bg-[#f6fbf8] disabled:opacity-40"
+                    >
+                        Close
+                    </button>
+                    <button
+                        onClick={() => onConfirm(remarks)}
+                        disabled={isLoading || !remarks.trim()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#dc2626] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#b91c1c] disabled:opacity-40"
+                    >
+                        {isLoading ? 'Processing...' : buttonText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function SuccessModal({ booking, onClose }) {
+    if (!booking) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
+            <div className="w-full max-w-[360px] rounded-2xl border border-[#e8f5ee] bg-white p-8 text-center shadow-2xl shadow-black/10"
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}>
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
+                    <Check className="h-6 w-6 text-[#15803d]" />
+                </div>
+                <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Booking approved!</p>
+                <p className="mt-2 text-[14px] leading-relaxed text-[#6b6b6b]">
+                    <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved.
+                </p>
+                <button
+                    onClick={onClose}
+                    className="mt-6 w-full rounded-xl bg-[#15803d] py-3 text-[14px] font-semibold text-white transition hover:bg-[#166534]"
+                >
+                    Done
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onRejectClick }) {
     const [isExpanded, setIsExpanded] = useState(false)
-    const equipment = booking.equipment_requests ?? []
+    const equipment    = booking.equipment_requests ?? []
     const hasEquipment = equipment.length > 0
-    const hasServices = Boolean(booking.requested_services?.trim())
-    const hasNotes = Boolean(booking.user_notes?.trim())
-    const hasBuffer =
+    const hasServices  = Boolean(booking.requested_services?.trim())
+    const hasNotes     = Boolean(booking.user_notes?.trim())
+    const hasBuffer    =
         booking.setup_start_time !== booking.event_start_time ||
         booking.teardown_end_time !== booking.event_end_time
 
-    const user = booking.user_details ?? {}
-    const requesterName = user.name || booking.user_name || `User #${booking.user}`
+    const user                = booking.user_details ?? {}
+    const requesterName       = user.name || booking.user_name || `User #${booking.user}`
     const requesterDepartment = user.department || user.department_code || booking.department_name || 'Department not provided'
-    const requesterPhone = user.phone || booking.requester_phone
-    const requesterEmail = user.email || booking.requester_email
-    const requesterId = user.employee_student_id
-    const spaceName = booking.space_details?.name || 'Any suitable space'
-    const location = booking.space_details?.location || 'Location not specified'
+    const requesterPhone      = user.phone || booking.requester_phone
+    const requesterEmail      = user.email || booking.requester_email
+    const spaceName           = booking.space_details?.name || 'Any suitable space'
+    const location            = booking.space_details?.location || 'Location not specified'
 
     return (
         <article className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-amber-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'}`}>
-            <button
-                type="button"
-                className="block w-full cursor-pointer select-none px-6 py-5 text-left"
-                onClick={() => setIsExpanded((value) => !value)}
+            <div
+                className="block w-full cursor-pointer px-6 py-5 text-left"
+                onClick={() => {
+                    if (window.getSelection().toString().length > 0) return;
+                    setIsExpanded((v) => !v)
+                }}
             >
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -197,7 +257,7 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
                     </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-[1.5fr_1.35fr_2.15fr]">
                     <div>
                         <FieldLabel>Space / Location</FieldLabel>
                         <div className="flex items-start gap-3">
@@ -235,109 +295,104 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d1fae5] bg-[#f0fdf4] text-[15px] font-bold text-[#15803d]">
                                 {requesterName.charAt(0).toUpperCase()}
                             </div>
-                            <div className="min-w-0 space-y-1">
-                                <p className="truncate text-[15.5px] font-semibold leading-tight text-[#0f172a]">{requesterName}</p>
-                                <p className="mt-1 truncate text-[13.5px] font-semibold text-[#15803d]">{requesterDepartment}</p>
+                            <div className="min-w-0 space-y-1.5">
+                                <p className="truncate text-[17px] font-bold leading-tight text-gray-900">{requesterName}</p>
+                                <p className="truncate text-[14.5px] font-semibold text-green-700">{requesterDepartment}</p>
                                 {requesterPhone && (
-                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
-                                        <Phone className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
-                                        {requesterPhone}
+                                    <p className="flex items-center gap-2 truncate text-[15px] font-medium text-gray-800">
+                                        <Phone className="h-4 w-4 shrink-0 text-green-700" /> {requesterPhone}
                                     </p>
                                 )}
                                 {requesterEmail && (
-                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
-                                        <Mail className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
-                                        {requesterEmail}
-                                    </p>
-                                )}
-                                {requesterId && (
-                                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-[#6b7280]">
-                                        <User className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
-                                        {requesterId}
+                                    <p className="flex items-center gap-2 truncate text-[15px] font-medium text-gray-800">
+                                        <Mail className="h-4 w-4 shrink-0 text-green-700" /> {requesterEmail}
                                     </p>
                                 )}
                             </div>
                         </div>
                     </div>
                 </div>
-            </button>
+            </div>
 
+            {/* EXPANDED CONTENT AREA */}
             {isExpanded && (
-                <div className="border-t border-[#e8f5ee] px-6 pb-6 pt-5">
-                    <div className="space-y-5">
-                        {/* Media Schedule — full grid only when buffer exists, simple row otherwise */}
-                        <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-5">
-                            <FieldLabel>Media Schedule</FieldLabel>
-                            {hasBuffer ? (
-                                <div className="grid gap-4 md:grid-cols-4">
-                                    {[
-                                        ['Setup starts', booking.setup_start_time],
-                                        ['Event starts', booking.event_start_time],
-                                        ['Event ends', booking.event_end_time],
-                                        ['Teardown ends', booking.teardown_end_time],
-                                    ].map(([label, value]) => (
-                                        <div key={label}>
-                                            <p className="text-[12.5px] font-semibold text-[#6b7280]">{label}</p>
-                                            <p className="mt-1 text-[16px] font-bold text-[#0f172a]">{formatTime(value)}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    {[
-                                        ['Event starts', booking.event_start_time],
-                                        ['Event ends', booking.event_end_time],
-                                    ].map(([label, value]) => (
-                                        <div key={label}>
-                                            <p className="text-[12.5px] font-semibold text-[#6b7280]">{label}</p>
-                                            <p className="mt-1 text-[16px] font-bold text-[#0f172a]">{formatTime(value)}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            <p className="mt-4 text-[13.5px] font-medium text-[#6b7280]">
-                                {hasBuffer ? 'Buffer time is included for setup and teardown.' : 'No extra setup or teardown buffer was requested.'}
-                            </p>
-                        </div>
+                <div className="px-6 pb-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="pt-6 border-t border-[#e8f5ee]">
 
-                        <div className="grid gap-5 md:grid-cols-2">
-                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
-                                <FieldLabel>Equipment</FieldLabel>
-                                {hasEquipment ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {equipment.map((item) => (
-                                            <span
-                                                key={item.id ?? item.equipment}
-                                                className="inline-flex items-center gap-2 rounded-xl bg-[#dcfce7] px-3 py-1.5 text-[13.5px] font-semibold text-[#14532d]"
-                                            >
-                                                <Package className="h-4 w-4" />
-                                                {item.equipment_name || `Equipment #${item.equipment}`}
-                                                {item.quantity > 1 && <span className="text-[#4b5563]">x {item.quantity}</span>}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-[14.5px] font-medium text-[#6b7280]">No equipment requested.</p>
-                                )}
-                            </div>
-
-                            <div className="rounded-xl border border-[#e8f5ee] bg-white p-5">
-                                <FieldLabel>Services</FieldLabel>
-                                {hasServices ? (
-                                    <p className="flex items-start gap-2 text-[14.5px] font-medium leading-relaxed text-[#0f172a]">
-                                        <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#15803d]" />
-                                        {booking.requested_services}
+                        <div className="mb-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+                            <div>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Purpose of Booking</p>
+                                <div className="h-full bg-[#f0fdf4] border border-[#d1fae5] rounded-xl px-4 py-3.5">
+                                    <p className="text-[14.5px] text-[#14532d] font-medium leading-relaxed">
+                                        {booking.purpose_of_booking || booking.purpose || 'No purpose provided.'}
                                     </p>
-                                ) : (
-                                    <p className="text-[14.5px] font-medium text-[#6b7280]">No extra media service requested.</p>
-                                )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Media Timing</p>
+                                <div className="h-full rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] px-4 py-3.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <p className="text-[14.5px] font-semibold text-[#0f172a]">
+                                            Event: {formatTime(booking.event_start_time)} - {formatTime(booking.event_end_time)}
+                                        </p>
+                                        <p className="rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#4b5563]">
+                                            {hasBuffer ? 'Buffer included' : 'No extra buffer'}
+                                        </p>
+                                    </div>
+                                    {hasBuffer && (
+                                        <p className="mt-3 text-[13.5px] font-medium text-[#6b7280]">
+                                            Setup starts at {formatTime(booking.setup_start_time)} and teardown ends at {formatTime(booking.teardown_end_time)}.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        {hasNotes && (
-                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-                                <FieldLabel>User Notes</FieldLabel>
-                                <p className="text-[14.5px] font-medium leading-relaxed text-amber-950">{booking.user_notes}</p>
+                        {/* Equipment + Services + Notes */}
+                        {(hasEquipment || hasServices || hasNotes) && (
+                            <div className="flex flex-col gap-5 mb-6">
+                                {hasEquipment && (
+                                    <div>
+                                        <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#15803d] inline-block">
+                                            Equipment Needed
+                                        </p>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {booking.equipment_requests.map((er) => (
+                                                <span key={er.id} className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#14532d] bg-[#dcfce7] px-3.5 py-1.5 rounded-xl">
+                                                    <Package className="h-4 w-4" />
+                                                    {er.equipment_name || `Equipment #${er.equipment}`}
+                                                    {er.quantity > 1 && <span className="text-[#4a6b58] font-medium">× {er.quantity}</span>}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {hasServices && (
+                                    <div>
+                                        <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#15803d] inline-block">
+                                            Services Needed
+                                        </p>
+                                        <div className="mt-2 rounded-xl border border-[#e8f5ee] bg-white px-4 py-3.5">
+                                            <p className="flex items-start gap-2 text-[14.5px] font-medium leading-relaxed text-[#0f172a]">
+                                                <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#15803d]" />
+                                                {booking.requested_services}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                                {hasNotes && (
+                                    <div>
+                                        <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#f59e0b] inline-block">
+                                            Notes from Requester
+                                        </p>
+                                        <div className="mt-2 bg-[#fffbeb] rounded-xl px-4 py-3.5 border border-[#fef3c7]">
+                                            <p className="text-[14.5px] text-[#374151] leading-relaxed">
+                                                {booking.user_notes}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -351,38 +406,34 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
                         )}
                     </div>
 
-                    {isPending && (
-                        <div className="mt-5 flex justify-end gap-2.5 border-t border-[#e8f5ee] pt-5">
+                    <div className="flex justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
+                        {isPendingTab ? (
+                            <>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                    disabled={isActing}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
+                                >
+                                    <X className="h-4 w-4" /> Reject
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                    disabled={isActing}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
+                                >
+                                    {isActing ? 'Processing…' : <><Check className="h-4 w-4" /> Approve</>}
+                                </button>
+                            </>
+                        ) : booking.status === 'APPROVED' ? ( // Fixed condition to look at booking status
                             <button
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    onReject(booking)
-                                }}
+                                onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
                                 disabled={isActing}
-                                className="inline-flex items-center gap-2 rounded-xl border border-[#dbe7df] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#374151] transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
                             >
-                                <X className="h-4 w-4" />
-                                Reject
+                                <X className="h-4 w-4" /> Revoke & Cancel Booking
                             </button>
-                            <button
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    onApprove(booking.id)
-                                }}
-                                disabled={isActing}
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#166534] disabled:opacity-40"
-                            >
-                                {isActing ? (
-                                    'Processing...'
-                                ) : (
-                                    <>
-                                        <Check className="h-4 w-4" />
-                                        Approve
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    )}
+                        ) : null}
+                    </div>
                 </div>
             )}
         </article>
@@ -390,19 +441,20 @@ function BookingCard({ booking, isPending, isActing, onApprove, onReject }) {
 }
 
 function AdminMediaPage() {
-    const [activeTab, setActiveTab] = useState('pending')
-    const [data, setData] = useState({ pending: [], resolved: [], active: [] })
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
+    const { user, isLoading: authLoading } = useAuth()
+    const canManageMedia = user?.capabilities?.can_manage_media
+
+    const [activeTab,     setActiveTab]     = useState('pending')
+    const [data,          setData]          = useState({ pending: [], resolved: [], active: [] })
+    const [loading,       setLoading]       = useState(true)
+    const [error,         setError]         = useState('')
     const [actionLoading, setActionLoading] = useState(null)
-    const [rejectTarget, setRejectTarget] = useState(null)
+    const [rejectTarget,  setRejectTarget]  = useState(null)
+    const [approveTarget, setApproveTarget] = useState(null)
+    const [successTarget, setSuccessTarget] = useState(null)
 
     const fetchData = useCallback(async ({ showLoading = true } = {}) => {
-        if (showLoading) {
-            await Promise.resolve()
-            setLoading(true)
-        }
-
+        if (showLoading) setLoading(true)
         try {
             const nextData = await loadAdminMediaData()
             setData(nextData)
@@ -416,36 +468,20 @@ function AdminMediaPage() {
     }, [])
 
     useEffect(() => {
-        let isCurrent = true
+        if (!canManageMedia) return;
+        const loadInitial = async () => {
+            await fetchData({ showLoading: false });
+        };
+        loadInitial();
+    }, [canManageMedia, fetchData])
 
-        const loadInitialData = async () => {
-            await Promise.resolve()
-            if (!isCurrent) return
-
-            setLoading(true)
-            try {
-                const nextData = await loadAdminMediaData()
-                if (!isCurrent) return
-                setData(nextData)
-                setError('')
-            } catch (err) {
-                console.error('Failed to load media admin data', err)
-                if (isCurrent) setError('Could not load media requests. Please try again.')
-            } finally {
-                if (isCurrent) setLoading(false)
-            }
-        }
-
-        loadInitialData()
-        return () => {
-            isCurrent = false
-        }
-    }, [])
-
-    const handleApprove = async (id) => {
-        setActionLoading(id)
+    const handleApproveConfirm = async () => {
+        if (!approveTarget) return;
+        setActionLoading(approveTarget.id)
         try {
-            await mediaApi.reviewBooking(id, { status: 'APPROVED' })
+            await mediaApi.reviewBooking(approveTarget.id, { status: 'APPROVED' })
+            setSuccessTarget(approveTarget)
+            setApproveTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
             alert(`Failed to approve booking. ${err.response?.data?.error || ''}`)
@@ -454,15 +490,11 @@ function AdminMediaPage() {
         }
     }
 
-    const handleReject = async (remarks) => {
+    const handleRejectConfirm = async (remarks) => {
         if (!rejectTarget) return
-
         setActionLoading(rejectTarget.id)
         try {
-            await mediaApi.reviewBooking(rejectTarget.id, {
-                status: 'REJECTED',
-                remarks_by_admin: remarks,
-            })
+            await mediaApi.reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks_by_admin: remarks })
             setRejectTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
@@ -472,35 +504,74 @@ function AdminMediaPage() {
         }
     }
 
-    // Sort: external events float to top within any tab
     const sortedList = (list) =>
         [...list].sort((a, b) => (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0))
 
     const list = sortedList(data[activeTab] || [])
 
-    const activeTodayCount = data.active.filter((booking) => {
-        if (!booking.booking_date) return false
-        const today = new Date().toLocaleDateString('en-CA')
-        return booking.booking_date === today
+    const activeTodayCount = data.active.filter((b) => {
+        if (!b.booking_date) return false
+        return b.booking_date === new Date().toLocaleDateString('en-CA')
     }).length
 
     const tabs = [
-        { id: 'pending', label: 'Pending Requests', count: data.pending.length },
-        { id: 'active', label: 'Active Bookings', count: data.active.length },
-        { id: 'resolved', label: 'Resolved by Me', count: data.resolved.length },
+        { id: 'pending',  label: 'Pending Requests', count: data.pending.length  },
+        { id: 'active',   label: 'Active Bookings',  count: data.active.length   },
+        { id: 'resolved', label: 'Resolved by Me',   count: data.resolved.length },
     ]
+
+    if (authLoading) {
+        return (
+            <div className="flex min-h-full items-center justify-center bg-[#f6fbf8]">
+                <RefreshCw className="h-8 w-8 animate-spin text-[#15803d]" />
+            </div>
+        )
+    }
+
+    if (!canManageMedia) {
+        return (
+            <div
+                className="flex min-h-full flex-col items-center justify-center gap-3 bg-[#f6fbf8] p-8 text-center"
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+            >
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
+                    <X className="h-7 w-7" />
+                </div>
+                <p className="text-[18px] font-bold text-[#0f172a]">Access Denied</p>
+                <p className="max-w-sm text-[14px] text-[#6b7280]">
+                    You don't have permission to access the Media admin panel.
+                </p>
+            </div>
+        )
+    }
 
     return (
         <div
             className="min-h-full bg-[#f6fbf8] p-6 md:p-8"
             style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
         >
+            {approveTarget && (
+                <ApproveModal
+                    booking={approveTarget}
+                    onConfirm={handleApproveConfirm}
+                    onCancel={() => setApproveTarget(null)}
+                    isLoading={actionLoading === approveTarget.id}
+                />
+            )}
+
             {rejectTarget && (
                 <RejectModal
                     booking={rejectTarget}
-                    onConfirm={handleReject}
+                    onConfirm={handleRejectConfirm}
                     onCancel={() => setRejectTarget(null)}
                     isLoading={actionLoading === rejectTarget.id}
+                />
+            )}
+
+            {successTarget && (
+                <SuccessModal
+                    booking={successTarget}
+                    onClose={() => setSuccessTarget(null)}
                 />
             )}
 
@@ -508,7 +579,7 @@ function AdminMediaPage() {
                 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>
                         <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">
-                            Rajagiri College - Admin
+                            Rajagiri College · Admin
                         </p>
                         <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">
                             Media Operations
@@ -517,7 +588,6 @@ function AdminMediaPage() {
                             Review media support, portable equipment, and service requests.
                         </p>
                     </div>
-
                     <button
                         onClick={() => fetchData()}
                         disabled={loading}
@@ -530,9 +600,9 @@ function AdminMediaPage() {
 
                 <div className="mb-6 grid gap-3 md:grid-cols-3">
                     {[
-                        { value: data.pending.length, label: 'Waiting for review' },
-                        { value: data.active.length, label: 'Approved active bookings' },
-                        { value: activeTodayCount, label: 'Approved for today' },
+                        { value: data.pending.length, label: 'Waiting for review'       },
+                        { value: data.active.length,  label: 'Approved active bookings' },
+                        { value: activeTodayCount,    label: 'Approved for today'        },
                     ].map(({ value, label }) => (
                         <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
                             <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>
@@ -587,10 +657,10 @@ function AdminMediaPage() {
                             <BookingCard
                                 key={booking.id}
                                 booking={booking}
-                                isPending={activeTab === 'pending'}
+                                isPendingTab={activeTab === 'pending'}
                                 isActing={actionLoading === booking.id}
-                                onApprove={handleApprove}
-                                onReject={setRejectTarget}
+                                onApproveClick={setApproveTarget}
+                                onRejectClick={setRejectTarget}
                             />
                         ))
                     )}

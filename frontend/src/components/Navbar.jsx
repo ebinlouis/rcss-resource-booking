@@ -82,14 +82,18 @@ function Navbar({ onTabChange }) {
     navigate("/")
   }
 
-  // Backend admin routing logic preserved
+  // Backend admin routing logic explicitly checks media capability
   const handleAdminPortalClick = (e) => {
     e.preventDefault()
+
+    const can_manage_media = user?.capabilities?.can_manage_media
 
     if (user?.is_superuser || can_manage_system) {
       navigate("/admin")
     } else if (can_manage_mess) {
       navigate("/admin/mess")
+    } else if (can_manage_media) {
+      navigate("/admin/media")
     } else {
       navigate("/admin")
     }

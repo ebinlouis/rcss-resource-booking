@@ -96,6 +96,12 @@ class IsMessAdmin(HasDynamicRole):
     required_roles = ["mess"]
 
 
+class IsMediaAdmin(HasDynamicRole):
+    """Media module — approve, reject, view all bookings."""
+
+    required_roles = ["media"]
+
+
 class CanBookResource(HasDynamicRole):
     """Anyone with a recognised institutional role can submit bookings."""
 

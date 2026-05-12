@@ -1,9 +1,3 @@
-/**
- * mediaApi.js — src/api/mediaApi.js
- *
- * Axios-based API layer for the Media booking module.
- * Mirrors the pattern used by messService.js and fleetApi.js.
- */
 import api from './axios';
 
 const MEDIA_ENDPOINT = 'media/bookings/';
@@ -72,7 +66,9 @@ const mediaService = {
    * PATCH /api/media/bookings/<id>/
    */
   updateBooking: async (id, updateData) => {
-    const response = await api.patch(`${MEDIA_ENDPOINT}${id}/`, updateData);
+    const response = await api.patch(`${MEDIA_ENDPOINT}${id}/`, updateData, {
+      params: { view: 'general' }
+    });
     return response.data;
   },
 
@@ -80,17 +76,25 @@ const mediaService = {
    * DELETE /api/media/bookings/<id>/
    */
   deleteBooking: async (id) => {
-    await api.delete(`${MEDIA_ENDPOINT}${id}/`);
+    await api.delete(`${MEDIA_ENDPOINT}${id}/`, {
+      params: { view: 'general' }
+    });
   },
 
   /**
    * PATCH /api/media/bookings/<id>/review/
    */
   reviewBooking: async (id, { status, remarks_by_admin = '' }) => {
-    const response = await api.patch(`${MEDIA_ENDPOINT}${id}/review/`, {
-      status,
-      remarks_by_admin,
-    });
+    const response = await api.patch(
+      `${MEDIA_ENDPOINT}${id}/review/`, 
+      {
+        status,
+        remarks_by_admin,
+      },
+      {
+        params: { view: 'general' }
+      }
+    );
     return response.data;
   },
 };
