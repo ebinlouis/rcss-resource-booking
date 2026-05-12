@@ -75,7 +75,7 @@ function MessBookingForm({ onClose }) {
               New Booking
             </p>
 
-            <h2 className="text-2xl font-bold mt-2">
+            <h2 className="text-2xl font-bold mt-2 text-white">
               Mess Request
             </h2>
 
