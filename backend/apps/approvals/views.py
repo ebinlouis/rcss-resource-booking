@@ -12,32 +12,21 @@ from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
 
-
 # ==========================================
 # CONSTANTS
 # ==========================================
 
-# All known booking domains. Add new modules here as the system grows —
-# no changes needed anywhere else as long as the new domain follows the
-# same pattern in _build_queue_entry().
 VALID_DOMAINS = {'spaces', 'fleet', 'mess', 'media'}
-
 
 # ==========================================
 # HELPER
 # ==========================================
 
 def _requester_info(user):
-    """
-    Returns a dict of display-ready requester fields.
-    Centralised so every domain (spaces, fleet, mess, media) stays consistent.
-    """
     full_name = f"{user.first_name} {user.last_name}".strip() or user.email
-
     dept = getattr(user, 'department', None)
     dept_name = dept.department_name if dept else 'General'
     dept_code = dept.department_code if dept else 'General'
-
     phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None) or ''
 
     return {
@@ -50,11 +39,6 @@ def _requester_info(user):
 
 
 def _build_queue_entry(domain, item, **extra_fields):
-    """
-    Builds a normalised queue entry dict for any domain.
-    `extra_fields` carries domain-specific keys (resource_name, purpose, etc.)
-    that differ between modules.
-    """
     return {
         "id":             item.id,
         "domain":         domain,
@@ -62,6 +46,7 @@ def _build_queue_entry(domain, item, **extra_fields):
         **_requester_info(item.user),
         "created_at":     item.created_at,
         "is_external":    getattr(item, 'is_external', False),
+        "status":         getattr(item, 'status', 'PENDING'),
         **extra_fields,
     }
 
@@ -77,46 +62,23 @@ class UnifiedApprovalQueueView(APIView):
         user = request.user
         now  = timezone.now()
 
-        # ── 1. DOMAIN SCOPING ────────────────────────────────────────────────
-        # Callers MUST pass ?domain=<domain> to receive only the bookings
-        # relevant to their page. Omitting the param or passing an unrecognised
-        # value returns a 400 so pages never accidentally receive mixed data.
-        #
-        # To add a new module in future:
-        #   1. Import its model at the top of this file.
-        #   2. Add it to VALID_DOMAINS.
-        #   3. Add its query + serialisation block in _get_domain_querysets()
-        #      and _serialise_domain() below.
-        #   That's it — no frontend or URL changes required.
         requested_domains_param = request.query_params.get('domain', '').strip()
+        requested_status = request.query_params.get('status', 'PENDING').upper()
 
         if not requested_domains_param:
             return Response(
-                {
-                    "error": (
-                        "A 'domain' query parameter is required. "
-                        f"Valid values: {', '.join(sorted(VALID_DOMAINS))}."
-                    )
-                },
+                {"error": f"A 'domain' query parameter is required. Valid values: {', '.join(sorted(VALID_DOMAINS))}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Support comma-separated values for future multi-domain admin views
-        # e.g. ?domain=spaces,fleet  (not used today but costs nothing to support)
         requested_domains = {d.strip().lower() for d in requested_domains_param.split(',')}
         invalid = requested_domains - VALID_DOMAINS
         if invalid:
             return Response(
-                {
-                    "error": (
-                        f"Unknown domain(s): {', '.join(sorted(invalid))}. "
-                        f"Valid values: {', '.join(sorted(VALID_DOMAINS))}."
-                    )
-                },
+                {"error": f"Unknown domain(s): {', '.join(sorted(invalid))}. Valid values: {', '.join(sorted(VALID_DOMAINS))}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── 2. EFFECTIVE ROLE ────────────────────────────────────────────────
         active_override = RoleOverride.objects.filter(
             user=user, is_active=True
         ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).first()
@@ -127,12 +89,10 @@ class UnifiedApprovalQueueView(APIView):
             else (user.role.name if user.role else None)
         )
 
-        # ── 3. BUILD QUERYSETS FOR REQUESTED DOMAINS ONLY ───────────────────
         domain_querysets = self._get_domain_querysets(
-            requested_domains, user, effective_role
+            requested_domains, user, effective_role, requested_status
         )
 
-        # ── 4. SERIALISE ─────────────────────────────────────────────────────
         unified_queue = []
         for domain, qs in domain_querysets.items():
             for item in qs:
@@ -140,7 +100,6 @@ class UnifiedApprovalQueueView(APIView):
                 if entry:
                     unified_queue.append(entry)
 
-        # ── 5. SORT: PRIORITY (external) first, then oldest ──────────────────
         unified_queue.sort(
             key=lambda x: (not x.get('is_external', False), x['created_at'])
         )
@@ -150,24 +109,16 @@ class UnifiedApprovalQueueView(APIView):
             "queue":         unified_queue,
         })
 
-    # ── Private helpers ───────────────────────────────────────────────────────
-
-    def _get_domain_querysets(self, requested_domains, user, effective_role):
-        """
-        Returns {domain: queryset} for each requested domain, pre-filtered
-        by status=PENDING and role-based department scope.
-        """
+    def _get_domain_querysets(self, requested_domains, user, effective_role, requested_status):
         is_superuser_or_it = user.is_superuser or effective_role == 'IT_ADMIN'
         is_hod             = effective_role == 'HOD'
         user_dept          = getattr(user, 'department', None)
 
         def _apply_role_scope(qs):
-            """Narrows a queryset to the approver's department if they are a HOD."""
             if is_superuser_or_it:
                 return qs
             if is_hod and user_dept:
                 return qs.filter(user__department=user_dept)
-            # Any other role sees nothing
             return qs.none()
 
         querysets = {}
@@ -175,7 +126,7 @@ class UnifiedApprovalQueueView(APIView):
         if 'spaces' in requested_domains:
             querysets['spaces'] = _apply_role_scope(
                 SpaceBooking.objects
-                .filter(status='PENDING')
+                .filter(status=requested_status)
                 .select_related('user', 'user__department', 'space')
                 .prefetch_related('requested_equipment__equipment')
             )
@@ -183,31 +134,27 @@ class UnifiedApprovalQueueView(APIView):
         if 'fleet' in requested_domains:
             querysets['fleet'] = _apply_role_scope(
                 FleetBooking.objects
-                .filter(status='PENDING')
+                .filter(status=requested_status)
                 .select_related('user', 'user__department', 'vehicle')
             )
 
         if 'mess' in requested_domains:
             querysets['mess'] = _apply_role_scope(
                 MessBooking.objects
-                .filter(status='PENDING')
+                .filter(status=requested_status)
                 .select_related('user', 'user__department')
             )
 
         if 'media' in requested_domains:
             querysets['media'] = _apply_role_scope(
                 MediaBooking.objects
-                .filter(status='PENDING')
+                .filter(status=requested_status)
                 .select_related('user', 'user__department')
             )
 
         return querysets
 
     def _serialise_domain(self, domain, item):
-        """
-        Returns a normalised dict for a single booking item.
-        Add a new `elif domain == 'your_module':` block when adding modules.
-        """
         if domain == 'spaces':
             equipment_list = [
                 {
@@ -267,8 +214,6 @@ class UnifiedApprovalQueueView(APIView):
                 user_notes     = getattr(item, 'user_notes', '') or "",
             )
 
-        # Unknown domain — skip silently (should never reach here due to
-        # validation in get(), but defensive programming doesn't hurt).
         return None
 
 
@@ -287,7 +232,6 @@ class AdminResolveBookingAPIView(APIView):
     }
 
     def patch(self, request):
-        """Approves or rejects a specific booking."""
         module     = request.data.get('module')
         booking_id = request.data.get('id')
         new_status = request.data.get('status')
@@ -307,7 +251,7 @@ class AdminResolveBookingAPIView(APIView):
 
         if new_status == 'REJECTED' and not remarks:
             return Response(
-                {"error": "You must provide 'remarks' when rejecting a request."},
+                {"error": "You must provide 'remarks' when rejecting/cancelling a request."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -320,9 +264,17 @@ class AdminResolveBookingAPIView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if booking.status != 'PENDING':
+        # Allow transitioning to APPROVED only if PENDING.
+        if new_status == 'APPROVED' and booking.status != 'PENDING':
             return Response(
                 {"error": f"Booking is already {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+            
+        # Allow transitioning to REJECTED if PENDING or APPROVED.
+        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
+             return Response(
+                {"error": f"Cannot reject a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

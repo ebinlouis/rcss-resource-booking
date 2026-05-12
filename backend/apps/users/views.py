@@ -61,16 +61,17 @@ def _normalize(role):
 # Add new roles here as lowercase strings only.
 
 _SYSTEM_ADMIN_ROLES = {"it admin"}
-_HOD_ROLES = {"hod"}
-_MESS_ROLES = {"mess"}
-_SPACES_ROLES = {
+_HOD_ROLES          = {"hod"}
+_MESS_ROLES         = {"mess"}
+_MEDIA_ROLES        = {"media"}
+_SPACES_ROLES       = {
     "facility manager",
     "receptionist",
     "lab in-charge",
     "librarian",
     "principal",
 }
-_EQUIPMENT_ROLES = {"hod", "it admin"}
+_EQUIPMENT_ROLES    = {"hod", "it admin"}
 
 
 # ==========================================
@@ -103,7 +104,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         response = super().post(request, *args, **kwargs)
 
         if response.status_code == 200:
-            access_token = response.data.get("access")
+            access_token  = response.data.get("access")
             refresh_token = response.data.get("refresh")
 
             response.set_cookie(
@@ -156,46 +157,49 @@ class CurrentUserView(APIView):
 
         role = _normalize(effective_role)
 
-        can_manage_system = role in _SYSTEM_ADMIN_ROLES
-        can_manage_mess = role in _MESS_ROLES
-        can_manage_spaces = role in _SPACES_ROLES
+        can_manage_system    = role in _SYSTEM_ADMIN_ROLES
+        can_manage_mess      = role in _MESS_ROLES
+        can_manage_media     = role in _MEDIA_ROLES
+        can_manage_spaces    = role in _SPACES_ROLES
         can_manage_equipment = role in _EQUIPMENT_ROLES
 
         can_access_admin_portal = (
             can_manage_system
             or can_manage_mess
+            or can_manage_media
             or can_manage_spaces
             or can_manage_equipment
         )
 
         return Response(
             {
-                "id": user.id,
+                "id":    user.id,
                 "email": user.email,
-                "name": user.first_name,
+                "name":  user.first_name,
                 # Full profile fields (used by Profile.jsx)
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phone": user.phone,
-                "designation": user.designation,
+                "first_name":          user.first_name,
+                "last_name":           user.last_name,
+                "phone":               user.phone,
+                "designation":         user.designation,
                 "employee_student_id": user.employee_student_id,
                 # department returns the FK id so ProfileForm can pre-select
-                "department": user.department_id,
+                "department":      user.department_id,
                 "department_name": (
                     user.department.department_name if user.department else None
                 ),
-                "base_role": user.role.name if getattr(user, "role", None) else None,
-                "effective_role": effective_role,
-                "has_active_override": has_active_override,
-                "override_expires_at": override_expires_at,
-                "is_staff": user.is_staff,
-                "is_superuser": user.is_superuser,
+                "base_role":            user.role.name if getattr(user, "role", None) else None,
+                "effective_role":       effective_role,
+                "has_active_override":  has_active_override,
+                "override_expires_at":  override_expires_at,
+                "is_staff":             user.is_staff,
+                "is_superuser":         user.is_superuser,
                 "capabilities": {
                     "can_access_admin_portal": can_access_admin_portal,
-                    "can_manage_system": can_manage_system,
-                    "can_manage_spaces": can_manage_spaces,
-                    "can_manage_equipment": can_manage_equipment,
-                    "can_manage_mess": can_manage_mess,
+                    "can_manage_system":       can_manage_system,
+                    "can_manage_spaces":       can_manage_spaces,
+                    "can_manage_equipment":    can_manage_equipment,
+                    "can_manage_mess":         can_manage_mess,
+                    "can_manage_media":        can_manage_media,
                 },
             }
         )
@@ -219,7 +223,7 @@ class UserProfileUpdateView(APIView):
     UPDATABLE_FIELDS = ["first_name", "last_name", "phone", "designation", "department"]
 
     def patch(self, request):
-        user = request.user
+        user   = request.user
         errors = {}
 
         for field in self.UPDATABLE_FIELDS:
@@ -267,43 +271,48 @@ class UserProfileUpdateView(APIView):
             user
         )
         role = _normalize(effective_role)
-        can_manage_system = role in _SYSTEM_ADMIN_ROLES
-        can_manage_mess = role in _MESS_ROLES
-        can_manage_spaces = role in _SPACES_ROLES
+
+        can_manage_system    = role in _SYSTEM_ADMIN_ROLES
+        can_manage_mess      = role in _MESS_ROLES
+        can_manage_media     = role in _MEDIA_ROLES
+        can_manage_spaces    = role in _SPACES_ROLES
         can_manage_equipment = role in _EQUIPMENT_ROLES
+
         can_access_admin_portal = (
             can_manage_system
             or can_manage_mess
+            or can_manage_media
             or can_manage_spaces
             or can_manage_equipment
         )
 
         return Response(
             {
-                "id": user.id,
+                "id":    user.id,
                 "email": user.email,
-                "name": user.first_name,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phone": user.phone,
-                "designation": user.designation,
+                "name":  user.first_name,
+                "first_name":          user.first_name,
+                "last_name":           user.last_name,
+                "phone":               user.phone,
+                "designation":         user.designation,
                 "employee_student_id": user.employee_student_id,
-                "department": user.department_id,
+                "department":      user.department_id,
                 "department_name": (
                     user.department.department_name if user.department else None
                 ),
-                "base_role": user.role.name if getattr(user, "role", None) else None,
-                "effective_role": effective_role,
+                "base_role":           user.role.name if getattr(user, "role", None) else None,
+                "effective_role":      effective_role,
                 "has_active_override": has_active_override,
                 "override_expires_at": override_expires_at,
-                "is_staff": user.is_staff,
-                "is_superuser": user.is_superuser,
+                "is_staff":            user.is_staff,
+                "is_superuser":        user.is_superuser,
                 "capabilities": {
                     "can_access_admin_portal": can_access_admin_portal,
-                    "can_manage_system": can_manage_system,
-                    "can_manage_spaces": can_manage_spaces,
-                    "can_manage_equipment": can_manage_equipment,
-                    "can_manage_mess": can_manage_mess,
+                    "can_manage_system":       can_manage_system,
+                    "can_manage_spaces":       can_manage_spaces,
+                    "can_manage_equipment":    can_manage_equipment,
+                    "can_manage_mess":         can_manage_mess,
+                    "can_manage_media":        can_manage_media,
                 },
             }
         )
@@ -318,7 +327,7 @@ class DashboardAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        user  = request.user
         today = timezone.now().date()
 
         spaces = (
@@ -355,43 +364,43 @@ class DashboardAPIView(APIView):
         return Response(
             {
                 "greeting": {
-                    "user_name": user.first_name or "User",
+                    "user_name":     user.first_name or "User",
                     "pending_count": total_pending,
-                    "date_display": today.strftime("%A, %B %d"),
+                    "date_display":  today.strftime("%A, %B %d"),
                 },
                 "modules": {
                     "spaces": [
                         {
-                            "id": s.id,
-                            "ref": s.reference_code,
-                            "title": s.space.name,
+                            "id":     s.id,
+                            "ref":    s.reference_code,
+                            "title":  s.space.name,
                             "status": s.status,
                         }
                         for s in spaces
                     ],
                     "fleet": [
                         {
-                            "id": f.id,
-                            "ref": f.reference_code,
-                            "title": f.vehicle.name,
+                            "id":     f.id,
+                            "ref":    f.reference_code,
+                            "title":  f.vehicle.name,
                             "status": f.status,
                         }
                         for f in fleet
                     ],
                     "mess": [
                         {
-                            "id": m.id,
-                            "ref": m.reference_code,
-                            "title": f"Catering ({m.total_persons} Pax)",
+                            "id":     m.id,
+                            "ref":    m.reference_code,
+                            "title":  f"Catering ({m.total_persons} Pax)",
                             "status": m.status,
                         }
                         for m in mess
                     ],
                     "media": [
                         {
-                            "id": e.id,
-                            "ref": e.reference_code,
-                            "title": e.event_name,
+                            "id":     e.id,
+                            "ref":    e.reference_code,
+                            "title":  e.event_name,
                             "status": e.status,
                         }
                         for e in media
@@ -412,14 +421,14 @@ class RoleOverrideViewSet(ModelViewSet):
         .select_related("user", "overridden_role", "granted_by")
         .order_by("-created_at")
     )
-    serializer_class = RoleOverrideSerializer
+    serializer_class   = RoleOverrideSerializer
     permission_classes = [IsAuthenticated, IsITAdmin]
 
     def perform_create(self, serializer):
         serializer.save(granted_by=self.request.user)
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset  = super().get_queryset()
         is_active = self.request.query_params.get("active", None)
         if is_active == "true":
             queryset = queryset.filter(is_active=True)

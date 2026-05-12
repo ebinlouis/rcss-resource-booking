@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Phone, Mail } from 'lucide-react';
 import approvalService from '../../api/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -91,15 +92,56 @@ const IconLightning = ({ className = 'w-3 h-3' }) => (
     </svg>
 );
 
-// ─── Reject Modal ─────────────────────────────────────────────────────────────
+// ─── Modals ───────────────────────────────────────────────────────────────────
+
+const ApproveModal = ({ booking, onConfirm, onCancel, isLoading }) => {
+    if (!booking) return null;
+    return (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={onCancel}>
+            <div className="bg-white rounded-2xl border border-[#e8f5ee] shadow-2xl shadow-black/10 p-7 w-full max-w-[400px]"
+                onClick={(e) => e.stopPropagation()}
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}>
+                <div className="w-14 h-14 rounded-full bg-[#dcfce7] flex items-center justify-center mx-auto mb-5">
+                    <IconCheck className="w-6 h-6 text-[#15803d]" />
+                </div>
+                <p className="text-[18px] font-bold text-[#0f172a] text-center tracking-tight">Approve Booking?</p>
+                <p className="text-[14.5px] text-[#4b5563] mt-2 text-center leading-relaxed">
+                    Are you sure you want to approve this booking for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?
+                </p>
+
+                <div className="flex gap-2 justify-center mt-6">
+                    <button
+                        onClick={onCancel}
+                        disabled={isLoading}
+                        className="px-6 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] transition disabled:opacity-40"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onConfirm()}
+                        disabled={isLoading}
+                        className="px-6 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition disabled:opacity-40 flex items-center gap-2"
+                    >
+                        {isLoading ? 'Approving...' : 'Yes, Approve'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
     const [remarks, setRemarks] = useState('');
+    
+    const isCancellation = booking?.status === 'APPROVED';
+    const title = isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?';
+    const buttonText = isCancellation ? 'Revoke & Cancel' : 'Reject Booking';
+
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
             <div className="bg-white rounded-2xl border border-[#e8f5ee] shadow-2xl shadow-black/10 p-7 w-full max-w-[440px]"
                 style={{ fontFamily: "'Geist', system-ui, sans-serif" }}>
-                <p className="text-[17px] font-semibold text-[#0f172a] tracking-tight">Reject this booking?</p>
+                <p className="text-[17px] font-semibold text-[#0f172a] tracking-tight">{title}</p>
                 <p className="text-[14px] text-[#6b6b6b] mt-1 pb-4 border-b border-[#e8f5ee]">
                     <span className="font-medium text-[#0f172a]">{booking.reference_code}</span>
                     {' '}· {booking.resource_name}
@@ -110,13 +152,13 @@ const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
                 </p>
                 <textarea
                     className="w-full border border-[#e2e8f0] rounded-xl px-4 py-3 text-[14px] text-[#0f172a] bg-white resize-none outline-none min-h-[96px] transition-all focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7]"
-                    placeholder="e.g. Schedule conflict, missing documentation…"
+                    placeholder="e.g. Space unexpectedly needed for exams..."
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                     autoFocus
                     style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
                 />
-                <p className="text-[12px] text-[#a8c4b4] mt-1.5">The requester will see this reason.</p>
+                <p className="text-[12px] text-[#a8c4b4] mt-1.5">A notification and this reason will be sent to the user.</p>
 
                 <div className="flex gap-2 justify-end mt-5">
                     <button
@@ -124,22 +166,20 @@ const RejectModal = ({ booking, onConfirm, onCancel, isLoading }) => {
                         disabled={isLoading}
                         className="px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14px] text-[#6b6b6b] hover:bg-[#f6fbf8] transition disabled:opacity-40"
                     >
-                        Cancel
+                        Close
                     </button>
                     <button
                         onClick={() => onConfirm(remarks)}
                         disabled={isLoading || !remarks.trim()}
-                        className="px-5 py-2.5 rounded-xl bg-[#dc2626] text-white text-[14px] font-semibold hover:opacity-85 transition disabled:opacity-40"
+                        className="px-5 py-2.5 rounded-xl bg-[#dc2626] text-white text-[14px] font-semibold hover:opacity-85 transition disabled:opacity-40 flex items-center gap-2"
                     >
-                        {isLoading ? 'Rejecting…' : 'Reject booking'}
+                        {isLoading ? 'Processing…' : buttonText}
                     </button>
                 </div>
             </div>
         </div>
     );
 };
-
-// ─── Success Modal ────────────────────────────────────────────────────────────
 
 const SuccessModal = ({ booking, onClose }) => {
     if (!booking) return null;
@@ -168,7 +208,7 @@ const SuccessModal = ({ booking, onClose }) => {
 
 // ─── Booking Row ──────────────────────────────────────────────────────────────
 
-const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
+const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendingTab }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const hasEquipment = booking.equipment_requests?.length > 0;
     const hasNotes     = booking.user_notes?.trim().length > 0;
@@ -178,13 +218,18 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
     const attendees = booking.attendee_count;
     const isUnderutilized = capacity && attendees && (attendees / capacity < 0.30);
 
+    const isExpired = new Date(booking.end_datetime) < new Date();
+
     return (
         <div className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'} ${isExternal && !isExpanded ? 'bg-[#fffdf8]' : ''}`}>
 
             {/* CLICKABLE QUICK-GLANCE HEADER */}
             <div
-                className="py-6 cursor-pointer select-none"
-                onClick={() => setIsExpanded(!isExpanded)}
+                className="py-6 cursor-pointer"
+                onClick={() => {
+                    if (window.getSelection().toString().length > 0) return;
+                    setIsExpanded(!isExpanded);
+                }}
             >
                 {/* Top strip */}
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
@@ -256,16 +301,20 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                             <div className="w-10 h-10 rounded-full bg-[#f0fdf4] border border-[#d1fae5] text-[#15803d] text-[15px] font-bold flex items-center justify-center shrink-0">
                                 {booking.requester?.charAt(0).toUpperCase() || '?'}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[15px] font-semibold text-[#0f172a] leading-tight">{booking.requester}</p>
-                                <p className="text-[13px] font-semibold text-[#15803d] mt-0.5">
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                                <p className="text-[17px] font-bold text-gray-900 leading-tight">{booking.requester}</p>
+                                <p className="text-[14.5px] font-semibold text-green-700">
                                     {booking.department_name || booking.department || 'General Member'}
                                 </p>
                                 {booking.requester_email && (
-                                    <p className="text-[13px] text-[#6b7280] mt-1 truncate">{booking.requester_email}</p>
+                                    <p className="flex items-center gap-2 truncate text-[15px] font-medium text-gray-800">
+                                       <Mail className="h-4 w-4 shrink-0 text-green-700" /> {booking.requester_email}
+                                    </p>
                                 )}
                                 {booking.requester_phone && (
-                                    <p className="text-[13px] text-[#6b7280] mt-0.5">{booking.requester_phone}</p>
+                                    <p className="flex items-center gap-2 truncate text-[15px] font-medium text-gray-800 mt-0.5">
+                                       <Phone className="h-4 w-4 shrink-0 text-green-700" /> {booking.requester_phone}
+                                    </p>
                                 )}
                             </div>
                         </div>
@@ -337,22 +386,47 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
                             </div>
                         )}
 
+                        {booking.status === 'REJECTED' && booking.remarks_by_admin && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection / Cancellation Reason</p>
+                                <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">
+                                    {booking.remarks_by_admin}
+                                </p>
+                            </div>
+                        )}
+
                         {/* Actions */}
-                        <div className="flex justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onReject(booking); }}
-                                disabled={isActing}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
-                            >
-                                <IconX /> Reject
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onApprove(booking); }}
-                                disabled={isActing}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
-                            >
-                                {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
-                            </button>
+                        <div className="flex items-center justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
+                            {isPendingTab ? (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                        disabled={isActing}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
+                                    >
+                                        <IconX /> Reject
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                        disabled={isActing}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
+                                    >
+                                        {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
+                                    </button>
+                                </>
+                            ) : isExpired ? (
+                                <span className="text-[13px] font-bold text-gray-500 uppercase tracking-wider px-5 py-2 bg-gray-100 rounded-xl">Event Completed</span>
+                            ) : booking.status === 'APPROVED' ? (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                    disabled={isActing}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
+                                >
+                                    <IconX /> Revoke & Cancel Booking
+                                </button>
+                            ) : booking.status === 'REJECTED' ? (
+                                <span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">Rejected / Cancelled</span>
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -363,65 +437,74 @@ const BookingRow = ({ booking, onApprove, onReject, isActing }) => {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
-// The domain this page manages. Passed to the API so the backend only
-// returns bookings for this module — no client-side filtering needed.
 const PAGE_DOMAIN = 'spaces';
 
 const AdminDashboard = () => {
-    const { can_manage_system, can_manage_mess } = useAuth();
+    const { can_manage_system, can_manage_mess, user } = useAuth();
     const navigate = useNavigate();
+    const can_manage_media = user?.capabilities?.can_manage_media;
 
-    const [pendingBookings, setPendingBookings] = useState([]);
+    const [activeTab,       setActiveTab]       = useState('pending');
+    const [data,            setData]            = useState({ pending: [], history: [], resolved: [] });
     const [isLoading,       setIsLoading]       = useState(true);
     const [actionLoading,   setActionLoading]   = useState(null);
     const [error,           setError]           = useState(null);
-    const [refreshCount,    setRefreshCount]    = useState(0);
     const [rejectTarget,    setRejectTarget]    = useState(null);
+    const [approveTarget,   setApproveTarget]   = useState(null);
     const [successTarget,   setSuccessTarget]   = useState(null);
 
-    useEffect(() => {
-        let isMounted = true;
+    const fetchQueue = useCallback(async ({ showLoading = true } = {}) => {
+        if (showLoading) setIsLoading(true);
+        try {
+            const [pendingData, approvedData, rejectedData] = await Promise.all([
+                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'PENDING' }).catch(() => ({ queue: [] })),
+                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'APPROVED' }).catch(() => ({ queue: [] })),
+                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'REJECTED' }).catch(() => ({ queue: [] }))
+            ]);
+            
+            const historyList = [...(approvedData.queue || []), ...(rejectedData.queue || [])]
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+            setData({
+                pending: pendingData.queue || [],
+                history: historyList,
+                resolved: historyList // Placeholder logic if 'resolved_by' filtering isn't supported yet
+            });
+            setError(null);
+        } catch (err) {
+            console.error('Fetch error:', err);
+            setError('Could not load bookings. Please check your connection.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
         if (can_manage_mess && !can_manage_system) {
             navigate('/admin/mess', { replace: true });
             return;
         }
 
-        const fetchQueue = async () => {
-            setIsLoading(true);
-            try {
-                // Pass PAGE_DOMAIN — the backend scopes the response to spaces only.
-                const data = await approvalService.getPendingApprovals({ domain: PAGE_DOMAIN });
-                if (isMounted) {
-                    setPendingBookings(data.queue || []);
-                    setError(null);
-                }
-            } catch (err) {
-                console.error('Fetch error:', err);
-                if (isMounted) {
-                    setError(
-                        err.response?.status === 401
-                            ? 'Your account lacks approver privileges.'
-                            : 'Could not load bookings. Please check your connection.'
-                    );
-                }
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
+        if (can_manage_media && !can_manage_system) {
+            navigate('/admin/media', { replace: true });
+            return;
+        }
+
+        const loadInitial = async () => {
+            await fetchQueue({ showLoading: false });
         };
+        loadInitial();
+    }, [can_manage_system, can_manage_mess, can_manage_media, navigate, fetchQueue]);
 
-        fetchQueue();
-        return () => { isMounted = false; };
-    }, [refreshCount, can_manage_system, can_manage_mess, navigate]);
-
-    const handleRefresh = () => { setIsLoading(true); setRefreshCount((c) => c + 1); };
-
-    const handleApprove = async (booking) => {
+    const handleApproveConfirm = async () => {
+        if (!approveTarget) return;
+        const booking = approveTarget;
         setActionLoading(booking.id);
         try {
             await approvalService.resolveBooking({ module: booking.domain, id: booking.id, status: 'APPROVED', remarks: '' });
-            setPendingBookings((prev) => prev.filter((b) => b.id !== booking.id));
             setSuccessTarget(booking);
+            setApproveTarget(null);
+            await fetchQueue({ showLoading: false });
         } catch (err) {
             console.error('Approve error:', err);
             alert(err.response?.data?.error || 'Could not approve. Please try again.');
@@ -435,8 +518,8 @@ const AdminDashboard = () => {
         setActionLoading(rejectTarget.id);
         try {
             await approvalService.resolveBooking({ module: rejectTarget.domain, id: rejectTarget.id, status: 'REJECTED', remarks });
-            setPendingBookings((prev) => prev.filter((b) => b.id !== rejectTarget.id));
             setRejectTarget(null);
+            await fetchQueue({ showLoading: false });
         } catch (err) {
             console.error('Reject error:', err);
             alert(err.response?.data?.error || 'Could not reject. Please try again.');
@@ -445,16 +528,24 @@ const AdminDashboard = () => {
         }
     };
 
-    const todayCount = pendingBookings.filter((b) => {
-        if (!b.start_datetime) return false;
+    const listToRender = data[activeTab] || [];
+    const priorityBookings = listToRender.filter(b => b.is_external);
+    const standardBookings = listToRender.filter(b => !b.is_external);
+
+    const todayCount = data.history.filter((b) => {
+        if (!b.start_datetime || b.status === 'REJECTED') return false;
         const d = new Date(b.start_datetime), now = new Date();
         return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
 
-    const totalPeople = pendingBookings.reduce((s, b) => s + (b.attendee_count || 0), 0);
+    const totalPeople = data.history.reduce((s, b) => b.status === 'APPROVED' ? s + (b.attendee_count || 0) : s, 0) + 
+                        data.pending.reduce((s, b) => s + (b.attendee_count || 0), 0);
 
-    const priorityBookings = pendingBookings.filter(b => b.is_external);
-    const standardBookings = pendingBookings.filter(b => !b.is_external);
+    const tabs = [
+        { id: 'pending',  label: 'Pending Requests', count: data.pending.length },
+        { id: 'history',  label: 'History',          count: data.history.length },
+        { id: 'resolved', label: 'Resolved by Me',   count: data.resolved.length },
+    ];
 
     return (
         <div
@@ -464,6 +555,7 @@ const AdminDashboard = () => {
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
             {/* Modals */}
+            {approveTarget && <ApproveModal booking={approveTarget} onConfirm={handleApproveConfirm} onCancel={() => setApproveTarget(null)} isLoading={actionLoading === approveTarget.id} />}
             {rejectTarget  && <RejectModal  booking={rejectTarget}  onConfirm={handleRejectConfirm} onCancel={() => setRejectTarget(null)}  isLoading={actionLoading === rejectTarget.id} />}
             {successTarget && <SuccessModal booking={successTarget} onClose={() => setSuccessTarget(null)} />}
 
@@ -479,17 +571,13 @@ const AdminDashboard = () => {
                             Space Approval
                         </h1>
                         <p className="text-[15px] text-[#374151] mt-2">
-                            {error
-                                ? 'Something went wrong loading requests'
-                                : pendingBookings.length === 0
-                                    ? 'No pending requests right now'
-                                    : `${pendingBookings.length} booking${pendingBookings.length !== 1 ? 's' : ''} waiting for your review`}
+                            Review new requests and manage active reservations.
                         </p>
                     </div>
                     <button
-                        onClick={handleRefresh}
+                        onClick={() => fetchQueue()}
                         disabled={isLoading}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] font-semibold text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
                     >
                         <IconRefresh spinning={isLoading} />
                         Refresh
@@ -497,11 +585,11 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Stat strip */}
-                <div className="grid grid-cols-3 gap-3 mb-7">
+                <div className="grid grid-cols-3 gap-3 mb-6">
                     {[
-                        { value: pendingBookings.length, label: 'Waiting for review' },
-                        { value: todayCount,             label: 'Happening today' },
-                        { value: totalPeople,            label: 'Total people attending' },
+                        { value: data.pending.length, label: 'Waiting for review' },
+                        { value: todayCount,          label: 'Happening today' },
+                        { value: totalPeople,         label: 'Total people attending' },
                     ].map(({ value, label }) => (
                         <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-6 py-5">
                             <p className="text-[32px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
@@ -510,14 +598,28 @@ const AdminDashboard = () => {
                     ))}
                 </div>
 
+                {/* TABS */}
+                <div className="mb-5 flex w-fit flex-wrap gap-1 rounded-2xl bg-[#e8f5ee] p-1">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[13.5px] font-bold transition-all ${
+                                activeTab === tab.id
+                                    ? 'bg-white text-[#0f172a] shadow-sm ring-1 ring-black/5'
+                                    : 'text-[#4a6b58] hover:bg-white/60'
+                            }`}
+                        >
+                            {tab.label}
+                            <span className="rounded-full bg-[#f6fbf8] px-2 py-0.5 text-[12px] text-[#0f172a]">
+                                {tab.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
                 {/* Queue panel */}
                 <div className="bg-white border border-[#e8f5ee] rounded-2xl overflow-hidden shadow-sm">
-
-                    <div className="flex items-center px-7 py-5 border-b border-[#e8f5ee] bg-white relative z-10">
-                        <span className="text-[14px] font-extrabold uppercase tracking-[0.1em] text-[#0f172a]">
-                            Pending Approvals
-                        </span>
-                    </div>
 
                     {error ? (
                         <div className="py-20 text-center px-8">
@@ -527,17 +629,17 @@ const AdminDashboard = () => {
                             <p className="text-[15px] font-semibold text-[#0f172a]">Could not load bookings</p>
                             <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">Sign out and back in, then try again.</p>
                         </div>
-                    ) : isLoading && pendingBookings.length === 0 ? (
+                    ) : isLoading && listToRender.length === 0 ? (
                         <div className="py-20 text-center">
                             <p className="text-[14px] text-[#a8c4b4]">Loading bookings…</p>
                         </div>
-                    ) : pendingBookings.length === 0 ? (
+                    ) : listToRender.length === 0 ? (
                         <div className="py-20 text-center px-8">
                             <div className="w-12 h-12 rounded-full bg-[#dcfce7] flex items-center justify-center mx-auto mb-4 text-[#15803d]">
                                 <IconCheck className="w-6 h-6" />
                             </div>
                             <p className="text-[15px] font-semibold text-[#0f172a]">All caught up!</p>
-                            <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">No bookings are waiting for review.</p>
+                            <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">There are no {activeTab} bookings right now.</p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
@@ -546,15 +648,16 @@ const AdminDashboard = () => {
                                 <div className="border-b border-[#e8f5ee]">
                                     <div className="flex items-center px-7 py-3 bg-[#fffbeb] border-b border-[#fde68a]">
                                         <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#d97706]">
-                                            <IconLightning /> Priority Review Queue (External Events)
+                                            <IconLightning /> Priority Events (External)
                                         </span>
                                     </div>
                                     {priorityBookings.map((booking) => (
                                         <BookingRow
                                             key={`${booking.domain}-${booking.id}`}
                                             booking={booking}
-                                            onApprove={handleApprove}
-                                            onReject={setRejectTarget}
+                                            isPendingTab={activeTab === 'pending'}
+                                            onApproveClick={setApproveTarget}
+                                            onRejectClick={setRejectTarget}
                                             isActing={actionLoading === booking.id}
                                         />
                                     ))}
@@ -567,7 +670,7 @@ const AdminDashboard = () => {
                                     {priorityBookings.length > 0 && (
                                         <div className="flex items-center px-7 py-3 bg-[#f8fafc] border-b border-[#e2e8f0]">
                                             <span className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-                                                Standard Queue (Internal Events)
+                                                Standard Events (Internal)
                                             </span>
                                         </div>
                                     )}
@@ -575,8 +678,9 @@ const AdminDashboard = () => {
                                         <BookingRow
                                             key={`${booking.domain}-${booking.id}`}
                                             booking={booking}
-                                            onApprove={handleApprove}
-                                            onReject={setRejectTarget}
+                                            isPendingTab={activeTab === 'pending'}
+                                            onApproveClick={setApproveTarget}
+                                            onRejectClick={setRejectTarget}
                                             isActing={actionLoading === booking.id}
                                         />
                                     ))}

@@ -1,4 +1,3 @@
-// api/approvalService.js
 import api from './axios';
 
 /**
@@ -7,19 +6,16 @@ import api from './axios';
  * omitting the param or passing an unknown domain returns a 400.
  *
  * Valid domains (must match VALID_DOMAINS in apps/approvals/views.py):
- *   'spaces' | 'fleet' | 'mess' | 'media'
- *
- * For a multi-domain admin view in future, pass a comma-separated string:
- *   getPendingApprovals({ domain: 'spaces,fleet' })
+ * 'spaces' | 'fleet' | 'mess' | 'media'
  */
 
 const approvalService = {
-    getPendingApprovals: async ({ domain }) => {
+    getApprovals: async ({ domain, status = 'PENDING' }) => {
         if (!domain) {
-            throw new Error("approvalService.getPendingApprovals requires a 'domain' argument.");
+            throw new Error("approvalService.getApprovals requires a 'domain' argument.");
         }
         const response = await api.get('approvals/queue/', {
-            params: { domain },
+            params: { domain, status },
         });
         return response.data;
     },
