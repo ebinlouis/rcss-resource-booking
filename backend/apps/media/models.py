@@ -26,30 +26,7 @@ class MediaSettings(models.Model):
         return f"Media capacity: {self.max_concurrent_events} concurrent events"
 
 
-class MediaTeamKitItem(models.Model):
-    settings = models.ForeignKey(
-        MediaSettings,
-        on_delete=models.CASCADE,
-        related_name='standard_kit_items',
-        default=1,
-    )
-    equipment = models.ForeignKey('spaces.Equipment', on_delete=models.RESTRICT)
-    quantity = models.PositiveIntegerField(default=1)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['settings', 'equipment'],
-                name='unique_media_team_kit_equipment',
-            ),
-            models.CheckConstraint(
-                condition=Q(quantity__gt=0),
-                name='media_team_kit_quantity_positive',
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.quantity}x {self.equipment.name} for media team kit"
+# NOTE: MediaTeamKitItem has been completely removed to support dynamic inventory pools
 
 
 class MediaBooking(BaseBooking):

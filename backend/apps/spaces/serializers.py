@@ -12,7 +12,8 @@ class EquipmentSerializer(serializers.ModelSerializer):
         model  = Equipment
         fields = [
             'id', 'name', 'category', 'description',
-            'total_owned', 'is_portable', 'is_active',
+            'total_owned', 'is_portable', 'is_active', 
+            'is_standard_media_kit', # <-- ADDED THIS FIELD
         ]
 
 

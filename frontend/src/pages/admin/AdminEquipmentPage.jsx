@@ -21,12 +21,13 @@ const CATEGORY_COLORS = {
 };
 
 const EMPTY_FORM = {
-    name:        '',
-    category:    'AV',
-    description: '',
-    total_owned: 1,
-    is_portable: true,
-    is_active:   true,
+    name:                  '',
+    category:              'AV',
+    description:           '',
+    total_owned:           1,
+    is_portable:           true,
+    is_active:             true,
+    is_standard_media_kit: false, // NEW: Dynamic auto-assign flag
 };
 
 const ENDPOINT = '/spaces/inventory/';
@@ -102,12 +103,13 @@ const AdminEquipmentPage = () => {
         if (item) {
             setEditingItem(item);
             setFormData({
-                name:        item.name,
-                category:    item.category,
-                description: item.description ?? '',
-                total_owned: item.total_owned ?? 1,
-                is_portable: item.is_portable,
-                is_active:   item.is_active,
+                name:                  item.name,
+                category:              item.category,
+                description:           item.description ?? '',
+                total_owned:           item.total_owned ?? 1,
+                is_portable:           item.is_portable,
+                is_active:             item.is_active,
+                is_standard_media_kit: item.is_standard_media_kit ?? false,
             });
         } else {
             setEditingItem(null);
@@ -131,12 +133,13 @@ const AdminEquipmentPage = () => {
         setIsSubmitting(true);
         try {
             const payload = {
-                name:        formData.name.trim(),
-                category:    formData.category,
-                description: formData.description.trim(),
-                total_owned: parseInt(formData.total_owned, 10),
-                is_portable: formData.is_portable,
-                is_active:   formData.is_active,
+                name:                  formData.name.trim(),
+                category:              formData.category,
+                description:           formData.description.trim(),
+                total_owned:           parseInt(formData.total_owned, 10),
+                is_portable:           formData.is_portable,
+                is_active:             formData.is_active,
+                is_standard_media_kit: formData.is_standard_media_kit,
             };
 
             if (editingItem) {
@@ -288,6 +291,12 @@ const AdminEquipmentPage = () => {
                                             <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${CATEGORY_COLORS[item.category] ?? CATEGORY_COLORS.OTHER}`}>
                                                 {EQUIPMENT_CATEGORIES.find((c) => c.value === item.category)?.label ?? item.category}
                                             </span>
+                                            {/* Subtle badge if it's part of the standard media kit */}
+                                            {item.is_standard_media_kit && (
+                                                <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-white uppercase">
+                                                    Media Kit
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
                                             {item.description || <span className="italic text-gray-300">—</span>}
@@ -410,12 +419,12 @@ const AdminEquipmentPage = () => {
                                 />
                             </div>
 
-                            <div className="flex gap-6 pt-1">
+                            <div className="flex flex-wrap gap-x-6 gap-y-4 pt-2">
                                 <Toggle
                                     checked={formData.is_portable}
                                     onChange={() => patchForm({ is_portable: !formData.is_portable })}
                                     label="Portable"
-                                    sublabel="Can be moved between spaces"
+                                    sublabel="Can move between spaces"
                                 />
                                 <Toggle
                                     checked={formData.is_active}
@@ -423,15 +432,23 @@ const AdminEquipmentPage = () => {
                                     label="Active"
                                     sublabel="Available for assignment"
                                 />
+                                <div className="w-full">
+                                    <Toggle
+                                        checked={formData.is_standard_media_kit}
+                                        onChange={() => patchForm({ is_standard_media_kit: !formData.is_standard_media_kit })}
+                                        label="Include in Media Team Kit"
+                                        sublabel="Auto-assigns 1 unit to every media team request"
+                                    />
+                                </div>
                             </div>
 
                             {formError && (
-                                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-2">
                                     {formError}
                                 </p>
                             )}
 
-                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-2">
+                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
