@@ -112,6 +112,12 @@ class MediaEquipmentRequest(models.Model):
         if not hasattr(self, 'media_booking') or not hasattr(self, 'equipment'):
             return
 
+        # ── THE FIX ──
+        # ONLY enforce strict database-level inventory limits if this booking is APPROVED.
+        # Pending bookings can request whatever they want; the Admin will resolve conflicts during approval.
+        if self.media_booking.status != 'APPROVED':
+            return
+
         # 1. Find all OTHER approved bookings overlapping with this time
         overlapping_bookings = MediaBooking.objects.filter(
             booking_date=self.media_booking.booking_date,
