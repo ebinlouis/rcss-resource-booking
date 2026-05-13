@@ -52,6 +52,10 @@ function App() {
 
               <Route path="/admin" element={<AdminDashboard />} />
 
+              {/* ── Shared Admin Routes ── */}
+              {/* Lifted equipment route so Media Team can also manage the dynamic inventory */}
+              <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
+
               {/* ── Mess admin ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_mess" />}>
                 <Route path="/admin/mess" element={<AdminMess />} />
@@ -60,14 +64,12 @@ function App() {
               {/* ── Media admin ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_media" />}>
                 <Route path="/admin/media" element={<AdminMediaPage />} />
-                {/* MOVED HERE: Now it renders inside the AdminLayout! */}
                 <Route path="/media/schedule" element={<MediaSchedule />} />
               </Route>
 
               {/* ── System admin routes ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_system" />}>
                 <Route path="/admin/spaces" element={<AdminSpacesPage />} />
-                <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
                 <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
                 <Route path="/admin/transport" element={<AdminTransportPage />} />
                 <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />

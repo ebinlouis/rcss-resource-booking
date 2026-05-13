@@ -1,15 +1,8 @@
 from django.contrib import admin
-from apps.media.models import MediaBooking, MediaSettings, MediaTeamKitItem, MediaEquipmentRequest
+from apps.media.models import MediaBooking, MediaSettings, MediaEquipmentRequest
 
 # ==========================================
-# 1. MEDIA TEAM KIT INLINE (For Settings)
-# ==========================================
-class MediaTeamKitItemInline(admin.TabularInline):
-    model = MediaTeamKitItem
-    extra = 1
-
-# ==========================================
-# 2. EQUIPMENT REQUEST INLINE (For Bookings)
+# 1. EQUIPMENT REQUEST INLINE (For Bookings)
 # ==========================================
 class MediaEquipmentRequestInline(admin.TabularInline):
     model = MediaEquipmentRequest
@@ -21,7 +14,6 @@ class MediaEquipmentRequestInline(admin.TabularInline):
 @admin.register(MediaSettings)
 class MediaSettingsAdmin(admin.ModelAdmin):
     list_display = ('id', 'max_concurrent_events', 'updated_at')
-    inlines = [MediaTeamKitItemInline]
 
     def has_add_permission(self, request):
         # Prevents creating a second settings row if one already exists

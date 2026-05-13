@@ -50,7 +50,6 @@ const INITIAL_FORM = {
 }
 
 function MediaBookingModal({ onClose, onSuccess, initialData }) {
-  // Use lazy initialization to avoid setting state in a useEffect
   const [requestMode, setRequestMode] = useState(() => 
     initialData ? (initialData.is_team_request ? "team" : "equipment") : null
   )
@@ -184,27 +183,38 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     if (!formData.event_start_time) e.event_start_time = "Required"
     if (!formData.event_end_time) e.event_end_time = "Required"
 
+    // 1. Chronology checks for the main event block
+    if (formData.event_start_time && formData.event_end_time) {
+      if (formData.event_start_time >= formData.event_end_time) {
+        e.event_end_time = "Must be after start time";
+        e.timeError = "Chronology error: Event End must be after Event Start.";
+      }
+    }
+
+    // 2. Chronology checks for the buffer block
     if (needsBuffer) {
-      if (!formData.setup_start_time) e.setup_start_time = "Required"
-      if (!formData.teardown_end_time) e.teardown_end_time = "Required"
-      if (formData.setup_start_time > formData.event_start_time) e.setup_start_time = "Must be before event starts"
-      if (formData.teardown_end_time < formData.event_end_time) e.teardown_end_time = "Must be after event ends"
+      if (!formData.setup_start_time) e.setup_start_time = "Required";
+      if (!formData.teardown_end_time) e.teardown_end_time = "Required";
+      
+      if (formData.setup_start_time && formData.event_start_time && formData.setup_start_time > formData.event_start_time) {
+        e.setup_start_time = "Must be before event starts";
+        e.timeError = "Setup time cannot start after the event begins.";
+      }
+      
+      if (formData.teardown_end_time && formData.event_end_time && formData.teardown_end_time < formData.event_end_time) {
+        e.teardown_end_time = "Must be after event ends";
+        e.timeError = "Teardown time cannot end before the event ends.";
+      }
     }
 
-    if (formData.event_start_time >= formData.event_end_time) {
-      e.timeError = "End time must be after Start time"
-    }
-
-    // Past Date and EXACT Time Validation
+    // 3. Past Date and Exact Time checks
     if (formData.booking_date) {
-      // Split to avoid timezone shifting bugs in JS Date parsing
       const [year, month, day] = formData.booking_date.split('-');
       const bookingDay = new Date(year, month - 1, day);
       
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      // Only block if creating new, OR if editing and actively changing the date/time to a past value
       const dateChanged = !initialData || initialData.booking_date !== formData.booking_date;
 
       if (dateChanged && bookingDay < today) {
@@ -221,6 +231,8 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
           selectedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
           
           if (selectedTime < now) {
+            e.event_start_time = "Time has passed";
+            if (needsBuffer) e.setup_start_time = "Time has passed";
             e.timeError = "You cannot select a time slot that has already passed today.";
           }
         }

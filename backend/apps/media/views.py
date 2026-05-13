@@ -63,15 +63,21 @@ def _team_capacity_available(booking, settings):
     return overlapping_count < settings.max_concurrent_events
 
 def _reserve_standard_team_kit(booking):
-    settings = MediaSettings.load()
-    for kit_item in settings.standard_kit_items.select_related('equipment').all():
+    # DYNAMIC INVENTORY AUTO-ASSIGNMENT: Pull all gear flagged as part of the standard media kit
+    standard_gear = Equipment.objects.filter(
+        is_active=True, 
+        is_portable=True, 
+        is_standard_media_kit=True
+    )
+    
+    for gear in standard_gear:
         request, created = MediaEquipmentRequest.objects.get_or_create(
             media_booking=booking,
-            equipment=kit_item.equipment,
-            defaults={'quantity': kit_item.quantity},
+            equipment=gear,
+            defaults={'quantity': 1},
         )
-        if not created and request.quantity < kit_item.quantity:
-            request.quantity = kit_item.quantity
+        if not created and request.quantity < 1:
+            request.quantity = 1
             request.save(update_fields=['quantity'])
 
 def _check_equipment_availability_for_approval(booking):
@@ -89,17 +95,12 @@ def _check_equipment_availability_for_approval(booking):
         ).values('equipment_id').annotate(total_used=Sum('quantity'))
     }
 
-    if booking.is_team_request:
-        settings = MediaSettings.load()
-        needed_gear = [
-            {'eq': k.equipment, 'qty': k.quantity}
-            for k in settings.standard_kit_items.select_related('equipment')
-        ]
-    else:
-        needed_gear = [
-            {'eq': r.equipment, 'qty': r.quantity}
-            for r in booking.equipment_requests.select_related('equipment')
-        ]
+    # FIX: Always pull the actual requested equipment for this booking.
+    # Since gear is now assigned on Creation, this respects Admin loadout edits!
+    needed_gear = [
+        {'eq': r.equipment, 'qty': r.quantity}
+        for r in booking.equipment_requests.select_related('equipment')
+    ]
 
     for item in needed_gear:
         eq, needed_qty = item['eq'], item['qty']
@@ -181,18 +182,29 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                     "Please contact an administrator before booking."
                 )
             })
-        serializer.save(user=user, department=user.department)
+        booking = serializer.save(user=user, department=user.department)
+        
+        # INSTANT AUTO-ASSIGN: Attach kit while still pending
+        if booking.is_team_request:
+            _reserve_standard_team_kit(booking)
 
     @transaction.atomic
     def perform_update(self, serializer):
         instance = self.get_object()
         user = self.request.user
         
-        # OBJECTIVE 2: Revert on Edit
+        was_team_request = instance.is_team_request
+        booking = serializer.save()
+        
+        # Auto-assign if they switched modes from Equipment to Team
+        if booking.is_team_request and not was_team_request:
+            _reserve_standard_team_kit(booking)
+
+        # Revert on Edit
         if instance.status == 'APPROVED' and not _is_media_admin(user):
-            serializer.save(status='PENDING', remarks_by_admin='')
-        else:
-            serializer.save()
+            booking.status = 'PENDING'
+            booking.remarks_by_admin = ''
+            booking.save(update_fields=['status', 'remarks_by_admin'])
 
     # ── /check_availability/ ─────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
@@ -466,8 +478,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         settings = MediaSettings.load()
         if new_status == 'APPROVED':
+            # Fallback for legacy pending requests to ensure they have gear before checking
+            if booking.is_team_request:
+                _reserve_standard_team_kit(booking)
+
             if booking.is_team_request and not _team_capacity_available(booking, settings):
                 return Response({"error": "Media team capacity is full for this event time."}, status=status.HTTP_400_BAD_REQUEST)
+            
             is_avail, error_msg = _check_equipment_availability_for_approval(booking)
             if not is_avail:
                 return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
@@ -477,9 +494,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
-
-        if new_status == 'APPROVED' and booking.is_team_request:
-            _reserve_standard_team_kit(booking)
 
         return Response(self.get_serializer(booking).data)
 

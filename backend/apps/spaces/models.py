@@ -65,6 +65,11 @@ class Equipment(models.Model):
         default=True,
         help_text='False for fixed/built-in items like ceiling projectors'
     )
+    # ── NEW DYNAMIC INVENTORY FLAG ──
+    is_standard_media_kit = models.BooleanField(
+        default=False,
+        help_text="If True, automatically assigns 1 unit to every Media Team request."
+    )
     is_active   = models.BooleanField(default=True)
 
     def __str__(self):
@@ -96,7 +101,7 @@ class SpaceBooking(BaseBooking):
     end_datetime       = models.DateTimeField(db_index=True)
     attendee_count     = models.IntegerField()
     purpose_of_booking = models.TextField()
-    is_external        = models.BooleanField(default=False)  # <-- ADDED THIS FIELD
+    is_external        = models.BooleanField(default=False)
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [
