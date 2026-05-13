@@ -222,9 +222,14 @@ function Media() {
   const canGoPrevious = addDays(selectedDate, -7) >= todayKey()
 
   const filteredAvailability = useMemo(() => {
+    // 1. STRICT FILTER: Only show items explicitly flagged for the Media Team Kit
+    const mediaGearOnly = availability.filter((item) => item.is_standard_media_kit === true)
+
+    // 2. Apply text search to the remaining items
     const q = search.trim().toLowerCase()
-    if (!q) return availability
-    return availability.filter((item) => {
+    if (!q) return mediaGearOnly
+    
+    return mediaGearOnly.filter((item) => {
       const name = item.name?.toLowerCase() || ""
       const category = item.category_display?.toLowerCase() || item.category?.toLowerCase() || ""
       return name.includes(q) || category.includes(q)
