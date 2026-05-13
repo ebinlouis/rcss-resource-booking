@@ -215,7 +215,7 @@ function Mess() {
           </div>
           <button
             onClick={() => { setEditMode(false); setSelectedEditBooking(null); setShowForm(true) }}
-            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl shadow-sm text-sm font-medium transition-all"
+             className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl shadow-sm text-sm font-semibold transition-all"
           >
             <span className="text-lg leading-none">+</span>
             Book Now
@@ -223,40 +223,46 @@ function Mess() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex gap-3 flex-wrap">
-            {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
-              <button
-                key={meal}
-                onClick={() => setMealFilter(meal)}
-                className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
-                  mealFilter === meal
-                    ? "bg-gray-900 text-white border-gray-900"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {meal}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate("")}
-                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-              >
-                Clear Date
-              </button>
-            )}
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-2 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
-          </div>
-        </div>
+<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
+  {/* FILTER BUTTONS */}
+  <div className="flex gap-3 flex-wrap">
+    {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
+      <button
+        key={meal}
+        onClick={() => setMealFilter(meal)}
+       className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+          mealFilter === meal
+            ? "bg-green-600 text-white border-green-600"
+            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+        }`}
+      >
+        {meal}
+      </button>
+    ))}
+  </div>
+
+  {/* DATE FILTER */}
+  <div className="flex items-center gap-3">
+
+    {selectedDate && (
+      <button
+        onClick={() => setSelectedDate("")}
+        className="text-sm text-green-600 hover:text-green-700 font-medium"
+      >
+        Clear Date
+      </button>
+    )}
+
+    <input
+      type="date"
+      value={selectedDate}
+      onChange={(e) => setSelectedDate(e.target.value)}
+      className="border border-gray-200 rounded-2xl px-5 py-2.5 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+    />
+  </div>
+
+</div>
         {/* List header */}
         <div className="flex items-center justify-between mt-8 mb-2">
           <h2 className="text-lg font-semibold text-gray-800">
