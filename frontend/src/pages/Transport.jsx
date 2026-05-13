@@ -197,7 +197,7 @@ function Transport() {
           </div>
           <button
             onClick={openCreateModal}
-            className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition"
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl shadow-sm text-sm font-semibold transition-all"
           >
             <span className="text-lg leading-none">+</span>
             Book Transport
