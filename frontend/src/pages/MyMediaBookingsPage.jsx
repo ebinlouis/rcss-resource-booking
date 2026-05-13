@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal" 
-
 import { useNavigate } from "react-router-dom"
 
 import {
@@ -15,7 +14,8 @@ import {
   ChevronDown,
   Building2,
   Wrench,
-  Clapperboard
+  Clapperboard,
+  ArrowLeft
 } from "lucide-react"
 
 import mediaApi from "../api/mediaApi"
@@ -43,6 +43,20 @@ const timeAgo = (isoString) => {
   return `${Math.round(hrs / 24)}d ago`;
 };
 
+const checkIsExpired = (booking) => {
+  try {
+      const dateStr = booking.booking_date || booking.event_date;
+      const timeStr = booking.teardown_end_time || booking.event_end_time || '23:59:00';
+      if (dateStr) {
+          const endDateTime = new Date(`${dateStr}T${timeStr}`);
+          return endDateTime < new Date();
+      }
+  } catch (e) {
+      console.error(e);
+  }
+  return false;
+};
+
 // ─── Booking Card Component (Media Style) ─────────────────────────────────────
 
 const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadge, navigate }) => {
@@ -53,18 +67,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
   const hasServices  = Boolean(booking.requested_services?.trim());
   const hasNotes     = Boolean(booking.user_notes?.trim());
   
-  // Expiry check - if the teardown time has passed on the booking date
-  let isExpired = false;
-  try {
-      const dateStr = booking.booking_date || booking.event_date;
-      const timeStr = booking.teardown_end_time || booking.event_end_time || '23:59:00';
-      if (dateStr) {
-          const endDateTime = new Date(`${dateStr}T${timeStr}`);
-          isExpired = endDateTime < new Date();
-      }
-  } catch (e) {
-      console.error(e);
-  }
+  const isExpired = checkIsExpired(booking);
 
   // Media allows modification if PENDING or APPROVED
   const showEditCancel = booking.can_modify !== false && (booking.status === "PENDING" || booking.status === "APPROVED") && !isExpired;
@@ -83,7 +86,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
         {/* Top strip */}
         <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            {getStatusBadge(booking.status)}
+            {getStatusBadge(booking.status, isExpired)}
             <span className="font-mono text-[13.5px] font-semibold text-emerald-900 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100 tracking-wide ml-2">
                 {booking.reference_code}
             </span>
@@ -144,7 +147,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-semibold text-gray-900 leading-tight">
-                  {isExpired 
+                  {isExpired && booking.status === "APPROVED"
                     ? "Schedule Completed" 
                     : booking.status === "PENDING" 
                       ? "Awaiting Admin Review" 
@@ -155,7 +158,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                           : "Request Cancelled"}
                 </p>
                 <p className="text-[13px] text-gray-500 mt-1 leading-relaxed">
-                   {isExpired 
+                   {isExpired && booking.status === "APPROVED"
                     ? "This media request has already taken place." 
                     : booking.status === "PENDING" 
                       ? "You will be notified once the media team processes this." 
@@ -257,7 +260,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               {/* NO ACTIONS STATUS */}
               {!showEditCancel && booking.status !== "REJECTED" && (
                 <p className="text-[11.5px] font-bold text-gray-400 uppercase tracking-widest mt-2 mr-auto">
-                  {isExpired ? "Event Completed" : "No Further Actions"}
+                  {isExpired && booking.status === "APPROVED" ? "Event Completed" : "No Further Actions"}
                 </p>
               )}
 
@@ -319,8 +322,17 @@ const MyMediaBookingsPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState(null)
 
-  // Search
+  // Search & Filters
   const [searchTerm, setSearchTerm] = useState("")
+  const [filter, setFilter] = useState("ALL")
+
+  const FILTER_TABS = [
+    { id: 'ALL', label: 'All Requests' },
+    { id: 'PENDING', label: 'Pending' },
+    { id: 'APPROVED', label: 'Approved' },
+    { id: 'COMPLETED', label: 'Completed' },
+    { id: 'REJECTED', label: 'Rejected' },
+  ]
 
   // ================= FETCH =================
 
@@ -355,26 +367,38 @@ const MyMediaBookingsPage = () => {
   // ================= FILTER =================
 
   const filteredBookings = useMemo(() => {
-    if (!searchTerm.trim()) return myBookings
+    let result = myBookings;
 
-    const q = searchTerm.toLowerCase()
+    if (filter !== "ALL") {
+        result = result.filter(booking => {
+            const isExpired = checkIsExpired(booking);
+            if (filter === "COMPLETED") return isExpired && booking.status === "APPROVED";
+            if (filter === "APPROVED") return booking.status === "APPROVED" && !isExpired;
+            return booking.status === filter;
+        });
+    }
 
-    return myBookings.filter((booking) => {
-      const eventName = booking.event_name?.toLowerCase() || ""
-      const status    = booking.status?.toLowerCase() || ""
-      const refCode   = booking.reference_code?.toLowerCase() || ""
-      const spaceName = booking.space_details?.name?.toLowerCase() || ""
-      const location  = booking.space_details?.location?.toLowerCase() || ""
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter((booking) => {
+        const eventName = booking.event_name?.toLowerCase() || ""
+        const status    = booking.status?.toLowerCase() || ""
+        const refCode   = booking.reference_code?.toLowerCase() || ""
+        const spaceName = booking.space_details?.name?.toLowerCase() || ""
+        const location  = booking.space_details?.location?.toLowerCase() || ""
 
-      return (
-        eventName.includes(q) ||
-        status.includes(q) ||
-        refCode.includes(q) ||
-        spaceName.includes(q) ||
-        location.includes(q)
-      )
-    })
-  }, [myBookings, searchTerm])
+        return (
+          eventName.includes(q) ||
+          status.includes(q) ||
+          refCode.includes(q) ||
+          spaceName.includes(q) ||
+          location.includes(q)
+        )
+      })
+    }
+
+    return result;
+  }, [myBookings, searchTerm, filter])
 
   // ================= REFRESH =================
 
@@ -413,7 +437,15 @@ const MyMediaBookingsPage = () => {
 
   // ================= STATUS BADGE =================
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, isExpired) => {
+    if (isExpired && status === "APPROVED") {
+        return (
+            <span className="px-3 py-1 border text-[11px] font-bold rounded-lg uppercase tracking-wide bg-slate-100 text-slate-600 border-slate-200">
+                Completed
+            </span>
+        )
+    }
+
     const styles = {
       APPROVED:  "bg-[#dcfce7] text-[#15803d] border-[#bbf7d0]",
       REJECTED:  "bg-[#fee2e2] text-[#b91c1c] border-[#fecaca]",
@@ -434,6 +466,10 @@ const MyMediaBookingsPage = () => {
   return (
     <MainLayout>
       <div className="max-w-[1400px] mx-auto w-full">
+
+        <button onClick={() => navigate('/media')} className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 mb-5 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to Media Hub
+        </button>
 
         {/* Page header */}
         <div className="flex items-end justify-between flex-wrap gap-4 mb-7">
@@ -495,11 +531,22 @@ const MyMediaBookingsPage = () => {
         {/* Queue panel */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           
-          {/* Panel header */}
-          <div className="flex items-center px-7 py-4 border-b border-gray-200 bg-gray-50/50">
+          {/* Panel header & Filters */}
+          <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-3 border-b border-gray-200 bg-gray-50/50">
             <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
               Media History
             </span>
+            <div className="flex gap-2">
+                {FILTER_TABS.map(tab => (
+                    <button 
+                        key={tab.id}
+                        onClick={() => setFilter(tab.id)}
+                        className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-lg transition-colors ${filter === tab.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
           </div>
 
           {/* States */}
@@ -523,10 +570,10 @@ const MyMediaBookingsPage = () => {
                 <Clapperboard className="w-6 h-6 text-emerald-700" />
               </div>
               <p className="text-[15px] font-semibold text-gray-900">
-                 {searchTerm ? "No matching requests found" : "No requests yet"}
+                 {searchTerm || filter !== "ALL" ? "No matching requests found" : "No requests yet"}
               </p>
               <p className="text-[13.5px] text-gray-500 mt-1.5">
-                 {searchTerm ? "Try adjusting your search terms." : "When you request equipment, it will appear here."}
+                 {searchTerm || filter !== "ALL" ? "Try adjusting your search terms or filters." : "When you request equipment, it will appear here."}
               </p>
             </div>
           ) : (
@@ -564,6 +611,11 @@ const MyMediaBookingsPage = () => {
         <MediaBookingModal
           initialData={selectedBooking}
           onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedBooking(null)
+            refreshData()
+          }}
+          onSuccess={() => {
             setIsEditModalOpen(false)
             setSelectedBooking(null)
             refreshData()

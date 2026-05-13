@@ -49,15 +49,43 @@ const INITIAL_FORM = {
   is_team_request: false,
 }
 
-function MediaBookingModal({ onClose, onSuccess }) {
-  const [requestMode, setRequestMode] = useState(null)
-  const [formData, setFormData] = useState(INITIAL_FORM)
-  const [needsBuffer, setNeedsBuffer] = useState(false)
+function MediaBookingModal({ onClose, onSuccess, initialData }) {
+  // Use lazy initialization to avoid setting state in a useEffect
+  const [requestMode, setRequestMode] = useState(() => 
+    initialData ? (initialData.is_team_request ? "team" : "equipment") : null
+  )
+  
+  const [needsBuffer, setNeedsBuffer] = useState(() => {
+    if (initialData) {
+      return initialData.setup_start_time !== initialData.event_start_time || 
+             initialData.teardown_end_time !== initialData.event_end_time;
+    }
+    return false;
+  })
 
-  const [equipmentRequests, setEquipmentRequests] = useState([])
+  const [formData, setFormData] = useState(() => {
+    if (initialData) {
+      return {
+        ...INITIAL_FORM,
+        ...initialData,
+        space: initialData.space?.id || initialData.space_details?.id || initialData.space || "",
+      };
+    }
+    return INITIAL_FORM;
+  })
+
+  const [equipmentRequests, setEquipmentRequests] = useState(() => {
+    if (initialData && !initialData.is_team_request && initialData.equipment_requests) {
+      return initialData.equipment_requests.map(req => ({
+        equipment: req.equipment,
+        quantity: req.quantity
+      }));
+    }
+    return [];
+  })
+
   const [availableEquipment, setAvailableEquipment] = useState([])
   const [checkingInventory, setCheckingInventory] = useState(false)
-
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -86,7 +114,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
         if (actualSetup <= event_start_time && event_start_time < event_end_time && event_end_time <= actualTeardown) {
           setCheckingInventory(true)
 
-          mediaService.checkAvailability(booking_date, actualSetup, actualTeardown)
+          mediaService.checkAvailability(booking_date, actualSetup, actualTeardown, initialData?.id)
             .then((data) => {
               if (!isMounted) return
               setAvailableEquipment(data)
@@ -94,7 +122,8 @@ function MediaBookingModal({ onClose, onSuccess }) {
               setEquipmentRequests(prev => prev.map(req => {
                 if (!req.equipment) return req
                 const item = data.find(eq => eq.id.toString() === req.equipment.toString())
-                if (!item || item.currently_available < req.quantity) {
+                
+                if (!item || (item.currently_available < req.quantity && !initialData)) {
                   return { equipment: "", quantity: 1 }
                 }
                 return req
@@ -116,7 +145,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown, isTeamRequest])
+  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown, isTeamRequest, initialData])
 
   const groupedEquipment = useMemo(() => {
     return availableEquipment.reduce((acc, eq) => {
@@ -166,7 +195,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
       e.timeError = "End time must be after Start time"
     }
 
-    if (formData.booking_date) {
+    if (formData.booking_date && !initialData) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       if (new Date(formData.booking_date) < today) {
@@ -189,14 +218,25 @@ function MediaBookingModal({ onClose, onSuccess }) {
     e?.preventDefault()
     if (!validate()) return
 
+    // FIX: Explicitly build payload from known safe keys so we don't accidentally
+    // send ghost data (like the old equipment array) that was spread from initialData.
     const payload = {
-      ...formData,
+      event_name: formData.event_name,
+      space: formData.space,
+      booking_date: formData.booking_date,
+      event_start_time: formData.event_start_time,
+      event_end_time: formData.event_end_time,
       setup_start_time: actualSetup,
       teardown_end_time: actualTeardown,
       is_team_request: isTeamRequest,
       is_external_event: formData.is_external_event,
       requested_services: isTeamRequest ? "Media team coverage" : formData.requested_services,
-      equipment_requests: isTeamRequest ? [] : equipmentRequests.filter(req => req.equipment).map(req => ({
+      user_notes: formData.user_notes,
+    }
+
+    // Only attach equipment requests if they are actively in Equipment Borrowing mode
+    if (!isTeamRequest) {
+      payload.equipment_requests = equipmentRequests.filter(req => req.equipment).map(req => ({
         equipment: parseInt(req.equipment),
         quantity: parseInt(req.quantity)
       }))
@@ -204,7 +244,13 @@ function MediaBookingModal({ onClose, onSuccess }) {
 
     try {
       setSubmitting(true)
-      await mediaService.createBooking(payload)
+      
+      if (initialData?.id) {
+        await mediaService.updateBooking(initialData.id, payload)
+      } else {
+        await mediaService.createBooking(payload)
+      }
+
       onSuccess?.()
       setSubmitted(true)
     } catch (err) {
@@ -215,6 +261,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
           mapped[key] = Array.isArray(data[key]) ? data[key][0] : data[key]
         })
         if (data.non_field_errors) mapped.timeError = data.non_field_errors[0]
+        else if (data.equipment_requests && isTeamRequest) mapped.timeError = mapped.equipment_requests
         setErrors(mapped)
       } else {
         setErrors({ timeError: "Submission failed. Please try again." })
@@ -233,9 +280,9 @@ function MediaBookingModal({ onClose, onSuccess }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Request Submitted</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{initialData ? "Updates Saved" : "Request Submitted"}</h2>
           <p className="text-sm text-gray-500 leading-relaxed">
-            Your media booking request has been sent for admin approval.
+            Your media booking {initialData ? "modifications have" : "request has"} been sent for admin approval.
             {formData.is_external_event && (
               <span className="block mt-1 text-xs text-amber-600 font-medium">
                 Flagged as an external event — will be prioritised for review.
@@ -316,7 +363,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
           >
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">Media & Gear</p>
-              <h2 className="text-2xl font-bold text-white">{isTeamRequest ? "Team Coverage" : "New Request"}</h2>
+              <h2 className="text-2xl font-bold text-white">{initialData ? "Edit Details" : (isTeamRequest ? "Team Coverage" : "New Request")}</h2>
 
               {formData.is_external_event && (
                 <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
@@ -359,6 +406,28 @@ function MediaBookingModal({ onClose, onSuccess }) {
               <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">✕</button>
             </div>
 
+            {/* Mode Switcher when editing */}
+            {initialData && (
+              <div className="px-8 pt-4 pb-2 bg-white">
+                <button 
+                   type="button"
+                   onClick={() => {
+                     const newMode = isTeamRequest ? "equipment" : "team";
+                     setRequestMode(newMode);
+                     setFormData(prev => ({
+                        ...prev, 
+                        is_team_request: newMode === "team",
+                        requested_services: newMode === "team" ? "Media team coverage" : ""
+                     }));
+                     if (newMode === "team") setEquipmentRequests([]);
+                   }}
+                   className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition"
+                >
+                   ⇌ Switch to {isTeamRequest ? "Equipment Borrowing" : "Media Team Request"}
+                </button>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto px-8 py-2 space-y-2">
 
               {errors.timeError && (
@@ -382,7 +451,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
                 </Field>
               </div>
 
-              {!isTeamRequest && (
+              {/* Checkbox enabled for both modes */}
               <div className="mb-4 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer w-max">
                   <input
@@ -396,9 +465,9 @@ function MediaBookingModal({ onClose, onSuccess }) {
                   </span>
                 </label>
               </div>
-              )}
 
-              {!isTeamRequest && needsBuffer && (
+              {/* Time buffer inputs available for both modes */}
+              {needsBuffer && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
                   <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_time} helpText="When does the team need to arrive?">
                     <input type="time" name="setup_start_time" className={inputCls(errors.setup_start_time)} value={formData.setup_start_time} onChange={handleChange} />
@@ -501,7 +570,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
               {/* STEP 3: EVENT DETAILS */}
               <SectionLabel>{isTeamRequest ? "2. Event Details" : "3. Event Details"}</SectionLabel>
 
-              {/* External Event Toggle — mirrors BookingModal.jsx pattern */}
+              {/* External Event Toggle */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60 mb-4">
                 <div className="flex flex-col pr-4">
                   <span className="text-sm font-semibold text-gray-700">External Event</span>
@@ -563,7 +632,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
             </div>
 
             <div className="flex justify-between items-center px-8 py-5 border-t bg-white mt-auto">
-              <p className="text-xs text-gray-400 font-medium">Request will be sent for admin approval.</p>
+              <p className="text-xs text-gray-400 font-medium">{initialData ? "Revisions will re-trigger admin review." : "Request will be sent for admin approval."}</p>
               <div className="flex gap-3">
                 <button onClick={onClose} disabled={submitting} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50 font-semibold transition-colors">
                   Cancel
@@ -572,7 +641,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
                   onClick={handleSubmit} disabled={submitting}
                   className="px-6 py-2.5 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-800 transition-colors shadow-sm disabled:opacity-60"
                 >
-                  {submitting ? "Submitting..." : "Submit Request"}
+                  {submitting ? "Submitting..." : (initialData ? "Save Changes" : "Submit Request")}
                 </button>
               </div>
             </div>

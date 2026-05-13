@@ -22,9 +22,9 @@ const mediaApi = {
   },
 
   // ── Availability ──────────────────────────────────────────────────────────
-  checkAvailability: async (date, start, end) => {
+  checkAvailability: async (date, start, end, exclude_id = null) => {
     const { data } = await api.get(`${MEDIA_ENDPOINT}check_availability/`, {
-      params: { date, start, end },
+      params: { date, start, end, exclude: exclude_id },
     });
     return data;
   },
