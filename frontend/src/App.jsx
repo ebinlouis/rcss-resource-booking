@@ -8,6 +8,8 @@ import Home from "./pages/Home";
 import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
 import Media from "./pages/Media";
+import MediaSchedule from "./pages/MediaSchedule"; // Renamed from MediaRunsheet
+import MyMediaBookingsPage from "./pages/MyMediaBookingsPage";
 import MyBookingsPage from "./pages/MyBookingsPage";
 import Profile from "./pages/Profile";
 
@@ -36,6 +38,7 @@ function App() {
             <Route path="/dashboard" element={<Home />} />
             <Route path="/transport" element={<Transport />} />
             <Route path="/media" element={<Media />} />
+            <Route path="/media/my-bookings" element={<MyMediaBookingsPage />} />
             <Route path="/mess" element={<Mess />} />
             <Route path="/my-bookings" element={<MyBookingsPage />} />
             <Route path="/profile" element={<Profile />} />
@@ -47,8 +50,6 @@ function App() {
           <Route element={<ProtectedRoute requiredCapability="can_access_admin_portal" />}>
             <Route element={<AdminLayout />}>
 
-              {/* Space approval dashboard — system admins and approvers only.
-                  Media admins hitting /admin are redirected inside AdminDashboard. */}
               <Route path="/admin" element={<AdminDashboard />} />
 
               {/* ── Mess admin ── */}
@@ -56,9 +57,11 @@ function App() {
                 <Route path="/admin/mess" element={<AdminMess />} />
               </Route>
 
-              {/* ── Media admin — scoped to can_manage_media only, NOT can_manage_system ── */}
+              {/* ── Media admin ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_media" />}>
                 <Route path="/admin/media" element={<AdminMediaPage />} />
+                {/* MOVED HERE: Now it renders inside the AdminLayout! */}
+                <Route path="/media/schedule" element={<MediaSchedule />} />
               </Route>
 
               {/* ── System admin routes ── */}

@@ -1,102 +1,103 @@
 import api from './axios';
 
 const MEDIA_ENDPOINT = 'media/bookings/';
+const SETTINGS_ENDPOINT = 'media/settings/';
 
-const mediaService = {
-  /**
-   * GET /api/spaces/catalog/
-   * Returns spaces for media booking form.
-   */
+const mediaApi = {
+  // ── Spaces ────────────────────────────────────────────────────────────────
   getSpaces: async () => {
-    const response = await api.get('spaces/catalog/');
-    const data = response.data;
+    const { data } = await api.get('spaces/catalog/');
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
-  /**
-   * GET /api/media/bookings/check_availability/
-   * Returns exact inventory math for the selected time window.
-   */
-  checkAvailability: async (date, start, end) => {
-    const response = await api.get(`${MEDIA_ENDPOINT}check_availability/`, {
-      params: { date, start, end }
-    });
-    return response.data;
+  // ── Settings (singleton) ──────────────────────────────────────────────────
+  getSettings: async () => {
+    const { data } = await api.get(SETTINGS_ENDPOINT);
+    return data;
   },
 
+  updateSettings: async (payload) => {
+    const { data } = await api.patch(SETTINGS_ENDPOINT, payload);
+    return data;
+  },
+
+  // ── Availability ──────────────────────────────────────────────────────────
+  checkAvailability: async (date, start, end) => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}check_availability/`, {
+      params: { date, start, end },
+    });
+    return data;
+  },
+
+  getDailyAvailability: async (date, type = 'equipment') => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}daily_availability/`, {
+      params: { date, type },
+    });
+    return data;
+  },
+
+  // ── Bookings ──────────────────────────────────────────────────────────────
   getMyBookings: async () => {
-    const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'mine' } });
-    const data = response.data;
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'mine' } });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
   getAllBookings: async () => {
-    const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'general' } });
-    const data = response.data;
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'general' } });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
   getPendingBookings: async () => {
-    const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'pending' } });
-    const data = response.data;
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'pending' } });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
   getActiveBookings: async () => {
-    const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'active' } });
-    const data = response.data;
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'active' } });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
   getResolvedByMe: async () => {
-    const response = await api.get(MEDIA_ENDPOINT, { params: { view: 'resolved_by_me' } });
-    const data = response.data;
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'resolved_by_me' } });
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
-  /**
-   * POST /api/media/bookings/
-   */
+  getRunsheet: async (date) => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}runsheet/`, { params: { date } });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
+  updateLoadout: async (id, equipmentRequests) => {
+    const { data } = await api.patch(`${MEDIA_ENDPOINT}${id}/update_loadout/`, {
+      equipment_requests: equipmentRequests,
+    });
+    return data;
+  },
+
   createBooking: async (bookingData) => {
-    const response = await api.post(MEDIA_ENDPOINT, bookingData);
-    return response.data;
+    const { data } = await api.post(MEDIA_ENDPOINT, bookingData);
+    return data;
   },
 
-  /**
-   * PATCH /api/media/bookings/<id>/
-   */
   updateBooking: async (id, updateData) => {
-    const response = await api.patch(`${MEDIA_ENDPOINT}${id}/`, updateData, {
-      params: { view: 'general' }
+    const { data } = await api.patch(`${MEDIA_ENDPOINT}${id}/`, updateData, {
+      params: { view: 'general' },
     });
-    return response.data;
+    return data;
   },
 
-  /**
-   * DELETE /api/media/bookings/<id>/
-   */
   deleteBooking: async (id) => {
-    await api.delete(`${MEDIA_ENDPOINT}${id}/`, {
-      params: { view: 'general' }
-    });
+    await api.delete(`${MEDIA_ENDPOINT}${id}/`, { params: { view: 'general' } });
   },
 
-  /**
-   * PATCH /api/media/bookings/<id>/review/
-   */
   reviewBooking: async (id, { status, remarks_by_admin = '' }) => {
-    const response = await api.patch(
-      `${MEDIA_ENDPOINT}${id}/review/`, 
-      {
-        status,
-        remarks_by_admin,
-      },
-      {
-        params: { view: 'general' }
-      }
+    const { data } = await api.patch(
+      `${MEDIA_ENDPOINT}${id}/review/`,
+      { status, remarks_by_admin },
+      { params: { view: 'general' } },
     );
-    return response.data;
+    return data;
   },
 };
 
-export default mediaService;
+export default mediaApi;

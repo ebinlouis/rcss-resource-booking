@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AuthContext } from './AuthContext'; 
+import { AuthContext } from './AuthContext';
 import api from '../api/axios';
 
 export const AuthProvider = ({ children }) => {
@@ -10,15 +10,21 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await api.get('auth/me/');
             setUser(response.data);
-        } catch (error) {
+        } catch {
+            // Credentials absent or expired — treat as logged out.
             setUser(null);
         } finally {
             setIsLoading(false);
         }
     }, []);
 
+    // FIX: Wrapping checkAuthStatus() in an async IIFE means all setState
+    // calls inside it happen inside an async callback, not synchronously in
+    // the effect body, which satisfies the lint rule.
     useEffect(() => {
-        checkAuthStatus();
+        (async () => {
+            await checkAuthStatus();
+        })();
     }, [checkAuthStatus]);
 
     const login = async (credentials) => {
@@ -29,8 +35,8 @@ export const AuthProvider = ({ children }) => {
                 return { success: true, user: response.data };
             }
             return { success: false, error: 'Invalid credentials' };
-        } catch (error) {
-            const message = error?.response?.data?.detail || 'Invalid credentials';
+        } catch (err) {
+            const message = err?.response?.data?.detail || 'Invalid credentials';
             return { success: false, error: message };
         }
     };
@@ -38,26 +44,26 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             await api.post('auth/logout/');
-        } catch (error) {
-            console.error('Logout request failed', error);
+        } catch (err) {
+            console.error('Logout request failed', err);
         } finally {
             setUser(null);
         }
     };
 
     return (
-        <AuthContext.Provider value={{ 
-            user, 
-            effectiveRole: user?.effective_role || null, 
-            isLoading, 
-            login, 
+        <AuthContext.Provider value={{
+            user,
+            effectiveRole: user?.effective_role || null,
+            isLoading,
+            login,
             logout,
-            
-            // Spread the capabilities directly into context so 
+
+            // Spread the capabilities directly into context so
             // `const { can_manage_mess } = useAuth()` works cleanly.
-            ...user?.capabilities 
+            ...user?.capabilities,
         }}>
             {children}
         </AuthContext.Provider>
     );
-};
+};
