@@ -109,16 +109,13 @@ function seedRows(booking) {
  * EditLoadoutModal
  *
  * Props:
- *   booking   — full MediaBooking object (from runsheet API)
- *   onClose   — () => void
- *   onSuccess — (updatedBooking) => void   called after a successful PATCH
+ * booking   — full MediaBooking object (from runsheet API)
+ * onClose   — () => void
+ * onSuccess — (updatedBooking) => void   called after a successful PATCH
  */
 function EditLoadoutModal({ booking, onClose, onSuccess }) {
   // ── State ──────────────────────────────────────────────────────────────────
 
-  // FIX 1: Derive initial rows directly from props (lazy initialiser) instead
-  // of seeding them inside a useEffect + setState, which caused the
-  // "setState synchronously within an effect" lint error.
   const [rows, setRows]                       = useState(() => seedRows(booking))
   const [availableEquipment, setAvail]        = useState([])
   const [loadingInventory, setLoadingInv]     = useState(true)
@@ -128,14 +125,8 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
   const [saving, setSaving]                   = useState(false)
   const [saved, setSaved]                     = useState(false)
 
-  // Re-seed rows when the booking prop changes (e.g. parent swaps the booking).
-  // Using a ref-guarded effect here is intentional: the booking object is an
-  // external prop that changed, so syncing derived UI state to it is a valid
-  // use-case for an effect. We only call setState inside the async callback
-  // (not at the top of the effect body), so the lint rule is satisfied.
   const bookingId = booking?.id
   useEffect(() => {
-    // Guard: only re-seed if the booking identity actually changed.
     let cancelled = false
     Promise.resolve(seedRows(booking)).then((seeded) => {
       if (!cancelled) setRows(seeded)
@@ -145,10 +136,6 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
   }, [bookingId])
 
   // ── Load live inventory for this booking's time window ────────────────────
-  // FIX 2: Avoid calling setState synchronously at the top of the effect body.
-  // Instead we wrap the whole fetch (including the initial state mutations) in
-  // a microtask via Promise.resolve() so React never sees a synchronous
-  // setState-inside-effect call.
   useEffect(() => {
     let active = true
 
@@ -161,11 +148,30 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
         .checkAvailability(
           booking.booking_date,
           booking.setup_start_time,
-          booking.teardown_end_time
+          booking.teardown_end_time,
+          booking.id
         )
         .then((data) => {
           if (!active) return
-          setAvail(data)
+
+          // STRICT FILTER: Only show gear flagged for the Media Team Kit.
+          // We also explicitly include items already in the current booking's loadout 
+          // just in case legacy non-team gear was previously attached.
+          const existingEqIds = new Set((booking.equipment_requests || []).map(r => r.equipment))
+          const mediaGearOnly = data.filter(eq => eq.is_standard_media_kit || existingEqIds.has(eq.id))
+
+          setAvail(mediaGearOnly)
+
+          // Validate current rows against the newly filtered inventory
+          setRows((prev) => prev.map((row) => {
+            if (!row.equipment) return row
+            const item = mediaGearOnly.find((eq) => eq.id === Number(row.equipment))
+            
+            if (!item || (item.currently_available + (row._originalQty ?? 0) < row.quantity)) {
+              return { equipment: "", quantity: 1, _originalQty: 0 }
+            }
+            return row
+          }))
         })
         .catch(() => {
           if (active) setInventoryError("Could not load live inventory. Check your connection.")
@@ -176,7 +182,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
     })
 
     return () => { active = false }
-  }, [booking.booking_date, booking.setup_start_time, booking.teardown_end_time])
+  }, [booking.booking_date, booking.setup_start_time, booking.teardown_end_time, booking.id, booking.equipment_requests])
 
   // ── Grouped equipment for <optgroup> ──────────────────────────────────────
   const groupedEquipment = useMemo(() => {
@@ -325,7 +331,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-emerald-700" />
-                  <span className="text-sm font-bold text-gray-800">Gear Loadout</span>
+                  <span className="text-sm font-bold text-gray-800">Media Team Gear</span>
                 </div>
                 <span className="text-xs text-gray-400 font-medium">
                   Quantities reflect live availability
@@ -333,21 +339,27 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
               </div>
 
               {/* Equipment rows */}
-              <div className="space-y-3">
-                {rows.map((row, index) => (
-                  <EquipmentRow
-                    key={index}
-                    row={row}
-                    index={index}
-                    allRows={rows}
-                    availableEquipment={availableEquipment}
-                    groupedEquipment={groupedEquipment}
-                    onChange={handleRowChange}
-                    onRemove={removeRow}
-                    error={rowErrors[index]}
-                  />
-                ))}
-              </div>
+              {availableEquipment.length === 0 ? (
+                <div className="py-6 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50">
+                   <p className="text-sm text-gray-500 font-medium">No Media Team gear available for this time slot.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {rows.map((row, index) => (
+                    <EquipmentRow
+                      key={index}
+                      row={row}
+                      index={index}
+                      allRows={rows}
+                      availableEquipment={availableEquipment}
+                      groupedEquipment={groupedEquipment}
+                      onChange={handleRowChange}
+                      onRemove={removeRow}
+                      error={rowErrors[index]}
+                    />
+                  ))}
+                </div>
+              )}
 
               <button
                 type="button"

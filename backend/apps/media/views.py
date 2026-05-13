@@ -258,11 +258,12 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         availability = [
             {
-                "id":                  eq.id,
-                "name":                eq.name,
-                "category":            eq.category,
-                "total_owned":         eq.total_owned,
-                "currently_available": max(0, eq.total_owned - used_map.get(eq.id, 0)),
+                "id":                    eq.id,
+                "name":                  eq.name,
+                "category":              eq.category,
+                "total_owned":           eq.total_owned,
+                "currently_available":   max(0, eq.total_owned - used_map.get(eq.id, 0)),
+                "is_standard_media_kit": eq.is_standard_media_kit, # <-- ADDED FLAG HERE
             }
             for eq in Equipment.objects.filter(is_active=True, is_portable=True)
         ]
@@ -358,6 +359,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 "booked_quantity":    max_used,
                 "available_quantity": max(0, item.total_owned - max_used),
                 "booked_slots":       sorted(slots, key=lambda x: x['start_time']),
+                "is_standard_media_kit": item.is_standard_media_kit, # <-- ADD THIS LINE
             })
 
         return Response({"date": booking_date.isoformat(), "type": "equipment", "items": availability})
