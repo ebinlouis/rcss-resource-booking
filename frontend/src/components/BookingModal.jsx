@@ -7,8 +7,9 @@ import api from "../api/axios"
 // ─────────────────────────────────────────────────────────────
 
 // A booking is "low occupancy" when attendees fill less than 30% of capacity.
-const LOW_OCCUPANCY_THRESHOLD = 0.30
-
+const LOW_OCCUPANCY_THRESHOLD = 0.3
+const COLLEGE_START = "08:00"
+const COLLEGE_END = "18:00"
 // ─────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────
@@ -20,24 +21,26 @@ const toLocalISO = (date, time) => {
   return d.toISOString()
 }
 
-const formatAMPM = (timeStr) => {
-  if (!timeStr) return null
-  let [hours, minutes] = timeStr.split(":")
-  let ampm = hours >= 12 ? "PM" : "AM"
-  hours = hours % 12
-  hours = hours ? hours : 12
-  return `${hours}:${minutes} ${ampm}`
+const todayISO = () => new Date().toISOString().split("T")[0]
+
+const currentTimeISO = () => {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes()
+  ).padStart(2, "0")}`
 }
 
-const inputCls = (err) =>
-  `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition
-   focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400
-   ${err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`
+const formatAMPM = (timeStr) => {
+  if (!timeStr) return null
+  let [hours, minutes] = timeStr.split(":").map(Number)
+  const ampm = hours >= 12 ? "PM" : "AM"
+  hours = hours % 12 || 12
+  return `${hours}:${String(minutes).padStart(2, "0")} ${ampm}`
+}
 
-// ─────────────────────────────────────────────────────────────
+const inputCls = (err) => `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400 ${err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`
+
 // Reusable Components
-// ─────────────────────────────────────────────────────────────
-
 function Field({ label, required, hint, error, children }) {
   return (
     <div className="flex flex-col gap-1">
@@ -138,12 +141,16 @@ function BookingModal({
 
   // Derived during render
   const attendeeCount = parseInt(form.attendees, 10)
-  const isLowOccupancy =
-    Number.isFinite(attendeeCount) &&
-    attendeeCount > 0 &&
-    activeSpaceCap !== null &&
-    attendeeCount / activeSpaceCap < LOW_OCCUPANCY_THRESHOLD
-
+  const exceedsCapacity =
+  Number.isFinite(attendeeCount) &&
+  activeSpaceCap !== null &&
+  attendeeCount > activeSpaceCap
+const isLowOccupancy =
+  Number.isFinite(attendeeCount) &&
+  attendeeCount > 0 &&
+  activeSpaceCap !== null &&
+  !exceedsCapacity &&
+  attendeeCount / activeSpaceCap < LOW_OCCUPANCY_THRESHOLD
   // ─────────────────────────────────────────────────────────────
   // Fetch departments + equipment on mount
   // ─────────────────────────────────────────────────────────────
@@ -188,34 +195,75 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    clearTimeout(availabilityTimer.current)
+clearTimeout(availabilityTimer.current)
 
-    // Reset if inputs are incomplete
-    if (!form.date || !form.start || !form.end) {
-      setTimeout(() => {
-        setIsAvailable(null)
-        setAvailabilityMsg("")
-      }, 0)
-      return
-    }
+const today = todayISO()
+const nowTime = currentTimeISO()
+
+// Immediate validation for start time
+if (form.date && form.start && !isEdit) {
+  if (form.date < today) {
+    setTimeout(() => {
+      setIsAvailable(false)
+      setAvailabilityMsg("Cannot book a date in the past.")
+    }, 0)
+    return
+  }
+
+  if (form.date === today && form.start < nowTime) {
+    setTimeout(() => {
+      setIsAvailable(false)
+      setAvailabilityMsg("Cannot book a time in the past.")
+    }, 0)
+    return
+  }
+
+  if (form.start < COLLEGE_START) {
+    setTimeout(() => {
+      setIsAvailable(false)
+      setAvailabilityMsg(
+        "Bookings are allowed only between 8:00 AM and 6:00 PM."
+      )
+    }, 0)
+    return
+  }
+}
+
+// Reset only if truly incomplete
+if (!form.date || !form.start) {
+  setTimeout(() => {
+    setIsAvailable(null)
+    setAvailabilityMsg("")
+  }, 0)
+  return
+}
+
+if (!form.end) {
+  setTimeout(() => {
+    setIsAvailable(null)
+    setAvailabilityMsg("Select an end time to check availability.")
+  }, 0)
+  return
+}
 
     // Client-side quick check
-    if (form.start >= form.end) {
-      setTimeout(() => {
-        setIsAvailable(false)
-        setAvailabilityMsg("End time must be after start time.")
-      }, 0)
-      return
-    }
+if (form.start < COLLEGE_START || form.end > COLLEGE_END) {
+  setTimeout(() => {
+    setIsAvailable(false)
+    setAvailabilityMsg(
+      "Bookings are allowed only between 8:00 AM and 6:00 PM."
+    )
+  }, 0)
+  return
+}
 
-    const today = new Date().toISOString().split("T")[0]
-    if (form.date < today && !isEdit) {
-      setTimeout(() => {
-        setIsAvailable(false)
-        setAvailabilityMsg("Cannot book a date in the past.")
-      }, 0)
-      return
-    }
+if (form.start >= form.end) {
+  setTimeout(() => {
+    setIsAvailable(false)
+    setAvailabilityMsg("End time must be after start time.")
+  }, 0)
+  return
+}
 
     // If editing and time hasn't changed from original, assume available
     const isSameAsInitial = isEdit &&
@@ -336,14 +384,25 @@ function BookingModal({
     const e = {}
     if (!form.purpose.trim()) e.purpose = "Please describe the purpose"
     if (!form.department) e.department = "Select your department"
-    if (!form.attendees || Number(form.attendees) < 1) e.attendees = "Enter a valid number"
-    if (notesRequired && !form.notes.trim()) e.notes = "Please explain why this hall is needed for a small group."
+    if (
+  form.date === todayISO() &&
+  form.start &&
+  form.start < currentTimeISO() &&
+  !isEdit
+) {
+  e.start = "Cannot select a past time."
+}
+if (!form.attendees || Number(form.attendees) < 1) {
+  e.attendees = "Enter a valid number"
+} else if (exceedsCapacity) {
+  e.attendees = `Capacity exceeded. Maximum allowed is ${activeSpaceCap}.`
+}    if (notesRequired && !form.notes.trim()) e.notes = "Please explain why this hall is needed for a small group."
     return e
   }
 
   const handleSubmit = async () => {
     // Extra safety block
-    if (isAvailable !== true) return 
+    if (isAvailable !== true || exceedsCapacity) return 
 
     const e = validate()
     if (Object.keys(e).length) {
@@ -576,13 +635,45 @@ function BookingModal({
               <SectionLabel>Step 1: Pick a Time</SectionLabel>
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Date" required error={errors.date}>
-                  <input type="date" className={inputCls(errors.date)} value={form.date} onChange={(e) => set("date", e.target.value)} />
+                  <input
+  type="date"
+  min={todayISO()}
+  className={inputCls(errors.date)}
+  value={form.date}
+  onChange={(e) => set("date", e.target.value)}
+/>
                 </Field>
                 <Field label="Start" required error={errors.start}>
-                  <input type="time" className={inputCls(errors.start)} value={form.start} onChange={(e) => set("start", e.target.value)} />
+<input
+  type="time"
+  min={
+    form.date === todayISO()
+      ? (currentTimeISO() > COLLEGE_START ? currentTimeISO() : COLLEGE_START)
+      : COLLEGE_START
+  }
+  max={COLLEGE_END}
+  className={inputCls(errors.start)}
+  value={form.start}
+  onChange={(e) => set("start", e.target.value)}
+/>
                 </Field>
                 <Field label="End" required error={errors.end}>
-                  <input type="time" className={inputCls(errors.end)} value={form.end} onChange={(e) => set("end", e.target.value)} />
+<input
+  type="time"
+  min={
+    form.date === todayISO()
+      ? (
+          form.start && form.start > currentTimeISO()
+            ? form.start
+            : currentTimeISO()
+        )
+      : (form.start || COLLEGE_START)
+  }
+  max={COLLEGE_END}
+  className={inputCls(errors.end)}
+  value={form.end}
+  onChange={(e) => set("end", e.target.value)}
+/>
                 </Field>
               </div>
               
@@ -647,10 +738,44 @@ function BookingModal({
               </div>
 
               <SectionLabel>Step 3: Setup & Capacity</SectionLabel>
-              
+                              {exceedsCapacity && (
+  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5">
+    <div className="flex items-start gap-3">
+      <svg
+        className="w-4 h-4 text-red-600 mt-0.5 shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
+
+      <div>
+        <p className="text-sm font-semibold text-red-800">
+          Capacity exceeded
+        </p>
+        <p className="text-xs text-red-700 mt-0.5">
+          This hall supports only {activeSpaceCap} attendees. Please reduce attendees or choose a larger hall.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
               <Field label="Expected attendees" required error={errors.attendees}>
-                <input type="number" min="1" className={inputCls(errors.attendees)} placeholder="e.g. 45" value={form.attendees} onChange={(e) => set("attendees", e.target.value)} />
-              </Field>
+<input
+  type="number"
+  min="1"
+  max={activeSpaceCap || undefined}
+  className={inputCls(errors.attendees)}
+  placeholder="e.g. 45"
+  value={form.attendees}
+  onChange={(e) => set("attendees", e.target.value)}
+/>             </Field>
 
               {/* ── LOW OCCUPANCY BANNER ──────────────────────────────── */}
               {isLowOccupancy && (
@@ -756,7 +881,11 @@ function BookingModal({
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting || isAvailable !== true}
+                disabled={
+  isSubmitting ||
+  isAvailable !== true ||
+  exceedsCapacity
+}
                 className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}
