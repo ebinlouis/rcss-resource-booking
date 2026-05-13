@@ -101,14 +101,28 @@ function AvailabilityRow({ item }) {
           style={{ width: `${percent}%` }}
         />
       </div>
-      {item.booked_quantity > 0 && (
-        <p className="mt-2 text-[12px] font-medium text-gray-500">{item.booked_quantity} already booked for this date</p>
+
+      {item.booked_slots && item.booked_slots.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Reserved Timeslots</p>
+          <div className="space-y-1.5">
+            {item.booked_slots.map((slot, idx) => (
+              <div key={idx} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-[12px]">
+                <span className="font-semibold text-gray-700">
+                  {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                </span>
+                <span className="max-w-[140px] truncate font-medium text-gray-500" title={slot.event_name}>
+                  {slot.quantity}x · {slot.event_name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )
 }
 
-// NEW: Fluid Team View
 function TeamFluidView({ teamData }) {
   if (!teamData) return null;
 

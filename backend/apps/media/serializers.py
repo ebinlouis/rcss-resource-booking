@@ -68,7 +68,8 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
     def get_can_modify(self, obj):
         user = self._user()
-        return bool(user and obj.status == 'PENDING' and obj.user_id == user.pk)
+        # Allows editing if status is PENDING or APPROVED
+        return bool(user and obj.status in ['PENDING', 'APPROVED'] and obj.user_id == user.pk)
 
     def get_user_details(self, obj):
         user = obj.user
@@ -128,17 +129,31 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         equipment_data = validated_data.pop('equipment_requests', None)
+        
+        # Track if the mode is changing
+        was_team_request = instance.is_team_request
+        is_now_team_request = validated_data.get('is_team_request', was_team_request)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        if equipment_data is not None:
-            instance.equipment_requests.all().delete()
-            for item in equipment_data:
-                MediaEquipmentRequest.objects.create(
-                    media_booking=instance,
-                    equipment=item['equipment'],
-                    quantity=item.get('quantity', 1),
-                )
+        # ── LOADOUT PROTECTION LOGIC ──
+        if is_now_team_request:
+            # If switching from Equipment -> Team, wipe the old manual equipment selection
+            if not was_team_request:
+                instance.equipment_requests.all().delete()
+            # If it was ALREADY a team request, we do absolutely nothing. 
+            # We ignore equipment_data to protect the admin's custom loadout.
+        else:
+            # Standard equipment borrowing: update exactly as the user specified
+            if equipment_data is not None:
+                instance.equipment_requests.all().delete()
+                for item in equipment_data:
+                    MediaEquipmentRequest.objects.create(
+                        media_booking=instance,
+                        equipment=item['equipment'],
+                        quantity=item.get('quantity', 1),
+                    )
 
         return instance

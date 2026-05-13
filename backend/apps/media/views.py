@@ -10,10 +10,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
-from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
 from apps.spaces.models import Equipment
 from apps.users.models import RoleOverride
-
+from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
 
 # ── Role resolution ───────────────────────────────────────────────────────────
 
@@ -117,10 +116,6 @@ def _check_equipment_availability_for_approval(booking):
 # ── Settings View ─────────────────────────────────────────────────────────────
 
 class MediaSettingsView(APIView):
-    """
-    GET  /api/media/settings/  — retrieve the singleton settings object.
-    PATCH /api/media/settings/ — update max_concurrent_events (media admin only).
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -155,7 +150,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             'space', 'user', 'department'
         ).prefetch_related('equipment_requests__equipment')
 
-        # Admin detail actions bypass the view filter
         if self.action in ['review', 'update_loadout', 'retrieve', 'partial_update', 'update'] and is_admin:
             return qs
 
@@ -189,12 +183,24 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             })
         serializer.save(user=user, department=user.department)
 
+    @transaction.atomic
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        user = self.request.user
+        
+        # OBJECTIVE 2: Revert on Edit
+        if instance.status == 'APPROVED' and not _is_media_admin(user):
+            serializer.save(status='PENDING', remarks_by_admin='')
+        else:
+            serializer.save()
+
     # ── /check_availability/ ─────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
         booking_date = request.query_params.get('date')
         req_start    = request.query_params.get('start')
         req_end      = request.query_params.get('end')
+        exclude_id   = request.query_params.get('exclude')
 
         if not all([booking_date, req_start, req_end]):
             return Response(
@@ -206,14 +212,37 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             booking_date=booking_date,
             setup_start_time__lt=req_end,
             teardown_end_time__gt=req_start,
-        ).exclude(status__in=['REJECTED', 'CANCELLED'])
+        ).exclude(status__in=['REJECTED', 'CANCELLED']).prefetch_related('equipment_requests')
 
-        used_map = {
-            item['equipment_id']: item['total_used']
-            for item in MediaEquipmentRequest.objects.filter(
-                media_booking__in=overlapping
-            ).values('equipment_id').annotate(total_used=Sum('quantity'))
-        }
+        # Prevent self-blocking when editing
+        if exclude_id and exclude_id not in ['null', 'undefined', '']:
+            overlapping = overlapping.exclude(pk=exclude_id)
+
+        # Sweepline Algorithm for precise inventory concurrency
+        eq_time_points = {}
+        for b in overlapping:
+            s_str = max(b.setup_start_time.strftime("%H:%M:%S"), req_start)
+            e_str = min(b.teardown_end_time.strftime("%H:%M:%S"), req_end)
+            
+            if s_str >= e_str:
+                continue
+
+            for req in b.equipment_requests.all():
+                eq_id = req.equipment_id
+                eq_time_points.setdefault(eq_id, []).extend([
+                    (s_str, req.quantity),   # Item checked out
+                    (e_str, -req.quantity)   # Item returned
+                ])
+
+        used_map = {}
+        for eq_id, points in eq_time_points.items():
+            points.sort(key=lambda x: (x[0], x[1]))
+            current_used = max_used = 0
+            for _, delta in points:
+                current_used += delta
+                if current_used > max_used:
+                    max_used = current_used
+            used_map[eq_id] = max_used
 
         availability = [
             {
