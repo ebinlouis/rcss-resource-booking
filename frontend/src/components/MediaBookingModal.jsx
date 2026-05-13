@@ -46,9 +46,11 @@ const INITIAL_FORM = {
   requested_services: "",
   user_notes: "",
   is_external_event: false,
+  is_team_request: false,
 }
 
 function MediaBookingModal({ onClose, onSuccess }) {
+  const [requestMode, setRequestMode] = useState(null)
   const [formData, setFormData] = useState(INITIAL_FORM)
   const [needsBuffer, setNeedsBuffer] = useState(false)
 
@@ -72,6 +74,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
 
   const actualSetup = needsBuffer && setup_start_time ? setup_start_time : event_start_time
   const actualTeardown = needsBuffer && teardown_end_time ? teardown_end_time : event_end_time
+  const isTeamRequest = requestMode === "team"
 
   useEffect(() => {
     let isMounted = true
@@ -79,7 +82,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
     const timeoutId = setTimeout(() => {
       if (!isMounted) return
 
-      if (booking_date && event_start_time && event_end_time) {
+      if (!isTeamRequest && booking_date && event_start_time && event_end_time) {
         if (actualSetup <= event_start_time && event_start_time < event_end_time && event_end_time <= actualTeardown) {
           setCheckingInventory(true)
 
@@ -113,7 +116,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown])
+  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown, isTeamRequest])
 
   const groupedEquipment = useMemo(() => {
     return availableEquipment.reduce((acc, eq) => {
@@ -171,10 +174,12 @@ function MediaBookingModal({ onClose, onSuccess }) {
       }
     }
 
-    equipmentRequests.forEach((req, idx) => {
-      if (!req.equipment) e[`eq_${idx}`] = "Select item"
-      if (req.quantity < 1) e[`qty_${idx}`] = "Min 1"
-    })
+    if (!isTeamRequest) {
+      equipmentRequests.forEach((req, idx) => {
+        if (!req.equipment) e[`eq_${idx}`] = "Select item"
+        if (req.quantity < 1) e[`qty_${idx}`] = "Min 1"
+      })
+    }
 
     setErrors(e)
     return Object.keys(e).length === 0
@@ -188,8 +193,10 @@ function MediaBookingModal({ onClose, onSuccess }) {
       ...formData,
       setup_start_time: actualSetup,
       teardown_end_time: actualTeardown,
+      is_team_request: isTeamRequest,
       is_external_event: formData.is_external_event,
-      equipment_requests: equipmentRequests.filter(req => req.equipment).map(req => ({
+      requested_services: isTeamRequest ? "Media team coverage" : formData.requested_services,
+      equipment_requests: isTeamRequest ? [] : equipmentRequests.filter(req => req.equipment).map(req => ({
         equipment: parseInt(req.equipment),
         quantity: parseInt(req.quantity)
       }))
@@ -247,6 +254,56 @@ function MediaBookingModal({ onClose, onSuccess }) {
     )
   }
 
+  if (!requestMode) {
+    return createPortal(
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+        <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+          <div className="px-8 py-6 border-b border-gray-100">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-green-700 mb-1.5">New media request</p>
+            <h2 className="text-2xl font-bold text-gray-900">What do you need?</h2>
+            <p className="text-sm text-gray-500 mt-2">Choose the request type so we only ask for the details that matter.</p>
+          </div>
+
+          <div className="grid gap-4 p-8 md:grid-cols-2">
+            <button
+              onClick={() => {
+                setRequestMode("equipment")
+                setFormData((prev) => ({ ...prev, is_team_request: false }))
+              }}
+              className="text-left rounded-2xl border border-gray-200 bg-white p-5 hover:border-green-200 hover:bg-green-50 transition"
+            >
+              <p className="text-3xl mb-4">🎒</p>
+              <h3 className="text-lg font-bold text-gray-900">Borrow equipment</h3>
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">Select cameras, tripods, microphones, and other portable gear yourself.</p>
+            </button>
+
+            <button
+              onClick={() => {
+                setRequestMode("team")
+                setNeedsBuffer(false)
+                setEquipmentRequests([])
+                setAvailableEquipment([])
+                setFormData((prev) => ({ ...prev, is_team_request: true, requested_services: "Media team coverage" }))
+              }}
+              className="text-left rounded-2xl border border-gray-200 bg-white p-5 hover:border-green-200 hover:bg-green-50 transition"
+            >
+              <p className="text-3xl mb-4">🎥</p>
+              <h3 className="text-lg font-bold text-gray-900">Request media team</h3>
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">Ask the professional media team to cover your event. Gear is reserved automatically after approval.</p>
+            </button>
+          </div>
+
+          <div className="flex justify-end px-8 py-5 border-t border-gray-100 bg-gray-50">
+            <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )
+  }
+
   return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
       <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
@@ -259,7 +316,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
           >
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">Media & Gear</p>
-              <h2 className="text-2xl font-bold text-white">New Request</h2>
+              <h2 className="text-2xl font-bold text-white">{isTeamRequest ? "Team Coverage" : "New Request"}</h2>
 
               {formData.is_external_event && (
                 <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
@@ -271,7 +328,11 @@ function MediaBookingModal({ onClose, onSuccess }) {
               )}
 
               <p className="text-sm text-green-200/80 mt-3 leading-relaxed">
-                Step 1: Pick a time.<br />Step 2: Secure your gear.<br />Step 3: Add event details.
+                {isTeamRequest ? (
+                  <>Step 1: Pick event timing.<br />Step 2: Add location.<br />Step 3: Describe the coverage needed.</>
+                ) : (
+                  <>Step 1: Pick a time.<br />Step 2: Secure your gear.<br />Step 3: Add event details.</>
+                )}
               </p>
             </div>
             <div className="space-y-3">
@@ -293,7 +354,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
           <div className="flex-1 flex flex-col min-h-0 bg-gray-50/30">
             <div className="flex justify-between items-center px-8 pt-6 pb-4 border-b border-gray-100 bg-white">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Media Booking Form</h2>
+                <h2 className="text-xl font-bold text-gray-900">{isTeamRequest ? "Media Team Request" : "Media Booking Form"}</h2>
               </div>
               <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">✕</button>
             </div>
@@ -321,6 +382,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
                 </Field>
               </div>
 
+              {!isTeamRequest && (
               <div className="mb-4 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer w-max">
                   <input
@@ -334,8 +396,9 @@ function MediaBookingModal({ onClose, onSuccess }) {
                   </span>
                 </label>
               </div>
+              )}
 
-              {needsBuffer && (
+              {!isTeamRequest && needsBuffer && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
                   <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_time} helpText="When does the team need to arrive?">
                     <input type="time" name="setup_start_time" className={inputCls(errors.setup_start_time)} value={formData.setup_start_time} onChange={handleChange} />
@@ -346,10 +409,12 @@ function MediaBookingModal({ onClose, onSuccess }) {
                 </div>
               )}
 
-              {/* STEP 2: HARDWARE & EQUIPMENT */}
-              <SectionLabel>2. Hardware & Gear</SectionLabel>
+              {!isTeamRequest && (
+              <>
+                {/* STEP 2: HARDWARE & EQUIPMENT */}
+                <SectionLabel>2. Hardware & Gear</SectionLabel>
 
-              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
+                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
                 <div className="flex justify-between items-center mb-4">
                   <label className="text-sm font-bold text-gray-800">Available Inventory</label>
                   {checkingInventory && <span className="text-xs text-blue-600 animate-pulse font-medium bg-blue-50 px-2 py-1 rounded">Syncing inventory...</span>}
@@ -429,10 +494,12 @@ function MediaBookingModal({ onClose, onSuccess }) {
                     </button>
                   </div>
                 )}
-              </div>
+                </div>
+              </>
+              )}
 
               {/* STEP 3: EVENT DETAILS */}
-              <SectionLabel>3. Event Details</SectionLabel>
+              <SectionLabel>{isTeamRequest ? "2. Event Details" : "3. Event Details"}</SectionLabel>
 
               {/* External Event Toggle — mirrors BookingModal.jsx pattern */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60 mb-4">
@@ -469,10 +536,17 @@ function MediaBookingModal({ onClose, onSuccess }) {
                     ))}
                   </select>
                 </Field>
+                {!isTeamRequest && (
                 <Field label="Human Resources (Optional)" error={errors.requested_services} helpText="Do you need media staff?">
                   <input type="text" name="requested_services" className={inputCls(errors.requested_services)}
                     placeholder="e.g., 2 Photographers" value={formData.requested_services} onChange={handleChange} />
                 </Field>
+                )}
+                {isTeamRequest && (
+                <Field label="Coverage Type" helpText="The media team will assign the appropriate staff and kit.">
+                  <input type="text" className={inputCls()} value="Media team coverage" disabled />
+                </Field>
+                )}
               </div>
 
               <div className="mb-6">
@@ -480,7 +554,7 @@ function MediaBookingModal({ onClose, onSuccess }) {
                   <textarea
                     name="user_notes" rows={2}
                     className={`${inputCls(errors.user_notes)} resize-none`}
-                    placeholder="Any extra details for the media team..."
+                    placeholder={isTeamRequest ? "Describe what should be covered, key moments, deliverables, or special instructions..." : "Any extra details for the media team..."}
                     value={formData.user_notes} onChange={handleChange}
                   />
                 </Field>

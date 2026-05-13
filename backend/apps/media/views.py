@@ -1,36 +1,29 @@
 from django.db import transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.db.models import Sum, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
 
-from apps.media.models import MediaBooking, MediaEquipmentRequest
-from apps.media.serializers import MediaBookingSerializer
+from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
+from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
 from apps.spaces.models import Equipment
 from apps.users.models import RoleOverride
 
+
 # ── Role resolution ───────────────────────────────────────────────────────────
-# Lowercase constant so DB casing ('Media', 'MEDIA', 'media') never matters.
+
 MEDIA_ROLE = 'media'
 
-
 def _normalize(role):
-    """Lowercase + strip so DB casing never matters for comparisons."""
     return (role or "").strip().lower()
 
-
 def _get_effective_role(user):
-    """
-    Resolve the user's active role name (raw, as stored in DB).
-    Priority: active RoleOverride -> user.role FK -> first Django group.
-    is_superuser / is_staff are deliberately excluded — they are
-    Django-admin concerns only and must not grant module access.
-    """
     now = timezone.now()
-
     active_override = RoleOverride.objects.filter(
         user=user,
         is_active=True,
@@ -40,19 +33,111 @@ def _get_effective_role(user):
 
     if active_override:
         return active_override.overridden_role.name
-
     if getattr(user, 'role', None):
         return user.role.name
-
     if user.groups.exists():
         return user.groups.first().name
-
     return ""
 
-
 def _is_media_admin(user):
-    """Returns True only if the user's effective role resolves to the media role."""
     return _normalize(_get_effective_role(user)) == MEDIA_ROLE
+
+def _overlapping_team_bookings(booking_date, start_time, end_time, exclude_pk=None):
+    qs = MediaBooking.objects.filter(
+        booking_date=booking_date,
+        status='APPROVED',
+        is_team_request=True,
+        setup_start_time__lt=end_time,
+        teardown_end_time__gt=start_time,
+    )
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs
+
+def _team_capacity_available(booking, settings):
+    overlapping_count = _overlapping_team_bookings(
+        booking.booking_date,
+        booking.setup_start_time,
+        booking.teardown_end_time,
+        exclude_pk=booking.pk,
+    ).count()
+    return overlapping_count < settings.max_concurrent_events
+
+def _reserve_standard_team_kit(booking):
+    settings = MediaSettings.load()
+    for kit_item in settings.standard_kit_items.select_related('equipment').all():
+        request, created = MediaEquipmentRequest.objects.get_or_create(
+            media_booking=booking,
+            equipment=kit_item.equipment,
+            defaults={'quantity': kit_item.quantity},
+        )
+        if not created and request.quantity < kit_item.quantity:
+            request.quantity = kit_item.quantity
+            request.save(update_fields=['quantity'])
+
+def _check_equipment_availability_for_approval(booking):
+    overlapping_bookings = MediaBooking.objects.filter(
+        booking_date=booking.booking_date,
+        status='APPROVED',
+        setup_start_time__lt=booking.teardown_end_time,
+        teardown_end_time__gt=booking.setup_start_time,
+    ).exclude(pk=booking.pk)
+
+    used_map = {
+        item['equipment_id']: item['total_used']
+        for item in MediaEquipmentRequest.objects.filter(
+            media_booking__in=overlapping_bookings
+        ).values('equipment_id').annotate(total_used=Sum('quantity'))
+    }
+
+    if booking.is_team_request:
+        settings = MediaSettings.load()
+        needed_gear = [
+            {'eq': k.equipment, 'qty': k.quantity}
+            for k in settings.standard_kit_items.select_related('equipment')
+        ]
+    else:
+        needed_gear = [
+            {'eq': r.equipment, 'qty': r.quantity}
+            for r in booking.equipment_requests.select_related('equipment')
+        ]
+
+    for item in needed_gear:
+        eq, needed_qty = item['eq'], item['qty']
+        available_qty  = max(0, eq.total_owned - used_map.get(eq.id, 0))
+        if available_qty < needed_qty:
+            return False, (
+                f"Not enough {eq.name}. "
+                f"Need {needed_qty}, but only {available_qty} available for this time block."
+            )
+
+    return True, ""
+
+
+# ── Settings View ─────────────────────────────────────────────────────────────
+
+class MediaSettingsView(APIView):
+    """
+    GET  /api/media/settings/  — retrieve the singleton settings object.
+    PATCH /api/media/settings/ — update max_concurrent_events (media admin only).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        settings = MediaSettings.load()
+        return Response(MediaSettingsSerializer(settings).data)
+
+    def patch(self, request):
+        if not _is_media_admin(request.user):
+            return Response(
+                {"detail": "Only the Media administrator can change team settings."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        settings   = MediaSettings.load()
+        serializer = MediaSettingsSerializer(settings, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 # ── ViewSet ───────────────────────────────────────────────────────────────────
@@ -70,95 +155,269 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             'space', 'user', 'department'
         ).prefetch_related('equipment_requests__equipment')
 
-        # Admin-only views — non-media-admins get an empty queryset for these.
-        # The frontend guard is UX only; this is the real enforcement.
-        if view_param == 'pending':
-            if not is_admin:
-                return qs.none()
-            return qs.filter(status='PENDING').order_by('-created_at')
+        # Admin detail actions bypass the view filter
+        if self.action in ['review', 'update_loadout', 'retrieve', 'partial_update', 'update'] and is_admin:
+            return qs
 
-        if view_param == 'active':
-            if not is_admin:
-                return qs.none()
-            return qs.filter(status='APPROVED').order_by('booking_date', 'setup_start_time')
+        VIEW_MAP = {
+            'pending':     (lambda: qs.filter(status='PENDING').order_by('-created_at'),           is_admin),
+            'active':      (lambda: qs.filter(status='APPROVED').order_by('booking_date', 'setup_start_time'), is_admin),
+            'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),       is_admin),
+        }
 
-        if view_param == 'resolved_by_me':
-            if not is_admin:
-                return qs.none()
-            return qs.filter(resolved_by=user).order_by('-resolved_at')
+        if view_param in VIEW_MAP:
+            query_fn, requires_admin = VIEW_MAP[view_param]
+            return query_fn() if (not requires_admin or is_admin) else qs.none()
 
         if view_param == 'general':
-            if is_admin:
-                return qs.order_by('-created_at')
-            # Regular users: own bookings excluding rejected
-            return qs.filter(user=user).exclude(status='REJECTED').order_by('booking_date', 'setup_start_time')
+            return (
+                qs.order_by('-created_at') if is_admin
+                else qs.filter(user=user).exclude(status='REJECTED').order_by('booking_date', 'setup_start_time')
+            )
 
-        # Default: 'mine' — always scoped to the requesting user regardless of role
         return qs.filter(user=user).order_by('-created_at')
 
     @transaction.atomic
     def perform_create(self, serializer):
-        user      = self.request.user
-        user_dept = getattr(user, 'department', None)
-
-        if not user_dept:
+        user = self.request.user
+        if not getattr(user, 'department', None):
             raise ValidationError({
                 "non_field_errors": (
                     "Your user profile is not assigned to a department. "
                     "Please contact an administrator before booking."
                 )
             })
+        serializer.save(user=user, department=user.department)
 
-        serializer.save(user=user, department=user_dept)
-
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    # ── /check_availability/ ─────────────────────────────────────────────────
+    @action(detail=False, methods=['get'])
     def check_availability(self, request):
-        """
-        Strict Inventory Math Endpoint.
-        GET /api/media/bookings/check_availability/?date=2026-05-15&start=09:00&end=14:00
-        """
         booking_date = request.query_params.get('date')
-        req_start    = request.query_params.get('start')  # maps to setup_start_time
-        req_end      = request.query_params.get('end')    # maps to teardown_end_time
+        req_start    = request.query_params.get('start')
+        req_end      = request.query_params.get('end')
 
         if not all([booking_date, req_start, req_end]):
             return Response(
                 {"error": "date, start, and end parameters are required."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Find all bookings on this date that OVERLAP with the requested time window.
-        # Logic: (Existing Setup < Requested Teardown) AND (Existing Teardown > Requested Setup)
-        # Exclude REJECTED and CANCELLED bookings.
-        overlapping_bookings = MediaBooking.objects.filter(
+        overlapping = MediaBooking.objects.filter(
             booking_date=booking_date,
             setup_start_time__lt=req_end,
-            teardown_end_time__gt=req_start
+            teardown_end_time__gt=req_start,
         ).exclude(status__in=['REJECTED', 'CANCELLED'])
 
-        checked_out_gear = MediaEquipmentRequest.objects.filter(
-            media_booking__in=overlapping_bookings
-        ).values('equipment_id').annotate(total_used=Sum('quantity'))
+        used_map = {
+            item['equipment_id']: item['total_used']
+            for item in MediaEquipmentRequest.objects.filter(
+                media_booking__in=overlapping
+            ).values('equipment_id').annotate(total_used=Sum('quantity'))
+        }
 
-        used_map = {item['equipment_id']: item['total_used'] for item in checked_out_gear}
-
-        all_equipment = Equipment.objects.filter(is_active=True, is_portable=True)
-        availability  = []
-
-        for eq in all_equipment:
-            used      = used_map.get(eq.id, 0)
-            available = max(0, eq.total_owned - used)
-            availability.append({
+        availability = [
+            {
                 "id":                  eq.id,
                 "name":                eq.name,
                 "category":            eq.category,
                 "total_owned":         eq.total_owned,
-                "currently_available": available,
+                "currently_available": max(0, eq.total_owned - used_map.get(eq.id, 0)),
+            }
+            for eq in Equipment.objects.filter(is_active=True, is_portable=True)
+        ]
+
+        return Response(availability)
+
+    # ── /daily_availability/ ─────────────────────────────────────────────────
+    @action(detail=False, methods=['get'])
+    def daily_availability(self, request):
+        date_param   = request.query_params.get('date')
+        view_type    = request.query_params.get('type', 'equipment')
+        booking_date = parse_date(date_param) if date_param else timezone.localdate()
+
+        if not booking_date:
+            return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings = MediaSettings.load()
+
+        if view_type == 'team':
+            approved_team = MediaBooking.objects.filter(
+                booking_date=booking_date, status='APPROVED', is_team_request=True,
+            ).order_by('setup_start_time')
+
+            slots       = []
+            time_points = []
+
+            for b in approved_team:
+                s = b.setup_start_time.strftime("%H:%M")
+                e = b.teardown_end_time.strftime("%H:%M")
+                slots.append({"start_time": s, "end_time": e, "event_name": b.event_name})
+                time_points += [(s, 1), (e, -1)]
+
+            time_points.sort(key=lambda x: (x[0], x[1]))
+
+            current_used, busy_start = 0, None
+            fully_booked_periods     = []
+
+            for t_str, delta in time_points:
+                was_full      = current_used >= settings.max_concurrent_events
+                current_used += delta
+                is_full       = current_used >= settings.max_concurrent_events
+
+                if is_full and not was_full:
+                    busy_start = t_str
+                elif was_full and not is_full and busy_start and busy_start != t_str:
+                    fully_booked_periods.append({"start": busy_start, "end": t_str})
+                    busy_start = None
+
+            return Response({
+                "date":                  booking_date.isoformat(),
+                "type":                  "team",
+                "max_capacity":          settings.max_concurrent_events,
+                "booked_slots":          sorted(slots, key=lambda x: x['start_time']),
+                "fully_booked_periods":  fully_booked_periods,
             })
 
-        return Response(availability, status=status.HTTP_200_OK)
+        if view_type != 'equipment':
+            return Response({"error": "Invalid type. Expected equipment or team."}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
+        approved = MediaBooking.objects.filter(
+            booking_date=booking_date, status='APPROVED',
+        ).prefetch_related('equipment_requests')
+
+        eq_slots = {}
+        for b in approved:
+            for req in b.equipment_requests.all():
+                eq_slots.setdefault(req.equipment_id, []).append({
+                    "start_time": b.setup_start_time.strftime("%H:%M"),
+                    "end_time":   b.teardown_end_time.strftime("%H:%M"),
+                    "quantity":   req.quantity,
+                    "event_name": b.event_name,
+                })
+
+        availability = []
+        for item in Equipment.objects.filter(is_active=True, is_portable=True).order_by('category', 'name'):
+            slots       = eq_slots.get(item.id, [])
+            time_points = []
+            for s in slots:
+                time_points += [(s['start_time'], s['quantity']), (s['end_time'], -s['quantity'])]
+            time_points.sort(key=lambda x: (x[0], x[1]))
+
+            current_used = max_used = 0
+            for _, delta in time_points:
+                current_used += delta
+                max_used      = max(max_used, current_used)
+
+            availability.append({
+                "id":                 item.id,
+                "name":               item.name,
+                "category":           item.category,
+                "category_display":   item.get_category_display(),
+                "total_owned":        item.total_owned,
+                "booked_quantity":    max_used,
+                "available_quantity": max(0, item.total_owned - max_used),
+                "booked_slots":       sorted(slots, key=lambda x: x['start_time']),
+            })
+
+        return Response({"date": booking_date.isoformat(), "type": "equipment", "items": availability})
+
+    # ── /runsheet/ ────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['get'])
+    def runsheet(self, request):
+        date_param   = request.query_params.get('date')
+        booking_date = parse_date(date_param) if date_param else timezone.localdate()
+
+        if not booking_date:
+            return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        bookings = MediaBooking.objects.filter(
+            booking_date=booking_date, status='APPROVED', is_team_request=True,
+        ).select_related('space', 'user', 'department').prefetch_related(
+            'equipment_requests__equipment'
+        ).order_by('event_start_time')
+
+        return Response(self.get_serializer(bookings, many=True).data)
+
+    # ── /<id>/update_loadout/ ─────────────────────────────────────────────────
+    @action(detail=True, methods=['patch'], url_path='update_loadout')
+    @transaction.atomic
+    def update_loadout(self, request, pk=None):
+        if not _is_media_admin(request.user):
+            return Response(
+                {"detail": "Only the Media administrator can update loadouts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        booking = self.get_object()
+
+        if booking.status != 'APPROVED':
+            return Response({"error": "Loadout can only be edited on APPROVED bookings."}, status=status.HTTP_400_BAD_REQUEST)
+        if not booking.is_team_request:
+            return Response({"error": "Loadout editing is only available for team-request bookings."}, status=status.HTTP_400_BAD_REQUEST)
+
+        equipment_data = request.data.get('equipment_requests')
+        if not isinstance(equipment_data, list):
+            return Response({"error": "'equipment_requests' must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        resolved_items = []
+        seen_ids       = set()
+
+        for idx, item in enumerate(equipment_data):
+            eq_id    = item.get('equipment')
+            quantity = item.get('quantity', 1)
+            row      = idx + 1
+
+            if not eq_id:
+                return Response({"error": f"Row {row}: 'equipment' field is required."}, status=status.HTTP_400_BAD_REQUEST)
+            if not isinstance(quantity, int) or quantity < 1:
+                return Response({"error": f"Row {row}: 'quantity' must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+            if eq_id in seen_ids:
+                return Response({"error": f"Row {row}: Duplicate equipment id {eq_id}. Merge into one row."}, status=status.HTTP_400_BAD_REQUEST)
+            seen_ids.add(eq_id)
+
+            try:
+                equipment = Equipment.objects.get(pk=eq_id, is_active=True, is_portable=True)
+            except Equipment.DoesNotExist:
+                return Response({"error": f"Row {row}: Equipment id {eq_id} not found or not available."}, status=status.HTTP_400_BAD_REQUEST)
+
+            resolved_items.append({'equipment': equipment, 'quantity': quantity})
+
+        used_map = {
+            row['equipment_id']: row['total_used']
+            for row in MediaEquipmentRequest.objects.filter(
+                media_booking__in=MediaBooking.objects.filter(
+                    booking_date=booking.booking_date,
+                    status='APPROVED',
+                    setup_start_time__lt=booking.teardown_end_time,
+                    teardown_end_time__gt=booking.setup_start_time,
+                ).exclude(pk=booking.pk)
+            ).values('equipment_id').annotate(total_used=Sum('quantity'))
+        }
+
+        for item in resolved_items:
+            eq        = item['equipment']
+            needed    = item['quantity']
+            available = max(0, eq.total_owned - used_map.get(eq.id, 0))
+            if needed > available:
+                return Response(
+                    {"error": f"Cannot allocate {needed}x {eq.name}. Only {available} available during this event's time block."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        booking.equipment_requests.all().delete()
+        for item in resolved_items:
+            MediaEquipmentRequest.objects.create(
+                media_booking=booking,
+                equipment=item['equipment'],
+                quantity=item['quantity'],
+            )
+
+        booking.updated_by = request.user
+        booking.save(update_fields=['updated_by', 'updated_at'])
+        return Response(self.get_serializer(booking).data)
+
+    # ── /<id>/review/ ─────────────────────────────────────────────────────────
+    @action(detail=True, methods=['patch'])
     @transaction.atomic
     def review(self, request, pk=None):
         if not _is_media_admin(request.user):
@@ -172,16 +431,17 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         remarks    = request.data.get('remarks_by_admin', '')
 
         if new_status not in ['APPROVED', 'REJECTED']:
-            return Response(
-                {"error": "Invalid status. Must be APPROVED or REJECTED."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+            return Response({"error": "Invalid status. Must be APPROVED or REJECTED."}, status=status.HTTP_400_BAD_REQUEST)
         if new_status == 'REJECTED' and not remarks.strip():
-            return Response(
-                {"error": "Remarks are required when rejecting a booking."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "Remarks are required when rejecting a booking."}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings = MediaSettings.load()
+        if new_status == 'APPROVED':
+            if booking.is_team_request and not _team_capacity_available(booking, settings):
+                return Response({"error": "Media team capacity is full for this event time."}, status=status.HTTP_400_BAD_REQUEST)
+            is_avail, error_msg = _check_equipment_availability_for_approval(booking)
+            if not is_avail:
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
         booking.status           = new_status
         booking.remarks_by_admin = remarks
@@ -189,19 +449,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_at      = timezone.now()
         booking.save()
 
-        serializer = self.get_serializer(booking)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if new_status == 'APPROVED' and booking.is_team_request:
+            _reserve_standard_team_kit(booking)
 
+        return Response(self.get_serializer(booking).data)
+
+    # ── /my-bookings/ ─────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
-        """
-        GET /api/media/bookings/my-bookings/
-        Always returns only the authenticated user's own bookings regardless of role.
-        Media admins checking their personal bookings use this, not the list endpoint.
-        """
-        bookings = MediaBooking.objects.filter(
-            user=request.user
-        ).order_by('-created_at')
-
-        serializer = self.get_serializer(bookings, many=True)
-        return Response(serializer.data)
+        bookings = MediaBooking.objects.filter(user=request.user).order_by('-created_at')
+        return Response(self.get_serializer(bookings, many=True).data)

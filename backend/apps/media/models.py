@@ -1,7 +1,55 @@
 import uuid
+from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, F
+from django.db.models import Q, F, Sum
 from apps.approvals.models import BaseBooking
+
+
+class MediaSettings(models.Model):
+    max_concurrent_events = models.PositiveIntegerField(default=2)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Media Settings'
+        verbose_name_plural = 'Media Settings'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+
+    def __str__(self):
+        return f"Media capacity: {self.max_concurrent_events} concurrent events"
+
+
+class MediaTeamKitItem(models.Model):
+    settings = models.ForeignKey(
+        MediaSettings,
+        on_delete=models.CASCADE,
+        related_name='standard_kit_items',
+        default=1,
+    )
+    equipment = models.ForeignKey('spaces.Equipment', on_delete=models.RESTRICT)
+    quantity = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['settings', 'equipment'],
+                name='unique_media_team_kit_equipment',
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0),
+                name='media_team_kit_quantity_positive',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity}x {self.equipment.name} for media team kit"
 
 
 class MediaBooking(BaseBooking):
@@ -21,6 +69,10 @@ class MediaBooking(BaseBooking):
     is_external_event = models.BooleanField(
         default=False,
         help_text="True if this event is organised by an external party outside the college."
+    )
+    is_team_request = models.BooleanField(
+        default=False,
+        help_text="True when the requester needs the media team to cover the event."
     )
 
     class Meta(BaseBooking.Meta):
@@ -75,6 +127,41 @@ class MediaEquipmentRequest(models.Model):
                 name='unique_equipment_per_media_booking'
             )
         ]
+
+    def clean(self):
+        super().clean()
+        
+        # Prevent accessing related fields if they haven't been set yet
+        if not hasattr(self, 'media_booking') or not hasattr(self, 'equipment'):
+            return
+
+        # 1. Find all OTHER approved bookings overlapping with this time
+        overlapping_bookings = MediaBooking.objects.filter(
+            booking_date=self.media_booking.booking_date,
+            status='APPROVED',
+            setup_start_time__lt=self.media_booking.teardown_end_time,
+            teardown_end_time__gt=self.media_booking.setup_start_time
+        ).exclude(pk=self.media_booking.pk)
+
+        # 2. Count how many of THIS specific equipment are already used by others
+        used_quantity = MediaEquipmentRequest.objects.filter(
+            media_booking__in=overlapping_bookings,
+            equipment=self.equipment
+        ).aggregate(total_used=Sum('quantity'))['total_used'] or 0
+
+        # 3. Calculate max available (Total Owned - Used by Others)
+        available_qty = max(0, self.equipment.total_owned - used_quantity)
+
+        # 4. Block the save if they ask for too many
+        if self.quantity > available_qty:
+            raise ValidationError({
+                'quantity': f"Cannot reserve {self.quantity}. Only {available_qty} '{self.equipment.name}' available during this time block."
+            })
+
+    def save(self, *args, **kwargs):
+        # Force Django to run the clean() method every time we save
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.quantity}x {self.equipment.name} for {self.media_booking.reference_code}"

@@ -9,9 +9,11 @@ const NAV_LINKS = [
     { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                                       },
     { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                                       },
     { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                                         },
-    // Issue 2 fix: media page is only for the dedicated media admin role,
-    // not for IT Admin / system admins.
-    { to: '/admin/media',          label: 'Media',           end: false, capability: (c) => c?.can_manage_media                                        },
+    
+    // Media Module
+    { to: '/admin/media',          label: 'Media Approvals', end: false, capability: (c) => c?.can_manage_media                                        },
+    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media                                        },
+    
     { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                                       },
 ];
 
@@ -22,7 +24,8 @@ const NAV_ICONS = {
     'Departments':     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport':       'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
     'Mess':            'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-    'Media':           'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z',
+    'Media Approvals': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z',
+    'Team Schedule':   'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', // Calendar icon
     'Role Overrides':  'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
 };
 
@@ -170,7 +173,6 @@ const AdminLayout = () => {
         can_manage_spaces:    user?.capabilities?.can_manage_spaces,
         can_manage_equipment: user?.capabilities?.can_manage_equipment,
         can_manage_mess:      user?.capabilities?.can_manage_mess,
-        // Issue 2 fix: track can_manage_media independently of can_manage_system
         can_manage_media:     user?.capabilities?.can_manage_media,
     };
 
