@@ -525,7 +525,7 @@ function AdminMediaPage() {
 
     useEffect(() => {
         if (!canManageMedia) return
-        fetchData({ showLoading: false })
+        ;(async () => { await fetchData({ showLoading: false }) })()
     }, [canManageMedia, fetchData])
 
     const handleApproveConfirm = async () => {
