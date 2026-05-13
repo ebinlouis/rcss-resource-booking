@@ -89,7 +89,7 @@ class MediaBookingSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, data):
-        booking_date    = data.get('booking_date')
+        booking_date    = data.get('booking_date', getattr(self.instance, 'booking_date', None))
         is_team_request = data.get('is_team_request', getattr(self.instance, 'is_team_request', False))
         equipment_data  = data.get('equipment_requests')
 
@@ -98,16 +98,37 @@ class MediaBookingSerializer(serializers.ModelSerializer):
         eend     = data.get('event_end_time',     getattr(self.instance, 'event_end_time',     None))
         teardown = data.get('teardown_end_time',  getattr(self.instance, 'teardown_end_time',  None))
 
-        if booking_date and not self.instance and booking_date < timezone.now().date():
-            raise serializers.ValidationError({
-                "booking_date": "Media requests cannot be made for past dates."
-            })
-
         if setup and estart and eend and teardown and not (setup <= estart < eend <= teardown):
             raise serializers.ValidationError({
                 "non_field_errors": "Chronology error: Setup must precede Event Start, "
                                     "Event Start must precede Event End, and Event End must precede Teardown."
             })
+
+        # Past Date & Time validation
+        # Blocks creation of past events, AND prevents updating future events to the past.
+        if booking_date:
+            now = timezone.localtime()
+            today = now.date()
+            
+            is_new_or_changed_date = not self.instance or self.instance.booking_date != booking_date
+            first_time = setup if setup else estart
+            
+            old_first_time = None
+            if self.instance:
+                old_first_time = self.instance.setup_start_time if self.instance.setup_start_time else getattr(self.instance, 'event_start_time', None)
+            
+            is_new_or_changed_time = not self.instance or old_first_time != first_time
+
+            if is_new_or_changed_date and booking_date < today:
+                raise serializers.ValidationError({
+                    "booking_date": "Cannot move bookings to past dates."
+                })
+                
+            if booking_date == today and (is_new_or_changed_date or is_new_or_changed_time):
+                if first_time and first_time < now.time():
+                    raise serializers.ValidationError({
+                        "non_field_errors": "Cannot select a time slot that has already passed today."
+                    })
 
         if is_team_request and equipment_data:
             raise serializers.ValidationError({

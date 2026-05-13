@@ -195,11 +195,35 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       e.timeError = "End time must be after Start time"
     }
 
-    if (formData.booking_date && !initialData) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      if (new Date(formData.booking_date) < today) {
-        e.booking_date = "Cannot book in the past"
+    // Past Date and EXACT Time Validation
+    if (formData.booking_date) {
+      // Split to avoid timezone shifting bugs in JS Date parsing
+      const [year, month, day] = formData.booking_date.split('-');
+      const bookingDay = new Date(year, month - 1, day);
+      
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      // Only block if creating new, OR if editing and actively changing the date/time to a past value
+      const dateChanged = !initialData || initialData.booking_date !== formData.booking_date;
+
+      if (dateChanged && bookingDay < today) {
+        e.booking_date = "Cannot book in the past";
+      } else if (bookingDay.getTime() === today.getTime()) {
+        const firstTime = actualSetup || formData.event_start_time;
+        const oldFirstTime = initialData ? (initialData.setup_start_time || initialData.event_start_time) : null;
+        
+        const timeChanged = !initialData || oldFirstTime !== firstTime;
+
+        if (timeChanged && firstTime) {
+          const [hours, minutes] = firstTime.split(':');
+          const selectedTime = new Date(today);
+          selectedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+          
+          if (selectedTime < now) {
+            e.timeError = "You cannot select a time slot that has already passed today.";
+          }
+        }
       }
     }
 
@@ -218,8 +242,6 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     e?.preventDefault()
     if (!validate()) return
 
-    // FIX: Explicitly build payload from known safe keys so we don't accidentally
-    // send ghost data (like the old equipment array) that was spread from initialData.
     const payload = {
       event_name: formData.event_name,
       space: formData.space,
@@ -234,7 +256,6 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       user_notes: formData.user_notes,
     }
 
-    // Only attach equipment requests if they are actively in Equipment Borrowing mode
     if (!isTeamRequest) {
       payload.equipment_requests = equipmentRequests.filter(req => req.equipment).map(req => ({
         equipment: parseInt(req.equipment),
