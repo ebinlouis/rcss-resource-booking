@@ -163,6 +163,34 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         return qs.filter(user=user).order_by('-created_at')
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # ── THE FIX ──
+        # PROTECT TEAM LOADOUTS: Team request loadouts are strictly managed via 
+        # the `update_loadout` endpoint. If the user updates the event details, we 
+        # intercept and strip out equipment_requests so the nested serializer 
+        # doesn't wipe the admin's custom loadout.
+        if instance.is_team_request:
+            if hasattr(request.data, 'copy'):
+                mutable_data = request.data.copy()
+            else:
+                mutable_data = dict(request.data)
+                
+            mutable_data.pop('equipment_requests', None)
+            
+            partial = kwargs.pop('partial', False)
+            serializer = self.get_serializer(instance, data=mutable_data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+
+            if getattr(instance, '_prefetched_objects_cache', None):
+                instance._prefetched_objects_cache = {}
+
+            return Response(serializer.data)
+
+        return super().update(request, *args, **kwargs)
+
     @transaction.atomic
     def perform_create(self, serializer):
         user = self.request.user
@@ -294,7 +322,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 s_clamp = max(b.setup_start_datetime, day_start)
                 e_clamp = min(b.teardown_end_datetime, day_end)
                 
-                # FIX: Convert UTC to Local time before converting to a string
+                # Convert UTC to Local time before converting to a string
                 s_local = timezone.localtime(s_clamp)
                 e_local = timezone.localtime(e_clamp)
 
@@ -342,7 +370,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             s_clamp = max(b.setup_start_datetime, day_start)
             e_clamp = min(b.teardown_end_datetime, day_end)
             
-            # FIX: Convert UTC to Local time before converting to a string
+            # Convert UTC to Local time before converting to a string
             s_local = timezone.localtime(s_clamp)
             e_local = timezone.localtime(e_clamp)
 
@@ -504,7 +532,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         settings = MediaSettings.load()
         if new_status == 'APPROVED':
-            if booking.is_team_request:
+            # This safely injects the standard kit ONLY if the booking has 0 equipment. 
+            # It will no longer wipe out the admin's custom loadouts upon approval.
+            if booking.is_team_request and not booking.equipment_requests.exists():
                 _reserve_standard_team_kit(booking)
 
             if booking.is_team_request and not _team_capacity_available(booking, settings):
