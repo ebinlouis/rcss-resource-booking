@@ -50,8 +50,8 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'resolved_at', 'created_at', 'updated_at',
             'user_details',
             'space', 'space_details',
-            'event_name', 'booking_date',
-            'setup_start_time', 'event_start_time', 'event_end_time', 'teardown_end_time',
+            'event_name',
+            'setup_start_datetime', 'event_start_datetime', 'event_end_datetime', 'teardown_end_datetime',
             'equipment_requests', 'requested_services',
             'is_external_event', 'is_team_request',
             'can_modify',
@@ -68,7 +68,6 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
     def get_can_modify(self, obj):
         user = self._user()
-        # Allows editing if status is PENDING or APPROVED
         return bool(user and obj.status in ['PENDING', 'APPROVED'] and obj.user_id == user.pk)
 
     def get_user_details(self, obj):
@@ -89,14 +88,13 @@ class MediaBookingSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, data):
-        booking_date    = data.get('booking_date', getattr(self.instance, 'booking_date', None))
         is_team_request = data.get('is_team_request', getattr(self.instance, 'is_team_request', False))
         equipment_data  = data.get('equipment_requests')
 
-        setup    = data.get('setup_start_time',   getattr(self.instance, 'setup_start_time',   None))
-        estart   = data.get('event_start_time',   getattr(self.instance, 'event_start_time',   None))
-        eend     = data.get('event_end_time',     getattr(self.instance, 'event_end_time',     None))
-        teardown = data.get('teardown_end_time',  getattr(self.instance, 'teardown_end_time',  None))
+        setup    = data.get('setup_start_datetime', getattr(self.instance, 'setup_start_datetime', None))
+        estart   = data.get('event_start_datetime', getattr(self.instance, 'event_start_datetime', None))
+        eend     = data.get('event_end_datetime',   getattr(self.instance, 'event_end_datetime', None))
+        teardown = data.get('teardown_end_datetime', getattr(self.instance, 'teardown_end_datetime', None))
 
         if setup and estart and eend and teardown and not (setup <= estart < eend <= teardown):
             raise serializers.ValidationError({
@@ -105,30 +103,16 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             })
 
         # Past Date & Time validation
-        # Blocks creation of past events, AND prevents updating future events to the past.
-        if booking_date:
-            now = timezone.localtime()
-            today = now.date()
+        if setup:
+            now = timezone.now()
+            old_setup = getattr(self.instance, 'setup_start_datetime', None) if self.instance else None
             
-            is_new_or_changed_date = not self.instance or self.instance.booking_date != booking_date
-            first_time = setup if setup else estart
-            
-            old_first_time = None
-            if self.instance:
-                old_first_time = self.instance.setup_start_time if self.instance.setup_start_time else getattr(self.instance, 'event_start_time', None)
-            
-            is_new_or_changed_time = not self.instance or old_first_time != first_time
+            is_new_or_changed_time = not self.instance or old_setup != setup
 
-            if is_new_or_changed_date and booking_date < today:
+            if is_new_or_changed_time and setup < now:
                 raise serializers.ValidationError({
-                    "booking_date": "Cannot move bookings to past dates."
+                    "non_field_errors": "Cannot book event start or setup times in the past."
                 })
-                
-            if booking_date == today and (is_new_or_changed_date or is_new_or_changed_time):
-                if first_time and first_time < now.time():
-                    raise serializers.ValidationError({
-                        "non_field_errors": "Cannot select a time slot that has already passed today."
-                    })
 
         if is_team_request and equipment_data:
             raise serializers.ValidationError({
@@ -151,7 +135,6 @@ class MediaBookingSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         equipment_data = validated_data.pop('equipment_requests', None)
         
-        # Track if the mode is changing
         was_team_request = instance.is_team_request
         is_now_team_request = validated_data.get('is_team_request', was_team_request)
 
@@ -159,15 +142,10 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
 
-        # ── LOADOUT PROTECTION LOGIC ──
         if is_now_team_request:
-            # If switching from Equipment -> Team, wipe the old manual equipment selection
             if not was_team_request:
                 instance.equipment_requests.all().delete()
-            # If it was ALREADY a team request, we do absolutely nothing. 
-            # We ignore equipment_data to protect the admin's custom loadout.
         else:
-            # Standard equipment borrowing: update exactly as the user specified
             if equipment_data is not None:
                 instance.equipment_requests.all().delete()
                 for item in equipment_data:

@@ -27,16 +27,26 @@ const addDays = (dateString, days) => {
   return todayKeyFromDate(date)
 }
 
+// UPDATED: Handles both basic YYYY-MM-DD and full ISO DateTimes
 const formatDate = (dateString, options = {}) => {
   if (!dateString) return "TBD"
-  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-IN", options)
+  const date = dateString.includes('T') ? new Date(dateString) : new Date(`${dateString}T00:00:00`);
+  if (isNaN(date.getTime())) return "TBD";
+  return date.toLocaleDateString("en-IN", options)
 }
 
+// UPDATED: Handles both HH:MM slot strings AND full ISO DateTimes
 const formatTime = (timeString) => {
   if (!timeString) return "TBD"
-  const [hours, minutes] = timeString.split(":")
-  const date = new Date()
-  date.setHours(Number(hours), Number(minutes), 0, 0)
+  let date;
+  if (timeString.includes("T")) {
+      date = new Date(timeString);
+  } else {
+      const [hours, minutes] = timeString.split(":")
+      date = new Date()
+      date.setHours(Number(hours), Number(minutes), 0, 0)
+  }
+  if (isNaN(date.getTime())) return "TBD";
   return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
 }
 
@@ -56,6 +66,10 @@ function StatusBadge({ status }) {
 }
 
 function RecentRequestCard({ booking }) {
+  // UPDATED: Pluck the unified DateTimes
+  const startDt = booking.setup_start_datetime || booking.event_start_datetime;
+  const endDt = booking.teardown_end_datetime || booking.event_end_datetime;
+
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
       <div className="mb-1.5 flex items-start justify-between gap-3">
@@ -66,9 +80,9 @@ function RecentRequestCard({ booking }) {
         <StatusBadge status={booking.status} />
       </div>
       <p className="text-[12px] font-medium text-gray-500">
-        {formatDate(booking.booking_date, { day: "numeric", month: "short", year: "numeric" })}
+        {formatDate(startDt, { day: "numeric", month: "short", year: "numeric" })}
         {" · "}
-        {formatTime(booking.setup_start_time)} - {formatTime(booking.teardown_end_time)}
+        {formatTime(startDt)} - {formatTime(endDt)}
       </p>
     </div>
   )

@@ -26,20 +26,15 @@ class MediaSettings(models.Model):
         return f"Media capacity: {self.max_concurrent_events} concurrent events"
 
 
-# NOTE: MediaTeamKitItem has been completely removed to support dynamic inventory pools
-
-
 class MediaBooking(BaseBooking):
     space = models.ForeignKey('spaces.Space', on_delete=models.PROTECT, related_name='media_bookings')
     event_name = models.CharField(max_length=200)
 
-    booking_date = models.DateField(db_index=True)
-    
-    # -- Precise Time Separation --
-    setup_start_time  = models.TimeField()
-    event_start_time  = models.TimeField()
-    event_end_time    = models.TimeField()
-    teardown_end_time = models.TimeField()
+    # -- Unified Continuous Timestamps --
+    setup_start_datetime  = models.DateTimeField(db_index=True)
+    event_start_datetime  = models.DateTimeField()
+    event_end_datetime    = models.DateTimeField()
+    teardown_end_datetime = models.DateTimeField(db_index=True)
 
     requested_services = models.TextField(blank=True, null=True)
    
@@ -56,17 +51,17 @@ class MediaBooking(BaseBooking):
         constraints = BaseBooking.Meta.constraints + [
             # 1. Setup must start before or exactly when the event starts
             models.CheckConstraint(
-                condition=Q(setup_start_time__lte=F('event_start_time')),
+                condition=Q(setup_start_datetime__lte=F('event_start_datetime')),
                 name='media_setup_before_event_start'
             ),
             # 2. Event start must be strictly before event end
             models.CheckConstraint(
-                condition=Q(event_start_time__lt=F('event_end_time')),
+                condition=Q(event_start_datetime__lt=F('event_end_datetime')),
                 name='media_event_start_before_end'
             ),
             # 3. Teardown must end after or exactly when the event ends
             models.CheckConstraint(
-                condition=Q(event_end_time__lte=F('teardown_end_time')),
+                condition=Q(event_end_datetime__lte=F('teardown_end_datetime')),
                 name='media_event_end_before_teardown'
             )
         ]
@@ -81,15 +76,11 @@ class MediaBooking(BaseBooking):
 
 
 class MediaEquipmentRequest(models.Model):
-    """
-    Links a specific Media Booking to the master Equipment catalog in the spaces app.
-    """
     media_booking = models.ForeignKey(
         MediaBooking, 
         on_delete=models.CASCADE, 
         related_name='equipment_requests'
     )
-    # Using string reference to avoid circular imports between spaces/media apps
     equipment = models.ForeignKey('spaces.Equipment', on_delete=models.RESTRICT)
     quantity  = models.PositiveIntegerField(default=1)
 
@@ -108,22 +99,17 @@ class MediaEquipmentRequest(models.Model):
     def clean(self):
         super().clean()
         
-        # Prevent accessing related fields if they haven't been set yet
         if not hasattr(self, 'media_booking') or not hasattr(self, 'equipment'):
             return
 
-        # ── THE FIX ──
-        # ONLY enforce strict database-level inventory limits if this booking is APPROVED.
-        # Pending bookings can request whatever they want; the Admin will resolve conflicts during approval.
         if self.media_booking.status != 'APPROVED':
             return
 
-        # 1. Find all OTHER approved bookings overlapping with this time
+        # 1. Find all OTHER approved bookings overlapping with this CONTINUOUS time block
         overlapping_bookings = MediaBooking.objects.filter(
-            booking_date=self.media_booking.booking_date,
             status='APPROVED',
-            setup_start_time__lt=self.media_booking.teardown_end_time,
-            teardown_end_time__gt=self.media_booking.setup_start_time
+            setup_start_datetime__lt=self.media_booking.teardown_end_datetime,
+            teardown_end_datetime__gt=self.media_booking.setup_start_datetime
         ).exclude(pk=self.media_booking.pk)
 
         # 2. Count how many of THIS specific equipment are already used by others
@@ -142,7 +128,6 @@ class MediaEquipmentRequest(models.Model):
             })
 
     def save(self, *args, **kwargs):
-        # Force Django to run the clean() method every time we save
         self.full_clean()
         super().save(*args, **kwargs)
 

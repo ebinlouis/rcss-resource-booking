@@ -1,6 +1,7 @@
+import datetime
 from django.db import transaction
 from django.utils import timezone
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.db.models import Sum, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -41,13 +42,12 @@ def _get_effective_role(user):
 def _is_media_admin(user):
     return _normalize(_get_effective_role(user)) == MEDIA_ROLE
 
-def _overlapping_team_bookings(booking_date, start_time, end_time, exclude_pk=None):
+def _overlapping_team_bookings(start_dt, end_dt, exclude_pk=None):
     qs = MediaBooking.objects.filter(
-        booking_date=booking_date,
         status='APPROVED',
         is_team_request=True,
-        setup_start_time__lt=end_time,
-        teardown_end_time__gt=start_time,
+        setup_start_datetime__lt=end_dt,
+        teardown_end_datetime__gt=start_dt,
     )
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
@@ -55,15 +55,13 @@ def _overlapping_team_bookings(booking_date, start_time, end_time, exclude_pk=No
 
 def _team_capacity_available(booking, settings):
     overlapping_count = _overlapping_team_bookings(
-        booking.booking_date,
-        booking.setup_start_time,
-        booking.teardown_end_time,
+        booking.setup_start_datetime,
+        booking.teardown_end_datetime,
         exclude_pk=booking.pk,
     ).count()
     return overlapping_count < settings.max_concurrent_events
 
 def _reserve_standard_team_kit(booking):
-    # DYNAMIC INVENTORY AUTO-ASSIGNMENT: Pull all gear flagged as part of the standard media kit
     standard_gear = Equipment.objects.filter(
         is_active=True, 
         is_portable=True, 
@@ -82,10 +80,9 @@ def _reserve_standard_team_kit(booking):
 
 def _check_equipment_availability_for_approval(booking):
     overlapping_bookings = MediaBooking.objects.filter(
-        booking_date=booking.booking_date,
         status='APPROVED',
-        setup_start_time__lt=booking.teardown_end_time,
-        teardown_end_time__gt=booking.setup_start_time,
+        setup_start_datetime__lt=booking.teardown_end_datetime,
+        teardown_end_datetime__gt=booking.setup_start_datetime,
     ).exclude(pk=booking.pk)
 
     used_map = {
@@ -95,8 +92,6 @@ def _check_equipment_availability_for_approval(booking):
         ).values('equipment_id').annotate(total_used=Sum('quantity'))
     }
 
-    # FIX: Always pull the actual requested equipment for this booking.
-    # Since gear is now assigned on Creation, this respects Admin loadout edits!
     needed_gear = [
         {'eq': r.equipment, 'qty': r.quantity}
         for r in booking.equipment_requests.select_related('equipment')
@@ -113,8 +108,6 @@ def _check_equipment_availability_for_approval(booking):
 
     return True, ""
 
-
-# ── Settings View ─────────────────────────────────────────────────────────────
 
 class MediaSettingsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -136,8 +129,6 @@ class MediaSettingsView(APIView):
         return Response(serializer.data)
 
 
-# ── ViewSet ───────────────────────────────────────────────────────────────────
-
 class MediaBookingViewSet(viewsets.ModelViewSet):
     serializer_class   = MediaBookingSerializer
     permission_classes = [IsAuthenticated]
@@ -156,7 +147,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         VIEW_MAP = {
             'pending':     (lambda: qs.filter(status='PENDING').order_by('-created_at'),           is_admin),
-            'active':      (lambda: qs.filter(status='APPROVED').order_by('booking_date', 'setup_start_time'), is_admin),
+            'active':      (lambda: qs.filter(status='APPROVED').order_by('setup_start_datetime'), is_admin),
             'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),       is_admin),
         }
 
@@ -167,7 +158,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if view_param == 'general':
             return (
                 qs.order_by('-created_at') if is_admin
-                else qs.filter(user=user).exclude(status='REJECTED').order_by('booking_date', 'setup_start_time')
+                else qs.filter(user=user).exclude(status='REJECTED').order_by('setup_start_datetime')
             )
 
         return qs.filter(user=user).order_by('-created_at')
@@ -183,8 +174,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 )
             })
         booking = serializer.save(user=user, department=user.department)
-        
-        # INSTANT AUTO-ASSIGN: Attach kit while still pending
         if booking.is_team_request:
             _reserve_standard_team_kit(booking)
 
@@ -196,11 +185,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         was_team_request = instance.is_team_request
         booking = serializer.save()
         
-        # Auto-assign if they switched modes from Equipment to Team
         if booking.is_team_request and not was_team_request:
             _reserve_standard_team_kit(booking)
 
-        # Revert on Edit
         if instance.status == 'APPROVED' and not _is_media_admin(user):
             booking.status = 'PENDING'
             booking.remarks_by_admin = ''
@@ -209,41 +196,48 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
     # ── /check_availability/ ─────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
-        booking_date = request.query_params.get('date')
-        req_start    = request.query_params.get('start')
-        req_end      = request.query_params.get('end')
-        exclude_id   = request.query_params.get('exclude')
+        req_start_str = request.query_params.get('start')
+        req_end_str   = request.query_params.get('end')
+        exclude_id    = request.query_params.get('exclude')
 
-        if not all([booking_date, req_start, req_end]):
+        if not all([req_start_str, req_end_str]):
             return Response(
-                {"error": "date, start, and end parameters are required."},
+                {"error": "start and end parameters are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        req_start = parse_datetime(req_start_str)
+        req_end   = parse_datetime(req_end_str)
+
+        if not req_start or not req_end:
+            return Response({"error": "Invalid datetime format."}, status=status.HTTP_400_BAD_REQUEST)
+
         overlapping = MediaBooking.objects.filter(
-            booking_date=booking_date,
-            setup_start_time__lt=req_end,
-            teardown_end_time__gt=req_start,
+            setup_start_datetime__lt=req_end,
+            teardown_end_datetime__gt=req_start,
         ).exclude(status__in=['REJECTED', 'CANCELLED']).prefetch_related('equipment_requests')
 
-        # Prevent self-blocking when editing
         if exclude_id and exclude_id not in ['null', 'undefined', '']:
             overlapping = overlapping.exclude(pk=exclude_id)
 
-        # Sweepline Algorithm for precise inventory concurrency
+        # Sweepline Algorithm using continuous UNIX Timestamps
         eq_time_points = {}
+        req_start_ts = req_start.timestamp()
+        req_end_ts   = req_end.timestamp()
+
         for b in overlapping:
-            s_str = max(b.setup_start_time.strftime("%H:%M:%S"), req_start)
-            e_str = min(b.teardown_end_time.strftime("%H:%M:%S"), req_end)
+            # Bound overlap mathematically to the request window to prevent infinite sweeps
+            s_ts = max(b.setup_start_datetime.timestamp(), req_start_ts)
+            e_ts = min(b.teardown_end_datetime.timestamp(), req_end_ts)
             
-            if s_str >= e_str:
+            if s_ts >= e_ts:
                 continue
 
             for req in b.equipment_requests.all():
                 eq_id = req.equipment_id
                 eq_time_points.setdefault(eq_id, []).extend([
-                    (s_str, req.quantity),   # Item checked out
-                    (e_str, -req.quantity)   # Item returned
+                    (s_ts, req.quantity),   # Item checked out
+                    (e_ts, -req.quantity)   # Item returned
                 ])
 
         used_map = {}
@@ -263,7 +257,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 "category":              eq.category,
                 "total_owned":           eq.total_owned,
                 "currently_available":   max(0, eq.total_owned - used_map.get(eq.id, 0)),
-                "is_standard_media_kit": eq.is_standard_media_kit, # <-- ADDED FLAG HERE
+                "is_standard_media_kit": eq.is_standard_media_kit,
             }
             for eq in Equipment.objects.filter(is_active=True, is_portable=True)
         ]
@@ -280,21 +274,35 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if not booking_date:
             return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
+        day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
+        day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
+
         settings = MediaSettings.load()
 
         if view_type == 'team':
             approved_team = MediaBooking.objects.filter(
-                booking_date=booking_date, status='APPROVED', is_team_request=True,
-            ).order_by('setup_start_time')
+                status='APPROVED', is_team_request=True,
+                setup_start_datetime__lt=day_end,
+                teardown_end_datetime__gt=day_start
+            ).order_by('setup_start_datetime')
 
             slots       = []
             time_points = []
 
             for b in approved_team:
-                s = b.setup_start_time.strftime("%H:%M")
-                e = b.teardown_end_time.strftime("%H:%M")
-                slots.append({"start_time": s, "end_time": e, "event_name": b.event_name})
-                time_points += [(s, 1), (e, -1)]
+                # Time Clamping: Restrict the visual bound of multi-day bookings to the current day
+                s_clamp = max(b.setup_start_datetime, day_start)
+                e_clamp = min(b.teardown_end_datetime, day_end)
+                
+                # FIX: Convert UTC to Local time before converting to a string
+                s_local = timezone.localtime(s_clamp)
+                e_local = timezone.localtime(e_clamp)
+
+                s_str = s_local.strftime("%H:%M")
+                e_str = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
+
+                slots.append({"start_time": s_str, "end_time": e_str, "event_name": b.event_name})
+                time_points += [(s_str, 1), (e_str, -1)]
 
             time_points.sort(key=lambda x: (x[0], x[1]))
 
@@ -324,15 +332,27 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid type. Expected equipment or team."}, status=status.HTTP_400_BAD_REQUEST)
 
         approved = MediaBooking.objects.filter(
-            booking_date=booking_date, status='APPROVED',
+            status='APPROVED',
+            setup_start_datetime__lt=day_end,
+            teardown_end_datetime__gt=day_start
         ).prefetch_related('equipment_requests')
 
         eq_slots = {}
         for b in approved:
+            s_clamp = max(b.setup_start_datetime, day_start)
+            e_clamp = min(b.teardown_end_datetime, day_end)
+            
+            # FIX: Convert UTC to Local time before converting to a string
+            s_local = timezone.localtime(s_clamp)
+            e_local = timezone.localtime(e_clamp)
+
+            s_str = s_local.strftime("%H:%M")
+            e_str = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
+
             for req in b.equipment_requests.all():
                 eq_slots.setdefault(req.equipment_id, []).append({
-                    "start_time": b.setup_start_time.strftime("%H:%M"),
-                    "end_time":   b.teardown_end_time.strftime("%H:%M"),
+                    "start_time": s_str,
+                    "end_time":   e_str,
                     "quantity":   req.quantity,
                     "event_name": b.event_name,
                 })
@@ -359,7 +379,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 "booked_quantity":    max_used,
                 "available_quantity": max(0, item.total_owned - max_used),
                 "booked_slots":       sorted(slots, key=lambda x: x['start_time']),
-                "is_standard_media_kit": item.is_standard_media_kit, # <-- ADD THIS LINE
+                "is_standard_media_kit": item.is_standard_media_kit,
             })
 
         return Response({"date": booking_date.isoformat(), "type": "equipment", "items": availability})
@@ -373,11 +393,16 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if not booking_date:
             return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
+        day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
+        day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
+
         bookings = MediaBooking.objects.filter(
-            booking_date=booking_date, status='APPROVED', is_team_request=True,
+            status='APPROVED', is_team_request=True,
+            setup_start_datetime__lt=day_end,
+            teardown_end_datetime__gt=day_start
         ).select_related('space', 'user', 'department').prefetch_related(
             'equipment_requests__equipment'
-        ).order_by('event_start_time')
+        ).order_by('event_start_datetime')
 
         return Response(self.get_serializer(bookings, many=True).data)
 
@@ -429,10 +454,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             row['equipment_id']: row['total_used']
             for row in MediaEquipmentRequest.objects.filter(
                 media_booking__in=MediaBooking.objects.filter(
-                    booking_date=booking.booking_date,
                     status='APPROVED',
-                    setup_start_time__lt=booking.teardown_end_time,
-                    teardown_end_time__gt=booking.setup_start_time,
+                    setup_start_datetime__lt=booking.teardown_end_datetime,
+                    teardown_end_datetime__gt=booking.setup_start_datetime,
                 ).exclude(pk=booking.pk)
             ).values('equipment_id').annotate(total_used=Sum('quantity'))
         }
@@ -480,7 +504,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         settings = MediaSettings.load()
         if new_status == 'APPROVED':
-            # Fallback for legacy pending requests to ensure they have gear before checking
             if booking.is_team_request:
                 _reserve_standard_team_kit(booking)
 

@@ -17,13 +17,19 @@ const STATUS_STYLES = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const formatDate = (d) =>
-    d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'TBD'
+// UPDATED: Now parses the full ISO string
+const formatDate = (isoString) => {
+    if (!isoString) return 'TBD'
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return 'TBD'
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
-const formatTime = (t) => {
-    if (!t) return 'TBD'
-    const [h, m] = t.split(':')
-    const d = new Date(); d.setHours(+h, +m, 0, 0)
+// UPDATED: Now extracts time from the full ISO string
+const formatTime = (isoString) => {
+    if (!isoString) return 'TBD'
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return 'TBD'
     return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
@@ -288,8 +294,11 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     const hasEquipment = equipment.length > 0
     const hasServices  = Boolean(booking.requested_services?.trim())
     const hasNotes     = Boolean(booking.user_notes?.trim())
-    const hasBuffer    = booking.setup_start_time !== booking.event_start_time ||
-                         booking.teardown_end_time !== booking.event_end_time
+
+    // UPDATED: Now compares absolute time strings instead of dates
+    const hasBuffer = booking.setup_start_datetime && booking.event_start_datetime && 
+        (new Date(booking.setup_start_datetime).getTime() !== new Date(booking.event_start_datetime).getTime() ||
+         new Date(booking.teardown_end_datetime).getTime() !== new Date(booking.event_end_datetime).getTime());
 
     const user         = booking.user_details ?? {}
     const requesterName = user.name || `User #${booking.user}`
@@ -347,11 +356,12 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                     <div>
                         <FieldLabel>From / To</FieldLabel>
                         <div className="space-y-2.5">
-                            {[['bg-[#22c55e]', booking.setup_start_time], ['bg-[#dc2626]', booking.teardown_end_time]].map(([dot, time], i) => (
+                            {/* UPDATED: Map over the new Datetimes */}
+                            {[['bg-[#22c55e]', booking.setup_start_datetime], ['bg-[#dc2626]', booking.teardown_end_datetime]].map(([dot, time], i) => (
                                 <div key={i} className="flex items-center gap-3">
                                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
                                     <p className="text-[14.5px] font-semibold text-[#0f172a]">
-                                        {formatDate(booking.booking_date)} · {formatTime(time)}
+                                        {formatDate(time)} · {formatTime(time)}
                                     </p>
                                 </div>
                             ))}
@@ -391,7 +401,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                 <div className="h-full rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] px-4 py-3.5">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <p className="text-[14.5px] font-semibold text-[#0f172a]">
-                                            Event: {formatTime(booking.event_start_time)} – {formatTime(booking.event_end_time)}
+                                            Event: {formatTime(booking.event_start_datetime)} – {formatTime(booking.event_end_datetime)}
                                         </p>
                                         <p className="rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#4b5563]">
                                             {hasBuffer ? 'Buffer included' : 'No extra buffer'}
@@ -399,7 +409,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                     </div>
                                     {hasBuffer && (
                                         <p className="mt-3 text-[13.5px] font-medium text-[#6b7280]">
-                                            Setup starts at {formatTime(booking.setup_start_time)} and teardown ends at {formatTime(booking.teardown_end_time)}.
+                                            Setup starts at {formatTime(booking.setup_start_datetime)} and teardown ends at {formatTime(booking.teardown_end_datetime)}.
                                         </p>
                                     )}
                                 </div>
@@ -494,16 +504,16 @@ function AdminMediaPage() {
     const { user, isLoading: authLoading } = useAuth()
     const canManageMedia = user?.capabilities?.can_manage_media
 
-    const [activeTab,      setActiveTab]      = useState('pending')
-    const [data,           setData]           = useState({ pending: [], resolved: [], active: [] })
-    const [loading,        setLoading]        = useState(true)
-    const [error,          setError]          = useState('')
-    const [actionLoading,  setActionLoading]  = useState(null)
-    const [rejectTarget,   setRejectTarget]   = useState(null)
-    const [approveTarget,  setApproveTarget]  = useState(null)
-    const [successTarget,  setSuccessTarget]  = useState(null)
-    const [showSettings,   setShowSettings]   = useState(false)
-    const [maxConcurrent,  setMaxConcurrent]  = useState(null)
+    const [activeTab,       setActiveTab]      = useState('pending')
+    const [data,            setData]           = useState({ pending: [], resolved: [], active: [] })
+    const [loading,         setLoading]        = useState(true)
+    const [error,           setError]          = useState('')
+    const [actionLoading,   setActionLoading]  = useState(null)
+    const [rejectTarget,    setRejectTarget]   = useState(null)
+    const [approveTarget,   setApproveTarget]  = useState(null)
+    const [successTarget,   setSuccessTarget]  = useState(null)
+    const [showSettings,    setShowSettings]   = useState(false)
+    const [maxConcurrent,   setMaxConcurrent]  = useState(null)
 
     const fetchData = useCallback(async ({ showLoading = true } = {}) => {
         if (showLoading) setLoading(true)
@@ -634,7 +644,8 @@ function AdminMediaPage() {
                     {[
                         { value: data.pending.length, label: 'Waiting for review'       },
                         { value: data.active.length,  label: 'Approved active bookings' },
-                        { value: data.active.filter((b) => b.booking_date === todayStr).length, label: 'Approved for today' },
+                        // UPDATED: Use the new event_start_datetime for the "Today" check
+                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Approved for today' },
                     ].map(({ value, label }) => (
                         <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
                             <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>
