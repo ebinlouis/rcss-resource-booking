@@ -3,45 +3,46 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                                       },
-    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces               },
-    // NEW: Added can_manage_media to the capability check so Media Admins can see the Equipment link
-    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
-    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                                       },
-    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                                       },
-    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                                         },
+    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                                        },
+    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces                },
+    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                                        },
+    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                                        },
+    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                                          },
     
     // Media Module
-    { to: '/admin/media',          label: 'Media Approvals', end: false, capability: (c) => c?.can_manage_media                                        },
-    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media                                        },
+    { to: '/admin/media',          label: 'Media Approvals', end: false, capability: (c) => c?.can_manage_media                                         },
+    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media                                         },
     
-    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                                       },
+    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                                        },
+    
+    // Equipment moved to the last
+    { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
 ];
 
 const NAV_ICONS = {
     'Space Approval':  'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     'Room Catalog':    'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-    'Equipment':       'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
     'Departments':     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport':       'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
     'Mess':            'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-    'Media Approvals': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z',
+    'Media Approvals': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z', // Fixed video camera icon path
     'Team Schedule':   'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', // Calendar icon
     'Role Overrides':  'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+    'Equipment':       'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
 };
 
 const getRoleDisplay = (effectiveRole) => {
     if (!effectiveRole) return { title: 'Admin Portal', subtitle: 'Staff' };
     const normalized = effectiveRole.trim().toLowerCase();
     const map = {
-        'it admin':         { title: 'IT Admin',          subtitle: 'System Operations'   },
-        'mess':             { title: 'Mess Admin',        subtitle: 'Mess Operations'     },
-        'media':            { title: 'Media Admin',       subtitle: 'Media Operations'    },
-        'facility manager': { title: 'Facility Manager',  subtitle: 'Spaces & Facilities' },
-        'receptionist':     { title: 'Receptionist',      subtitle: 'Space Bookings'      },
-        'lab in-charge':    { title: 'Lab In-charge',      subtitle: 'Lab Management'      },
-        'librarian':        { title: 'Librarian',          subtitle: 'Library Spaces'      },
-        'principal':        { title: 'Principal',          subtitle: 'Institution Head'    },
+        'it admin':         { title: 'IT Admin',         subtitle: 'System Operations'   },
+        'mess':             { title: 'Mess Admin',       subtitle: 'Mess Operations'     },
+        'media':            { title: 'Media Admin',      subtitle: 'Media Operations'    },
+        'facility manager': { title: 'Facility Manager', subtitle: 'Spaces & Facilities' },
+        'receptionist':     { title: 'Receptionist',     subtitle: 'Space Bookings'      },
+        'lab in-charge':    { title: 'Lab In-charge',    subtitle: 'Lab Management'      },
+        'librarian':        { title: 'Librarian',        subtitle: 'Library Spaces'      },
+        'principal':        { title: 'Principal',        subtitle: 'Institution Head'    },
         'hod':              { title: 'Head of Department', subtitle: 'Department Head'     },
     };
     return map[normalized] ?? { title: effectiveRole, subtitle: 'Admin Portal' };
@@ -153,8 +154,8 @@ const AdminLayout = () => {
     const { logout, user, effectiveRole } = useAuth();
     const navigate = useNavigate();
     const [profileOpen,      setProfileOpen]      = useState(false);
-    const [mobileOpen,       setMobileOpen]        = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed]  = useState(false);
+    const [mobileOpen,       setMobileOpen]       = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const profileRef = useRef(null);
 
     useEffect(() => {
