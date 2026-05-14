@@ -218,10 +218,13 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       if (tearDt && endDt && tearDt < endDt) e.teardown_end_datetime = "Must be after event ends"
     }
 
-    equipmentRequests.forEach((req, idx) => {
-      if (!req.equipment) e[`eq_${idx}`] = "Select item"
-      if (req.quantity < 1) e[`qty_${idx}`] = "Min 1"
-    })
+    // Only validate equipment if it is NOT a team request
+    if (!booking.is_team_request) {
+      equipmentRequests.forEach((req, idx) => {
+        if (!req.equipment) e[`eq_${idx}`] = "Select item"
+        if (req.quantity < 1) e[`qty_${idx}`] = "Min 1"
+      })
+    }
 
     setErrors(e)
     return Object.keys(e).length === 0
@@ -383,106 +386,110 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               </div>
             )}
 
-            {/* STEP 2: HARDWARE & EQUIPMENT */}
-            <SectionLabel>2. Hardware & Gear</SectionLabel>
+            {/* STEP 2: HARDWARE & EQUIPMENT - ONLY IF NOT A TEAM REQUEST */}
+            {!booking.is_team_request && (
+              <>
+                <SectionLabel>2. Hardware & Gear</SectionLabel>
 
-            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
-              <div className="flex justify-between items-center mb-4">
-                <label className="text-sm font-bold text-gray-800">Available Inventory</label>
-                {checkingInventory && <span className="text-xs text-blue-600 animate-pulse font-medium bg-blue-50 px-2 py-1 rounded">Syncing inventory...</span>}
-              </div>
+                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <label className="text-sm font-bold text-gray-800">Available Inventory</label>
+                    {checkingInventory && <span className="text-xs text-blue-600 animate-pulse font-medium bg-blue-50 px-2 py-1 rounded">Syncing inventory...</span>}
+                  </div>
 
-              {availableEquipment.length === 0 ? (
-                <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
-                  <p className="text-sm text-gray-500 font-medium">
-                    Please set the event start and end times above to unlock the gear catalog.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {equipmentRequests.map((req, index) => {
-                    const selectedEq = availableEquipment.find(eq => eq.id.toString() === req.equipment.toString())
-                    
-                    const wasAlreadyBooked = booking?.equipment_requests?.find(
-                      br => br.equipment_id?.toString() === req.equipment.toString()
-                    )
-                    
-                    const maxQty = selectedEq 
-                      ? (selectedEq.currently_available + (wasAlreadyBooked ? wasAlreadyBooked.quantity : 0))
-                      : 1
-
-                    return (
-                      <div key={index} className="flex gap-3 items-start">
-                        <div className="flex-1">
-                          <select
-                            className={inputCls(errors[`eq_${index}`])}
-                            value={req.equipment}
-                            onChange={(e) => handleEquipmentChange(index, "equipment", e.target.value)}
-                          >
-                            <option value="">-- Select Item --</option>
-                            {Object.entries(groupedEquipment).map(([category, items]) => (
-                              <optgroup key={category} label={category}>
-                                {items.map(eq => {
-                                  const isHeldByMe = booking?.equipment_requests?.some(br => br.equipment_id === eq.id)
-                                  
-                                  // Check if selected in another row in the current form state
-                                  const isSelectedElsewhere = equipmentRequests.some(
-                                    (otherReq, otherIdx) => otherIdx !== index && otherReq.equipment.toString() === eq.id.toString()
-                                  )
-
-                                  const isDisabled = (eq.currently_available === 0 && !isHeldByMe) || isSelectedElsewhere;
-
-                                  let optionText = `${eq.name} (${eq.currently_available} available)`;
-                                  if (eq.currently_available === 0 && !isHeldByMe) optionText = `${eq.name} (Out of stock)`;
-                                  else if (isSelectedElsewhere) optionText = `${eq.name} (Already added)`;
-
-                                  return (
-                                    <option key={eq.id} value={eq.id} disabled={isDisabled}>
-                                      {optionText}
-                                    </option>
-                                  )
-                                })}
-                              </optgroup>
-                            ))}
-                          </select>
-                          {errors[`eq_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`eq_${index}`]}</p>}
-                        </div>
+                  {availableEquipment.length === 0 ? (
+                    <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-500 font-medium">
+                        Please set the event start and end times above to unlock the gear catalog.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {equipmentRequests.map((req, index) => {
+                        const selectedEq = availableEquipment.find(eq => eq.id.toString() === req.equipment.toString())
                         
-                        <div className="w-24">
-                          <input
-                            type="number" min="1" max={maxQty}
-                            className={inputCls(errors[`qty_${index}`])}
-                            value={req.quantity}
-                            onChange={(e) => handleEquipmentChange(index, "quantity", e.target.value)}
-                            disabled={!req.equipment}
-                          />
-                          {errors[`qty_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`qty_${index}`]}</p>}
-                        </div>
+                        const wasAlreadyBooked = booking?.equipment_requests?.find(
+                          br => br.equipment_id?.toString() === req.equipment.toString()
+                        )
+                        
+                        const maxQty = selectedEq 
+                          ? (selectedEq.currently_available + (wasAlreadyBooked ? wasAlreadyBooked.quantity : 0))
+                          : 1
 
-                        <button 
-                          type="button" 
-                          onClick={() => removeEquipmentRow(index)}
-                          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )
-                  })}
-                  
-                  <button 
-                    type="button" 
-                    onClick={addEquipmentRow}
-                    className="text-sm font-semibold text-green-700 hover:text-green-800 flex items-center gap-1 mt-2 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors w-max"
-                  >
-                    <span>+ Add Equipment</span>
-                  </button>
+                        return (
+                          <div key={index} className="flex gap-3 items-start">
+                            <div className="flex-1">
+                              <select
+                                className={inputCls(errors[`eq_${index}`])}
+                                value={req.equipment}
+                                onChange={(e) => handleEquipmentChange(index, "equipment", e.target.value)}
+                              >
+                                <option value="">-- Select Item --</option>
+                                {Object.entries(groupedEquipment).map(([category, items]) => (
+                                  <optgroup key={category} label={category}>
+                                    {items.map(eq => {
+                                      const isHeldByMe = booking?.equipment_requests?.some(br => br.equipment_id === eq.id)
+                                      
+                                      // Check if selected in another row in the current form state
+                                      const isSelectedElsewhere = equipmentRequests.some(
+                                        (otherReq, otherIdx) => otherIdx !== index && otherReq.equipment.toString() === eq.id.toString()
+                                      )
+
+                                      const isDisabled = (eq.currently_available === 0 && !isHeldByMe) || isSelectedElsewhere;
+
+                                      let optionText = `${eq.name} (${eq.currently_available} available)`;
+                                      if (eq.currently_available === 0 && !isHeldByMe) optionText = `${eq.name} (Out of stock)`;
+                                      else if (isSelectedElsewhere) optionText = `${eq.name} (Already added)`;
+
+                                      return (
+                                        <option key={eq.id} value={eq.id} disabled={isDisabled}>
+                                          {optionText}
+                                        </option>
+                                      )
+                                    })}
+                                  </optgroup>
+                                ))}
+                              </select>
+                              {errors[`eq_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`eq_${index}`]}</p>}
+                            </div>
+                            
+                            <div className="w-24">
+                              <input
+                                type="number" min="1" max={maxQty}
+                                className={inputCls(errors[`qty_${index}`])}
+                                value={req.quantity}
+                                onChange={(e) => handleEquipmentChange(index, "quantity", e.target.value)}
+                                disabled={!req.equipment}
+                              />
+                              {errors[`qty_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`qty_${index}`]}</p>}
+                            </div>
+
+                            <button 
+                              type="button" 
+                              onClick={() => removeEquipmentRow(index)}
+                              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
+                      
+                      <button 
+                        type="button" 
+                        onClick={addEquipmentRow}
+                        className="text-sm font-semibold text-green-700 hover:text-green-800 flex items-center gap-1 mt-2 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors w-max"
+                      >
+                        <span>+ Add Equipment</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
             {/* STEP 3: EVENT DETAILS */}
-            <SectionLabel>3. Event Details</SectionLabel>
+            <SectionLabel>{booking.is_team_request ? "2. Event Details" : "3. Event Details"}</SectionLabel>
             
             <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Event Name / Purpose" required error={errors.event_name}>
@@ -500,10 +507,16 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
             </div>
 
             <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Human Resources (Optional)" error={errors.requested_services} helpText="Do you need media staff?">
-                <input type="text" name="requested_services" className={inputCls(errors.requested_services)}
-                  placeholder="e.g., 2 Photographers" value={formData.requested_services} onChange={handleChange} />
-              </Field>
+              {booking.is_team_request ? (
+                <Field label="Coverage Type" helpText="The media team will assign the appropriate staff and kit.">
+                  <input type="text" className={inputCls()} value="Media team coverage" disabled />
+                </Field>
+              ) : (
+                <Field label="Human Resources (Optional)" error={errors.requested_services} helpText="Do you need media staff?">
+                  <input type="text" name="requested_services" className={inputCls(errors.requested_services)}
+                    placeholder="e.g., 2 Photographers" value={formData.requested_services} onChange={handleChange} />
+                </Field>
+              )}
             </div>
 
             <div className="mb-6">

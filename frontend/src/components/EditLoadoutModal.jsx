@@ -12,7 +12,6 @@ const inputCls = (hasError) =>
       : "border-gray-200 bg-white focus:ring-emerald-600"
   } rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition-all`
 
-// UPDATED: Now parses full ISO DateTime strings
 function formatTime(isoString) {
   if (!isoString) return "--"
   const d = new Date(isoString)
@@ -25,6 +24,21 @@ function formatDate(isoString) {
   const d = new Date(isoString)
   if (isNaN(d.getTime())) return "--"
   return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+}
+
+/** Returns "3 Jun 2025, 10:00 am" */
+function formatDateTime(isoString) {
+  if (!isoString) return "--"
+  const d = new Date(isoString)
+  if (isNaN(d.getTime())) return "--"
+  const date = d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+  const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+  return `${date}, ${time}`
+}
+
+function isSameDay(isoA, isoB) {
+  if (!isoA || !isoB) return false
+  return new Date(isoA).toDateString() === new Date(isoB).toDateString()
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -133,10 +147,10 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
   const [saved, setSaved]                     = useState(false)
 
   const bookingId = booking?.id
-  
+
   // Pluck DateTimes
-  const startDt = booking?.setup_start_datetime || booking?.event_start_datetime;
-  const endDt = booking?.teardown_end_datetime || booking?.event_end_datetime;
+  const startDt = booking?.setup_start_datetime || booking?.event_start_datetime
+  const endDt   = booking?.teardown_end_datetime || booking?.event_end_datetime
 
   useEffect(() => {
     let cancelled = false
@@ -156,29 +170,19 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
       setLoadingInv(true)
       setInventoryError("")
 
-      // UPDATED: Now passing only ISO start, ISO end, and exclude ID
       mediaService
-        .checkAvailability(
-          startDt,
-          endDt,
-          booking.id
-        )
+        .checkAvailability(startDt, endDt, booking.id)
         .then((data) => {
           if (!active) return
 
-          // STRICT FILTER: Only show gear flagged for the Media Team Kit.
-          // We also explicitly include items already in the current booking's loadout 
-          // just in case legacy non-team gear was previously attached.
           const existingEqIds = new Set((booking.equipment_requests || []).map(r => r.equipment))
           const mediaGearOnly = data.filter(eq => eq.is_standard_media_kit || existingEqIds.has(eq.id))
 
           setAvail(mediaGearOnly)
 
-          // Validate current rows against the newly filtered inventory
           setRows((prev) => prev.map((row) => {
             if (!row.equipment) return row
             const item = mediaGearOnly.find((eq) => eq.id === Number(row.equipment))
-            
             if (!item || (item.currently_available + (row._originalQty ?? 0) < row.quantity)) {
               return { equipment: "", quantity: 1, _originalQty: 0 }
             }
@@ -280,9 +284,16 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
     }
   }
 
-  const eStart = booking?.event_start_datetime;
-  const eEnd = booking?.event_end_datetime;
-  const isMultiDay = eStart && eEnd && (new Date(eStart).toDateString() !== new Date(eEnd).toDateString());
+  // ── Date/time label for header ─────────────────────────────────────────────
+  const eStart    = booking?.event_start_datetime
+  const eEnd      = booking?.event_end_datetime
+  const sameDay   = isSameDay(eStart, eEnd)
+
+  // Single-day:  "3 Jun 2025 · 10:00 am – 1:00 pm"
+  // Multi-day:   "3 Jun 2025, 10:00 am – 5 Jun 2025, 1:00 pm"
+  const eventTimeLabel = sameDay
+    ? `${formatDate(eStart)} · ${formatTime(eStart)} – ${formatTime(eEnd)}`
+    : `${formatDateTime(eStart)} – ${formatDateTime(eEnd)}`
 
   // ── Render ────────────────────────────────────────────────────────────────
   return createPortal(
@@ -299,10 +310,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
               {booking.event_name}
             </h2>
             <p className="mt-1 text-[13px] text-gray-500">
-              {isMultiDay
-                ? `${formatDate(eStart)} ${formatTime(eStart)} – ${formatDate(eEnd)} ${formatTime(eEnd)}`
-                : `${formatDate(eStart)} · ${formatTime(eStart)} – ${formatTime(eEnd)}`
-              }
+              {eventTimeLabel}
               {" · "}
               {booking.space_details?.name ?? "—"}
             </p>
