@@ -22,9 +22,10 @@ const mediaApi = {
   },
 
   // ── Availability ──────────────────────────────────────────────────────────
-  checkAvailability: async (date, start, end, exclude_id = null) => {
+  // UPDATED: Now accepts full ISO Datetimes for multi-day sweeps
+  checkAvailability: async (start, end, exclude_id = null) => {
     const { data } = await api.get(`${MEDIA_ENDPOINT}check_availability/`, {
-      params: { date, start, end, exclude: exclude_id },
+      params: { start, end, exclude: exclude_id },
     });
     return data;
   },

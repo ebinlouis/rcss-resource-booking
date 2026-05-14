@@ -39,11 +39,11 @@ function formatDate(dateString, options = {}) {
   return dateFromKey(dateString).toLocaleDateString("en-IN", options)
 }
 
-function formatTime(t) {
-  if (!t) return "--"
-  const [h, m] = t.split(":")
-  const d = new Date()
-  d.setHours(+h, +m, 0)
+// UPDATED: Now parses a full ISO DateTime string
+function formatTime(isoString) {
+  if (!isoString) return "--"
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "--"
   return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
 }
 
@@ -54,9 +54,12 @@ function isToday(dateString) {
 // ── Timeline bar ──────────────────────────────────────────────────────────────
 
 function TimelineBar({ booking }) {
-  const toMins = (t) => {
-    const [h, m] = (t ?? "00:00").split(":").map(Number)
-    return h * 60 + m
+  // UPDATED: Extracts minutes since midnight directly from the DateTime object
+  const toMins = (isoString) => {
+    if (!isoString) return 0;
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return 0;
+    return d.getHours() * 60 + d.getMinutes();
   }
 
   const DAY_START = 7 * 60
@@ -64,10 +67,11 @@ function TimelineBar({ booking }) {
   const SPAN      = DAY_END - DAY_START
   const clamp     = (v) => Math.max(0, Math.min(100, ((v - DAY_START) / SPAN) * 100))
 
-  const setupPct    = clamp(toMins(booking.setup_start_time))
-  const eventPct    = clamp(toMins(booking.event_start_time))
-  const endPct      = clamp(toMins(booking.event_end_time))
-  const teardownPct = clamp(toMins(booking.teardown_end_time))
+  // Pass the new datetime fields to the calculator
+  const setupPct    = clamp(toMins(booking.setup_start_datetime))
+  const eventPct    = clamp(toMins(booking.event_start_datetime))
+  const endPct      = clamp(toMins(booking.event_end_datetime))
+  const teardownPct = clamp(toMins(booking.teardown_end_datetime))
 
   return (
     <div className="relative h-2 w-full rounded-full bg-gray-100 overflow-hidden mt-3">
@@ -90,8 +94,11 @@ function TimelineBar({ booking }) {
 // ── Event card ────────────────────────────────────────────────────────────────
 
 function EventCard({ booking, selected, onClick }) {
-  // Accurately sums up the actual physical quantities of all gear
   const gearCount = booking.equipment_requests?.reduce((sum, req) => sum + req.quantity, 0) ?? 0
+
+  // Safe equality check for Dates
+  const hasBuffer = booking.setup_start_datetime && booking.event_start_datetime && 
+    (new Date(booking.setup_start_datetime).getTime() !== new Date(booking.event_start_datetime).getTime());
 
   return (
     <button
@@ -105,11 +112,11 @@ function EventCard({ booking, selected, onClick }) {
       <div className="flex items-center gap-1.5 mb-1">
         <Clock className={`h-3.5 w-3.5 shrink-0 ${selected ? "text-emerald-600" : "text-gray-400"}`} />
         <span className={`text-[12.5px] font-bold ${selected ? "text-emerald-800" : "text-gray-700"}`}>
-          {formatTime(booking.event_start_time)} – {formatTime(booking.event_end_time)}
+          {formatTime(booking.event_start_datetime)} – {formatTime(booking.event_end_datetime)}
         </span>
-        {booking.setup_start_time !== booking.event_start_time && (
+        {hasBuffer && (
           <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-            Setup {formatTime(booking.setup_start_time)}
+            Setup {formatTime(booking.setup_start_datetime)}
           </span>
         )}
       </div>
@@ -190,7 +197,7 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-gray-500">
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-gray-400" />
-              {formatTime(booking.event_start_time)} – {formatTime(booking.event_end_time)}
+              {formatTime(booking.event_start_datetime)} – {formatTime(booking.event_end_datetime)}
             </span>
             {booking.space_details?.name && (
               <span className="flex items-center gap-1">

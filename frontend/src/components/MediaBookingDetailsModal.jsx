@@ -3,6 +3,26 @@ import { useState, useEffect, useMemo } from "react"
 import mediaService from "../api/mediaApi"
 import ErrorBoundary from "./ErrorBoundary"
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+const formatForDatetimeLocal = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatVisualTime = (isoString) => {
+  if (!isoString) return "--:--";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+};
+
 // ── Field Wrapper ──────────────────────────────────────────────────────────
 function Field({ label, required, children, error, helpText }) {
   return (
@@ -38,16 +58,15 @@ function SectionLabel({ children }) {
 const buildFormData = (b) => {
   if (!b) return {}
   return {
-    event_name:         b.event_name ?? "",
-    space:              b.space ?? "",
-    booking_date:       b.booking_date ?? "",
-    setup_start_time:   b.setup_start_time?.slice(0, 5) ?? "",
-    event_start_time:   b.event_start_time?.slice(0, 5) ?? "",
-    event_end_time:     b.event_end_time?.slice(0, 5) ?? "",
-    teardown_end_time:  b.teardown_end_time?.slice(0, 5) ?? "",
-    organization:       b.organization ?? "",
-    requested_services: b.requested_services ?? "",
-    user_notes:         b.user_notes ?? "",
+    event_name:            b.event_name ?? "",
+    space:                 b.space ?? "",
+    event_start_datetime:  formatForDatetimeLocal(b.event_start_datetime),
+    event_end_datetime:    formatForDatetimeLocal(b.event_end_datetime),
+    setup_start_datetime:  formatForDatetimeLocal(b.setup_start_datetime),
+    teardown_end_datetime: formatForDatetimeLocal(b.teardown_end_datetime),
+    organization:          b.organization ?? "",
+    requested_services:    b.requested_services ?? "",
+    user_notes:            b.user_notes ?? "",
   }
 }
 
@@ -56,11 +75,8 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
   
   const [needsBuffer, setNeedsBuffer] = useState(() => {
     if (!booking) return false
-    const setup = booking.setup_start_time?.slice(0, 5)
-    const estart = booking.event_start_time?.slice(0, 5)
-    const eend = booking.event_end_time?.slice(0, 5)
-    const teardown = booking.teardown_end_time?.slice(0, 5)
-    return (setup && estart && setup !== estart) || (eend && teardown && eend !== teardown)
+    return booking.setup_start_datetime !== booking.event_start_datetime || 
+           booking.teardown_end_datetime !== booking.event_end_datetime
   })
 
   const [equipmentRequests, setEquipmentRequests] = useState(() => {
@@ -87,10 +103,10 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       .catch((err) => console.error("Could not load spaces:", err))
   }, [])
 
-  const { booking_date, event_start_time, event_end_time, setup_start_time, teardown_end_time } = formData
+  const { event_start_datetime, event_end_datetime, setup_start_datetime, teardown_end_datetime } = formData
 
-  const actualSetup = needsBuffer && setup_start_time ? setup_start_time : event_start_time;
-  const actualTeardown = needsBuffer && teardown_end_time ? teardown_end_time : event_end_time;
+  const actualSetup = needsBuffer && setup_start_datetime ? setup_start_datetime : event_start_datetime;
+  const actualTeardown = needsBuffer && teardown_end_datetime ? teardown_end_datetime : event_end_datetime;
 
   useEffect(() => {
     let isMounted = true
@@ -98,12 +114,20 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
     const timeoutId = setTimeout(() => {
       if (!isMounted) return
 
-      if (booking_date && event_start_time && event_end_time) {
-        if (actualSetup <= event_start_time && event_start_time < event_end_time && event_end_time <= actualTeardown) {
+      if (event_start_datetime && event_end_datetime) {
+        const setupDate = new Date(actualSetup)
+        const startDate = new Date(event_start_datetime)
+        const endDate = new Date(event_end_datetime)
+        const teardownDate = new Date(actualTeardown)
+
+        if (setupDate <= startDate && startDate < endDate && endDate <= teardownDate) {
           
           setCheckingInventory(true)
           
-          mediaService.checkAvailability(booking_date, actualSetup, actualTeardown)
+          const isoStart = new Date(actualSetup).toISOString()
+          const isoEnd = new Date(actualTeardown).toISOString()
+
+          mediaService.checkAvailability(isoStart, isoEnd, booking?.id)
             .then((data) => {
               if (!isMounted) return
               setAvailableEquipment(data)
@@ -137,7 +161,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown, booking])
+  }, [event_start_datetime, event_end_datetime, actualSetup, actualTeardown, booking])
 
   const groupedEquipment = useMemo(() => {
     return availableEquipment.reduce((acc, eq) => {
@@ -174,19 +198,24 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
     if (!formData.event_name.trim()) e.event_name = "Required"
     if (!formData.space) e.space = "Required"
 
-    if (!formData.booking_date) e.booking_date = "Required"
-    if (!formData.event_start_time) e.event_start_time = "Required"
-    if (!formData.event_end_time) e.event_end_time = "Required"
+    if (!formData.event_start_datetime) e.event_start_datetime = "Required"
+    if (!formData.event_end_datetime) e.event_end_datetime = "Required"
 
-    if (needsBuffer) {
-      if (!formData.setup_start_time) e.setup_start_time = "Required"
-      if (!formData.teardown_end_time) e.teardown_end_time = "Required"
-      if (formData.setup_start_time > formData.event_start_time) e.setup_start_time = "Must be before event starts"
-      if (formData.teardown_end_time < formData.event_end_time) e.teardown_end_time = "Must be after event ends"
+    const startDt = formData.event_start_datetime ? new Date(formData.event_start_datetime) : null;
+    const endDt = formData.event_end_datetime ? new Date(formData.event_end_datetime) : null;
+    const setupDt = needsBuffer && formData.setup_start_datetime ? new Date(formData.setup_start_datetime) : startDt;
+    const tearDt = needsBuffer && formData.teardown_end_datetime ? new Date(formData.teardown_end_datetime) : endDt;
+
+    if (startDt && endDt && startDt >= endDt) {
+      e.event_end_datetime = "Must be after start time";
+      e.timeError = "Chronology error: Event End must be after Event Start.";
     }
 
-    if (formData.event_start_time >= formData.event_end_time) {
-      e.timeError = "End time must be after Start time"
+    if (needsBuffer) {
+      if (!formData.setup_start_datetime) e.setup_start_datetime = "Required"
+      if (!formData.teardown_end_datetime) e.teardown_end_datetime = "Required"
+      if (setupDt && startDt && setupDt > startDt) e.setup_start_datetime = "Must be before event starts"
+      if (tearDt && endDt && tearDt < endDt) e.teardown_end_datetime = "Must be after event ends"
     }
 
     equipmentRequests.forEach((req, idx) => {
@@ -204,9 +233,14 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       setSubmitting(true)
       
       const payload = {
-        ...formData,
-        setup_start_time: actualSetup,
-        teardown_end_time: actualTeardown,
+        event_name: formData.event_name,
+        space: formData.space,
+        event_start_datetime: new Date(formData.event_start_datetime).toISOString(),
+        event_end_datetime: new Date(formData.event_end_datetime).toISOString(),
+        setup_start_datetime: new Date(actualSetup).toISOString(),
+        teardown_end_datetime: new Date(actualTeardown).toISOString(),
+        requested_services: formData.requested_services,
+        user_notes: formData.user_notes,
         equipment_requests: equipmentRequests.filter(req => req.equipment).map(req => ({
           equipment: parseInt(req.equipment),
           quantity: parseInt(req.quantity)
@@ -270,7 +304,9 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
             <div className="bg-white/10 rounded-xl p-4 border border-white/5">
               <p className="text-[10px] text-green-300 uppercase font-semibold">Total Blocked Time</p>
               <p className="text-white text-sm font-semibold mt-1">
-                {actualSetup || "--:--"} to {actualTeardown || "--:--"}
+                  {formatVisualTime(actualSetup)}
+                  <br /> <span className="text-green-300/80 text-xs font-normal">until</span> <br />
+                  {formatVisualTime(actualTeardown)}
               </p>
             </div>
             {needsBuffer && (
@@ -310,18 +346,15 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               </div>
             )}
 
-            {/* STEP 1: DATE & TIME FIRST */}
+            {/* STEP 1: DATE & TIME */}
             <SectionLabel>1. Schedule Context</SectionLabel>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-              <Field label="Date" required error={errors.booking_date}>
-                <input type="date" name="booking_date" className={inputCls(errors.booking_date)} value={formData.booking_date} onChange={handleChange} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+              <Field label="Event Starts" required error={errors.event_start_datetime}>
+                <input type="datetime-local" name="event_start_datetime" className={inputCls(errors.event_start_datetime)} value={formData.event_start_datetime} onChange={handleChange} />
               </Field>
-              <Field label="Event Starts" required error={errors.event_start_time}>
-                <input type="time" name="event_start_time" className={inputCls(errors.event_start_time)} value={formData.event_start_time} onChange={handleChange} />
-              </Field>
-              <Field label="Event Ends" required error={errors.event_end_time}>
-                <input type="time" name="event_end_time" className={inputCls(errors.event_end_time)} value={formData.event_end_time} onChange={handleChange} />
+              <Field label="Event Ends" required error={errors.event_end_datetime}>
+                <input type="datetime-local" name="event_end_datetime" className={inputCls(errors.event_end_datetime)} value={formData.event_end_datetime} onChange={handleChange} />
               </Field>
             </div>
 
@@ -341,11 +374,11 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
 
             {needsBuffer && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
-                <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_time} helpText="When does the team need to arrive?">
-                  <input type="time" name="setup_start_time" className={inputCls(errors.setup_start_time)} value={formData.setup_start_time} onChange={handleChange} />
+                <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_datetime} helpText="When does the team need to arrive?">
+                  <input type="datetime-local" name="setup_start_datetime" className={inputCls(errors.setup_start_datetime)} value={formData.setup_start_datetime} onChange={handleChange} />
                 </Field>
-                <Field label="Pack-up Finish Time" required={needsBuffer} error={errors.teardown_end_time} helpText="When will the room be totally clear?">
-                  <input type="time" name="teardown_end_time" className={inputCls(errors.teardown_end_time)} value={formData.teardown_end_time} onChange={handleChange} />
+                <Field label="Pack-up Finish Time" required={needsBuffer} error={errors.teardown_end_datetime} helpText="When will the room be totally clear?">
+                  <input type="datetime-local" name="teardown_end_datetime" className={inputCls(errors.teardown_end_datetime)} value={formData.teardown_end_datetime} onChange={handleChange} />
                 </Field>
               </div>
             )}
@@ -362,7 +395,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               {availableEquipment.length === 0 ? (
                 <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
                   <p className="text-sm text-gray-500 font-medium">
-                    Please select a Date and Time above to unlock the gear catalog.
+                    Please set the event start and end times above to unlock the gear catalog.
                   </p>
                 </div>
               ) : (

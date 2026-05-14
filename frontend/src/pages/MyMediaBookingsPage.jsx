@@ -22,11 +22,11 @@ import mediaApi from "../api/mediaApi"
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-const formatDateTime = (dateString, timeString) => {
-  if (!dateString || !timeString) return 'TBD';
-  const [hours, minutes] = timeString.split(':');
-  const date = new Date(`${dateString}T00:00:00`);
-  date.setHours(Number(hours), Number(minutes), 0, 0);
+// UPDATED: Now accepts a single ISO string instead of splitting date and time
+const formatDateTime = (isoString) => {
+  if (!isoString) return 'TBD';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return 'TBD';
   
   return new Intl.DateTimeFormat('en-IN', {
       month: 'short', day: 'numeric',
@@ -43,13 +43,12 @@ const timeAgo = (isoString) => {
   return `${Math.round(hrs / 24)}d ago`;
 };
 
+// UPDATED: Now checks expiration using the new teardown_end_datetime
 const checkIsExpired = (booking) => {
   try {
-      const dateStr = booking.booking_date || booking.event_date;
-      const timeStr = booking.teardown_end_time || booking.event_end_time || '23:59:00';
-      if (dateStr) {
-          const endDateTime = new Date(`${dateStr}T${timeStr}`);
-          return endDateTime < new Date();
+      const endString = booking.teardown_end_datetime || booking.event_end_datetime;
+      if (endString) {
+          return new Date(endString) < new Date();
       }
   } catch (e) {
       console.error(e);
@@ -128,14 +127,16 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                 <div>
                   <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Start</span>
-                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.booking_date, booking.setup_start_time)}</span>
+                  {/* UPDATED: Pass the new datetime fields */}
+                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.setup_start_datetime || booking.event_start_datetime)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
                 <div>
                   <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">End</span>
-                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.booking_date, booking.teardown_end_time)}</span>
+                  {/* UPDATED: Pass the new datetime fields */}
+                  <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.teardown_end_datetime || booking.event_end_datetime)}</span>
                 </div>
               </div>
             </div>

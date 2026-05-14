@@ -3,6 +3,26 @@ import { useState, useEffect, useMemo } from "react"
 import mediaService from "../api/mediaApi"
 import ErrorBoundary from "./ErrorBoundary"
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+const formatForDatetimeLocal = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatVisualTime = (isoString) => {
+  if (!isoString) return "--:--";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+};
+
 // ── Field Wrapper ──────────────────────────────────────────────────────────
 function Field({ label, required, children, error, helpText }) {
   return (
@@ -38,11 +58,10 @@ function SectionLabel({ children }) {
 const INITIAL_FORM = {
   event_name: "",
   space: "",
-  booking_date: "",
-  event_start_time: "",
-  event_end_time: "",
-  setup_start_time: "",
-  teardown_end_time: "",
+  event_start_datetime: "",
+  event_end_datetime: "",
+  setup_start_datetime: "",
+  teardown_end_datetime: "",
   requested_services: "",
   user_notes: "",
   is_external_event: false,
@@ -56,8 +75,8 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
   
   const [needsBuffer, setNeedsBuffer] = useState(() => {
     if (initialData) {
-      return initialData.setup_start_time !== initialData.event_start_time || 
-             initialData.teardown_end_time !== initialData.event_end_time;
+      return initialData.setup_start_datetime !== initialData.event_start_datetime || 
+             initialData.teardown_end_datetime !== initialData.event_end_datetime;
     }
     return false;
   })
@@ -67,6 +86,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       return {
         ...INITIAL_FORM,
         ...initialData,
+        event_start_datetime: formatForDatetimeLocal(initialData.event_start_datetime),
+        event_end_datetime: formatForDatetimeLocal(initialData.event_end_datetime),
+        setup_start_datetime: formatForDatetimeLocal(initialData.setup_start_datetime),
+        teardown_end_datetime: formatForDatetimeLocal(initialData.teardown_end_datetime),
         space: initialData.space?.id || initialData.space_details?.id || initialData.space || "",
       };
     }
@@ -97,10 +120,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
   }, [])
 
   // ── LIVE INVENTORY CHECK ──────────────────────────────────────────────────
-  const { booking_date, event_start_time, event_end_time, setup_start_time, teardown_end_time } = formData
+  const { event_start_datetime, event_end_datetime, setup_start_datetime, teardown_end_datetime } = formData
 
-  const actualSetup = needsBuffer && setup_start_time ? setup_start_time : event_start_time
-  const actualTeardown = needsBuffer && teardown_end_time ? teardown_end_time : event_end_time
+  const actualSetup = needsBuffer && setup_start_datetime ? setup_start_datetime : event_start_datetime
+  const actualTeardown = needsBuffer && teardown_end_datetime ? teardown_end_datetime : event_end_datetime
   const isTeamRequest = requestMode === "team"
 
   useEffect(() => {
@@ -109,11 +132,19 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     const timeoutId = setTimeout(() => {
       if (!isMounted) return
 
-      if (!isTeamRequest && booking_date && event_start_time && event_end_time) {
-        if (actualSetup <= event_start_time && event_start_time < event_end_time && event_end_time <= actualTeardown) {
+      if (!isTeamRequest && event_start_datetime && event_end_datetime) {
+        const setupDate = new Date(actualSetup)
+        const startDate = new Date(event_start_datetime)
+        const endDate = new Date(event_end_datetime)
+        const teardownDate = new Date(actualTeardown)
+
+        if (setupDate <= startDate && startDate < endDate && endDate <= teardownDate) {
           setCheckingInventory(true)
 
-          mediaService.checkAvailability(booking_date, actualSetup, actualTeardown, initialData?.id)
+          const isoStart = new Date(actualSetup).toISOString()
+          const isoEnd = new Date(actualTeardown).toISOString()
+
+          mediaService.checkAvailability(isoStart, isoEnd, initialData?.id)
             .then((data) => {
               if (!isMounted) return
               setAvailableEquipment(data)
@@ -144,7 +175,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [booking_date, event_start_time, event_end_time, actualSetup, actualTeardown, isTeamRequest, initialData])
+  }, [event_start_datetime, event_end_datetime, actualSetup, actualTeardown, isTeamRequest, initialData])
 
   const groupedEquipment = useMemo(() => {
     return availableEquipment.reduce((acc, eq) => {
@@ -179,64 +210,44 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     const e = {}
     if (!formData.event_name.trim()) e.event_name = "Required"
     if (!formData.space) e.space = "Required"
-    if (!formData.booking_date) e.booking_date = "Required"
-    if (!formData.event_start_time) e.event_start_time = "Required"
-    if (!formData.event_end_time) e.event_end_time = "Required"
+    if (!formData.event_start_datetime) e.event_start_datetime = "Required"
+    if (!formData.event_end_datetime) e.event_end_datetime = "Required"
 
-    // 1. Chronology checks for the main event block
-    if (formData.event_start_time && formData.event_end_time) {
-      if (formData.event_start_time >= formData.event_end_time) {
-        e.event_end_time = "Must be after start time";
-        e.timeError = "Chronology error: Event End must be after Event Start.";
-      }
+    const startDt = formData.event_start_datetime ? new Date(formData.event_start_datetime) : null;
+    const endDt = formData.event_end_datetime ? new Date(formData.event_end_datetime) : null;
+    const setupDt = needsBuffer && formData.setup_start_datetime ? new Date(formData.setup_start_datetime) : startDt;
+    const tearDt = needsBuffer && formData.teardown_end_datetime ? new Date(formData.teardown_end_datetime) : endDt;
+
+    // 1. Chronology checks
+    if (startDt && endDt && startDt >= endDt) {
+      e.event_end_datetime = "Must be after start time";
+      e.timeError = "Chronology error: Event End must be after Event Start.";
     }
 
-    // 2. Chronology checks for the buffer block
     if (needsBuffer) {
-      if (!formData.setup_start_time) e.setup_start_time = "Required";
-      if (!formData.teardown_end_time) e.teardown_end_time = "Required";
+      if (!formData.setup_start_datetime) e.setup_start_datetime = "Required";
+      if (!formData.teardown_end_datetime) e.teardown_end_datetime = "Required";
       
-      if (formData.setup_start_time && formData.event_start_time && formData.setup_start_time > formData.event_start_time) {
-        e.setup_start_time = "Must be before event starts";
+      if (setupDt && startDt && setupDt > startDt) {
+        e.setup_start_datetime = "Must be before event starts";
         e.timeError = "Setup time cannot start after the event begins.";
       }
       
-      if (formData.teardown_end_time && formData.event_end_time && formData.teardown_end_time < formData.event_end_time) {
-        e.teardown_end_time = "Must be after event ends";
+      if (tearDt && endDt && tearDt < endDt) {
+        e.teardown_end_datetime = "Must be after event ends";
         e.timeError = "Teardown time cannot end before the event ends.";
       }
     }
 
-    // 3. Past Date and Exact Time checks
-    if (formData.booking_date) {
-      const [year, month, day] = formData.booking_date.split('-');
-      const bookingDay = new Date(year, month - 1, day);
-      
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 2. Past Time block constraint
+    const now = new Date();
+    const oldSetupDt = initialData ? new Date(initialData.setup_start_datetime || initialData.event_start_datetime) : null;
+    const timeChanged = !initialData || oldSetupDt?.getTime() !== setupDt?.getTime();
 
-      const dateChanged = !initialData || initialData.booking_date !== formData.booking_date;
-
-      if (dateChanged && bookingDay < today) {
-        e.booking_date = "Cannot book in the past";
-      } else if (bookingDay.getTime() === today.getTime()) {
-        const firstTime = actualSetup || formData.event_start_time;
-        const oldFirstTime = initialData ? (initialData.setup_start_time || initialData.event_start_time) : null;
-        
-        const timeChanged = !initialData || oldFirstTime !== firstTime;
-
-        if (timeChanged && firstTime) {
-          const [hours, minutes] = firstTime.split(':');
-          const selectedTime = new Date(today);
-          selectedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
-          
-          if (selectedTime < now) {
-            e.event_start_time = "Time has passed";
-            if (needsBuffer) e.setup_start_time = "Time has passed";
-            e.timeError = "You cannot select a time slot that has already passed today.";
-          }
-        }
-      }
+    if (timeChanged && setupDt && setupDt < now) {
+      e.timeError = "You cannot select a time block that has already passed.";
+      if (needsBuffer) e.setup_start_datetime = "Time has passed";
+      else e.event_start_datetime = "Time has passed";
     }
 
     if (!isTeamRequest) {
@@ -257,11 +268,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     const payload = {
       event_name: formData.event_name,
       space: formData.space,
-      booking_date: formData.booking_date,
-      event_start_time: formData.event_start_time,
-      event_end_time: formData.event_end_time,
-      setup_start_time: actualSetup,
-      teardown_end_time: actualTeardown,
+      event_start_datetime: new Date(formData.event_start_datetime).toISOString(),
+      event_end_datetime: new Date(formData.event_end_datetime).toISOString(),
+      setup_start_datetime: new Date(actualSetup).toISOString(),
+      teardown_end_datetime: new Date(actualTeardown).toISOString(),
       is_team_request: isTeamRequest,
       is_external_event: formData.is_external_event,
       requested_services: isTeamRequest ? "Media team coverage" : formData.requested_services,
@@ -419,7 +429,9 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               <div className="bg-white/10 rounded-xl p-4 border border-white/5">
                 <p className="text-[10px] text-green-300 uppercase font-semibold">Total Blocked Time</p>
                 <p className="text-white text-sm font-semibold mt-1">
-                  {actualSetup || "--:--"} to {actualTeardown || "--:--"}
+                  {formatVisualTime(actualSetup)}
+                  <br /> <span className="text-green-300/80 text-xs font-normal">until</span> <br />
+                  {formatVisualTime(actualTeardown)}
                 </p>
               </div>
               {needsBuffer && (
@@ -472,15 +484,12 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               {/* STEP 1: DATE & TIME */}
               <SectionLabel>1. Schedule Context</SectionLabel>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                <Field label="Date" required error={errors.booking_date}>
-                  <input type="date" name="booking_date" className={inputCls(errors.booking_date)} value={formData.booking_date} onChange={handleChange} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <Field label="Event Starts" required error={errors.event_start_datetime}>
+                  <input type="datetime-local" name="event_start_datetime" className={inputCls(errors.event_start_datetime)} value={formData.event_start_datetime} onChange={handleChange} />
                 </Field>
-                <Field label="Event Starts" required error={errors.event_start_time}>
-                  <input type="time" name="event_start_time" className={inputCls(errors.event_start_time)} value={formData.event_start_time} onChange={handleChange} />
-                </Field>
-                <Field label="Event Ends" required error={errors.event_end_time}>
-                  <input type="time" name="event_end_time" className={inputCls(errors.event_end_time)} value={formData.event_end_time} onChange={handleChange} />
+                <Field label="Event Ends" required error={errors.event_end_datetime}>
+                  <input type="datetime-local" name="event_end_datetime" className={inputCls(errors.event_end_datetime)} value={formData.event_end_datetime} onChange={handleChange} />
                 </Field>
               </div>
 
@@ -499,14 +508,14 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 </label>
               </div>
 
-              {/* Time buffer inputs available for both modes */}
+              {/* Time buffer inputs */}
               {needsBuffer && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
-                  <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_time} helpText="When does the team need to arrive?">
-                    <input type="time" name="setup_start_time" className={inputCls(errors.setup_start_time)} value={formData.setup_start_time} onChange={handleChange} />
+                  <Field label="Prep / Arrival Time" required={needsBuffer} error={errors.setup_start_datetime} helpText="When does the team need to arrive?">
+                    <input type="datetime-local" name="setup_start_datetime" className={inputCls(errors.setup_start_datetime)} value={formData.setup_start_datetime} onChange={handleChange} />
                   </Field>
-                  <Field label="Pack-up Finish Time" required={needsBuffer} error={errors.teardown_end_time} helpText="When will the room be totally clear?">
-                    <input type="time" name="teardown_end_time" className={inputCls(errors.teardown_end_time)} value={formData.teardown_end_time} onChange={handleChange} />
+                  <Field label="Pack-up Finish Time" required={needsBuffer} error={errors.teardown_end_datetime} helpText="When will the room be totally clear?">
+                    <input type="datetime-local" name="teardown_end_datetime" className={inputCls(errors.teardown_end_datetime)} value={formData.teardown_end_datetime} onChange={handleChange} />
                   </Field>
                 </div>
               )}
@@ -525,7 +534,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 {availableEquipment.length === 0 ? (
                   <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
                     <p className="text-sm text-gray-500 font-medium">
-                      Please select a Date and Time above to unlock the gear catalog.
+                      Please set the event start and end times above to unlock the gear catalog.
                     </p>
                   </div>
                 ) : (

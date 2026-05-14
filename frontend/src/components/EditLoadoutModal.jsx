@@ -12,12 +12,19 @@ const inputCls = (hasError) =>
       : "border-gray-200 bg-white focus:ring-emerald-600"
   } rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition-all`
 
-function formatTime(t) {
-  if (!t) return "--"
-  const [h, m] = t.split(":")
-  const d = new Date()
-  d.setHours(+h, +m, 0)
+// UPDATED: Now parses full ISO DateTime strings
+function formatTime(isoString) {
+  if (!isoString) return "--"
+  const d = new Date(isoString)
+  if (isNaN(d.getTime())) return "--"
   return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+}
+
+function formatDate(isoString) {
+  if (!isoString) return "--"
+  const d = new Date(isoString)
+  if (isNaN(d.getTime())) return "--"
+  return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -126,6 +133,11 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
   const [saved, setSaved]                     = useState(false)
 
   const bookingId = booking?.id
+  
+  // Pluck DateTimes
+  const startDt = booking?.setup_start_datetime || booking?.event_start_datetime;
+  const endDt = booking?.teardown_end_datetime || booking?.event_end_datetime;
+
   useEffect(() => {
     let cancelled = false
     Promise.resolve(seedRows(booking)).then((seeded) => {
@@ -144,11 +156,11 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
       setLoadingInv(true)
       setInventoryError("")
 
+      // UPDATED: Now passing only ISO start, ISO end, and exclude ID
       mediaService
         .checkAvailability(
-          booking.booking_date,
-          booking.setup_start_time,
-          booking.teardown_end_time,
+          startDt,
+          endDt,
           booking.id
         )
         .then((data) => {
@@ -182,7 +194,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
     })
 
     return () => { active = false }
-  }, [booking.booking_date, booking.setup_start_time, booking.teardown_end_time, booking.id, booking.equipment_requests])
+  }, [startDt, endDt, booking.id, booking.equipment_requests])
 
   // ── Grouped equipment for <optgroup> ──────────────────────────────────────
   const groupedEquipment = useMemo(() => {
@@ -268,6 +280,10 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
     }
   }
 
+  const eStart = booking?.event_start_datetime;
+  const eEnd = booking?.event_end_datetime;
+  const isMultiDay = eStart && eEnd && (new Date(eStart).toDateString() !== new Date(eEnd).toDateString());
+
   // ── Render ────────────────────────────────────────────────────────────────
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
@@ -283,7 +299,10 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
               {booking.event_name}
             </h2>
             <p className="mt-1 text-[13px] text-gray-500">
-              {formatTime(booking.event_start_time)} – {formatTime(booking.event_end_time)}
+              {isMultiDay
+                ? `${formatDate(eStart)} ${formatTime(eStart)} – ${formatDate(eEnd)} ${formatTime(eEnd)}`
+                : `${formatDate(eStart)} · ${formatTime(eStart)} – ${formatTime(eEnd)}`
+              }
               {" · "}
               {booking.space_details?.name ?? "—"}
             </p>

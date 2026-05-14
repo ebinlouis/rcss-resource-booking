@@ -3,6 +3,19 @@ import { createPortal } from "react-dom"
 import MediaBookingDetailsModal from "./MediaBookingDetailsModal"
 import mediaService from "../api/mediaApi"
 
+// ── Time Formatting Helpers ───────────────────────────────────────────────
+const formatDate = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+};
+
+const formatTime = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+};
+
 // ── Status badge helper — consistent with Spaces/Transport/Mess ────────────
 function StatusBadge({ status }) {
   const map = {
@@ -24,6 +37,11 @@ function StatusBadge({ status }) {
 
 // ── Delete confirmation modal ─────────────────────────────────────────────
 function CancelConfirmModal({ booking, onConfirm, onClose, deleting }) {
+  const startDt = booking.setup_start_datetime || booking.event_start_datetime;
+  const endDt = booking.teardown_end_datetime || booking.event_end_datetime;
+  
+  const isMultiDay = startDt && endDt && (new Date(startDt).toDateString() !== new Date(endDt).toDateString());
+
   return createPortal(
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center">
@@ -36,7 +54,10 @@ function CancelConfirmModal({ booking, onConfirm, onClose, deleting }) {
         <p className="text-sm text-gray-500 mb-1">You're about to cancel your booking for</p>
         <p className="text-sm font-semibold text-gray-800 mb-1">{booking.event_name}</p>
         <p className="text-xs text-gray-400 mb-6">
-          {booking.booking_date} • {booking.setup_start_time?.slice(0, 5)} – {booking.teardown_end_time?.slice(0, 5)}
+          {isMultiDay 
+            ? `${formatDate(startDt)} ${formatTime(startDt)} – ${formatDate(endDt)} ${formatTime(endDt)}`
+            : `${formatDate(startDt)} • ${formatTime(startDt)} – ${formatTime(endDt)}`
+          }
         </p>
         <div className="flex gap-3">
           <button
@@ -112,8 +133,8 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
           <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
             {/* TABLE HEADER (Desktop) */}
             <div className="hidden md:grid grid-cols-12 px-4 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              <div className="col-span-3">Time Schedule</div>
-              <div className="col-span-6">Booking Details</div>
+              <div className="col-span-4 lg:col-span-3">Time Schedule</div>
+              <div className="col-span-5 lg:col-span-6">Booking Details</div>
               <div className="col-span-3 text-right pr-12">Status & Actions</div>
             </div>
 
@@ -124,28 +145,44 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                 const isPending  = b.status === "PENDING"
                 const eqCount    = b.equipment_requests?.length || 0
                 
-                // Smart check to see if we need to display the nested event time
-                const hasBuffer = b.setup_start_time !== b.event_start_time || b.teardown_end_time !== b.event_end_time
+                // Smart Buffer & Multi-day checks
+                const setupDt = b.setup_start_datetime || b.event_start_datetime;
+                const teardownDt = b.teardown_end_datetime || b.event_end_datetime;
+                const eStart = b.event_start_datetime;
+                const eEnd = b.event_end_datetime;
+
+                const hasBuffer = setupDt && eStart && 
+                    (new Date(setupDt).getTime() !== new Date(eStart).getTime() || 
+                     new Date(teardownDt).getTime() !== new Date(eEnd).getTime());
+                
+                const isMultiDay = setupDt && teardownDt && (new Date(setupDt).toDateString() !== new Date(teardownDt).toDateString());
+                const eventIsMultiDay = eStart && eEnd && (new Date(eStart).toDateString() !== new Date(eEnd).toDateString());
 
                 return (
                   <div
                     key={b.id}
                     className="grid grid-cols-12 px-4 py-4 gap-2 md:items-center group hover:bg-gray-50/50 transition-colors"
                   >
-                    {/* TIME: Smart display based on buffer toggle */}
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-sm font-bold text-gray-700">
-                        {b.setup_start_time?.slice(0, 5)} – {b.teardown_end_time?.slice(0, 5)}
+                    {/* TIME SCHEDULE */}
+                    <div className="col-span-12 md:col-span-4 lg:col-span-3">
+                      <div className="text-[13px] font-bold text-gray-700 leading-tight">
+                        {isMultiDay 
+                          ? <>{formatDate(setupDt)} {formatTime(setupDt)} <br/>to {formatDate(teardownDt)} {formatTime(teardownDt)}</>
+                          : <>{formatTime(setupDt)} – {formatTime(teardownDt)}</>
+                        }
                       </div>
                       {hasBuffer && (
-                        <div className="text-[10px] font-medium text-gray-400 uppercase mt-0.5" title="Core Event Time">
-                          Event: {b.event_start_time?.slice(0, 5)} – {b.event_end_time?.slice(0, 5)}
+                        <div className="text-[10px] font-medium text-gray-400 uppercase mt-1" title="Core Event Time">
+                          Event: {eventIsMultiDay 
+                            ? `${formatDate(eStart)} ${formatTime(eStart)} – ${formatDate(eEnd)} ${formatTime(eEnd)}`
+                            : `${formatTime(eStart)} – ${formatTime(eEnd)}`
+                          }
                         </div>
                       )}
                     </div>
 
                     {/* BOOKING DETAILS */}
-                    <div className="col-span-12 md:col-span-6">
+                    <div className="col-span-12 md:col-span-5 lg:col-span-6">
                       <div
                         className={`p-3 rounded-lg border ${
                           isApproved
@@ -177,7 +214,7 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                     </div>
 
                     {/* STATUS & ACTIONS */}
-                    <div className="col-span-12 md:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
+                    <div className="col-span-12 md:col-span-3 lg:col-span-3 flex justify-between md:justify-end items-center gap-4 mt-2 md:mt-0">
                       <StatusBadge status={b.status} />
 
                       {/* Only show action buttons if can_modify is true */}

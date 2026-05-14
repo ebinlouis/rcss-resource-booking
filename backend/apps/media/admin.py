@@ -24,11 +24,14 @@ class MediaSettingsAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(MediaBooking)
 class MediaBookingAdmin(admin.ModelAdmin):
-    list_display  = ('reference_code', 'event_name', 'booking_date', 'is_team_request', 'status', 'created_at')
+    # UPDATED: Replaced 'booking_date' with 'event_start_datetime'
+    list_display  = ('reference_code', 'event_name', 'event_start_datetime', 'is_team_request', 'status', 'created_at')
     search_fields = ('reference_code', 'event_name')
-    list_filter   = ('status', 'is_team_request', 'booking_date')
     
-    # NEW: This embeds the equipment list directly inside the booking page!
+    # UPDATED: Replaced 'booking_date' with 'event_start_datetime'
+    list_filter   = ('status', 'is_team_request', 'event_start_datetime')
+    
+    # This embeds the equipment list directly inside the booking page!
     inlines = [MediaEquipmentRequestInline]
 
 # ==========================================
