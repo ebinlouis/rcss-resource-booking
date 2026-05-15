@@ -771,8 +771,8 @@ const confirmCancelBooking = async () => {
     onClick={() => setStatusFilter("PENDING")}
     className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${
       statusFilter === "PENDING"
-        ? "bg-yellow-500 text-white shadow-sm"
-        : "bg-white border border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+        ? "bg-green-600 text-white shadow-sm"
+        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
     }`}
   >
     Pending ({dashboardStats.pending})
@@ -783,7 +783,7 @@ const confirmCancelBooking = async () => {
     className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${
       statusFilter === "ACTIVE"
         ? "bg-green-600 text-white shadow-sm"
-        : "bg-white border border-green-200 text-green-700 hover:bg-green-50"
+        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
     }`}
   >
     Active ({dashboardStats.approved})
@@ -793,8 +793,8 @@ const confirmCancelBooking = async () => {
     onClick={() => setStatusFilter("COMPLETED")}
     className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${
       statusFilter === "COMPLETED"
-        ? "bg-green-700 text-white shadow-sm"
-        : "bg-white border border-green-200 text-green-700 hover:bg-green-50"
+        ? "bg-green-600 text-white shadow-sm"
+        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
     }`}
   >
     Completed ({dashboardStats.completed})
