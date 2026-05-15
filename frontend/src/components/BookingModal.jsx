@@ -6,10 +6,10 @@ import api from "../api/axios"
 // Constants
 // ─────────────────────────────────────────────────────────────
 
-// A booking is "low occupancy" when attendees fill less than 30% of capacity.
 const LOW_OCCUPANCY_THRESHOLD = 0.3
 const COLLEGE_START = "08:00"
 const COLLEGE_END = "18:00"
+
 // ─────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────
@@ -38,9 +38,45 @@ const formatAMPM = (timeStr) => {
   return `${hours}:${String(minutes).padStart(2, "0")} ${ampm}`
 }
 
-const inputCls = (err) => `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400 ${err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`
+// Format a conflict date string "2025-05-27" → "Tue, 27 May"
+const formatConflictDate = (dateStr) => {
+  const d = new Date(dateStr + "T00:00:00")
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+}
 
+// Duration between two time strings in total minutes
+const durationMins = (startTime, endTime) => {
+  const [sh, sm] = startTime.split(":").map(Number)
+  const [eh, em] = endTime.split(":").map(Number)
+  return (eh * 60 + em) - (sh * 60 + sm)
+}
+
+// Format duration as "X hrs/day" or "X hrs Y min/day"
+const formatHoursPerDay = (startTime, endTime) => {
+  const total = durationMins(startTime, endTime)
+  if (total <= 0) return null
+  const hrs = Math.floor(total / 60)
+  const mins = total % 60
+  if (mins === 0) return `${hrs} hrs/day`
+  return `${hrs} hrs ${mins} min/day`
+}
+
+// Count calendar days between two date strings (inclusive)
+const daySpan = (startDate, endDate) => {
+  const s = new Date(startDate + "T00:00:00")
+  const e = new Date(endDate + "T00:00:00")
+  return Math.round((e - s) / 86400000) + 1
+}
+
+const inputCls = (err) =>
+  `w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400 ${
+    err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"
+  }`
+
+// ─────────────────────────────────────────────────────────────
 // Reusable Components
+// ─────────────────────────────────────────────────────────────
+
 function Field({ label, required, hint, error, children }) {
   return (
     <div className="flex flex-col gap-1">
@@ -49,12 +85,8 @@ function Field({ label, required, hint, error, children }) {
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
-      {hint && !error && (
-        <p className="text-xs text-gray-400 mt-0.5">{hint}</p>
-      )}
-      {error && (
-        <p className="text-xs text-red-500 mt-0.5">{error}</p>
-      )}
+      {hint && !error && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+      {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
     </div>
   )
 }
@@ -86,7 +118,6 @@ function BookingModal({
 }) {
   const isEdit = !!initialData
 
-  // Active space can change if the user switches hall via suggestion.
   const [activeSpaceId, setActiveSpaceId] = useState(initialSpaceId)
   const [activeSpaceName, setActiveSpaceName] = useState(initialSpaceName)
   const [activeSpaceCap, setActiveSpaceCap] = useState(initialSpaceCap)
@@ -96,29 +127,34 @@ function BookingModal({
     if (initialData) {
       const startD = new Date(initialData.start_datetime)
       const endD = new Date(initialData.end_datetime)
+      const startDate = startD.toISOString().split("T")[0]
+      const endDate = endD.toISOString().split("T")[0]
       return {
         purpose: initialData.purpose_of_booking || "",
         department: initialData.department || "",
-        date: startD.toISOString().split("T")[0],
-        start: startD.toTimeString().slice(0, 5),
-        end: endD.toTimeString().slice(0, 5),
+        start_date: startDate,
+        end_date: endDate,
+        start_time: startD.toTimeString().slice(0, 5),
+        end_time: endD.toTimeString().slice(0, 5),
         attendees: initialData.attendee_count || "",
-        requirements:
-          initialData.equipment_requests?.map((er) => er.equipment) || [],
+        requirements: initialData.equipment_requests?.map((er) => er.equipment) || [],
         notes: initialData.user_notes || "",
         isExternal: initialData.is_external || false,
+        bookingType: initialData.booking_type || "SINGLE",
       }
     }
     return {
       purpose: "",
       department: "",
-      date: prefillDate,
-      start: prefillStart,
-      end: prefillEnd,
+      start_date: prefillDate,
+      end_date: prefillDate, // end_date defaults to start_date
+      start_time: prefillStart,
+      end_time: prefillEnd,
       attendees: "",
       requirements: [],
       notes: "",
       isExternal: false,
+      bookingType: "SINGLE", // Default to single/continuous
     }
   })
 
@@ -128,9 +164,10 @@ function BookingModal({
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // ── Availability Checking State ──
-  const [isAvailable, setIsAvailable] = useState(null) // null = untested, true = available, false = taken
+  // ── Availability State ──
+  const [isAvailable, setIsAvailable] = useState(null)
   const [availabilityMsg, setAvailabilityMsg] = useState("")
+  const [availabilityConflicts, setAvailabilityConflicts] = useState([])
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
 
   // ── Suggestion state ──
@@ -139,18 +176,22 @@ function BookingModal({
   const debounceTimer = useRef(null)
   const availabilityTimer = useRef(null)
 
-  // Derived during render
+  // Derived
   const attendeeCount = parseInt(form.attendees, 10)
   const exceedsCapacity =
-  Number.isFinite(attendeeCount) &&
-  activeSpaceCap !== null &&
-  attendeeCount > activeSpaceCap
-const isLowOccupancy =
-  Number.isFinite(attendeeCount) &&
-  attendeeCount > 0 &&
-  activeSpaceCap !== null &&
-  !exceedsCapacity &&
-  attendeeCount / activeSpaceCap < LOW_OCCUPANCY_THRESHOLD
+    Number.isFinite(attendeeCount) &&
+    activeSpaceCap !== null &&
+    attendeeCount > activeSpaceCap
+  const isLowOccupancy =
+    Number.isFinite(attendeeCount) &&
+    attendeeCount > 0 &&
+    activeSpaceCap !== null &&
+    !exceedsCapacity &&
+    attendeeCount / activeSpaceCap < LOW_OCCUPANCY_THRESHOLD
+
+  const isMultiDay =
+    form.start_date && form.end_date && form.start_date !== form.end_date
+
   // ─────────────────────────────────────────────────────────────
   // Fetch departments + equipment on mount
   // ─────────────────────────────────────────────────────────────
@@ -188,128 +229,147 @@ const isLowOccupancy =
       }
     }
     fetchCap()
-  }, [activeSpaceId, activeSpaceCap]) 
+  }, [activeSpaceId, activeSpaceCap])
 
   // ─────────────────────────────────────────────────────────────
-  // Auto-Check Availability (Time-First Validation)
+  // Auto-Check Availability
   // ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-clearTimeout(availabilityTimer.current)
+    clearTimeout(availabilityTimer.current)
 
-const today = todayISO()
-const nowTime = currentTimeISO()
+    const today = todayISO()
+    const nowTime = currentTimeISO()
 
-// Immediate validation for start time
-if (form.date && form.start && !isEdit) {
-  if (form.date < today) {
-    setTimeout(() => {
-      setIsAvailable(false)
-      setAvailabilityMsg("Cannot book a date in the past.")
-    }, 0)
-    return
-  }
+    // Immediate client-side validation for start date/time
+    if (form.start_date && form.start_time && !isEdit) {
+      if (form.start_date < today) {
+        setTimeout(() => {
+          setIsAvailable(false)
+          setAvailabilityMsg("Cannot book a date in the past.")
+          setAvailabilityConflicts([])
+        }, 0)
+        return
+      }
 
-  if (form.date === today && form.start < nowTime) {
-    setTimeout(() => {
-      setIsAvailable(false)
-      setAvailabilityMsg("Cannot book a time in the past.")
-    }, 0)
-    return
-  }
+      if (form.start_date === today && form.start_time < nowTime) {
+        setTimeout(() => {
+          setIsAvailable(false)
+          setAvailabilityMsg("Cannot book a time in the past.")
+          setAvailabilityConflicts([])
+        }, 0)
+        return
+      }
+    }
 
-  if (form.start < COLLEGE_START) {
-    setTimeout(() => {
-      setIsAvailable(false)
-      setAvailabilityMsg(
-        "Bookings are allowed only between 8:00 AM and 6:00 PM."
-      )
-    }, 0)
-    return
-  }
-}
+    // Reset if incomplete
+    if (!form.start_date || !form.start_time) {
+      setTimeout(() => {
+        setIsAvailable(null)
+        setAvailabilityMsg("")
+        setAvailabilityConflicts([])
+      }, 0)
+      return
+    }
 
-// Reset only if truly incomplete
-if (!form.date || !form.start) {
-  setTimeout(() => {
-    setIsAvailable(null)
-    setAvailabilityMsg("")
-  }, 0)
-  return
-}
+    if (!form.end_time) {
+      setTimeout(() => {
+        setIsAvailable(null)
+        setAvailabilityMsg("Select an end time to check availability.")
+        setAvailabilityConflicts([])
+      }, 0)
+      return
+    }
 
-if (!form.end) {
-  setTimeout(() => {
-    setIsAvailable(null)
-    setAvailabilityMsg("Select an end time to check availability.")
-  }, 0)
-  return
-}
+    // College hours check
+    if (
+      form.start_time < COLLEGE_START || 
+      form.start_time > COLLEGE_END ||
+      form.end_time < COLLEGE_START || 
+      form.end_time > COLLEGE_END
+    ) {
+      setTimeout(() => {
+        setIsAvailable(false)
+        setAvailabilityMsg("Bookings are allowed only between 8:00 AM and 6:00 PM.")
+        setAvailabilityConflicts([])
+      }, 0)
+      return
+    }
 
-    // Client-side quick check
-if (form.start < COLLEGE_START || form.end > COLLEGE_END) {
-  setTimeout(() => {
-    setIsAvailable(false)
-    setAvailabilityMsg(
-      "Bookings are allowed only between 8:00 AM and 6:00 PM."
-    )
-  }, 0)
-  return
-}
+    // Cross-date/time validation
+    const endDate = form.end_date || form.start_date
+    if (endDate < form.start_date) {
+      setTimeout(() => {
+        setIsAvailable(false)
+        setAvailabilityMsg("End date cannot be before start date.")
+        setAvailabilityConflicts([])
+      }, 0)
+      return
+    }
 
-if (form.start >= form.end) {
-  setTimeout(() => {
-    setIsAvailable(false)
-    setAvailabilityMsg("End time must be after start time.")
-  }, 0)
-  return
-}
+    // If recurring daily, start time MUST be before end time 
+    // (If it's continuous overnight, end time can technically be earlier on the next day)
+    if ((!isMultiDay || form.bookingType === 'RECURRING') && form.end_time <= form.start_time) {
+      setTimeout(() => {
+        setIsAvailable(false)
+        setAvailabilityMsg("End time must be after start time.")
+        setAvailabilityConflicts([])
+      }, 0)
+      return
+    }
 
-    // If editing and time hasn't changed from original, assume available
-    const isSameAsInitial = isEdit &&
+    // If editing and nothing has changed from original, assume available
+    const isSameAsInitial =
+      isEdit &&
       activeSpaceId === initialData.space &&
-      form.date === initialData.start_datetime.split('T')[0] &&
-      form.start === new Date(initialData.start_datetime).toTimeString().slice(0, 5) &&
-      form.end === new Date(initialData.end_datetime).toTimeString().slice(0, 5)
+      form.start_date === initialData.start_datetime.split("T")[0] &&
+      form.end_date === initialData.end_datetime.split("T")[0] &&
+      form.start_time === new Date(initialData.start_datetime).toTimeString().slice(0, 5) &&
+      form.end_time === new Date(initialData.end_datetime).toTimeString().slice(0, 5) &&
+      form.bookingType === (initialData.booking_type || 'SINGLE')
 
     if (isSameAsInitial) {
       setTimeout(() => {
         setIsAvailable(true)
         setAvailabilityMsg("")
+        setAvailabilityConflicts([])
       }, 0)
       return
     }
 
-    // Ping the backend to check availability
+    // Ping the backend (Backend now handles Recurring vs Continuous automatically)
     availabilityTimer.current = setTimeout(async () => {
       setIsCheckingAvailability(true)
       try {
-        const start_datetime = toLocalISO(form.date, form.start)
-        const end_datetime = toLocalISO(form.date, form.end)
+        const start_datetime = toLocalISO(form.start_date, form.start_time)
+        const end_datetime = toLocalISO(endDate, form.end_time)
 
         const res = await api.post(
           `/spaces/catalog/${activeSpaceId}/check_availability/`,
-          { 
-            start_datetime, 
+          {
+            start_datetime,
             end_datetime,
-            exclude_booking_id: isEdit ? initialData.id : null // Forward compatibility 
+            exclude_booking_id: isEdit ? initialData.id : null,
+            booking_type: isMultiDay ? form.bookingType : 'SINGLE'
           }
         )
-        
+
+        const conflicts = res.data.conflicts || []
         setIsAvailable(res.data.available)
         setAvailabilityMsg(res.data.message || "")
+        setAvailabilityConflicts(conflicts)
       } catch (err) {
         console.error("Availability check failed:", err)
         setIsAvailable(false)
-        setAvailabilityMsg("Could not verify availability. Please try again.")
+        setAvailabilityMsg(err.response?.data?.error || "Could not verify availability. Please try again.")
+        setAvailabilityConflicts([])
       } finally {
         setIsCheckingAvailability(false)
       }
-    }, 600) // 600ms debounce to prevent spamming while they type time
+    }, 600)
 
     return () => clearTimeout(availabilityTimer.current)
-  }, [form.date, form.start, form.end, activeSpaceId, isEdit, initialData])
-
+  }, [form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, isMultiDay, activeSpaceId, isEdit, initialData])
 
   // ─────────────────────────────────────────────────────────────
   // Debounced suggestion fetch (Capacity)
@@ -328,9 +388,10 @@ if (form.start >= form.end) {
     debounceTimer.current = setTimeout(async () => {
       setIsFetchingSuggestions(true)
       try {
-        const res = await api.get(`/spaces/catalog/?min_capacity=${attendeeCount}&for_suggestion=true`)
+        const res = await api.get(
+          `/spaces/catalog/?min_capacity=${attendeeCount}&for_suggestion=true`
+        )
         const all = res.data.results ?? res.data ?? []
-        
         const better = all.filter(
           (s) =>
             s.id !== activeSpaceId &&
@@ -352,7 +413,13 @@ if (form.start >= form.end) {
   // ─────────────────────────────────────────────────────────────
 
   const set = (key, val) => {
-    setForm((p) => ({ ...p, [key]: val }))
+    setForm((p) => {
+      const next = { ...p, [key]: val }
+      if (key === "start_date" && next.end_date && next.end_date < val) {
+        next.end_date = val
+      }
+      return next
+    })
     if (errors[key]) {
       setErrors((p) => ({ ...p, [key]: null }))
     }
@@ -385,24 +452,25 @@ if (form.start >= form.end) {
     if (!form.purpose.trim()) e.purpose = "Please describe the purpose"
     if (!form.department) e.department = "Select your department"
     if (
-  form.date === todayISO() &&
-  form.start &&
-  form.start < currentTimeISO() &&
-  !isEdit
-) {
-  e.start = "Cannot select a past time."
-}
-if (!form.attendees || Number(form.attendees) < 1) {
-  e.attendees = "Enter a valid number"
-} else if (exceedsCapacity) {
-  e.attendees = `Capacity exceeded. Maximum allowed is ${activeSpaceCap}.`
-}    if (notesRequired && !form.notes.trim()) e.notes = "Please explain why this hall is needed for a small group."
+      form.start_date === todayISO() &&
+      form.start_time &&
+      form.start_time < currentTimeISO() &&
+      !isEdit
+    ) {
+      e.start_time = "Cannot select a past time."
+    }
+    if (!form.attendees || Number(form.attendees) < 1) {
+      e.attendees = "Enter a valid number"
+    } else if (exceedsCapacity) {
+      e.attendees = `Capacity exceeded. Maximum allowed is ${activeSpaceCap}.`
+    }
+    if (notesRequired && !form.notes.trim())
+      e.notes = "Please explain why this hall is needed for a small group."
     return e
   }
 
   const handleSubmit = async () => {
-    // Extra safety block
-    if (isAvailable !== true || exceedsCapacity) return 
+    if (isAvailable !== true || exceedsCapacity) return
 
     const e = validate()
     if (Object.keys(e).length) {
@@ -414,23 +482,20 @@ if (!form.attendees || Number(form.attendees) < 1) {
     setErrors({})
 
     try {
-      const start_datetime = toLocalISO(form.date, form.start)
-      const end_datetime = toLocalISO(form.date, form.end)
-
-      const equipment_requests = form.requirements.map((id) => ({
-        equipment: id,
-        quantity: 1,
-      }))
+      const endDate = form.end_date || form.start_date
+      const start_datetime = toLocalISO(form.start_date, form.start_time)
+      const end_datetime = toLocalISO(endDate, form.end_time)
 
       const payload = {
         space: activeSpaceId,
         start_datetime,
         end_datetime,
+        booking_type: isMultiDay ? form.bookingType : 'SINGLE',
         attendee_count: Number(form.attendees),
         purpose_of_booking_input: form.purpose,
         department: Number(form.department),
         user_notes: form.notes.trim() || "",
-        equipment_requests,
+        equipment_requests: form.requirements.map((id) => ({ equipment: id, quantity: 1 })),
         is_external: form.isExternal,
       }
 
@@ -445,13 +510,25 @@ if (!form.attendees || Number(form.attendees) < 1) {
       const errData = error.response?.data || {}
       const mappedErrors = {}
 
-      if (errData.attendee_count) mappedErrors.attendees = Array.isArray(errData.attendee_count) ? errData.attendee_count[0] : errData.attendee_count
-      if (errData.department) mappedErrors.department = Array.isArray(errData.department) ? errData.department[0] : errData.department
-      if (errData.purpose_of_booking_input) mappedErrors.purpose = Array.isArray(errData.purpose_of_booking_input) ? errData.purpose_of_booking_input[0] : errData.purpose_of_booking_input
-      if (errData.non_field_errors) mappedErrors.server = Array.isArray(errData.non_field_errors) ? errData.non_field_errors[0] : errData.non_field_errors
-      
+      if (errData.attendee_count)
+        mappedErrors.attendees = Array.isArray(errData.attendee_count)
+          ? errData.attendee_count[0]
+          : errData.attendee_count
+      if (errData.department)
+        mappedErrors.department = Array.isArray(errData.department)
+          ? errData.department[0]
+          : errData.department
+      if (errData.purpose_of_booking_input)
+        mappedErrors.purpose = Array.isArray(errData.purpose_of_booking_input)
+          ? errData.purpose_of_booking_input[0]
+          : errData.purpose_of_booking_input
+      if (errData.non_field_errors)
+        mappedErrors.server = Array.isArray(errData.non_field_errors)
+          ? errData.non_field_errors[0]
+          : errData.non_field_errors
+
       if (Object.keys(mappedErrors).length === 0) {
-        mappedErrors.server = "Submission failed."
+        mappedErrors.server = errData.error || "Submission failed."
       }
       setErrors(mappedErrors)
     } finally {
@@ -468,7 +545,13 @@ if (!form.attendees || Number(form.attendees) < 1) {
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
         <div className="bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 max-w-sm w-full text-center">
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-            <svg className="w-7 h-7 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg
+              className="w-7 h-7 text-green-700"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -476,14 +559,21 @@ if (!form.attendees || Number(form.attendees) < 1) {
             {isEdit ? "Update Successful" : "Request Submitted"}
           </h2>
           <p className="text-sm text-gray-500 leading-relaxed">
-            Your booking for <span className="font-semibold text-gray-700">{activeSpaceName}</span> has been {isEdit ? "updated and sent back for admin approval." : "sent for admin approval."}
+            Your booking for{" "}
+            <span className="font-semibold text-gray-700">{activeSpaceName}</span> has been{" "}
+            {isEdit
+              ? "updated and sent back for admin approval."
+              : "sent for admin approval."}
             {form.isExternal && (
               <span className="block mt-1 text-xs text-amber-600 font-medium">
                 Flagged as an external event.
               </span>
             )}
           </p>
-          <button onClick={onClose} className="mt-2 w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition">
+          <button
+            onClick={onClose}
+            className="mt-2 w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition"
+          >
             Done
           </button>
         </div>
@@ -492,9 +582,23 @@ if (!form.attendees || Number(form.attendees) < 1) {
     )
   }
 
-  // Timeline variables
-  const startH = form.start ? +form.start.split(":")[0] + +form.start.split(":")[1] / 60 : null
-  const endH = form.end ? +form.end.split(":")[0] + +form.end.split(":")[1] / 60 : null
+  // Left panel derived values
+  const startH = form.start_time
+    ? +form.start_time.split(":")[0] + +form.start_time.split(":")[1] / 60
+    : null
+  const endH = form.end_time
+    ? +form.end_time.split(":")[0] + +form.end_time.split(":")[1] / 60
+    : null
+
+  const numDays =
+    isMultiDay && form.start_date && form.end_date
+      ? daySpan(form.start_date, form.end_date)
+      : null
+
+  const hrsPerDay =
+    isMultiDay && form.start_time && form.end_time
+      ? formatHoursPerDay(form.start_time, form.end_time)
+      : null
 
   // ─────────────────────────────────────────────────────────────
   // Main Modal
@@ -509,7 +613,10 @@ if (!form.attendees || Number(form.attendees) < 1) {
         {/* ═══════════════════════════════════════════════════ */}
         <div
           className="hidden md:flex md:w-[32%] shrink-0 flex-col justify-between p-7"
-          style={{ background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)" }}
+          style={{
+            background:
+              "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)",
+          }}
         >
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
@@ -522,7 +629,11 @@ if (!form.attendees || Number(form.attendees) < 1) {
             {form.isExternal && (
               <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 External Event
               </span>
@@ -545,8 +656,15 @@ if (!form.attendees || Number(form.attendees) < 1) {
                   <div className="mt-2">
                     <div className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${isLowOccupancy ? "bg-amber-400" : "bg-green-400"}`}
-                        style={{ width: `${Math.min(100, (attendeeCount / activeSpaceCap) * 100)}%` }}
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isLowOccupancy ? "bg-amber-400" : "bg-green-400"
+                        }`}
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (attendeeCount / activeSpaceCap) * 100
+                          )}%`,
+                        }}
                       />
                     </div>
                     <p className="text-[10px] text-green-300/70 mt-1">
@@ -559,40 +677,124 @@ if (!form.attendees || Number(form.attendees) < 1) {
             )}
           </div>
 
-          {/* SLOT CARD */}
+          {/* SLOT CARD — single-day: timeline bar; multi-day: date range card */}
           <div className="space-y-2.5">
             <div className="bg-white/10 rounded-xl p-4">
               <p className="text-[10px] text-green-300 uppercase tracking-wide font-semibold mb-1">
                 Selected Slot
               </p>
-              {form.start ? (
-                <>
-                  <p className="text-white font-bold text-base">
-                    {formatAMPM(form.start)}
-                    {form.end && ` – ${formatAMPM(form.end)}`}
-                  </p>
-                  {form.date && (
-                    <p className="text-green-200/70 text-xs mt-1">
-                      {new Date(form.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-white/50 text-sm">Pick a time to begin</p>
-              )}
 
-              {/* TIMELINE */}
-              <div className="mt-4 flex gap-[2px]">
-                {Array.from({ length: 20 }).map((_, i) => {
-                  const seg = 8 + i * 0.5
-                  const fill = startH !== null && endH !== null && seg >= startH && seg < endH
-                  return <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${fill ? "bg-green-400" : "bg-white/20"}`} />
-                })}
-              </div>
-              <div className="flex justify-between text-[9px] text-green-300/50 mt-1">
-                <span>08:00</span>
-                <span>18:00</span>
-              </div>
+              {isMultiDay ? (
+                /* ── MULTI-DAY CARD ── */
+                form.start_date && form.end_date ? (
+                  <div>
+                    {/* Date range row */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="text-left">
+                        <p className="text-white font-bold text-sm leading-tight">
+                          {new Date(form.start_date + "T00:00:00").toLocaleDateString(
+                            "en-IN",
+                            { day: "numeric", month: "short", weekday: "short" }
+                          )}
+                        </p>
+                        {form.start_time && (
+                          <p className="text-green-200/70 text-xs mt-0.5">
+                            {formatAMPM(form.start_time)}
+                          </p>
+                        )}
+                      </div>
+
+                      <svg
+                        className="w-4 h-4 text-green-400 shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        />
+                      </svg>
+
+                      <div className="text-left">
+                        <p className="text-white font-bold text-sm leading-tight">
+                          {new Date(form.end_date + "T00:00:00").toLocaleDateString(
+                            "en-IN",
+                            { day: "numeric", month: "short", weekday: "short" }
+                          )}
+                        </p>
+                        {form.end_time && (
+                          <p className="text-green-200/70 text-xs mt-0.5">
+                            {formatAMPM(form.end_time)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Summary line */}
+                    {numDays !== null && (
+                      <p className="text-green-300/80 text-xs mt-3 font-medium">
+                        {numDays} {numDays === 1 ? "day" : "days"}
+                        {form.bookingType === "RECURRING" && hrsPerDay ? ` · ${hrsPerDay}` : ""}
+                        {form.bookingType === "SINGLE" ? ` · Continuous Event` : ""}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-white/50 text-sm">Pick a time to begin</p>
+                )
+              ) : (
+                /* ── SINGLE-DAY: existing timeline bar (unchanged) ── */
+                <>
+                  {form.start_time ? (
+                    <>
+                      <p className="text-white font-bold text-base">
+                        {formatAMPM(form.start_time)}
+                        {form.end_time && ` – ${formatAMPM(form.end_time)}`}
+                      </p>
+                      {form.start_date && (
+                        <p className="text-green-200/70 text-xs mt-1">
+                          {new Date(
+                            form.start_date + "T00:00:00"
+                          ).toLocaleDateString("en-IN", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-white/50 text-sm">Pick a time to begin</p>
+                  )}
+
+                  {/* TIMELINE BAR */}
+                  <div className="mt-4 flex gap-[2px]">
+                    {Array.from({ length: 20 }).map((_, i) => {
+                      const seg = 8 + i * 0.5
+                      const fill =
+                        startH !== null &&
+                        endH !== null &&
+                        seg >= startH &&
+                        seg < endH
+                      return (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                            fill ? "bg-green-400" : "bg-white/20"
+                          }`}
+                        />
+                      )
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[9px] text-green-300/50 mt-1">
+                    <span>08:00</span>
+                    <span>18:00</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -612,17 +814,34 @@ if (!form.attendees || Number(form.attendees) < 1) {
                 {isEdit ? "Edit your booking" : "Secure this space"}
               </h2>
             </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition">✕</button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
+            >
+              ✕
+            </button>
           </div>
 
           {/* RE-APPROVAL NOTICE */}
           {isEdit && initialData?.status === "APPROVED" && (
             <div className="mx-7 mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 shrink-0">
-              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <svg
+                className="w-4 h-4 text-amber-600 mt-0.5 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
               </svg>
               <p className="text-xs text-amber-800 leading-relaxed">
-                This booking is currently approved. Saving changes will move it back to <span className="font-semibold">Pending Review</span> and notify the admin.
+                This booking is currently approved. Saving changes will move it back to{" "}
+                <span className="font-semibold">Pending Review</span> and notify the
+                admin.
               </p>
             </div>
           )}
@@ -630,86 +849,233 @@ if (!form.attendees || Number(form.attendees) < 1) {
           {/* FORM BODY */}
           <div className="flex-1 overflow-y-auto px-7 py-5 space-y-6">
 
-            {/* ── STEP 1: DATE & TIME (Always active) ──────────────── */}
+            {/* ── STEP 1: DATE & TIME ──────────────────────────── */}
             <div className="space-y-4">
               <SectionLabel>Step 1: Pick a Time</SectionLabel>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Date" required error={errors.date}>
+
+              {/* Row 1: Start date + End date */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start Date" required error={errors.start_date}>
                   <input
-  type="date"
-  min={todayISO()}
-  className={inputCls(errors.date)}
-  value={form.date}
-  onChange={(e) => set("date", e.target.value)}
-/>
+                    type="date"
+                    min={todayISO()}
+                    className={inputCls(errors.start_date)}
+                    value={form.start_date}
+                    onChange={(e) => set("start_date", e.target.value)}
+                  />
                 </Field>
-                <Field label="Start" required error={errors.start}>
-<input
-  type="time"
-  min={
-    form.date === todayISO()
-      ? (currentTimeISO() > COLLEGE_START ? currentTimeISO() : COLLEGE_START)
-      : COLLEGE_START
-  }
-  max={COLLEGE_END}
-  className={inputCls(errors.start)}
-  value={form.start}
-  onChange={(e) => set("start", e.target.value)}
-/>
-                </Field>
-                <Field label="End" required error={errors.end}>
-<input
-  type="time"
-  min={
-    form.date === todayISO()
-      ? (
-          form.start && form.start > currentTimeISO()
-            ? form.start
-            : currentTimeISO()
-        )
-      : (form.start || COLLEGE_START)
-  }
-  max={COLLEGE_END}
-  className={inputCls(errors.end)}
-  value={form.end}
-  onChange={(e) => set("end", e.target.value)}
-/>
+                <Field label="End Date" required error={errors.end_date}>
+                  <input
+                    type="date"
+                    min={form.start_date || todayISO()}
+                    className={inputCls(errors.end_date)}
+                    value={form.end_date}
+                    onChange={(e) => set("end_date", e.target.value)}
+                  />
                 </Field>
               </div>
-              
+
+              {/* Row 2: Booking Type Toggle (ONLY VISIBLE ON MULTI-DAY) */}
+              {isMultiDay && (
+                <div className="col-span-2 mt-1 mb-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Event Type</p>
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <div className="flex items-center h-5">
+                        <input 
+                          type="radio" 
+                          name="bookingType" 
+                          value="SINGLE" 
+                          checked={form.bookingType === 'SINGLE'} 
+                          onChange={(e) => set('bookingType', e.target.value)}
+                          className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-600"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-gray-900">Continuous Event (e.g. Hackathon)</span>
+                        <span className="text-xs text-gray-500 mt-0.5">Blocks the hall completely from the start day to the end day, including overnight.</span>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <div className="flex items-center h-5">
+                        <input 
+                          type="radio" 
+                          name="bookingType" 
+                          value="RECURRING" 
+                          checked={form.bookingType === 'RECURRING'} 
+                          onChange={(e) => set('bookingType', e.target.value)}
+                          className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-600"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-gray-900">Daily Recurring (e.g. 5-day Seminar)</span>
+                        <span className="text-xs text-gray-500 mt-0.5">Blocks the hall *only* between the selected times each day.</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Row 3: Start time + End time */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start Time" required error={errors.start_time}>
+                  <input
+                    type="time"
+                    min={
+                      form.start_date === todayISO()
+                        ? currentTimeISO() > COLLEGE_START
+                          ? currentTimeISO()
+                          : COLLEGE_START
+                        : COLLEGE_START
+                    }
+                    max={COLLEGE_END}
+                    className={inputCls(errors.start_time)}
+                    value={form.start_time}
+                    onChange={(e) => set("start_time", e.target.value)}
+                  />
+                </Field>
+                <Field label="End Time" required error={errors.end_time}>
+                  <input
+                    type="time"
+                    min={
+                      // If multi-day continuous, end time can be early morning of the final day
+                      isMultiDay && form.bookingType === "SINGLE"
+                        ? COLLEGE_START
+                        : form.start_date === todayISO()
+                        ? form.start_time && form.start_time > currentTimeISO()
+                          ? form.start_time
+                          : currentTimeISO()
+                        : form.start_time || COLLEGE_START
+                    }
+                    max={COLLEGE_END}
+                    className={inputCls(errors.end_time)}
+                    value={form.end_time}
+                    onChange={(e) => set("end_time", e.target.value)}
+                  />
+                </Field>
+              </div>
+
               {/* Availability Banner */}
               {isCheckingAvailability ? (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 animate-pulse">
-                  <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                  <p className="text-sm font-medium text-blue-800">Checking availability...</p>
+                  <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-medium text-blue-800">
+                    Checking availability…
+                  </p>
                 </div>
               ) : isAvailable === false ? (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                  <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <p className="text-sm font-medium text-red-800">{availabilityMsg || "This time slot is unavailable."}</p>
-                </div>
+                availabilityConflicts.length > 0 ? (
+                  /* ── CONFLICT TABLE (API conflicts) ── */
+                  <div className="border border-red-200 bg-red-50 rounded-xl overflow-hidden">
+                    {availabilityMsg && (
+                      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-red-200 bg-red-100/60">
+                        <svg
+                          className="w-4 h-4 text-red-600 shrink-0"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
+                        </svg>
+                        <p className="text-xs font-semibold text-red-800">
+                          {availabilityMsg}
+                        </p>
+                      </div>
+                    )}
+                    <div className="divide-y divide-red-100 max-h-48 overflow-y-auto">
+                      {availabilityConflicts.map((conflict, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 px-4 py-2.5"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5 text-red-500 shrink-0"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                          <span className="text-xs font-semibold text-red-800 w-28 shrink-0">
+                            {formatConflictDate(conflict.date)}
+                          </span>
+                          <span className="text-xs text-red-700">
+                            {formatAMPM(conflict.start)} – {formatAMPM(conflict.end)}
+                          </span>
+                          <span className="ml-auto text-[11px] text-red-500 font-medium shrink-0 truncate max-w-[120px]">
+                            {conflict.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* ── SIMPLE RED BANNER (client-side errors) ── */
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                    <svg
+                      className="w-5 h-5 text-red-600 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium text-red-800">
+                      {availabilityMsg || "This time slot is unavailable."}
+                    </p>
+                  </div>
+                )
               ) : isAvailable === true ? (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <svg
+                    className="w-5 h-5 text-green-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  <p className="text-sm font-bold text-green-800">Time slot is available!</p>
+                  <p className="text-sm font-bold text-green-800">
+                    Time slot is available!
+                  </p>
                 </div>
               ) : null}
             </div>
 
-            {/* ── STEP 2: REST OF FORM (Dimmed until available) ────── */}
-            <div className={`space-y-6 transition-all duration-300 ${isAvailable === true ? 'opacity-100' : 'opacity-40 pointer-events-none select-none filter grayscale-[20%]'}`}>
-              
+            {/* ── STEP 2: REST OF FORM (Dimmed until available) ── */}
+            <div
+              className={`space-y-6 transition-all duration-300 ${
+                isAvailable === true
+                  ? "opacity-100"
+                  : "opacity-40 pointer-events-none select-none filter grayscale-[20%]"
+              }`}
+            >
               <SectionLabel>Step 2: Event Details</SectionLabel>
 
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60">
                 <div className="flex flex-col pr-4">
-                  <span className="text-sm font-semibold text-gray-700">External Event</span>
+                  <span className="text-sm font-semibold text-gray-700">
+                    External Event
+                  </span>
                   <span className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Enable if organised by an external party. External events are grouped for priority admin review.
+                    Enable if organised by an external party. External events are
+                    grouped for priority admin review.
                   </span>
                 </div>
                 <button
@@ -717,98 +1083,151 @@ if (!form.attendees || Number(form.attendees) < 1) {
                   role="switch"
                   aria-checked={form.isExternal}
                   onClick={() => set("isExternal", !form.isExternal)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-700 focus:ring-offset-2 ${form.isExternal ? "bg-amber-500" : "bg-gray-200"}`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-700 focus:ring-offset-2 ${
+                    form.isExternal ? "bg-amber-500" : "bg-gray-200"
+                  }`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${form.isExternal ? "translate-x-6" : "translate-x-1"}`} />
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      form.isExternal ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Purpose" required error={errors.purpose}>
-                  <input className={inputCls(errors.purpose)} value={form.purpose} onChange={(e) => set("purpose", e.target.value)} placeholder="e.g. MCA Cloud Security Seminar" />
+                  <input
+                    className={inputCls(errors.purpose)}
+                    value={form.purpose}
+                    onChange={(e) => set("purpose", e.target.value)}
+                    placeholder="e.g. MCA Cloud Security Seminar"
+                  />
                 </Field>
                 <Field label="Department" required error={errors.department}>
-                  <select className={inputCls(errors.department)} value={form.department} onChange={(e) => set("department", e.target.value)}>
+                  <select
+                    className={inputCls(errors.department)}
+                    value={form.department}
+                    onChange={(e) => set("department", e.target.value)}
+                  >
                     <option value="">Select department</option>
                     {dynamicDepartments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.department_name}</option>
+                      <option key={d.id} value={d.id}>
+                        {d.department_name}
+                      </option>
                     ))}
                   </select>
                 </Field>
               </div>
 
               <SectionLabel>Step 3: Setup & Capacity</SectionLabel>
-                              {exceedsCapacity && (
-  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5">
-    <div className="flex items-start gap-3">
-      <svg
-        className="w-4 h-4 text-red-600 mt-0.5 shrink-0"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        />
-      </svg>
 
-      <div>
-        <p className="text-sm font-semibold text-red-800">
-          Capacity exceeded
-        </p>
-        <p className="text-xs text-red-700 mt-0.5">
-          This hall supports only {activeSpaceCap} attendees. Please reduce attendees or choose a larger hall.
-        </p>
-      </div>
-    </div>
-  </div>
-)}
-              <Field label="Expected attendees" required error={errors.attendees}>
-<input
-  type="number"
-  min="1"
-  max={activeSpaceCap || undefined}
-  className={inputCls(errors.attendees)}
-  placeholder="e.g. 45"
-  value={form.attendees}
-  onChange={(e) => set("attendees", e.target.value)}
-/>             </Field>
+              {exceedsCapacity && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      className="w-4 h-4 text-red-600 mt-0.5 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-red-800">
+                        Capacity exceeded
+                      </p>
+                      <p className="text-xs text-red-700 mt-0.5">
+                        This hall supports only {activeSpaceCap} attendees. Please
+                        reduce attendees or choose a larger hall.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* ── LOW OCCUPANCY BANNER ──────────────────────────────── */}
+              <Field
+                label="Expected attendees"
+                required
+                error={errors.attendees}
+              >
+                <input
+                  type="number"
+                  min="1"
+                  max={activeSpaceCap || undefined}
+                  className={inputCls(errors.attendees)}
+                  placeholder="e.g. 45"
+                  value={form.attendees}
+                  onChange={(e) => set("attendees", e.target.value)}
+                />
+              </Field>
+
+              {/* ── LOW OCCUPANCY BANNER ── */}
               {isLowOccupancy && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
                   <div className="flex items-start gap-3">
-                    <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <svg
+                      className="w-4 h-4 text-amber-600 mt-0.5 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                      />
                     </svg>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-amber-800">
                         Low occupancy for {activeSpaceName}
                       </p>
                       <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                        {attendeeCount} attendees fills only {Math.round((attendeeCount / activeSpaceCap) * 100)}% of this hall.
-                        Consider a smaller venue, or explain below why this space is needed.
+                        {attendeeCount} attendees fills only{" "}
+                        {Math.round((attendeeCount / activeSpaceCap) * 100)}% of this
+                        hall. Consider a smaller venue, or explain below why this space
+                        is needed.
                       </p>
 
                       {isFetchingSuggestions && (
-                        <p className="text-xs text-amber-600 mt-2 animate-pulse">Finding better-fit halls…</p>
+                        <p className="text-xs text-amber-600 mt-2 animate-pulse">
+                          Finding better-fit halls…
+                        </p>
                       )}
 
                       {!isFetchingSuggestions && suggestedHalls.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Better fits</p>
+                          <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                            Better fits
+                          </p>
                           {suggestedHalls.map((hall) => (
-                            <div key={hall.id} className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                            <div
+                              key={hall.id}
+                              className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2"
+                            >
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{hall.name}</p>
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                  {hall.name}
+                                </p>
                                 <p className="text-xs text-gray-500">
-                                  {hall.capacity_hard} seats · {Math.round((attendeeCount / hall.capacity_hard) * 100)}% fill · {hall.location}
+                                  {hall.capacity_hard} seats ·{" "}
+                                  {Math.round(
+                                    (attendeeCount / hall.capacity_hard) * 100
+                                  )}
+                                  % fill · {hall.location}
                                 </p>
                               </div>
-                              <button type="button" onClick={() => switchHall(hall)} className="shrink-0 px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-800 text-white text-xs font-semibold transition">
+                              <button
+                                type="button"
+                                onClick={() => switchHall(hall)}
+                                className="shrink-0 px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-800 text-white text-xs font-semibold transition"
+                              >
                                 Switch
                               </button>
                             </div>
@@ -816,9 +1235,13 @@ if (!form.attendees || Number(form.attendees) < 1) {
                         </div>
                       )}
 
-                      {!isFetchingSuggestions && suggestedHalls.length === 0 && Number.isFinite(attendeeCount) && (
-                        <p className="text-xs text-amber-600 mt-2">No smaller halls available — please explain in Notes below.</p>
-                      )}
+                      {!isFetchingSuggestions &&
+                        suggestedHalls.length === 0 &&
+                        Number.isFinite(attendeeCount) && (
+                          <p className="text-xs text-amber-600 mt-2">
+                            No smaller halls available — please explain in Notes below.
+                          </p>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -833,10 +1256,32 @@ if (!form.attendees || Number(form.attendees) < 1) {
                       key={req.id}
                       type="button"
                       onClick={() => toggleReq(req.id)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition text-left ${active ? "border-green-600 bg-green-50 text-green-800" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition text-left ${
+                        active
+                          ? "border-green-600 bg-green-50 text-green-800"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
                     >
-                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition ${active ? "bg-green-700 border-green-700" : "border-gray-300"}`}>
-                        {active && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                      <span
+                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition ${
+                          active ? "bg-green-700 border-green-700" : "border-gray-300"
+                        }`}
+                      >
+                        {active && (
+                          <svg
+                            className="w-2.5 h-2.5 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
                       </span>
                       <span className="text-xs font-medium">{req.name}</span>
                     </button>
@@ -846,46 +1291,61 @@ if (!form.attendees || Number(form.attendees) < 1) {
 
               <SectionLabel>
                 Notes
-                {notesRequired && <span className="text-red-400 ml-1 normal-case font-normal">— required for low-occupancy bookings</span>}
+                {notesRequired && (
+                  <span className="text-red-400 ml-1 normal-case font-normal">
+                    — required for low-occupancy bookings
+                  </span>
+                )}
               </SectionLabel>
-              <Field error={errors.notes} hint={notesRequired ? undefined : "Mention setup, technical support, seating changes…"}>
+              <Field
+                error={errors.notes}
+                hint={
+                  notesRequired
+                    ? undefined
+                    : "Mention setup, technical support, seating changes…"
+                }
+              >
                 <textarea
                   rows={3}
                   className={`${inputCls(errors.notes)} resize-none`}
-                  placeholder={notesRequired ? "Required: explain why this hall is needed for a small group…" : "Mention setup, technical support, seating changes…"}
+                  placeholder={
+                    notesRequired
+                      ? "Required: explain why this hall is needed for a small group…"
+                      : "Mention setup, technical support, seating changes…"
+                  }
                   value={form.notes}
                   onChange={(e) => set("notes", e.target.value)}
                 />
               </Field>
-
             </div>
           </div>
 
           {/* FOOTER */}
           <div className="shrink-0 flex justify-between items-center px-7 py-4 border-t border-gray-100 bg-gray-50/60">
             <div>
-              {errors.server && <p className="text-xs text-red-500 font-medium">{errors.server}</p>}
+              {errors.server && (
+                <p className="text-xs text-red-500 font-medium">{errors.server}</p>
+              )}
               {!errors.server && (
                 <p className="text-xs text-gray-400">
-                  {isAvailable !== true 
-                    ? "Please select an available time slot to continue." 
-                    : isEdit && initialData?.status === "APPROVED" 
-                      ? "Saving will reset this booking to pending." 
-                      : "Submitting this sends the request for admin approval."}
+                  {isAvailable !== true
+                    ? "Please select an available time slot to continue."
+                    : isEdit && initialData?.status === "APPROVED"
+                    ? "Saving will reset this booking to pending."
+                    : "Submitting this sends the request for admin approval."}
                 </p>
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={
-  isSubmitting ||
-  isAvailable !== true ||
-  exceedsCapacity
-}
+                disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
                 className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}

@@ -29,8 +29,9 @@ function buildTimeline(bookings) {
   let cursor = dayStart
 
   for (const bk of sorted) {
-    const bStart = toMins(bk.start)
-    const bEnd   = toMins(bk.end)
+    // Multi-day blocks occupy the whole day
+    const bStart = bk.isMultiDay ? dayStart : toMins(bk.start)
+    const bEnd   = bk.isMultiDay ? dayEnd   : toMins(bk.end)
 
     const s = Math.max(bStart, dayStart)
     const e = Math.min(bEnd,   dayEnd)
@@ -40,7 +41,15 @@ function buildTimeline(bookings) {
     }
 
     if (e > s) {
-      blocks.push({ type: "booked", start: toTime(s), end: toTime(e), title: bk.title, status: bk.status })
+      blocks.push({
+        type:       "booked",
+        start:      toTime(s),
+        end:        toTime(e),
+        title:      bk.title,
+        status:     bk.status,
+        isMultiDay: bk.isMultiDay || false,
+        isContinue: bk.isContinue || false,
+      })
     }
 
     cursor = Math.max(cursor, e)
@@ -61,11 +70,36 @@ const todayKey = () => {
   return formatDateKey(t.getFullYear(), t.getMonth(), t.getDate())
 }
 
+// Advance a YYYY-MM-DD string by one calendar day
+const nextDateKey = (dateKey) => {
+  const d = new Date(dateKey + "T00:00:00")
+  d.setDate(d.getDate() + 1)
+  return formatDateKey(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
 function getDayStatus(bookings) {
   if (!bookings || bookings.length === 0) return "free"
-  const timeline = buildTimeline(bookings)
-  const allBooked = timeline.every((b) => b.type === "booked")
-  return allBooked ? "full" : "partial"
+
+  // Use actual booking hours (not the forced full-day expansion used by
+  // buildTimeline for conflict purposes) so a multi-day booking that only
+  // covers e.g. 10:00–13:00 shows yellow (partial) on every spanned day,
+  // not blue (full).
+  const dayStart = toMins(DAY_START)
+  const dayEnd   = toMins(DAY_END)
+
+  const sorted = [...bookings].sort((a, b) => toMins(a.start) - toMins(b.start))
+  let cursor = dayStart
+  let hasGap = false
+
+  for (const bk of sorted) {
+    const s = Math.max(toMins(bk.start), dayStart)
+    const e = Math.min(toMins(bk.end),   dayEnd)
+    if (s > cursor) { hasGap = true; break }
+    if (e > cursor)  cursor = e
+  }
+
+  if (cursor < dayEnd) hasGap = true
+  return hasGap ? "partial" : "full"
 }
 
 // ─────────────────────────────────────────────
@@ -76,24 +110,42 @@ async function loadBookings(spaceId) {
   const data = res.data.results || res.data || []
 
   const grouped = {}
+
   data.forEach((b) => {
     if ((b.space !== spaceId && b.space?.id !== spaceId) || b.status === "REJECTED") return
 
-    const d       = new Date(b.start_datetime)
-    const dateKey = formatDateKey(d.getFullYear(), d.getMonth(), d.getDate())
+    const startD    = new Date(b.start_datetime)
+    const endD      = new Date(b.end_datetime)
+    const startKey  = formatDateKey(startD.getFullYear(), startD.getMonth(), startD.getDate())
+    const endKey    = formatDateKey(endD.getFullYear(), endD.getMonth(), endD.getDate())
+    const isMultiDay = startKey !== endKey
 
-    if (!grouped[dateKey]) grouped[dateKey] = []
-
-    const endD     = new Date(b.end_datetime)
-    const startStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    const startStr = `${String(startD.getHours()).padStart(2, "0")}:${String(startD.getMinutes()).padStart(2, "0")}`
     const endStr   = `${String(endD.getHours()).padStart(2, "0")}:${String(endD.getMinutes()).padStart(2, "0")}`
 
-    grouped[dateKey].push({
-      start:  startStr,
-      end:    endStr,
-      title:  b.purpose_of_booking || "Booked Event",
-      status: b.status,
-    })
+    // Walk every calendar day the booking spans and register it.
+    // Cap at 366 days to guard against corrupt end_datetime values.
+    const MAX_SPAN = 366
+    let cursor = startKey
+    let iterations = 0
+    while (cursor <= endKey && iterations < MAX_SPAN) {
+      if (!grouped[cursor]) grouped[cursor] = []
+
+      const isContinue = cursor !== startKey // not the first day
+
+      grouped[cursor].push({
+        start:      startStr,
+        end:        endStr,
+        title:      b.purpose_of_booking || "Booked Event",
+        status:     b.status,
+        isMultiDay: isMultiDay,
+        isContinue: isContinue,
+      })
+
+      if (cursor === endKey) break
+      cursor = nextDateKey(cursor)
+      iterations++
+    }
   })
 
   return grouped
@@ -156,7 +208,6 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
   const refreshRef = useRef(refresh)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
 
-  // Stabilize the close handler for BookingModal
   const handleCloseBooking = useCallback(() => {
     setOpenBooking(false)
     refreshRef.current()
@@ -285,20 +336,56 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
               timeline.map((block, idx) => {
                 if (block.type === "booked") {
                   const isPending = block.status === "PENDING"
+
+                  // Multi-day block gets a special label; single-day shows times normally
+                  const timeLabel = block.isMultiDay
+                    ? null
+                    : `${block.start} – ${block.end}`
+
+                  const titleLabel = block.isMultiDay
+                    ? block.isContinue
+                      ? "Multi-day booking (continues)"
+                      : "Multi-day booking"
+                    : block.title
+
                   return (
                     <div
                       key={idx}
-                      className={`border rounded-xl p-4 flex items-start gap-3 ${isPending ? "border-yellow-200 bg-yellow-50" : "border-blue-200 bg-blue-50"}`}
+                      className={`border rounded-xl p-4 flex items-start gap-3 ${
+                        isPending
+                          ? "border-yellow-200 bg-yellow-50"
+                          : "border-blue-200 bg-blue-50"
+                      }`}
                     >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-yellow-500" : "bg-blue-500"}`} />
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
+                          isPending ? "bg-yellow-500" : "bg-blue-500"
+                        }`}
+                      />
                       <div className="flex flex-col gap-1.5">
-                        <p className={`text-sm font-semibold ${isPending ? "text-yellow-900" : "text-blue-900"}`}>
-                          {block.start} – {block.end}
+                        {timeLabel && (
+                          <p
+                            className={`text-sm font-semibold ${
+                              isPending ? "text-yellow-900" : "text-blue-900"
+                            }`}
+                          >
+                            {timeLabel}
+                          </p>
+                        )}
+                        <p
+                          className={`text-xs leading-relaxed ${
+                            isPending ? "text-yellow-600" : "text-blue-600"
+                          }`}
+                        >
+                          {titleLabel}
                         </p>
-                        <p className={`text-xs leading-relaxed ${isPending ? "text-yellow-600" : "text-blue-600"}`}>
-                          {block.title}
-                        </p>
-                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
+                        <span
+                          className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            isPending
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
                           {isPending ? "Pending Approval" : "Booked"}
                         </span>
                       </div>

@@ -47,6 +47,7 @@ def _build_queue_entry(domain, item, **extra_fields):
         "created_at":     item.created_at,
         "is_external":    getattr(item, 'is_external', False),
         "status":         getattr(item, 'status', 'PENDING'),
+        "resolved_by_id": getattr(item, 'resolved_by_id', None),
         **extra_fields,
     }
 
@@ -129,6 +130,9 @@ class UnifiedApprovalQueueView(APIView):
                 .filter(status=requested_status)
                 .select_related('user', 'user__department', 'space')
                 .prefetch_related('requested_equipment__equipment')
+                # Order by group_id + start so siblings are always adjacent — makes
+                # any server-side deduplication or debugging much easier.
+                .order_by('group_id', 'start_datetime')
             )
 
         if 'fleet' in requested_domains:
@@ -167,6 +171,10 @@ class UnifiedApprovalQueueView(APIView):
             ]
             return _build_queue_entry(
                 domain, item,
+                # ── group_id is the stable key that lets the frontend collapse all
+                # recurring slots (which share the same UUID) into one card. It must
+                # be serialised as a plain string because JSON has no UUID type.
+                group_id          = str(item.group_id),
                 start_datetime    = getattr(item, 'start_datetime', None),
                 end_datetime      = getattr(item, 'end_datetime', None),
                 attendee_count    = getattr(item, 'attendee_count', None),
@@ -231,6 +239,10 @@ class AdminResolveBookingAPIView(APIView):
         'media':  MediaBooking,
     }
 
+    # Models that support grouped recurring bookings via a shared group_id.
+    # When one member of the group is resolved, all siblings are resolved together.
+    GROUP_AWARE_MODULES = {'spaces'}
+
     def patch(self, request):
         module     = request.data.get('module')
         booking_id = request.data.get('id')
@@ -270,27 +282,65 @@ class AdminResolveBookingAPIView(APIView):
                 {"error": f"Booking is already {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-            
-        # Allow transitioning to REJECTED if PENDING or APPROVED.
+
+        # Allow transitioning to REJECTED if PENDING or APPROVED (revocation).
         if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
-             return Response(
+            return Response(
                 {"error": f"Cannot reject a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status      = new_status
-        booking.resolved_by = request.user
-        booking.resolved_at = timezone.now()
-
-        if remarks:
-            booking.remarks_by_admin = remarks
-
         try:
-            booking.save()
+            if module in self.GROUP_AWARE_MODULES:
+                self._resolve_group(booking, new_status, remarks, request.user)
+            else:
+                self._resolve_single(booking, new_status, remarks, request.user)
+
             return Response({
                 "message": f"Booking {booking.reference_code} successfully {new_status.lower()}.",
                 "ref":     booking.reference_code,
-                "status":  booking.status,
+                "status":  new_status,
             })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+    # ── Resolution helpers ────────────────────────────────────────────────────
+
+    def _resolve_single(self, booking, new_status, remarks, resolved_by):
+        """Update one booking row. Used for non-group-aware modules."""
+        booking.status      = new_status
+        booking.resolved_by = resolved_by
+        booking.resolved_at = timezone.now()
+        if remarks:
+            booking.remarks_by_admin = remarks
+        booking.save()
+
+    def _resolve_group(self, booking, new_status, remarks, resolved_by):
+        """
+        Resolve every sibling that shares the same group_id in one pass.
+
+        Recurring SpaceBookings are stored as N individual rows linked by a
+        shared group_id UUID. The frontend sends only one representative ID
+        (the first child), so we must fan out to all siblings here.
+
+        For non-recurring bookings the SpaceBooking model still assigns a
+        unique group_id per booking (uuid4 default), so this query will
+        simply return one row — identical behaviour to _resolve_single.
+        """
+        siblings = (
+            SpaceBooking.objects
+            .filter(group_id=booking.group_id)
+            # Sanity-check: only touch rows that are legally transitionable.
+            # APPROVED → we are revoking, so include APPROVED siblings too.
+            # PENDING  → normal approval/rejection path.
+            .filter(status__in=['PENDING', 'APPROVED'])
+        )
+
+        resolved_at = timezone.now()
+        for sibling in siblings:
+            sibling.status      = new_status
+            sibling.resolved_by = resolved_by
+            sibling.resolved_at = resolved_at
+            if remarks:
+                sibling.remarks_by_admin = remarks
+            sibling.save()

@@ -31,8 +31,30 @@ class Space(models.Model):
         default=False,
         help_text="If True, this space is reserved for specific workflows and won't be auto-suggested."
     )
-    created_at         = models.DateTimeField(auto_now_add=True)
-    updated_at         = models.DateTimeField(auto_now=True)
+
+    # ── Buffer fields (optional per-space setup/teardown time) ──────────────
+    # These define how much time before/after a booking is blocked for
+    # cleaning, setup, or AV configuration. The booking record always stores
+    # the clean user-facing times; conflict checks use the buffered range.
+    setup_buffer_minutes    = models.IntegerField(
+        default=0,
+        help_text="Minutes blocked before a booking starts (setup/cleaning)."
+    )
+    teardown_buffer_minutes = models.IntegerField(
+        default=0,
+        help_text="Minutes blocked after a booking ends (teardown/cleaning)."
+    )
+
+    # ── Lab flag — gates bulk timetable upload feature ──────────────────────
+    # Only spaces with is_lab=True will expose the timetable upload UI.
+    # Also used as a precursor to per-space RBAC (lab admin role).
+    is_lab = models.BooleanField(
+        default=False,
+        help_text="Enables lab-specific features: timetable upload, lab admin role."
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
@@ -65,12 +87,11 @@ class Equipment(models.Model):
         default=True,
         help_text='False for fixed/built-in items like ceiling projectors'
     )
-    # ── NEW DYNAMIC INVENTORY FLAG ──
     is_standard_media_kit = models.BooleanField(
         default=False,
         help_text="If True, automatically assigns 1 unit to every Media Team request."
     )
-    is_active   = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.name} (x{self.total_owned})"
@@ -96,6 +117,13 @@ class SpaceEquipment(models.Model):
 # 3. BOOKINGS
 # ==========================================
 class SpaceBooking(BaseBooking):
+    class BookingType(models.TextChoices):
+        SINGLE_CONTINUOUS = 'SINGLE', 'Single / Continuous'
+        RECURRING_DAILY = 'RECURRING', 'Recurring Daily'
+
+    group_id           = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
+    booking_type       = models.CharField(max_length=20, choices=BookingType.choices, default=BookingType.SINGLE_CONTINUOUS)
+
     space              = models.ForeignKey(Space, on_delete=models.PROTECT, related_name='bookings')
     start_datetime     = models.DateTimeField(db_index=True)
     end_datetime       = models.DateTimeField(db_index=True)
@@ -113,6 +141,16 @@ class SpaceBooking(BaseBooking):
                 condition=Q(attendee_count__gt=0),
                 name='space_booking_positive_attendees'
             ),
+            # ── Overlap guard ───────────────────────────────────────────────
+            # Uses setup/teardown buffers from the Space model to define the
+            # effective blocked range. Two approved bookings for the same
+            # space cannot have overlapping effective ranges.
+            #
+            # NOTE: The buffer expansion happens in the application-layer
+            # conflict check (see utils.py). This DB constraint is a safety
+            # net for the clean booking times — it prevents any two APPROVED
+            # bookings from having overlapping raw start/end times regardless
+            # of buffers. The buffer logic in utils.py is stricter.
             ExclusionConstraint(
                 name='exclude_overlapping_approved_space_bookings',
                 expressions=[
@@ -138,8 +176,8 @@ class EquipmentRequest(models.Model):
         SpaceBooking, on_delete=models.CASCADE, related_name='requested_equipment',
         null=True, blank=True
     )
-    equipment  = models.ForeignKey(Equipment, on_delete=models.RESTRICT)
-    quantity   = models.PositiveIntegerField(default=1)
+    equipment    = models.ForeignKey(Equipment, on_delete=models.RESTRICT)
+    quantity     = models.PositiveIntegerField(default=1)
     is_delivered = models.BooleanField(default=False)
     is_returned  = models.BooleanField(default=False)
 
