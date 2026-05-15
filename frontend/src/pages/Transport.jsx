@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import MainLayout from "../layouts/MainLayout"
 import TransportBookingModal from "../components/TransportBookingModal"
 import { getMyBookings, cancelBooking } from "../api/fleetApi"
-import { Pencil, Trash2, X, RefreshCw } from "lucide-react"
+import { Pencil, Trash2, X, RefreshCw, Bus } from "lucide-react"
 
 
 // ==========================================
@@ -45,21 +45,23 @@ function formatDT(iso) {
 // ==========================================
 function EmptyState({ date, onBook }) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
-        <span className="text-3xl">🚌</span>
-      </div>
-      <p className="text-gray-500 font-medium">No bookings for {date || "this day"}</p>
-      <p className="text-gray-400 text-sm mt-1">
-        Your transport requests will appear here.
-      </p>
-      <button
-        onClick={onBook}
-        className="mt-5 text-sm text-green-700 font-semibold hover:underline"
-      >
-        + Make a booking
-      </button>
-    </div>
+<div className="flex flex-col items-center justify-center py-14 text-center">
+  <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+    <Bus className="w-8 h-8 text-green-600" />
+  </div>
+
+  <p className="text-gray-500 font-medium">No bookings for {date || "this day"}</p>
+  <p className="text-gray-400 text-sm mt-1">
+    Your transport requests will appear here.
+  </p>
+
+  <button
+    onClick={onBook}
+    className="mt-5 text-sm text-green-700 font-semibold hover:underline"
+  >
+    + Make a booking
+  </button>
+</div>
   )
 }
 
