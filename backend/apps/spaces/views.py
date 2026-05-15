@@ -18,9 +18,17 @@ from .utils import get_overlapping_bookings, build_conflict_report
 # RESOURCE CATALOG MANAGEMENT
 # ==========================================
 class EquipmentViewSet(viewsets.ModelViewSet):
-    queryset = Equipment.objects.filter(is_active=True)
     serializer_class = EquipmentSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Equipment.objects.filter(is_active=True)
+        
+        # Hide media kits if the frontend is asking for Space gear
+        if self.request.query_params.get('for_space') == 'true':
+            qs = qs.filter(is_standard_media_kit=False)
+            
+        return qs
 
 
 class SpaceViewSet(viewsets.ModelViewSet):

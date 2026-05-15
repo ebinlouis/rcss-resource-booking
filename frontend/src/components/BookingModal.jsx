@@ -201,7 +201,7 @@ function BookingModal({
       try {
         const [deptRes, eqRes] = await Promise.all([
           api.get("/auth/departments/"),
-          api.get("/spaces/inventory/"),
+          api.get("/spaces/inventory/?for_space=true"),
         ])
         const depts = deptRes.data.results || deptRes.data || []
         const equips = eqRes.data.results || eqRes.data || []
