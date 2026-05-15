@@ -215,8 +215,13 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
 
   const dayBookings = roomBookings[selectedDate] || []
   const timeline    = buildTimeline(dayBookings)
-  const dayStatus   = (dateKey) => getDayStatus(roomBookings[dateKey])
+const dayStatus = (dateKey) => {
+  const today = todayKey()
 
+  if (dateKey < today) return "past"
+
+  return getDayStatus(roomBookings[dateKey])
+}
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2">
       <div className="bg-white w-full max-w-5xl rounded-2xl flex shadow-xl overflow-hidden">
@@ -269,24 +274,33 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
               const isToday = dateKey === todayKey()
               const status  = dayStatus(dateKey)
 
-              const cellBg = isSel
-                ? "bg-green-700 text-white ring-2 ring-green-700 ring-offset-1"
-                : status === "full"
-                ? "bg-blue-50 hover:bg-blue-100 text-blue-800"
-                : status === "partial"
-                ? "bg-yellow-50 hover:bg-yellow-100 text-yellow-800"
-                : "bg-green-50 hover:bg-green-100 text-green-700"
+const cellBg = isSel
+  ? "bg-green-700 text-white ring-2 ring-green-700 ring-offset-1"
+  : status === "past"
+  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+  : status === "full"
+  ? "bg-blue-50 hover:bg-blue-100 text-blue-800"
+  : status === "partial"
+  ? "bg-yellow-50 hover:bg-yellow-100 text-yellow-800"
+  : "bg-green-50 hover:bg-green-100 text-green-700"
 
-              const dotColor = isSel
-                ? "bg-white/70"
-                : status === "full"    ? "bg-blue-400"
-                : status === "partial" ? "bg-yellow-400"
-                : "bg-green-400"
+const dotColor = isSel
+  ? "bg-white/70"
+  : status === "past"
+  ? "bg-gray-300"
+  : status === "full"
+  ? "bg-blue-400"
+  : status === "partial"
+  ? "bg-yellow-400"
+  : "bg-green-400"
 
               return (
                 <div
                   key={day}
-                  onClick={() => setSelectedDate(dateKey)}
+                  onClick={() => {
+  if (status === "past") return
+  setSelectedDate(dateKey)
+}}
                   className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[44px] transition-all ${cellBg}`}
                 >
                   <span className={`text-[12px] font-medium leading-none ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
