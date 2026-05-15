@@ -180,7 +180,7 @@ function RoomCard({ room, onOpenAvailability }) {
             {/* Book Button */}
             <button
               onClick={() => setOpenBooking(true)}
-              className="bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-800 shadow-lg shadow-emerald-100 transition-all"
+              className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-emerald-100 transition-all"
             >
               + Book Now
             </button>
