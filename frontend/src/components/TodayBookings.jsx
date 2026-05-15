@@ -97,6 +97,7 @@ function TodayBookings({ onEditBooking }) {
 const [requestBooking, setRequestBooking] = useState(null)
 const [requestSent, setRequestSent] = useState(null)
   const isToday = selectedDate === todayKey()
+  const isPastDate = selectedDate < todayKey()
 
   const formattedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
     weekday: "long",
@@ -247,6 +248,7 @@ className={`grid grid-cols-12 px-8 py-5 items-center group hover:bg-gray-50/80 t
 
 <div className="absolute right-6 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
 
+{!isPastDate && (
   <button
     onClick={() => setRequestBooking(b)}
     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
@@ -269,6 +271,7 @@ className={`grid grid-cols-12 px-8 py-5 items-center group hover:bg-gray-50/80 t
     </svg>
 
   </button>
+)}
 
 </div>
                     </div>
