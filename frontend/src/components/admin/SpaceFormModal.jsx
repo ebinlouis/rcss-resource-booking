@@ -112,6 +112,33 @@ function EquipmentRow({ row, index, allEquipment, onChange, onRemove, usedIds })
 }
 
 // ─────────────────────────────────────────────────────────────
+// Buffer Minutes Input — shared UI for setup/teardown
+// ─────────────────────────────────────────────────────────────
+
+function BufferInput({ value, onChange, placeholder = "0" }) {
+  return (
+    <div className="relative flex items-center">
+      <input
+        type="number"
+        min="0"
+        max="480"
+        step="5"
+        className="w-full border rounded-xl px-3.5 py-2.5 text-sm text-[#0f172a] bg-white outline-none transition
+          focus:ring-2 focus:ring-[#15803d] focus:border-transparent placeholder:text-[#94a3b8]
+          border-[#e2e8f0] hover:border-[#94a3b8] pr-14"
+        value={value}
+        onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+        placeholder={placeholder}
+        style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+      />
+      <span className="absolute right-3.5 text-[11.5px] font-semibold text-[#94a3b8] pointer-events-none">
+        min
+      </span>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main Modal
 // ─────────────────────────────────────────────────────────────
 
@@ -128,6 +155,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
     description: initialData?.description ?? "",
     is_active: initialData?.is_active ?? true,
     is_special_purpose: initialData?.is_special_purpose ?? false,
+    setup_buffer_minutes: initialData?.setup_buffer_minutes ?? 0,
+    teardown_buffer_minutes: initialData?.teardown_buffer_minutes ?? 0,
   }))
 
   // Image state
@@ -238,6 +267,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       fd.append("description", form.description.trim())
       fd.append("is_active", form.is_active)
       fd.append("is_special_purpose", form.is_special_purpose)
+      fd.append("setup_buffer_minutes", Number(form.setup_buffer_minutes))
+      fd.append("teardown_buffer_minutes", Number(form.teardown_buffer_minutes))
 
       if (imageFile) fd.append("image_1", imageFile)
 
@@ -358,6 +389,33 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   {form.capacity_hard}
                   <span className="text-[13px] font-medium text-[#86efac]/60 ml-1">seats</span>
                 </p>
+              </div>
+            )}
+
+            {/* Buffer preview */}
+            {(Number(form.setup_buffer_minutes) > 0 || Number(form.teardown_buffer_minutes) > 0) && (
+              <div className="mt-3 bg-white/10 rounded-xl px-4 py-3 border border-white/10 space-y-2">
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#86efac]/60">
+                  Buffers
+                </p>
+                {Number(form.setup_buffer_minutes) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#86efac]/70 font-medium">Before</span>
+                    <span className="text-[13px] font-bold text-white">
+                      {form.setup_buffer_minutes}
+                      <span className="text-[11px] font-medium text-[#86efac]/60 ml-1">min</span>
+                    </span>
+                  </div>
+                )}
+                {Number(form.teardown_buffer_minutes) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#86efac]/70 font-medium">After</span>
+                    <span className="text-[13px] font-bold text-white">
+                      {form.teardown_buffer_minutes}
+                      <span className="text-[11px] font-medium text-[#86efac]/60 ml-1">min</span>
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -488,8 +546,80 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               />
             </Field>
 
+            {/* ── CLEANING BUFFERS ── */}
+            <SectionDivider>Cleaning &amp; Maintenance Buffers</SectionDivider>
+
+            {/* Explainer card */}
+            <div className="flex gap-3 p-3.5 rounded-xl bg-[#f0fdf4] border border-[#d1fae5]">
+              <div className="shrink-0 mt-0.5">
+                <svg className="w-4 h-4 text-[#15803d]" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <p className="text-[12px] text-[#166534] leading-relaxed">
+                <span className="font-semibold">These buffers are invisible to users.</span>{" "}
+                After a booking ends, the teardown buffer is automatically held for cleaning — the next available slot shifts forward accordingly. Users see the slot as unavailable; they never need to account for this themselves.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field
+                label="Setup buffer (before)"
+                hint="Held before a booking starts. Rarely needed — use for spaces that require pre-event prep by staff."
+              >
+                <BufferInput
+                  value={form.setup_buffer_minutes}
+                  onChange={(val) => set("setup_buffer_minutes", val)}
+                />
+              </Field>
+
+              <Field
+                label="Teardown buffer (after)"
+                hint="Held after every booking ends. Use this for cleaning, sanitisation, or equipment reset time."
+              >
+                <BufferInput
+                  value={form.teardown_buffer_minutes}
+                  onChange={(val) => set("teardown_buffer_minutes", val)}
+                />
+              </Field>
+            </div>
+
+            {/* Quick presets */}
+            <div className="flex flex-wrap gap-2 -mt-2">
+              <span className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-wide self-center mr-1">
+                Quick presets:
+              </span>
+              {[
+                { label: "No buffer", setup: 0, teardown: 0 },
+                { label: "15 min cleanup", setup: 0, teardown: 15 },
+                { label: "30 min cleanup", setup: 0, teardown: 30 },
+                { label: "45 min cleanup", setup: 0, teardown: 45 },
+                { label: "1 hr cleanup", setup: 0, teardown: 60 },
+              ].map(({ label, setup, teardown }) => {
+                const isActive =
+                  form.setup_buffer_minutes === setup &&
+                  form.teardown_buffer_minutes === teardown
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      set("setup_buffer_minutes", setup)
+                      set("teardown_buffer_minutes", teardown)
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[11.5px] font-semibold border transition
+                      ${isActive
+                        ? "bg-[#15803d] text-white border-[#15803d]"
+                        : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f0fdf4] hover:border-[#d1fae5]"}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+
             {/* ── STATUS TOGGLES ── */}
-            <SectionDivider>Visibility & Flags</SectionDivider>
+            <SectionDivider>Visibility &amp; Flags</SectionDivider>
 
             <div className="space-y-3">
               {/* is_active toggle */}
@@ -516,7 +646,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 </button>
               </div>
 
-              {/* is_special_purpose toggle — prominently styled */}
+              {/* is_special_purpose toggle */}
               <div className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200
                 ${form.is_special_purpose
                   ? "border-amber-300 bg-amber-50"
