@@ -63,6 +63,50 @@ class VehicleViewSet(viewsets.ModelViewSet):
             return Vehicle.objects.all().order_by('name')
         return Vehicle.objects.filter(is_active=True).order_by('name')
 
+    @action(detail=False, methods=['get'])
+    def available(self, request):
+        """
+        GET /api/fleet/vehicles/available/?passengers=40&start_datetime=...&end_datetime=...
+        """
+        passengers = request.query_params.get('passengers')
+        start_str = request.query_params.get('start_datetime')
+        end_str = request.query_params.get('end_datetime')
+        exclude_booking_id = request.query_params.get('exclude_booking_id')
+
+        if not all([passengers, start_str, end_str]):
+            return Response(
+                {"error": "passengers, start_datetime, and end_datetime are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            passengers = int(passengers)
+        except ValueError:
+            return Response(
+                {"error": "Invalid passenger count"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Base filter: active and capacity >= passengers
+        qs = Vehicle.objects.filter(is_active=True, capacity__gte=passengers)
+
+        # Exclude vehicles having APPROVED or PENDING bookings overlapping with the requested times
+        overlapping = FleetBooking.objects.filter(
+            status__in=['APPROVED', 'PENDING'],
+            start_datetime__lt=end_str,
+            end_datetime__gt=start_str,
+        )
+
+        if exclude_booking_id:
+            overlapping = overlapping.exclude(id=exclude_booking_id)
+
+        overlapping_vehicle_ids = overlapping.values_list('vehicle_id', flat=True)
+
+        qs = qs.exclude(id__in=overlapping_vehicle_ids).order_by('capacity', 'name')
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
 
 # ==========================================
 # FLEET BOOKING VIEWSET

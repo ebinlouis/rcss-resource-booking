@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { getVehicles, createBooking, updateBooking } from "../api/fleetApi"
+import { getAvailableVehicles, createBooking, updateBooking } from "../api/fleetApi"
 
 // ── FIELD ─────────────────────────────────────
 function Field({ label, required, children, error }) {
@@ -118,10 +118,9 @@ function TransportBookingModal({
       editData?.user_notes ?? ""
   })
 
-  const [vehicles, setVehicles] = useState([])
-
-  const [loadingVehicles, setLoadingVehicles] =
-    useState(true)
+  const [availableVehicles, setAvailableVehicles] = useState([])
+  const [checkingAvailability, setCheckingAvailability] = useState(false)
+  const [availabilityChecked, setAvailabilityChecked] = useState(false)
 
   const [apiError, setApiError] =
     useState("")
@@ -131,49 +130,6 @@ function TransportBookingModal({
 
   const [fieldErrors, setFieldErrors] =
     useState({})
-
-  // ── FETCH VEHICLES ─────────────────────────
-
-  useEffect(() => {
-
-    let cancelled = false
-
-    getVehicles()
-      .then((data) => {
-
-        if (!cancelled) {
-
-          setVehicles(
-            Array.isArray(data)
-              ? data
-              : data.results ?? []
-          )
-        }
-      })
-
-      .catch(() => {
-
-        if (!cancelled) {
-
-          setApiError(
-            "Could not load vehicles."
-          )
-        }
-      })
-
-      .finally(() => {
-
-        if (!cancelled) {
-
-          setLoadingVehicles(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-
-  }, [])
 
   // ── SETTER ─────────────────────────────────
 
@@ -198,17 +154,97 @@ function TransportBookingModal({
     form.return_date &&
     form.return_date < today
 
-  // ── VEHICLE FILTER ─────────────────────────
+  // ── VEHICLE FILTER (API DRIVEN) ────────────
 
-  const passengerCount =
-    Number(form.total_passengers)
+  const passengerCount = Number(form.total_passengers)
 
-  const suggestedVehicles =
-    vehicles.filter(
-      (v) =>
-        passengerCount > 0 &&
-        v.capacity >= passengerCount
-    )
+  useEffect(() => {
+    if (!passengerCount || !form.pickup_date || !form.pickup_time_24) {
+      setAvailableVehicles([])
+      setAvailabilityChecked(false)
+      return
+    }
+
+    if (form.return_required && (!form.return_date || !form.return_time_24)) {
+      setAvailableVehicles([])
+      setAvailabilityChecked(false)
+      return
+    }
+
+    const startDateTimeStr = `${form.pickup_date}T${form.pickup_time_24}`;
+    let endDateTimeStr = "";
+
+    if (form.return_required) {
+      endDateTimeStr = `${form.return_date}T${form.return_time_24}`;
+      if (endDateTimeStr <= startDateTimeStr) {
+        setAvailableVehicles([])
+        setAvailabilityChecked(false)
+        return
+      }
+    } else {
+      const startDateObj = new Date(startDateTimeStr);
+      if (isNaN(startDateObj.getTime())) return;
+      const endDateObj = new Date(startDateObj.getTime() + 2 * 60 * 60 * 1000);
+      const yyyy = endDateObj.getFullYear();
+      const mm = String(endDateObj.getMonth() + 1).padStart(2, "0");
+      const dd = String(endDateObj.getDate()).padStart(2, "0");
+      const hh = String(endDateObj.getHours()).padStart(2, "0");
+      const min = String(endDateObj.getMinutes()).padStart(2, "0");
+      endDateTimeStr = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+    }
+
+    let cancelled = false;
+    setCheckingAvailability(true);
+
+    const params = {
+      passengers: passengerCount,
+      start_datetime: startDateTimeStr,
+      end_datetime: endDateTimeStr
+    }
+
+    if (isEditMode && editData?.id) {
+      params.exclude_booking_id = editData.id;
+    }
+
+    getAvailableVehicles(params)
+      .then((data) => {
+        if (!cancelled) {
+          const fetchedVehicles = Array.isArray(data) ? data : (data.results ?? []);
+          setAvailableVehicles(fetchedVehicles);
+          setAvailabilityChecked(true);
+
+          if (form.vehicle && !fetchedVehicles.find(v => String(v.id) === String(form.vehicle))) {
+            set("vehicle", "");
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableVehicles([]);
+          setAvailabilityChecked(false);
+          setApiError("Could not check vehicle availability.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCheckingAvailability(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    }
+  }, [
+    passengerCount,
+    form.pickup_date,
+    form.pickup_time_24,
+    form.return_required,
+    form.return_date,
+    form.return_time_24,
+    isEditMode,
+    editData?.id,
+    form.vehicle
+  ])
 
   // ── SUBMIT ─────────────────────────────────
 
@@ -218,24 +254,43 @@ function TransportBookingModal({
     setFieldErrors({})
 
     if (isPastPickupDate) {
-
-      setApiError(
-        "Pickup date cannot be in the past."
-      )
-
+      setApiError("Pickup date cannot be in the past.")
       return
     }
 
-    if (
-      form.return_required &&
-      isPastReturnDate
-    ) {
-
-      setApiError(
-        "Return date cannot be in the past."
-      )
-
+    if (form.return_required && isPastReturnDate) {
+      setApiError("Return date cannot be in the past.")
       return
+    }
+
+    if (!form.pickup_date || !form.pickup_time_24) {
+      setApiError("Pickup date and time are required.");
+      return;
+    }
+
+    if (form.return_required && (!form.return_date || !form.return_time_24)) {
+      setApiError("Return date and time are required.");
+      return;
+    }
+
+    const startDateTimeStr = `${form.pickup_date}T${form.pickup_time_24}`;
+    let endDateTimeStr = "";
+
+    if (form.return_required) {
+      endDateTimeStr = `${form.return_date}T${form.return_time_24}`;
+      if (endDateTimeStr <= startDateTimeStr) {
+        setApiError("Return time must be after pickup time.");
+        return;
+      }
+    } else {
+      const startDateObj = new Date(startDateTimeStr);
+      const endDateObj = new Date(startDateObj.getTime() + 2 * 60 * 60 * 1000);
+      const yyyy = endDateObj.getFullYear();
+      const mm = String(endDateObj.getMonth() + 1).padStart(2, "0");
+      const dd = String(endDateObj.getDate()).padStart(2, "0");
+      const hh = String(endDateObj.getHours()).padStart(2, "0");
+      const min = String(endDateObj.getMinutes()).padStart(2, "0");
+      endDateTimeStr = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
     }
 
     setSubmitting(true)
@@ -243,72 +298,38 @@ function TransportBookingModal({
     try {
 
       const payload = {
-        vehicle:
-          Number(form.vehicle),
-
-        purpose:
-          form.purpose,
-
-        pickup_date:
-          form.pickup_date,
-
-        pickup_time:
-          `${form.pickup_time} ${form.pickup_period}`,
-
-        pickup_location:
-          form.pickup_location,
-
-        destination:
-          form.destination,
-
-        return_required:
-          form.return_required,
-
-        return_date:
-          form.return_date,
-
-        return_time:
-          `${form.return_time} ${form.return_period}`,
-
-        return_pickup_location:
-          form.return_pickup_location,
-
-        return_destination:
-          form.return_destination,
-
-        total_passengers:
-          Number(form.total_passengers),
-
-        user_notes:
-          form.user_notes
+        vehicle: Number(form.vehicle),
+        purpose: form.purpose,
+        start_datetime: startDateTimeStr,
+        end_datetime: endDateTimeStr,
+        pickup_location: form.pickup_location,
+        destination: form.destination,
+        total_passengers: Number(form.total_passengers),
+        user_notes: form.user_notes
       }
 
       let result
 
       if (isEditMode) {
-
-        result =
-          await updateBooking(
-            editData.id,
-            payload
-          )
-
+        result = await updateBooking(editData.id, payload)
       } else {
-
-        result =
-          await createBooking(payload)
+        result = await createBooking(payload)
       }
 
       onSave(result)
 
     } catch (err) {
-
-      setApiError(
-        "Failed to submit booking."
-      )
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        const messages = Object.entries(errorData)
+          .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(" ") : val}`)
+          .join(" | ");
+        setApiError(messages || "Failed to submit booking.");
+      } else {
+        setApiError("Failed to submit booking.")
+      }
 
     } finally {
-
       setSubmitting(false)
     }
   }
@@ -594,12 +615,20 @@ function TransportBookingModal({
               </Field>
 
               <Field
-                label="Suggested vehicle"
+                label={
+                  <span className="flex items-center gap-2">
+                    Suggested vehicle
+                    {checkingAvailability && (
+                      <span className="inline-block w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></span>
+                    )}
+                  </span>
+                }
                 required
               >
 
                 <select
                   className={inputCls}
+                  disabled={!availabilityChecked || checkingAvailability || availableVehicles.length === 0}
                   value={form.vehicle}
                   onChange={(e) =>
                     set(
@@ -610,23 +639,40 @@ function TransportBookingModal({
                 >
 
                   <option value="">
-                    Select vehicle
+                    {!availabilityChecked
+                      ? "Enter passengers & date first"
+                      : checkingAvailability
+                        ? "Checking availability..."
+                        : availableVehicles.length === 0
+                          ? "No vehicles available"
+                          : "Select vehicle"}
                   </option>
 
-                  {suggestedVehicles.map((v) => (
+                  {availableVehicles.map((v, idx) => (
 
                     <option
                       key={v.id}
                       value={v.id}
                     >
 
-                      {v.name} ({v.capacity} seats)
+                      {v.name} — {v.capacity} seats {idx === 0 ? "(Recommended)" : ""}
 
                     </option>
 
                   ))}
 
                 </select>
+
+                {availabilityChecked && !checkingAvailability && availableVehicles.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">
+                    No vehicles available for this passenger count and schedule.
+                  </p>
+                )}
+                {availabilityChecked && !checkingAvailability && availableVehicles.length > 0 && form.vehicle === "" && (
+                  <p className="text-xs text-green-600 mt-1">
+                    Smallest suitable vehicle recommended first.
+                  </p>
+                )}
 
               </Field>
 

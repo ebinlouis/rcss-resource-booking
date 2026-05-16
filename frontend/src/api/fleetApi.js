@@ -24,6 +24,15 @@ export const getVehicles = async () => {
   return res.data
 }
 
+/**
+ * GET /api/fleet/vehicles/available/
+ * Returns available vehicles based on passengers, start_datetime, and end_datetime.
+ */
+export const getAvailableVehicles = async (params) => {
+  const res = await api.get("/fleet/vehicles/available/", { params })
+  return res.data
+}
+
 
 // ==========================================
 // FLEET BOOKINGS — USER
