@@ -1,7 +1,6 @@
 // Shared meal configuration — single source of truth for all Mess-related
 // components. Each entry drives form fields, payload keys, display labels,
 // and the earliest-time / requested-meals helper functions.
-
 export const MEALS = [
   {
     id:              "breakfast",
@@ -45,15 +44,115 @@ export const MEALS = [
   },
 ]
 
-/** Returns the earliest HH:MM across all meal times on a booking.
- *  Handles null, undefined, and empty string gracefully. */
-export const getEarliestTime = (b) => {
-  const times = MEALS
-    .map((m) => b[m.timeKey])
-    .filter((t) => t && typeof t === "string" && t.length >= 5)
-  return times.length === 0 ? "–" : times.sort()[0].slice(0, 5)
+/**
+ * Returns the earliest HH:MM across ALL daily_menus entries on a booking.
+ * Falls back gracefully if daily_menus is missing or empty.
+ */
+export const getEarliestTime = (booking) => {
+  const menus = booking?.daily_menus
+  if (!Array.isArray(menus) || menus.length === 0) return "–"
+
+  const times = []
+  for (const menu of menus) {
+    for (const meal of MEALS) {
+      const t = menu[meal.timeKey]
+      if (t && typeof t === "string" && t.length >= 5) {
+        // prefix with date so we sort across days correctly
+        times.push(`${menu.date}T${t}`)
+      }
+    }
+  }
+
+  if (times.length === 0) return "–"
+  times.sort()
+  // Return only the HH:MM portion
+  return times[0].slice(11, 16)
 }
 
-/** Returns an array of meal labels that are flagged as required. */
-export const getRequestedMeals = (b) =>
-  MEALS.filter((m) => b[`${m.id}_required`]).map((m) => m.label)
+/**
+ * Returns an array of unique meal labels that appear on ANY day of the booking.
+ * Used for the tag pills on booking cards.
+ */
+export const getRequestedMeals = (booking) => {
+  const menus = booking?.daily_menus
+  if (!Array.isArray(menus) || menus.length === 0) return []
+
+  const seen = new Set()
+  for (const menu of menus) {
+    for (const meal of MEALS) {
+      if (menu[meal.timeKey]) seen.add(meal.label)
+    }
+  }
+  return Array.from(seen)
+}
+
+/**
+ * Returns the total headcount across all days.
+ * For multi-day bookings, sums total_persons from each DailyMessMenu row.
+ * For display cards — admins see per-day detail in the side panel.
+ */
+export const getTotalPersons = (booking) => {
+  const menus = booking?.daily_menus
+  if (!Array.isArray(menus) || menus.length === 0) return 0
+  return menus.reduce((sum, m) => sum + (m.total_persons || 0), 0)
+}
+
+export const getTotalVeg = (booking) => {
+  const menus = booking?.daily_menus
+  if (!Array.isArray(menus) || menus.length === 0) return 0
+  return menus.reduce((sum, m) => sum + (m.veg_persons || 0), 0)
+}
+
+export const getTotalNonVeg = (booking) => {
+  const menus = booking?.daily_menus
+  if (!Array.isArray(menus) || menus.length === 0) return 0
+  return menus.reduce((sum, m) => sum + (m.nonveg_persons || 0), 0)
+}
+
+/**
+ * Formats a date range for display.
+ * Single day: "26 May 2026"
+ * Multi-day:  "26 May – 28 May 2026"
+ */
+export const formatDateRange = (startDate, endDate) => {
+  if (!startDate) return "–"
+  const fmt = (d) =>
+    new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "numeric", month: "short", year: "numeric",
+    })
+  if (!endDate || startDate === endDate) return fmt(startDate)
+  const fmtNoYear = (d) =>
+    new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "numeric", month: "short",
+    })
+  return `${fmtNoYear(startDate)} – ${fmt(endDate)}`
+}
+
+/**
+ * Returns true if a booking spans more than one day.
+ */
+export const isMultiDay = (booking) =>
+  booking?.start_date && booking?.end_date && booking.start_date !== booking.end_date
+
+/**
+ * Generates an array of YYYY-MM-DD date strings between start and end (inclusive).
+ *
+ * FIX: The previous version used cursor.toISOString() which converts to UTC.
+ * In IST (UTC+5:30), midnight local time is 18:30 the previous UTC day, so
+ * toISOString() returned the wrong (prior) date for every entry.
+ * We now format the date manually from local year/month/day to stay timezone-safe.
+ */
+export const getDateRange = (startDate, endDate) => {
+  if (!startDate || !endDate) return []
+  const dates = []
+  const cursor = new Date(startDate + "T00:00:00")
+  const end    = new Date(endDate   + "T00:00:00")
+  while (cursor <= end) {
+    const y  = cursor.getFullYear()
+    const m  = String(cursor.getMonth() + 1).padStart(2, "0")
+    const d  = String(cursor.getDate()).padStart(2, "0")
+    dates.push(`${y}-${m}-${d}`)          // uses local date, not UTC
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
