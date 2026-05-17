@@ -252,10 +252,11 @@ function MessBookingForm({ onClose, onSave, editData }) {
   })
 
   // ── Per-day overrides state ───────────────────────────────────────────────
-  // Instead of storing a derived array in state (which required a sync effect),
-  // we store per-date overrides in a Map and derive the final array via useMemo.
-  // This eliminates the setState-in-effect pattern entirely.
-  const buildInitialOverrides = useCallback(() => {
+  // Stored as { [date]: DayMenu } so dailyMenus can be fully derived via useMemo.
+  // Inline lazy initializer — called exactly once on mount, captures editData
+  // from the closure. No useCallback needed; editData is a prop that never
+  // changes identity after mount (the form is always remounted for edit vs new).
+  const [menuOverrides, setMenuOverrides] = useState(() => {
     const map = {}
     if (editData?.daily_menus?.length > 0) {
       for (const m of editData.daily_menus) {
@@ -278,10 +279,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       }
     }
     return map
-  }, [editData])
-
-  // menuOverrides: { [date: string]: DayMenu } — only stores user-edited days
-  const [menuOverrides, setMenuOverrides] = useState(buildInitialOverrides)
+  })
 
   const [activeDay,    setActiveDay]    = useState(0)
   const [error,        setError]        = useState(null)
