@@ -24,6 +24,10 @@ import AdminTransportPage from "./pages/admin/AdminTransportPage";
 import AdminMess from "./pages/admin/AdminMess";
 import AdminMediaPage from "./pages/admin/AdminMediaPage";
 
+// New Space Scoping Pages
+import BlocksManagement from "./pages/admin/BlocksManagement";
+import SpaceApproversManagement from "./pages/admin/SpaceApproversManagement";
+
 function App() {
   return (
     <AuthProvider>
@@ -70,6 +74,8 @@ function App() {
               {/* ── System admin routes ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_system" />}>
                 <Route path="/admin/spaces" element={<AdminSpacesPage />} />
+                <Route path="/admin/blocks" element={<BlocksManagement />} />
+                <Route path="/admin/approvers" element={<SpaceApproversManagement />} />
                 <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
                 <Route path="/admin/transport" element={<AdminTransportPage />} />
                 <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />

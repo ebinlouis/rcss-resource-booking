@@ -2,7 +2,7 @@ import datetime
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
-from django.db.models import Sum, Q
+from django.db.models import Sum
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,35 +12,20 @@ from rest_framework.views import APIView
 
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.spaces.models import Equipment
-from apps.users.models import RoleOverride
+from apps.users.models import Role
 from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
+
 
 # ── Role resolution ───────────────────────────────────────────────────────────
 
-MEDIA_ROLE = 'media'
-
-def _normalize(role):
-    return (role or "").strip().lower()
-
-def _get_effective_role(user):
-    now = timezone.now()
-    active_override = RoleOverride.objects.filter(
-        user=user,
-        is_active=True,
-    ).filter(
-        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
-    ).first()
-
-    if active_override:
-        return active_override.overridden_role.name
-    if getattr(user, 'role', None):
-        return user.role.name
-    if user.groups.exists():
-        return user.groups.first().name
-    return ""
-
 def _is_media_admin(user):
-    return _normalize(_get_effective_role(user)) == MEDIA_ROLE
+    return (
+        user.is_superuser or
+        Role.Name.MEDIA_INCHARGE in user.get_effective_roles()
+    )
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _overlapping_team_bookings(start_dt, end_dt, exclude_pk=None):
     qs = MediaBooking.objects.filter(
@@ -63,11 +48,10 @@ def _team_capacity_available(booking, settings):
 
 def _reserve_standard_team_kit(booking):
     standard_gear = Equipment.objects.filter(
-        is_active=True, 
-        is_portable=True, 
+        is_active=True,
+        is_portable=True,
         is_standard_media_kit=True
     )
-    
     for gear in standard_gear:
         request, created = MediaEquipmentRequest.objects.get_or_create(
             media_booking=booking,
@@ -109,6 +93,8 @@ def _check_equipment_availability_for_approval(booking):
     return True, ""
 
 
+# ── Views ─────────────────────────────────────────────────────────────────────
+
 class MediaSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -146,9 +132,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             return qs
 
         VIEW_MAP = {
-            'pending':     (lambda: qs.filter(status='PENDING').order_by('-created_at'),           is_admin),
-            'active':      (lambda: qs.filter(status='APPROVED').order_by('setup_start_datetime'), is_admin),
-            'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),       is_admin),
+            'pending':        (lambda: qs.filter(status='PENDING').order_by('-created_at'),            is_admin),
+            'active':         (lambda: qs.filter(status='APPROVED').order_by('setup_start_datetime'),  is_admin),
+            'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),           is_admin),
         }
 
         if view_param in VIEW_MAP:
@@ -165,30 +151,19 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        
-        # ── THE FIX ──
-        # PROTECT TEAM LOADOUTS: Team request loadouts are strictly managed via 
-        # the `update_loadout` endpoint. If the user updates the event details, we 
-        # intercept and strip out equipment_requests so the nested serializer 
-        # doesn't wipe the admin's custom loadout.
         if instance.is_team_request:
             if hasattr(request.data, 'copy'):
                 mutable_data = request.data.copy()
             else:
                 mutable_data = dict(request.data)
-                
             mutable_data.pop('equipment_requests', None)
-            
-            partial = kwargs.pop('partial', False)
+            partial    = kwargs.pop('partial', False)
             serializer = self.get_serializer(instance, data=mutable_data, partial=partial)
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
-
             if getattr(instance, '_prefetched_objects_cache', None):
                 instance._prefetched_objects_cache = {}
-
             return Response(serializer.data)
-
         return super().update(request, *args, **kwargs)
 
     @transaction.atomic
@@ -207,21 +182,17 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        instance = self.get_object()
-        user = self.request.user
-        
+        instance         = self.get_object()
+        user             = self.request.user
         was_team_request = instance.is_team_request
-        booking = serializer.save()
-        
+        booking          = serializer.save()
         if booking.is_team_request and not was_team_request:
             _reserve_standard_team_kit(booking)
-
         if instance.status == 'APPROVED' and not _is_media_admin(user):
-            booking.status = 'PENDING'
+            booking.status           = 'PENDING'
             booking.remarks_by_admin = ''
             booking.save(update_fields=['status', 'remarks_by_admin'])
 
-    # ── /check_availability/ ─────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
         req_start_str = request.query_params.get('start')
@@ -248,24 +219,20 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if exclude_id and exclude_id not in ['null', 'undefined', '']:
             overlapping = overlapping.exclude(pk=exclude_id)
 
-        # Sweepline Algorithm using continuous UNIX Timestamps
         eq_time_points = {}
-        req_start_ts = req_start.timestamp()
-        req_end_ts   = req_end.timestamp()
+        req_start_ts   = req_start.timestamp()
+        req_end_ts     = req_end.timestamp()
 
         for b in overlapping:
-            # Bound overlap mathematically to the request window to prevent infinite sweeps
             s_ts = max(b.setup_start_datetime.timestamp(), req_start_ts)
             e_ts = min(b.teardown_end_datetime.timestamp(), req_end_ts)
-            
             if s_ts >= e_ts:
                 continue
-
             for req in b.equipment_requests.all():
                 eq_id = req.equipment_id
                 eq_time_points.setdefault(eq_id, []).extend([
-                    (s_ts, req.quantity),   # Item checked out
-                    (e_ts, -req.quantity)   # Item returned
+                    (s_ts,  req.quantity),
+                    (e_ts, -req.quantity),
                 ])
 
         used_map = {}
@@ -289,10 +256,8 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             }
             for eq in Equipment.objects.filter(is_active=True, is_portable=True)
         ]
-
         return Response(availability)
 
-    # ── /daily_availability/ ─────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
     def daily_availability(self, request):
         date_param   = request.query_params.get('date')
@@ -304,44 +269,36 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
         day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
-
-        settings = MediaSettings.load()
+        settings  = MediaSettings.load()
 
         if view_type == 'team':
             approved_team = MediaBooking.objects.filter(
                 status='APPROVED', is_team_request=True,
                 setup_start_datetime__lt=day_end,
-                teardown_end_datetime__gt=day_start
+                teardown_end_datetime__gt=day_start,
             ).order_by('setup_start_datetime')
 
             slots       = []
             time_points = []
 
             for b in approved_team:
-                # Time Clamping: Restrict the visual bound of multi-day bookings to the current day
                 s_clamp = max(b.setup_start_datetime, day_start)
                 e_clamp = min(b.teardown_end_datetime, day_end)
-                
-                # Convert UTC to Local time before converting to a string
                 s_local = timezone.localtime(s_clamp)
                 e_local = timezone.localtime(e_clamp)
-
-                s_str = s_local.strftime("%H:%M")
-                e_str = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
-
+                s_str   = s_local.strftime("%H:%M")
+                e_str   = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
                 slots.append({"start_time": s_str, "end_time": e_str, "event_name": b.event_name})
                 time_points += [(s_str, 1), (e_str, -1)]
 
             time_points.sort(key=lambda x: (x[0], x[1]))
-
-            current_used, busy_start = 0, None
-            fully_booked_periods     = []
+            current_used = busy_start = 0
+            fully_booked_periods = []
 
             for t_str, delta in time_points:
                 was_full      = current_used >= settings.max_concurrent_events
                 current_used += delta
                 is_full       = current_used >= settings.max_concurrent_events
-
                 if is_full and not was_full:
                     busy_start = t_str
                 elif was_full and not is_full and busy_start and busy_start != t_str:
@@ -349,11 +306,11 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                     busy_start = None
 
             return Response({
-                "date":                  booking_date.isoformat(),
-                "type":                  "team",
-                "max_capacity":          settings.max_concurrent_events,
-                "booked_slots":          sorted(slots, key=lambda x: x['start_time']),
-                "fully_booked_periods":  fully_booked_periods,
+                "date":                 booking_date.isoformat(),
+                "type":                 "team",
+                "max_capacity":         settings.max_concurrent_events,
+                "booked_slots":         sorted(slots, key=lambda x: x['start_time']),
+                "fully_booked_periods": fully_booked_periods,
             })
 
         if view_type != 'equipment':
@@ -362,21 +319,17 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         approved = MediaBooking.objects.filter(
             status='APPROVED',
             setup_start_datetime__lt=day_end,
-            teardown_end_datetime__gt=day_start
+            teardown_end_datetime__gt=day_start,
         ).prefetch_related('equipment_requests')
 
         eq_slots = {}
         for b in approved:
             s_clamp = max(b.setup_start_datetime, day_start)
             e_clamp = min(b.teardown_end_datetime, day_end)
-            
-            # Convert UTC to Local time before converting to a string
             s_local = timezone.localtime(s_clamp)
             e_local = timezone.localtime(e_clamp)
-
-            s_str = s_local.strftime("%H:%M")
-            e_str = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
-
+            s_str   = s_local.strftime("%H:%M")
+            e_str   = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
             for req in b.equipment_requests.all():
                 eq_slots.setdefault(req.equipment_id, []).append({
                     "start_time": s_str,
@@ -392,49 +345,41 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             for s in slots:
                 time_points += [(s['start_time'], s['quantity']), (s['end_time'], -s['quantity'])]
             time_points.sort(key=lambda x: (x[0], x[1]))
-
             current_used = max_used = 0
             for _, delta in time_points:
                 current_used += delta
                 max_used      = max(max_used, current_used)
-
             availability.append({
-                "id":                 item.id,
-                "name":               item.name,
-                "category":           item.category,
-                "category_display":   item.get_category_display(),
-                "total_owned":        item.total_owned,
-                "booked_quantity":    max_used,
-                "available_quantity": max(0, item.total_owned - max_used),
-                "booked_slots":       sorted(slots, key=lambda x: x['start_time']),
+                "id":                    item.id,
+                "name":                  item.name,
+                "category":              item.category,
+                "category_display":      item.get_category_display(),
+                "total_owned":           item.total_owned,
+                "booked_quantity":       max_used,
+                "available_quantity":    max(0, item.total_owned - max_used),
+                "booked_slots":          sorted(slots, key=lambda x: x['start_time']),
                 "is_standard_media_kit": item.is_standard_media_kit,
             })
 
         return Response({"date": booking_date.isoformat(), "type": "equipment", "items": availability})
 
-    # ── /runsheet/ ────────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'])
     def runsheet(self, request):
         date_param   = request.query_params.get('date')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
-
         if not booking_date:
             return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
-
         day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
         day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
-
-        bookings = MediaBooking.objects.filter(
+        bookings  = MediaBooking.objects.filter(
             status='APPROVED', is_team_request=True,
             setup_start_datetime__lt=day_end,
-            teardown_end_datetime__gt=day_start
+            teardown_end_datetime__gt=day_start,
         ).select_related('space', 'user', 'department').prefetch_related(
             'equipment_requests__equipment'
         ).order_by('event_start_datetime')
-
         return Response(self.get_serializer(bookings, many=True).data)
 
-    # ── /<id>/update_loadout/ ─────────────────────────────────────────────────
     @action(detail=True, methods=['patch'], url_path='update_loadout')
     @transaction.atomic
     def update_loadout(self, request, pk=None):
@@ -443,9 +388,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Only the Media administrator can update loadouts."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
         booking = self.get_object()
-
         if booking.status != 'APPROVED':
             return Response({"error": "Loadout can only be edited on APPROVED bookings."}, status=status.HTTP_400_BAD_REQUEST)
         if not booking.is_team_request:
@@ -462,20 +405,17 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             eq_id    = item.get('equipment')
             quantity = item.get('quantity', 1)
             row      = idx + 1
-
             if not eq_id:
                 return Response({"error": f"Row {row}: 'equipment' field is required."}, status=status.HTTP_400_BAD_REQUEST)
             if not isinstance(quantity, int) or quantity < 1:
                 return Response({"error": f"Row {row}: 'quantity' must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
             if eq_id in seen_ids:
-                return Response({"error": f"Row {row}: Duplicate equipment id {eq_id}. Merge into one row."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": f"Row {row}: Duplicate equipment id {eq_id}."}, status=status.HTTP_400_BAD_REQUEST)
             seen_ids.add(eq_id)
-
             try:
                 equipment = Equipment.objects.get(pk=eq_id, is_active=True, is_portable=True)
             except Equipment.DoesNotExist:
                 return Response({"error": f"Row {row}: Equipment id {eq_id} not found or not available."}, status=status.HTTP_400_BAD_REQUEST)
-
             resolved_items.append({'equipment': equipment, 'quantity': quantity})
 
         used_map = {
@@ -495,7 +435,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             available = max(0, eq.total_owned - used_map.get(eq.id, 0))
             if needed > available:
                 return Response(
-                    {"error": f"Cannot allocate {needed}x {eq.name}. Only {available} available during this event's time block."},
+                    {"error": f"Cannot allocate {needed}x {eq.name}. Only {available} available."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -506,12 +446,10 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 equipment=item['equipment'],
                 quantity=item['quantity'],
             )
-
         booking.updated_by = request.user
         booking.save(update_fields=['updated_by', 'updated_at'])
         return Response(self.get_serializer(booking).data)
 
-    # ── /<id>/review/ ─────────────────────────────────────────────────────────
     @action(detail=True, methods=['patch'])
     @transaction.atomic
     def review(self, request, pk=None):
@@ -520,7 +458,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 {"detail": "Only the Media administrator can review requests."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
         booking    = self.get_object()
         new_status = request.data.get('status')
         remarks    = request.data.get('remarks_by_admin', '')
@@ -532,14 +469,10 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         settings = MediaSettings.load()
         if new_status == 'APPROVED':
-            # This safely injects the standard kit ONLY if the booking has 0 equipment. 
-            # It will no longer wipe out the admin's custom loadouts upon approval.
             if booking.is_team_request and not booking.equipment_requests.exists():
                 _reserve_standard_team_kit(booking)
-
             if booking.is_team_request and not _team_capacity_available(booking, settings):
                 return Response({"error": "Media team capacity is full for this event time."}, status=status.HTTP_400_BAD_REQUEST)
-            
             is_avail, error_msg = _check_equipment_availability_for_approval(booking)
             if not is_avail:
                 return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
@@ -549,10 +482,8 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
-
         return Response(self.get_serializer(booking).data)
 
-    # ── /my-bookings/ ─────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
         bookings = MediaBooking.objects.filter(user=request.user).order_by('-created_at')

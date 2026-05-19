@@ -5,7 +5,7 @@ import GrantOverrideModal from '../../components/admin/GrantOverrideModal';
 const RoleOverridesPage = () => {
     const [overrides, setOverrides] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null); // Added error state for production resilience
+    const [error, setError] = useState(null); 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -18,50 +18,47 @@ const RoleOverridesPage = () => {
             try {
                 const data = await roleOverrideService.getOverrides();
                 if (isMounted) {
-                    setOverrides(data);
+                    setOverrides(Array.isArray(data) ? data : data.results || []);
                 }
             } catch (err) {
                 console.error('Failed to fetch overrides:', err);
-                if (isMounted) {
-                    setError('Failed to load role overrides from the server.');
-                }
+                if (isMounted) setError('Failed to load role overrides from the server.');
             } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
+                if (isMounted) setIsLoading(false);
             }
         };
 
         fetchData();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [refreshTrigger]);
 
     const handleRevoke = async (id) => {
+        if (!id) {
+            alert("Error: Missing Override ID.");
+            return;
+        }
+
         if (!window.confirm("Are you sure you want to instantly revoke this access?")) return;
         
+        // Optimistically show loading state
         setIsLoading(true);
         try {
             await roleOverrideService.revokeOverride(id);
             setRefreshTrigger(prev => prev + 1);
-        } catch {
+        } catch (err) {
+            console.error("Revoke API Error:", err);
             alert('Failed to revoke access. Please check your permissions and try again.');
-            setIsLoading(false);
+            setIsLoading(false); // Only reset if it failed, else let useEffect handle it
         }
     };
 
     return (
         <div className="max-w-screen-xl mx-auto px-6 py-8 font-geist text-gray-900">
             
-            {/* Header */}
             <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Role Overrides</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Manage temporary administrative privileges across the system.
-                    </p>
+                    <p className="text-sm text-gray-500 mt-1">Manage temporary administrative privileges across the system.</p>
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}
@@ -74,13 +71,12 @@ const RoleOverridesPage = () => {
                 </button>
             </div>
 
-            {/* Main Content Card */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px] flex flex-col">
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active & Historical Overrides</h2>
                 </div>
 
-                {isLoading ? (
+                {isLoading && overrides.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center p-12 text-sm text-gray-400 animate-pulse italic">
                         Synchronizing overrides with database...
                     </div>
@@ -90,12 +86,7 @@ const RoleOverridesPage = () => {
                             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         </div>
                         <p className="text-sm font-medium text-gray-900">{error}</p>
-                        <button 
-                            onClick={() => setRefreshTrigger(prev => prev + 1)}
-                            className="mt-3 text-xs font-semibold text-blue-600 hover:underline"
-                        >
-                            Try Again
-                        </button>
+                        <button onClick={() => setRefreshTrigger(prev => prev + 1)} className="mt-3 text-xs font-semibold text-blue-600 hover:underline">Try Again</button>
                     </div>
                 ) : overrides.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-16 text-center">
@@ -114,15 +105,29 @@ const RoleOverridesPage = () => {
                                 <tr className="border-b border-gray-100 bg-white">
                                     <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">User</th>
                                     <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Elevated Role</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Granted By</th>
-                                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Expires At</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Reason & Granter</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Valid Until</th>
                                     <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Status</th>
                                     <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right whitespace-nowrap">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {overrides.map((override) => {
-                                    const isExpired = new Date(override.expires_at) < new Date();
+                                    // Parse Django's valid_until safely
+                                    let formattedDate = '-';
+                                    let isExpired = false;
+                                    
+                                    if (override.valid_until) {
+                                        const dateObj = new Date(override.valid_until);
+                                        if (!isNaN(dateObj.getTime())) {
+                                            isExpired = dateObj < new Date();
+                                            formattedDate = dateObj.toLocaleString('en-IN', {
+                                                day: 'numeric', month: 'short', year: 'numeric',
+                                                hour: '2-digit', minute: '2-digit'
+                                            });
+                                        }
+                                    }
+
                                     const isActive = override.is_active && !isExpired;
 
                                     return (
@@ -136,14 +141,14 @@ const RoleOverridesPage = () => {
                                                     {override.role_name}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-700">
-                                                {override.granted_by_name}
+                                            <td className="px-6 py-4">
+                                                <p className="text-xs text-gray-800 font-medium truncate max-w-[200px]" title={override.reason}>
+                                                    {override.reason || '-'}
+                                                </p>
+                                                <p className="text-[10px] text-gray-500 mt-0.5">By: {override.granted_by_name}</p>
                                             </td>
-                                            <td className="px-6 py-4 text-xs text-gray-500 font-medium">
-                                                {new Date(override.expires_at).toLocaleString('en-IN', {
-                                                    day: 'numeric', month: 'short', year: 'numeric',
-                                                    hour: '2-digit', minute: '2-digit'
-                                                })}
+                                            <td className="px-6 py-4 text-xs text-gray-600 font-medium">
+                                                {formattedDate}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {isActive ? (
@@ -184,7 +189,6 @@ const RoleOverridesPage = () => {
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)} 
                 onRefresh={() => {
-                    setIsLoading(true);
                     setRefreshTrigger(prev => prev + 1);
                 }} 
             />

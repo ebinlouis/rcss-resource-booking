@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{
             user,
-            effectiveRole: user?.effective_role || null,
+            effectiveRoles: user?.effective_roles || [],
             isLoading,
             login,
             logout,
