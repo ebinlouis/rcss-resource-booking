@@ -119,6 +119,10 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Space approval routing
+# Temporary fallback window until the notification/leave workflow is implemented.
+AI_LAB_HOD_FALLBACK_HOURS = env.int('AI_LAB_HOD_FALLBACK_HOURS', default=24)
+
 # ==========================================
 # CORS & CSRF CONFIGURATION
 # ==========================================

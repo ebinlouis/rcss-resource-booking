@@ -12,6 +12,17 @@ const SPACE_TYPES = [
   { value: "GUEST_ROOM", label: "Guest Room" },
 ]
 
+const APPROVAL_CATEGORIES = [
+  { value: "GENERAL", label: "General", hint: "Receptionist scoped by block or space" },
+  { value: "LAB", label: "Lab", hint: "Lab In-Charge scoped by block or space" },
+  { value: "LIBRARY", label: "Library", hint: "Librarian scoped by block or space" },
+]
+
+const APPROVAL_WORKFLOWS = [
+  { value: "DIRECT", label: "Direct Approver", hint: "The scoped approver can approve immediately" },
+  { value: "HOD_FALLBACK", label: "HOD with Fallback", hint: "HOD approves first; scoped lab in-charge is fallback" },
+]
+
 // ─────────────────────────────────────────────────────────────
 // Helper: input class builder
 // ─────────────────────────────────────────────────────────────
@@ -150,6 +161,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     name: initialData?.name ?? "",
     space_type: initialData?.space_type ?? "",
+    approval_category: initialData?.approval_category ?? "GENERAL",
+    approval_workflow_type: initialData?.approval_workflow_type ?? "DIRECT",
     capacity_hard: initialData?.capacity_hard ?? "",
     location: initialData?.location ?? "",
     description: initialData?.description ?? "",
@@ -235,6 +248,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
     const e = {}
     if (!form.name.trim()) e.name = "Space name is required"
     if (!form.space_type) e.space_type = "Select a space type"
+    if (!form.approval_category) e.approval_category = "Select an approval category"
+    if (!form.approval_workflow_type) e.approval_workflow_type = "Select an approval workflow"
     if (!form.capacity_hard || Number(form.capacity_hard) < 1)
       e.capacity_hard = "Enter a valid capacity (≥ 1)"
     if (!form.location.trim()) e.location = "Location is required"
@@ -262,6 +277,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       const fd = new FormData()
       fd.append("name", form.name.trim())
       fd.append("space_type", form.space_type)
+      fd.append("approval_category", form.approval_category)
+      fd.append("approval_workflow_type", form.approval_workflow_type)
       fd.append("capacity_hard", Number(form.capacity_hard))
       fd.append("location", form.location.trim())
       fd.append("description", form.description.trim())
@@ -547,6 +564,48 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </Field>
 
             {/* ── CLEANING BUFFERS ── */}
+            <SectionDivider>Approval Routing</SectionDivider>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Approval Category" required error={errors.approval_category} hint="Determines which scoped role reviews this space.">
+                <select
+                  className={inputCls(errors.approval_category)}
+                  value={form.approval_category}
+                  onChange={(e) => set("approval_category", e.target.value)}
+                  style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                >
+                  {APPROVAL_CATEGORIES.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Approval Workflow" required error={errors.approval_workflow_type} hint="Use HOD fallback only for special lab workflows like AI Lab.">
+                <select
+                  className={inputCls(errors.approval_workflow_type)}
+                  value={form.approval_workflow_type}
+                  onChange={(e) => set("approval_workflow_type", e.target.value)}
+                  style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                >
+                  {APPROVAL_WORKFLOWS.map((workflow) => (
+                    <option key={workflow.value} value={workflow.value}>
+                      {workflow.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            {form.approval_workflow_type === "HOD_FALLBACK" && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-[12.5px] font-semibold leading-relaxed text-blue-800">
+                  This space uses HOD-first approval. The assigned Lab In-Charge is treated as a fallback approver after the configured waiting window, ready for the upcoming notification flow.
+                </p>
+              </div>
+            )}
+
             <SectionDivider>Cleaning &amp; Maintenance Buffers</SectionDivider>
 
             {/* Explainer card */}
