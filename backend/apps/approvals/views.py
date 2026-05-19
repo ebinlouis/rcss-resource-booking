@@ -1,7 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 
 from apps.users.permissions import IsApprover
 from apps.users.models import Role
@@ -17,6 +19,7 @@ from apps.media.models import MediaBooking
 # ==========================================
 
 VALID_DOMAINS = {'spaces', 'fleet', 'mess', 'media'}
+AI_LAB_FALLBACK_HOURS = getattr(settings, 'AI_LAB_HOD_FALLBACK_HOURS', 24)
 
 
 # ==========================================
@@ -53,6 +56,84 @@ def _build_queue_entry(domain, item, **extra_fields):
     }
 
 
+def _normalise(value):
+    return str(value or '').strip().lower()
+
+
+def _is_ai_lab(space):
+    name = _normalise(getattr(space, 'name', ''))
+    return (
+        getattr(space, 'approval_category', None) == 'LAB'
+        and ('ai lab' in name or 'artificial intelligence' in name)
+    )
+
+
+def _is_cs_department(department):
+    if not department:
+        return False
+
+    code = _normalise(getattr(department, 'department_code', ''))
+    name = _normalise(getattr(department, 'department_name', ''))
+    return code in {'cs', 'cse'} or name in {'cs', 'cse'} or 'computer science' in name
+
+
+def _is_cs_ai_lab_booking(booking):
+    return _is_ai_lab(booking.space) and _is_cs_department(getattr(booking.user, 'department', None))
+
+
+def _ai_lab_fallback_ready(booking):
+    fallback_at = booking.created_at + timedelta(hours=AI_LAB_FALLBACK_HOURS)
+    return timezone.now() >= fallback_at
+
+
+def _matches_space_approver_assignment(booking, assignment):
+    role_name = assignment.role.name
+    space = booking.space
+
+    if role_name == Role.Name.RECEPTIONIST:
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'GENERAL'
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+
+    if role_name == Role.Name.LAB_INCHARGE:
+        if _is_cs_ai_lab_booking(booking) and booking.status == 'PENDING' and not _ai_lab_fallback_ready(booking):
+            return False
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'LAB'
+
+    if role_name == Role.Name.LIBRARIAN:
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'LIBRARY'
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+
+    return False
+
+
+def _user_can_resolve_space_booking(user, effective_roles, booking):
+    if Role.Name.IT_ADMIN in effective_roles:
+        return True
+
+    user_dept = getattr(user, 'department', None)
+    if (
+        Role.Name.HOD in effective_roles
+        and user_dept
+        and getattr(booking.user, 'department_id', None) == user_dept.id
+        and _is_cs_ai_lab_booking(booking)
+    ):
+        return True
+
+    assignments = (
+        SpaceApprover.objects
+        .filter(user=user, is_active=True)
+        .select_related('block', 'space', 'role')
+    )
+    return any(_matches_space_approver_assignment(booking, assignment) for assignment in assignments)
+
+
 def _get_space_queryset_for_user(user, effective_roles, requested_status):
     """
     Builds the SpaceBooking queryset scoped to what this user is allowed to see.
@@ -83,10 +164,6 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     if is_it_admin:
         return base_qs
 
-    # HOD sees their department's bookings only
-    if is_hod and user_dept:
-        return base_qs.filter(user__department=user_dept)
-
     # Scoped approvers — build filter from SpaceApprover assignments
     assignments = (
         SpaceApprover.objects
@@ -94,50 +171,30 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
         .select_related('block', 'space', 'role')
     )
 
-    if not assignments.exists():
+    if not is_hod and not assignments.exists():
         return SpaceBooking.objects.none()
 
-    from django.db.models import Q as DQ
-    scope_filter = DQ()
+    allowed_ids = []
+    assignment_list = list(assignments)
+    for booking in base_qs:
+        hod_can_see = (
+            is_hod
+            and user_dept
+            and getattr(booking.user, 'department_id', None) == user_dept.id
+            and _is_cs_ai_lab_booking(booking)
+        )
+        assignment_can_see = any(
+            _matches_space_approver_assignment(booking, assignment)
+            for assignment in assignment_list
+        )
 
-    for assignment in assignments:
-        role_name = assignment.role.name
+        if hod_can_see or assignment_can_see:
+            allowed_ids.append(booking.id)
 
-        if role_name == Role.Name.RECEPTIONIST:
-            # RECEPTIONIST: all GENERAL spaces in their assigned block
-            if assignment.scope_type == 'BLOCK' and assignment.block:
-                scope_filter |= DQ(
-                    space__block=assignment.block,
-                    space__approval_category='GENERAL',
-                )
-            elif assignment.scope_type == 'SPACE' and assignment.space:
-                scope_filter |= DQ(space=assignment.space)
-
-        elif role_name == Role.Name.LAB_INCHARGE:
-            # LAB_INCHARGE: specific lab spaces they are assigned to
-            if assignment.scope_type == 'SPACE' and assignment.space:
-                scope_filter |= DQ(space=assignment.space)
-            elif assignment.scope_type == 'BLOCK' and assignment.block:
-                scope_filter |= DQ(
-                    space__block=assignment.block,
-                    space__approval_category='LAB',
-                )
-
-        elif role_name == Role.Name.LIBRARIAN:
-            # LIBRARIAN: all LIBRARY spaces in their assigned block
-            if assignment.scope_type == 'BLOCK' and assignment.block:
-                scope_filter |= DQ(
-                    space__block=assignment.block,
-                    space__approval_category='LIBRARY',
-                )
-            elif assignment.scope_type == 'SPACE' and assignment.space:
-                scope_filter |= DQ(space=assignment.space)
-
-    # If no valid scope was built, return nothing
-    if not scope_filter.children:
+    if not allowed_ids:
         return SpaceBooking.objects.none()
 
-    return base_qs.filter(scope_filter)
+    return base_qs.filter(id__in=allowed_ids)
 
 
 # ==========================================
@@ -315,6 +372,23 @@ class AdminResolveBookingAPIView(APIView):
 
     GROUP_AWARE_MODULES = {'spaces'}
 
+    def _can_resolve_booking(self, module, booking, user):
+        effective_roles = user.get_effective_roles()
+
+        if Role.Name.IT_ADMIN in effective_roles:
+            return True
+
+        if module == 'spaces':
+            return _user_can_resolve_space_booking(user, effective_roles, booking)
+        if module == 'fleet':
+            return Role.Name.FLEET_MANAGER in effective_roles
+        if module == 'mess':
+            return Role.Name.MESS_MANAGER in effective_roles
+        if module == 'media':
+            return Role.Name.MEDIA_INCHARGE in effective_roles
+
+        return False
+
     def patch(self, request):
         module     = request.data.get('module')
         booking_id = request.data.get('id')
@@ -344,6 +418,12 @@ class AdminResolveBookingAPIView(APIView):
             booking = model_class.objects.get(id=booking_id)
         except model_class.DoesNotExist:
             return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._can_resolve_booking(module, booking, request.user):
+            return Response(
+                {"error": "You are not authorized to resolve this booking."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         if new_status == 'APPROVED' and booking.status != 'PENDING':
             return Response(

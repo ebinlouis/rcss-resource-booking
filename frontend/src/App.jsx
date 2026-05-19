@@ -57,9 +57,10 @@ function App() {
 
               <Route path="/admin" element={<AdminDashboard />} />
 
-              {/* ── Shared Admin Routes ── */}
-              {/* Lifted equipment route so Media Team can also manage the dynamic inventory */}
-              <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
+              {/* ── Shared Equipment Admin ── */}
+              <Route element={<ProtectedRoute requiredCapability="can_manage_equipment" />}>
+                <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
+              </Route>
 
               {/* ── Mess admin ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_mess" />}>

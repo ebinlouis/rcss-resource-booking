@@ -99,6 +99,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
                 "can_manage_system":         True,
                 "can_manage_spaces":         True,
                 "can_manage_labs":           True,
+                "can_manage_equipment":      True,
                 "can_manage_mess":           False,
                 "can_manage_media":          False,
                 "can_manage_fleet":          True,
@@ -125,6 +126,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             Role.Name.RECEPTIONIST,
             Role.Name.LAB_INCHARGE,
             Role.Name.LIBRARIAN,
+            Role.Name.HOD,
             Role.Name.IT_ADMIN,
         }
 
@@ -132,6 +134,11 @@ class CustomUserSerializer(serializers.ModelSerializer):
         LAB_MANAGEMENT_ROLES = {
             Role.Name.LAB_INCHARGE,
             Role.Name.HOD,
+            Role.Name.IT_ADMIN,
+        }
+        EQUIPMENT_MANAGEMENT_ROLES = {
+            Role.Name.LAB_INCHARGE,
+            Role.Name.MEDIA_INCHARGE,
             Role.Name.IT_ADMIN,
         }
 
@@ -147,6 +154,9 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
             # Lab In-charge, HOD, IT_ADMIN
             "can_manage_labs": bool(roles & LAB_MANAGEMENT_ROLES),
+
+            # IT Admin, Lab In-charge, Media In-charge
+            "can_manage_equipment": bool(roles & EQUIPMENT_MANAGEMENT_ROLES),
 
             # Mess Manager only (IT_ADMIN excluded per product decision)
             "can_manage_mess": Role.Name.MESS_MANAGER in roles,

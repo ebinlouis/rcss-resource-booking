@@ -195,3 +195,16 @@ class IsAdminOrReadOnly(HasRoleOrReadOnly):
     Used for Space, Equipment catalog endpoints.
     """
     required_roles = [Role.Name.IT_ADMIN]
+
+
+class IsEquipmentManagerOrReadOnly(HasRoleOrReadOnly):
+    """
+    Safe methods open to all authenticated users.
+    Equipment catalog writes are allowed for IT Admin, Lab In-Charge, and
+    Media In-Charge because both lab rooms and media workflows manage gear.
+    """
+    required_roles = [
+        Role.Name.IT_ADMIN,
+        Role.Name.LAB_INCHARGE,
+        Role.Name.MEDIA_INCHARGE,
+    ]

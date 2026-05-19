@@ -310,9 +310,10 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                         onChange={(e) => setSelectedSpaceId(e.target.value)}
                                     >
                                         <option value="" disabled>-- Select Space --</option>
-                                        {spaces.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} ({s.room_number})</option>
-                                        ))}
+                                        {spaces.map(s => {
+                                            const suffix = s.room_number ? ` (${s.room_number})` : '';
+                                            return <option key={s.id} value={s.id}>{s.name}{suffix}</option>;
+                                        })}
                                     </select>
                                 </div>
                             )}
