@@ -1,6 +1,7 @@
 import api from './axios'; 
 
 const API_PREFIX = 'auth/';
+const SPACES_PREFIX = 'spaces/';
 
 const roleOverrideService = {
     /**
@@ -18,8 +19,7 @@ const roleOverrideService = {
 
     /**
      * Grant a new role override to a user.
-     * @param {Object} data - The override data { user: ID, overridden_role: ID, expires_at: ISO-String }.
-     * @returns {Promise<Object>} The created override object.
+     * Payload includes user, role (TextChoice), expires_at, and optional scope_type, block, space.
      */
     grantOverride: async (data) => {
         const response = await api.post(`${API_PREFIX}role-overrides/`, data);
@@ -27,20 +27,15 @@ const roleOverrideService = {
     },
 
     /**
-     * Revoke an active override (Soft delete / deactivate).
-     * @param {number|string} id - The ID of the override to revoke.
-     * @returns {Promise<Object>} The updated override object.
+     * Revoke an active override via the dedicated backend action.
      */
     revokeOverride: async (id) => {
-        const response = await api.patch(`${API_PREFIX}role-overrides/${id}/`, {
-            is_active: false
-        });
+        const response = await api.post(`${API_PREFIX}role-overrides/${id}/revoke/`);
         return response.data;
     },
 
     /**
-     * Fetch available roles/groups from the system to populate the grant form.
-     * @returns {Promise<Array>} List of available role objects (e.g., [{id: 1, name: 'IT_ADMIN'}]).
+     * Fetch available roles from the system (now TextChoices).
      */
     getRoles: async () => {
         const response = await api.get(`${API_PREFIX}roles/`);
@@ -49,11 +44,25 @@ const roleOverrideService = {
 
     /**
      * Search users by name, email, or ID for the autocomplete dropdown.
-     * @param {string} query - The search string.
-     * @returns {Promise<Array>} List of matching user objects.
      */
     searchUsers: async (query) => {
         const response = await api.get(`${API_PREFIX}users/search/?q=${encodeURIComponent(query)}`);
+        return response.data;
+    },
+
+    /**
+     * Fetch all blocks for scoping.
+     */
+    getBlocks: async () => {
+        const response = await api.get(`${SPACES_PREFIX}blocks/`);
+        return response.data;
+    },
+
+    /**
+     * Fetch all spaces for scoping.
+     */
+    getSpaces: async () => {
+        const response = await api.get(`${SPACES_PREFIX}catalog/`);
         return response.data;
     }
 };

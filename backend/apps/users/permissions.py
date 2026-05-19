@@ -1,117 +1,43 @@
 from rest_framework import permissions
-from django.utils import timezone
-from django.db.models import Q
-from .models import RoleOverride
+from .models import Role
 
 
-def _normalize(role):
-    return (role or "").strip().lower().replace("_", " ")
+# ==========================================
+# BASE ENGINE
+# ==========================================
 
-
-class IsSuperUser(permissions.BasePermission):
+class HasRole(permissions.BasePermission):
     """
-    Strictly for Django admin access only.
-    Never use this to gate application module endpoints.
-    """
+    Base permission class for all role-based checks.
 
-    def has_permission(self, request, view):
-        return bool(
-            request.user and request.user.is_authenticated and request.user.is_superuser
-        )
+    Subclasses declare required_roles as a list of Role.Name values.
+    A user passes if their effective role set (base roles + active overrides)
+    intersects with required_roles.
 
+    is_superuser and is_staff grant NO access here — those are Django admin
+    concerns only. All module access must be explicitly assigned via roles M2M
+    or RoleOverride, like any other user.
 
-class HasDynamicRole(permissions.BasePermission):
-    """
-    Base permission engine. Checks if the user holds one of the
-    required_roles either permanently (user.role FK) or via an
-    active, unexpired RoleOverride.
-
-    All comparisons are case-insensitive — DB casing ('Mess', 'MESS',
-    'mess') is irrelevant. Define required_roles as lowercase strings.
-
-    is_superuser and is_staff grant NO access here — those flags are
-    Django-admin concerns only. Module access must always be explicitly
-    assigned via RoleOverride or user.role, like any other user.
+    Usage:
+        class IsReceptionist(HasRole):
+            required_roles = [Role.Name.RECEPTIONIST, Role.Name.IT_ADMIN]
     """
 
-    required_roles = []  # define as lowercase strings in subclasses
-
-    def _normalized_required(self):
-        return [_normalize(r) for r in self.required_roles]
+    required_roles: list = []
 
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
             return False
 
-        normalized = self._normalized_required()
-
-        # 1. Permanent role check
-        if (
-            getattr(request.user, "role", None)
-            and _normalize(request.user.role.name) in normalized
-        ):
-            return True
-
-        # 2. Active RoleOverride check
-        # Fetch all active override role names and normalize in Python
-        # to avoid case-sensitive DB filtering issues.
-        now = timezone.now()
-        active_role_names = (
-            RoleOverride.objects.filter(
-                user=request.user,
-                is_active=True,
-            )
-            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
-            .values_list("overridden_role__name", flat=True)
-        )
-
-        return any(_normalize(name) in normalized for name in active_role_names)
+        effective = request.user.get_effective_roles()
+        return bool(effective & set(self.required_roles))
 
 
-# Concrete permission classes
-# required_roles as lowercase — _normalize() handles any DB casing variation.
-
-
-class IsITAdmin(HasDynamicRole):
-    """System configuration, user management, role grants."""
-
-    required_roles = ["it admin"]
-
-
-class IsDepartmentHead(HasDynamicRole):
-    """HOD-level approvals and department reports."""
-
-    required_roles = ["hod", "it admin"]
-
-
-class IsApprover(HasDynamicRole):
-    """Unified approval queue — HODs and IT Admin."""
-
-    required_roles = ["hod", "it admin"]
-
-
-class IsMessAdmin(HasDynamicRole):
-    """Mess / catering module — approve, reject, view all bookings."""
-
-    required_roles = ["mess"]
-
-
-class IsMediaAdmin(HasDynamicRole):
-    """Media module — approve, reject, view all bookings."""
-
-    required_roles = ["media"]
-
-
-class CanBookResource(HasDynamicRole):
-    """Anyone with a recognised institutional role can submit bookings."""
-
-    required_roles = ["faculty", "staff", "it admin", "hod", "student"]
-
-
-class IsAdminOrReadOnly(HasDynamicRole):
-    """Safe methods open to all authenticated users; writes restricted to IT Admin."""
-
-    required_roles = ["it admin"]
+class HasRoleOrReadOnly(HasRole):
+    """
+    Safe methods (GET, HEAD, OPTIONS) pass for any authenticated user.
+    Unsafe methods require the declared required_roles.
+    """
 
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
@@ -119,3 +45,153 @@ class IsAdminOrReadOnly(HasDynamicRole):
         if request.method in permissions.SAFE_METHODS:
             return True
         return super().has_permission(request, view)
+
+
+# ==========================================
+# SYSTEM
+# ==========================================
+
+class IsITAdmin(HasRole):
+    """Full system access. Testing backdoor — always included in every approver class."""
+    required_roles = [Role.Name.IT_ADMIN]
+
+
+# ==========================================
+# SPACE DOMAIN
+# ==========================================
+
+class IsReceptionist(HasRole):
+    """
+    Approves space bookings for their assigned block(s).
+    Does not see labs or library spaces.
+    Scope (which block) is enforced at the queryset level, not here.
+    """
+    required_roles = [Role.Name.RECEPTIONIST, Role.Name.IT_ADMIN]
+
+
+class IsLabIncharge(HasRole):
+    """
+    Approves lab bookings for their assigned lab(s).
+    Scope (which lab) is enforced at the queryset level, not here.
+    """
+    required_roles = [Role.Name.LAB_INCHARGE, Role.Name.IT_ADMIN]
+
+
+class IsLibrarian(HasRole):
+    """Approves library space bookings."""
+    required_roles = [Role.Name.LIBRARIAN, Role.Name.IT_ADMIN]
+
+
+class IsPrincipal(HasRole):
+    """
+    Can view all approved space bookings and cancel/rebook.
+    Cannot approve other users' pending bookings.
+    """
+    required_roles = [Role.Name.PRINCIPAL, Role.Name.IT_ADMIN]
+
+
+class IsHOD(HasRole):
+    """
+    Approves AI Lab bookings, scoped to their department.
+    Scope (department) is enforced at the queryset level, not here.
+    """
+    required_roles = [Role.Name.HOD, Role.Name.IT_ADMIN]
+
+
+class IsSpaceApprover(HasRole):
+    """
+    Union permission: any role that can approve something in the spaces domain.
+    Used by the unified approval queue endpoint to gate access.
+    The queryset inside the view handles scoping to what each role actually sees.
+    """
+    required_roles = [
+        Role.Name.RECEPTIONIST,
+        Role.Name.LAB_INCHARGE,
+        Role.Name.LIBRARIAN,
+        Role.Name.HOD,
+        Role.Name.PRINCIPAL,
+        Role.Name.IT_ADMIN,
+    ]
+
+
+# ==========================================
+# OTHER DOMAIN APPROVERS
+# ==========================================
+
+class IsMessManager(HasRole):
+    """Approves mess/catering bookings."""
+    required_roles = [Role.Name.MESS_MANAGER, Role.Name.IT_ADMIN]
+
+
+class IsMediaIncharge(HasRole):
+    """Approves media equipment bookings."""
+    required_roles = [Role.Name.MEDIA_INCHARGE, Role.Name.IT_ADMIN]
+
+
+class IsFleetManager(HasRole):
+    """Approves vehicle bookings. Fleet module not yet built — role defined for future use."""
+    required_roles = [Role.Name.FLEET_MANAGER, Role.Name.IT_ADMIN]
+
+
+# ==========================================
+# GENERAL APPROVER (unified queue gate)
+# ==========================================
+
+class IsApprover(HasRole):
+    """
+    Gates access to the unified approval queue endpoint.
+    Any role that manages any approval domain passes.
+    IT_ADMIN included as the testing/override backdoor.
+
+    Note: passing this permission does NOT mean the user sees all domains.
+    The view's _get_domain_querysets() scopes each domain independently.
+    """
+    required_roles = [
+        Role.Name.RECEPTIONIST,
+        Role.Name.LAB_INCHARGE,
+        Role.Name.LIBRARIAN,
+        Role.Name.HOD,
+        Role.Name.MESS_MANAGER,
+        Role.Name.MEDIA_INCHARGE,
+        Role.Name.FLEET_MANAGER,
+        Role.Name.PRINCIPAL,
+        Role.Name.IT_ADMIN,
+    ]
+
+
+# ==========================================
+# BOOKING SUBMITTERS
+# ==========================================
+
+class CanBookResource(HasRole):
+    """
+    Any user with a recognised institutional role can submit bookings.
+    Students, faculty, staff — and also approver roles (they can book too).
+    """
+    required_roles = [
+        Role.Name.STUDENT,
+        Role.Name.FACULTY,
+        Role.Name.STAFF,
+        Role.Name.HOD,
+        Role.Name.RECEPTIONIST,
+        Role.Name.LAB_INCHARGE,
+        Role.Name.LIBRARIAN,
+        Role.Name.MESS_MANAGER,
+        Role.Name.MEDIA_INCHARGE,
+        Role.Name.FLEET_MANAGER,
+        Role.Name.PRINCIPAL,
+        Role.Name.IT_ADMIN,
+    ]
+
+
+# ==========================================
+# CATALOG MANAGEMENT (read-only for all, write for IT_ADMIN)
+# ==========================================
+
+class IsAdminOrReadOnly(HasRoleOrReadOnly):
+    """
+    Safe methods open to all authenticated users.
+    Writes (POST/PUT/PATCH/DELETE) restricted to IT_ADMIN.
+    Used for Space, Equipment catalog endpoints.
+    """
+    required_roles = [Role.Name.IT_ADMIN]
