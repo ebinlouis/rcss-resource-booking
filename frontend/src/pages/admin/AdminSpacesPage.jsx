@@ -85,6 +85,11 @@ function SpaceCard({ space, onEdit }) {
               Special
             </span>
           )}
+          {space.approval_workflow_type === "HOD_FALLBACK" && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-blue-50 text-blue-700 border-blue-200">
+              HOD fallback
+            </span>
+          )}
         </div>
 
         {/* Active dot */}

@@ -8,7 +8,7 @@ from datetime import timedelta
 from apps.users.permissions import IsApprover
 from apps.users.models import Role
 
-from apps.spaces.models import SpaceBooking, SpaceApprover
+from apps.spaces.models import Space, SpaceBooking, SpaceApprover
 from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
@@ -19,7 +19,7 @@ from apps.media.models import MediaBooking
 # ==========================================
 
 VALID_DOMAINS = {'spaces', 'fleet', 'mess', 'media'}
-AI_LAB_FALLBACK_HOURS = getattr(settings, 'AI_LAB_HOD_FALLBACK_HOURS', 24)
+AI_LAB_FALLBACK_HOURS = settings.AI_LAB_HOD_FALLBACK_HOURS
 
 
 # ==========================================
@@ -60,12 +60,8 @@ def _normalise(value):
     return str(value or '').strip().lower()
 
 
-def _is_ai_lab(space):
-    name = _normalise(getattr(space, 'name', ''))
-    return (
-        getattr(space, 'approval_category', None) == 'LAB'
-        and ('ai lab' in name or 'artificial intelligence' in name)
-    )
+def _uses_hod_fallback_workflow(space):
+    return getattr(space, 'approval_workflow_type', None) == Space.ApprovalWorkflowType.HOD_FALLBACK
 
 
 def _is_cs_department(department):
@@ -77,8 +73,8 @@ def _is_cs_department(department):
     return code in {'cs', 'cse'} or name in {'cs', 'cse'} or 'computer science' in name
 
 
-def _is_cs_ai_lab_booking(booking):
-    return _is_ai_lab(booking.space) and _is_cs_department(getattr(booking.user, 'department', None))
+def _is_cs_hod_fallback_booking(booking):
+    return _uses_hod_fallback_workflow(booking.space) and _is_cs_department(getattr(booking.user, 'department', None))
 
 
 def _ai_lab_fallback_ready(booking):
@@ -97,7 +93,7 @@ def _matches_space_approver_assignment(booking, assignment):
             return space.id == assignment.space_id
 
     if role_name == Role.Name.LAB_INCHARGE:
-        if _is_cs_ai_lab_booking(booking) and booking.status == 'PENDING' and not _ai_lab_fallback_ready(booking):
+        if _is_cs_hod_fallback_booking(booking) and booking.status == 'PENDING' and not _ai_lab_fallback_ready(booking):
             return False
         if assignment.scope_type == 'SPACE' and assignment.space:
             return space.id == assignment.space_id
@@ -122,7 +118,7 @@ def _user_can_resolve_space_booking(user, effective_roles, booking):
         Role.Name.HOD in effective_roles
         and user_dept
         and getattr(booking.user, 'department_id', None) == user_dept.id
-        and _is_cs_ai_lab_booking(booking)
+        and _is_cs_hod_fallback_booking(booking)
     ):
         return True
 
@@ -181,7 +177,7 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
             is_hod
             and user_dept
             and getattr(booking.user, 'department_id', None) == user_dept.id
-            and _is_cs_ai_lab_booking(booking)
+            and _is_cs_hod_fallback_booking(booking)
         )
         assignment_can_see = any(
             _matches_space_approver_assignment(booking, assignment)

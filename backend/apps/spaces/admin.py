@@ -64,8 +64,8 @@ class SpaceApproverAdmin(admin.ModelAdmin):
 
 @admin.register(Space)
 class SpaceAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'location', 'block', 'space_type', 'approval_category', 'capacity_hard', 'is_active', 'is_lab')
-    list_filter   = ('space_type', 'approval_category', 'is_active', 'is_lab', 'block')
+    list_display  = ('name', 'location', 'block', 'space_type', 'approval_category', 'approval_workflow_type', 'capacity_hard', 'is_active', 'is_lab')
+    list_filter   = ('space_type', 'approval_category', 'approval_workflow_type', 'is_active', 'is_lab', 'block')
     search_fields = ('name', 'description', 'location')
     list_editable = ('is_active',)
     inlines       = [SpaceEquipmentInline]
@@ -76,9 +76,10 @@ class SpaceAdmin(admin.ModelAdmin):
         ('Block & Approval Routing', {
             'description': (
                 'block scopes RECEPTIONIST assignments. '
-                'approval_category determines which role type approves bookings here.'
+                'approval_category determines which role type approves bookings here. '
+                'approval_workflow_type enables hierarchical approval for special spaces like the AI Lab.'
             ),
-            'fields': ('block', 'approval_category'),
+            'fields': ('block', 'approval_category', 'approval_workflow_type'),
         }),
         ('Capacity & Purpose', {
             'fields': ('capacity_hard', 'is_special_purpose', 'is_lab')

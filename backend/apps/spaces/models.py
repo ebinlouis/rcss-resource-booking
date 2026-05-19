@@ -46,6 +46,10 @@ class Space(models.Model):
         LAB     = 'LAB',     'Lab'       # approved by LAB_INCHARGE / HOD
         LIBRARY = 'LIBRARY', 'Library'   # approved by LIBRARIAN
 
+    class ApprovalWorkflowType(models.TextChoices):
+        DIRECT       = 'DIRECT',       'Direct Approver'
+        HOD_FALLBACK = 'HOD_FALLBACK', 'HOD with Fallback'
+
     name               = models.CharField(max_length=100)
     space_type         = models.CharField(max_length=20, choices=SpaceType.choices)
     approval_category  = models.CharField(
@@ -53,6 +57,12 @@ class Space(models.Model):
         choices=ApprovalCategory.choices,
         default=ApprovalCategory.GENERAL,
         help_text='Determines which role type approves bookings for this space.',
+    )
+    approval_workflow_type = models.CharField(
+        max_length=30,
+        choices=ApprovalWorkflowType.choices,
+        default=ApprovalWorkflowType.DIRECT,
+        help_text='Determines whether approvals are direct or routed through a hierarchical fallback workflow.',
     )
     block              = models.ForeignKey(
         Block,
