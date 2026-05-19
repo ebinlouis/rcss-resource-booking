@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
     { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
+    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/blocks',         label: 'Blocks',          end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/users',          label: 'Users',           end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/approvers',      label: 'Space Approvers', end: false, capability: (c) => c?.can_manage_system },

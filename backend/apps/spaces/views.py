@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 
-from apps.users.permissions import IsAdminOrReadOnly, IsITAdmin, IsPrincipal
+from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
 from .serializers import (
@@ -26,7 +26,7 @@ from .utils import get_overlapping_bookings, build_conflict_report
 
 class EquipmentViewSet(viewsets.ModelViewSet):
     serializer_class   = EquipmentSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsEquipmentManagerOrReadOnly]
 
     def get_queryset(self):
         qs = Equipment.objects.filter(is_active=True)

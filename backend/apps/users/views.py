@@ -118,10 +118,13 @@ def _build_user_response(user):
     }
     SPACE_MANAGEMENT_ROLES = {
         Role.Name.RECEPTIONIST, Role.Name.LAB_INCHARGE,
-        Role.Name.LIBRARIAN, Role.Name.IT_ADMIN,
+        Role.Name.LIBRARIAN, Role.Name.HOD, Role.Name.IT_ADMIN,
     }
     LAB_MANAGEMENT_ROLES = {
         Role.Name.LAB_INCHARGE, Role.Name.HOD, Role.Name.IT_ADMIN,
+    }
+    EQUIPMENT_MANAGEMENT_ROLES = {
+        Role.Name.LAB_INCHARGE, Role.Name.MEDIA_INCHARGE, Role.Name.IT_ADMIN,
     }
 
     capabilities = {
@@ -129,6 +132,7 @@ def _build_user_response(user):
         'can_manage_system':         Role.Name.IT_ADMIN in effective_roles,
         'can_manage_spaces':         bool(effective_roles & SPACE_MANAGEMENT_ROLES),
         'can_manage_labs':           bool(effective_roles & LAB_MANAGEMENT_ROLES),
+        'can_manage_equipment':      bool(effective_roles & EQUIPMENT_MANAGEMENT_ROLES),
         'can_manage_mess':           Role.Name.MESS_MANAGER in effective_roles,
         'can_manage_media':          Role.Name.MEDIA_INCHARGE in effective_roles,
         'can_manage_fleet':          Role.Name.FLEET_MANAGER in effective_roles,
@@ -142,6 +146,7 @@ def _build_user_response(user):
             'can_manage_system':         True,
             'can_manage_spaces':         True,
             'can_manage_labs':           True,
+            'can_manage_equipment':      True,
             'can_manage_mess':           False,
             'can_manage_media':          False,
             'can_manage_fleet':          True,
