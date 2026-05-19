@@ -364,8 +364,7 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        # Automatically attach the IT Admin who is creating this assignment
-        serializer.save(granted_by=self.request.user)
+        serializer.save()
 
     def perform_destroy(self, instance):
         user = instance.user

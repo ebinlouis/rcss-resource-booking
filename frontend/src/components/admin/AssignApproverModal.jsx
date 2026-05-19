@@ -4,6 +4,10 @@ import spaceAdminService from '../../api/spaceAdminService';
 
 const SCOPED_APPROVER_ROLES = ['RECEPTIONIST', 'LAB_INCHARGE', 'LIBRARIAN'];
 
+const getRoleValue = (role) => String(role.id ?? role.value ?? role.name ?? role);
+const getRoleName = (role) => String(role.name ?? role.value ?? role);
+const getRoleLabel = (role) => role.display_name || role.label || role.name || role;
+
 const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
     const [selectedUser, setSelectedUser] = useState(null); 
     const [searchTerm, setSearchTerm] = useState('');
@@ -11,7 +15,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
     const [isSearching, setIsSearching] = useState(false);
 
     const [selectedRole, setSelectedRole] = useState('');
-    const [scopeType, setScopeType] = useState('GLOBAL');
+    const [scopeType, setScopeType] = useState('BLOCK');
     const [selectedBlockId, setSelectedBlockId] = useState('');
     const [selectedSpaceId, setSelectedSpaceId] = useState('');
     
@@ -22,6 +26,8 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
     const [blocks, setBlocks] = useState([]);
     const [spaces, setSpaces] = useState([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
+
+    const scopedRoles = roles.filter((role) => SCOPED_APPROVER_ROLES.includes(getRoleName(role)));
 
     useEffect(() => {
         let isMounted = true;
@@ -84,16 +90,10 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
     }, [searchTerm, isOpen, selectedUser]);
 
     const handleRoleChange = (e) => {
-        const newRole = e.target.value;
-        setSelectedRole(newRole);
-        
-        if (SCOPED_APPROVER_ROLES.includes(newRole)) {
-            setScopeType('BLOCK'); 
-        } else {
-            setScopeType('GLOBAL');
-            setSelectedBlockId('');
-            setSelectedSpaceId('');
-        }
+        setSelectedRole(e.target.value);
+        setScopeType('BLOCK');
+        setSelectedBlockId('');
+        setSelectedSpaceId('');
     };
 
     const handleCloseModal = () => {
@@ -101,7 +101,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
         setSearchTerm('');
         setSearchResults([]);
         setSelectedRole('');
-        setScopeType('GLOBAL');
+        setScopeType('BLOCK');
         setSelectedBlockId('');
         setSelectedSpaceId('');
         setError(null);
@@ -127,8 +127,6 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
             } else if (scopeType === 'SPACE') {
                 payload.scope_type = 'SPACE';
                 payload.space = parseInt(selectedSpaceId);
-            } else {
-                payload.scope_type = 'GLOBAL';
             }
 
             await spaceAdminService.createApprover(payload);
@@ -153,15 +151,15 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
         }
     };
 
-    const isRoleScoped = SCOPED_APPROVER_ROLES.includes(selectedRole);
+    const isRoleScoped = Boolean(selectedRole);
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 overflow-visible max-h-[90vh] overflow-y-auto">
                 
-                <h3 className="text-base font-bold text-gray-900 mb-1">Assign Permanent Role</h3>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Assign Space Approver</h3>
                 <p className="text-xs text-gray-500 mb-5">
-                    Assign a static jurisdiction and administrative role to a staff member.
+                    Give a user a scoped keycard for a block or one specific space. The matching role badge is added automatically.
                 </p>
 
                 {error && (
@@ -252,9 +250,9 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                             <option value="" disabled>
                                 {isLoadingData ? "Loading..." : "-- Select Role --"}
                             </option>
-                            {roles.map(r => {
-                                const val = r.id || r.value || r;
-                                const label = r.name || r.label || r;
+                            {scopedRoles.map(r => {
+                                const val = getRoleValue(r);
+                                const label = getRoleLabel(r);
                                 return <option key={val} value={val}>{label}</option>;
                             })}
                         </select>

@@ -15,7 +15,7 @@ from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
 
 from .models import RoleOverride, Department, CustomUser, Role
-from .serializers import RoleOverrideSerializer, DepartmentSerializer
+from .serializers import AdminUserSerializer, RoleOverrideSerializer, DepartmentSerializer
 from .permissions import IsITAdmin
 
 
@@ -335,13 +335,75 @@ class RoleOverrideViewSet(ModelViewSet):
         return Response({'message': 'Access successfully revoked.'}, status=status.HTTP_200_OK)
 
 
+class AdminUserViewSet(ModelViewSet):
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAuthenticated, IsITAdmin]
+    http_method_names = ['get', 'patch', 'head', 'options', 'post']
+
+    def get_queryset(self):
+        queryset = (
+            CustomUser.objects
+            .select_related('department')
+            .prefetch_related('roles')
+            .order_by('first_name', 'last_name', 'email')
+        )
+
+        query = self.request.query_params.get('q', '').strip()
+        role_name = self.request.query_params.get('role', '').strip().upper()
+
+        if query:
+            queryset = queryset.filter(
+                Q(email__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+                | Q(employee_student_id__icontains=query)
+                | Q(phone__icontains=query)
+            )
+
+        if role_name:
+            queryset = queryset.filter(roles__name=role_name)
+
+        return queryset.distinct()
+
+    @action(detail=True, methods=['post'], url_path='set-roles')
+    def set_roles(self, request, pk=None):
+        """
+        Controller action for IT Admin badge updates.
+        URL: POST /api/auth/admin-users/<id>/set-roles/
+        Body: {"roles": [1, 2, 3]}
+        """
+        if not isinstance(request.data.get('roles'), list):
+            return Response(
+                {'roles': 'Expected a list of role IDs.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = self.get_object()
+        serializer = self.get_serializer(
+            user,
+            data={'roles': request.data.get('roles')},
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class RoleListView(APIView):
     """Returns all available roles. Used by IT Admin when assigning roles."""
     permission_classes = [IsAuthenticated, IsITAdmin]
 
     def get(self, request):
-        roles = Role.objects.all().values('id', 'name', 'description')
-        return Response(list(roles))
+        roles = Role.objects.all().order_by('name')
+        return Response([
+            {
+                'id': role.id,
+                'name': role.name,
+                'display_name': role.get_name_display(),
+                'description': role.description,
+            }
+            for role in roles
+        ])
 
 
 class UserSearchView(APIView):

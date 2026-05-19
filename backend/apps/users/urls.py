@@ -7,6 +7,7 @@ from .views import (
     LogoutView, 
     CurrentUserView, 
     DashboardAPIView,
+    AdminUserViewSet,
     RoleOverrideViewSet,
     DepartmentViewSet,
     RoleListView, 
@@ -16,6 +17,7 @@ from .views import (
 
 # Initialize the router for viewsets
 router = DefaultRouter()
+router.register('admin-users', AdminUserViewSet, basename='admin-user')
 router.register('role-overrides', RoleOverrideViewSet, basename='role-override')
 router.register('departments', DepartmentViewSet, basename='department')
 

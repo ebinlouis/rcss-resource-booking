@@ -23,6 +23,7 @@ import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage";
 import AdminTransportPage from "./pages/admin/AdminTransportPage";
 import AdminMess from "./pages/admin/AdminMess";
 import AdminMediaPage from "./pages/admin/AdminMediaPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
 
 // New Space Scoping Pages
 import BlocksManagement from "./pages/admin/BlocksManagement";
@@ -75,6 +76,7 @@ function App() {
               <Route element={<ProtectedRoute requiredCapability="can_manage_system" />}>
                 <Route path="/admin/spaces" element={<AdminSpacesPage />} />
                 <Route path="/admin/blocks" element={<BlocksManagement />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route path="/admin/approvers" element={<SpaceApproversManagement />} />
                 <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
                 <Route path="/admin/transport" element={<AdminTransportPage />} />

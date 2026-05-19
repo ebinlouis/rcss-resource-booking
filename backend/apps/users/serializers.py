@@ -160,3 +160,81 @@ class CustomUserSerializer(serializers.ModelSerializer):
             # Principal only — separate view: see all approved, cancel + rebook
             "can_manage_principal_view": Role.Name.PRINCIPAL in roles,
         }
+
+
+# ==========================================
+# ADMIN USER SERIALIZER
+# ==========================================
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(
+        source='department.department_name', read_only=True, default=None
+    )
+    roles = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(),
+        many=True,
+        required=False,
+    )
+    role_details = serializers.SerializerMethodField()
+    effective_roles = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'email',
+            'employee_student_id',
+            'first_name',
+            'last_name',
+            'phone',
+            'designation',
+            'department',
+            'department_name',
+            'roles',
+            'role_details',
+            'effective_roles',
+            'is_active',
+            'is_superuser',
+            'date_joined',
+        ]
+        read_only_fields = [
+            'id',
+            'email',
+            'employee_student_id',
+            'first_name',
+            'last_name',
+            'phone',
+            'designation',
+            'department',
+            'department_name',
+            'role_details',
+            'effective_roles',
+            'is_active',
+            'is_superuser',
+            'date_joined',
+        ]
+
+    def get_role_details(self, obj):
+        return [
+            {
+                'id': role.id,
+                'name': role.name,
+                'display_name': role.get_name_display(),
+                'description': role.description,
+            }
+            for role in obj.roles.all().order_by('name')
+        ]
+
+    def get_effective_roles(self, obj):
+        if obj.is_superuser:
+            return [Role.Name.IT_ADMIN]
+        return sorted(obj.get_effective_roles())
+
+    def update(self, instance, validated_data):
+        roles = validated_data.pop('roles', None)
+        instance = super().update(instance, validated_data)
+
+        if roles is not None:
+            instance.roles.set(roles)
+
+        return instance

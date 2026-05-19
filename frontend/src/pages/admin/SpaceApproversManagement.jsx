@@ -40,23 +40,30 @@ const SpaceApproversManagement = () => {
         }
     };
 
-    const toggleStatus = async (approver) => {
+    const revokeApprover = async (approver) => {
+        const shouldRevoke = window.confirm(
+            approver.is_last_assignment_for_role
+                ? 'This is the user\'s last active assignment for this role. Revoking it will also remove the role badge from their profile. Continue?'
+                : 'Revoke this scoped approver assignment?'
+        );
+        if (!shouldRevoke) return;
+
         try {
-            await spaceAdminService.updateApprover(approver.id, { is_active: !approver.is_active });
+            await spaceAdminService.deleteApprover(approver.id);
             refreshApprovers();
         } catch {
-            alert("Failed to update status.");
+            alert("Failed to revoke assignment.");
         }
     };
 
     const formatScope = (approver) => {
-        if (approver.scope_type === 'BLOCK' && approver.block_details) {
-            return `Block: ${approver.block_details.name}`;
+        if (approver.scope_type === 'BLOCK' && approver.block_name) {
+            return `Block: ${approver.block_name}`;
         }
-        if (approver.scope_type === 'SPACE' && approver.space_details) {
-            return `Space: ${approver.space_details.name}`;
+        if (approver.scope_type === 'SPACE' && approver.space_name) {
+            return `Space: ${approver.space_name}`;
         }
-        return 'Global';
+        return 'Unscoped';
     };
 
     return (
@@ -64,7 +71,7 @@ const SpaceApproversManagement = () => {
             <div className="flex justify-between items-end mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Space Approvers</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage static role assignments and their physical scopes.</p>
+                    <p className="text-sm text-gray-500 mt-1">Manage scoped keycards for block and space approvers.</p>
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}
@@ -93,27 +100,23 @@ const SpaceApproversManagement = () => {
                             approvers.map(approver => (
                                 <tr key={approver.id} className="hover:bg-gray-50/50 transition">
                                     <td className="px-6 py-4">
-                                        <p className="text-sm font-semibold text-gray-900">{approver.user_details?.name || 'Unknown User'}</p>
-                                        <p className="text-[11px] text-gray-500">{approver.user_details?.email}</p>
+                                        <p className="text-sm font-semibold text-gray-900">{approver.user_name || 'Unknown User'}</p>
+                                        <p className="text-[11px] text-gray-500">{approver.user_email}</p>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 rounded-full text-[11px] font-bold text-green-700 tracking-wide">
-                                            {approver.role}
+                                            {approver.role_display || approver.role}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-700">
                                         {formatScope(approver)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button 
-                                            onClick={() => toggleStatus(approver)}
-                                            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition ${
-                                                approver.is_active 
-                                                ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
+                                        <button
+                                            onClick={() => revokeApprover(approver)}
+                                            className="text-xs font-bold px-3 py-1.5 rounded-lg transition bg-red-50 text-red-600 hover:bg-red-100"
                                         >
-                                            {approver.is_active ? 'Revoke' : 'Reactivate'}
+                                            Revoke
                                         </button>
                                     </td>
                                 </tr>
