@@ -7,6 +7,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 
+from apps.approvals.lifecycle import (
+    can_user_modify_booking,
+    refresh_booking_lifecycle,
+    refresh_queryset_lifecycle,
+)
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
@@ -168,6 +173,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user       = self.request.user
         view_param = self.request.query_params.get('view', 'mine')
+        refresh_queryset_lifecycle(SpaceBooking.objects.all())
 
         if view_param == 'general':
             return (
@@ -207,8 +213,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         serializer.save(**extra_fields)
 
     def perform_destroy(self, instance):
-        if instance.end_datetime < timezone.now():
-            raise ValidationError({"detail": "Cannot cancel a booking that has already expired."})
+        refresh_booking_lifecycle(instance)
+        if not can_user_modify_booking(instance):
+            raise ValidationError({"detail": "Cannot cancel a booking whose start time has already passed."})
         instance.delete()
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
@@ -223,6 +230,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking    = self.get_object()
         new_status = request.data.get('status')
         remarks    = request.data.get('remarks_by_admin', '')
+        refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+        booking.refresh_from_db()
 
         if new_status not in ['APPROVED', 'REJECTED']:
             return Response(
@@ -236,10 +245,27 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if new_status == 'APPROVED' and booking.status != 'PENDING':
+            return Response(
+                {"error": f"Cannot approve a booking that is currently {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
+            return Response(
+                {"error": f"Cannot reject a booking that is currently {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # ── Grouped Update Logic ──────────────────────────────────────────────
         # Safely loops and saves to trigger proper inheritance updates
-        bookings_in_group = SpaceBooking.objects.filter(group_id=booking.group_id)
+        bookings_in_group = SpaceBooking.objects.filter(
+            group_id=booking.group_id,
+            status__in=['PENDING', 'APPROVED'],
+        )
         for b in bookings_in_group:
+            if new_status == 'APPROVED' and b.status != 'PENDING':
+                continue
             b.status           = new_status
             b.remarks_by_admin = remarks
             b.resolved_by      = user
@@ -257,6 +283,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         """
         booking = self.get_object()
         remarks = request.data.get('remarks', '').strip()
+        refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+        booking.refresh_from_db()
 
         if booking.status != 'APPROVED':
             return Response(

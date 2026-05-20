@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from apps.users.permissions import IsApprover
 from apps.users.models import Role
+from apps.approvals.lifecycle import refresh_booking_lifecycle, refresh_queryset_lifecycle
 
 from apps.spaces.models import Space, SpaceBooking, SpaceApprover
 from apps.fleet.models import FleetBooking
@@ -253,6 +254,7 @@ class UnifiedApprovalQueueView(APIView):
             Role.Name.IT_ADMIN,
         })
         if 'spaces' in requested_domains and is_space_approver:
+            refresh_queryset_lifecycle(SpaceBooking.objects.all())
             querysets['spaces'] = _get_space_queryset_for_user(
                 user, effective_roles, requested_status
             )
@@ -269,6 +271,7 @@ class UnifiedApprovalQueueView(APIView):
         # ── Mess ──────────────────────────────────────────────────────────────
         if 'mess' in requested_domains:
             if is_it_admin or Role.Name.MESS_MANAGER in effective_roles:
+                refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus'))
                 querysets['mess'] = (
                     MessBooking.objects
                     .filter(status=requested_status)
@@ -278,6 +281,7 @@ class UnifiedApprovalQueueView(APIView):
         # ── Media ─────────────────────────────────────────────────────────────
         if 'media' in requested_domains:
             if is_it_admin or Role.Name.MEDIA_INCHARGE in effective_roles:
+                refresh_queryset_lifecycle(MediaBooking.objects.all())
                 querysets['media'] = (
                     MediaBooking.objects
                     .filter(status=requested_status)
@@ -330,8 +334,8 @@ class UnifiedApprovalQueueView(APIView):
         elif domain == 'mess':
             return _build_queue_entry(
                 domain, item,
-                start_datetime = getattr(item, 'date_of_programme', getattr(item, 'delivery_time', None)),
-                end_datetime   = getattr(item, 'end_time', None),
+                start_datetime = getattr(item, 'start_date', None),
+                end_datetime   = getattr(item, 'end_date', None),
                 attendee_count = getattr(item, 'total_persons', None),
                 resource_name  = f"Catering ({getattr(item, 'total_persons', 0)} persons)",
                 purpose        = getattr(item, 'purpose_of_programme', 'No purpose provided'),
@@ -341,8 +345,8 @@ class UnifiedApprovalQueueView(APIView):
         elif domain == 'media':
             return _build_queue_entry(
                 domain, item,
-                start_datetime = getattr(item, 'event_date', getattr(item, 'start_datetime', None)),
-                end_datetime   = getattr(item, 'end_datetime', None),
+                start_datetime = getattr(item, 'setup_start_datetime', None),
+                end_datetime   = getattr(item, 'teardown_end_datetime', None),
                 attendee_count = getattr(item, 'attendees', None),
                 resource_name  = "Equipment/Media Support",
                 purpose        = getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided')),
@@ -415,6 +419,13 @@ class AdminResolveBookingAPIView(APIView):
         except model_class.DoesNotExist:
             return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        if module in self.GROUP_AWARE_MODULES:
+            refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+            booking.refresh_from_db()
+        else:
+            refresh_booking_lifecycle(booking)
+            booking.refresh_from_db()
+
         if not self._can_resolve_booking(module, booking, request.user):
             return Response(
                 {"error": "You are not authorized to resolve this booking."},
@@ -463,6 +474,8 @@ class AdminResolveBookingAPIView(APIView):
         )
         resolved_at = timezone.now()
         for sibling in siblings:
+            if new_status == 'APPROVED' and sibling.status != 'PENDING':
+                continue
             sibling.status      = new_status
             sibling.resolved_by = resolved_by
             sibling.resolved_at = resolved_at
