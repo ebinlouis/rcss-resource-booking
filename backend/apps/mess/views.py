@@ -6,6 +6,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
+from apps.approvals.lifecycle import (
+    can_user_modify_booking,
+    refresh_booking_lifecycle,
+    refresh_queryset_lifecycle,
+)
 from apps.mess.models import MessBooking
 from apps.mess.serializers import MessBookingSerializer
 from apps.users.models import Role
@@ -29,9 +34,10 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus'))
         if _is_mess_admin(user):
-            return MessBooking.objects.all().order_by('-created_at')
-        return MessBooking.objects.filter(user=user).order_by('-created_at')
+            return MessBooking.objects.prefetch_related('daily_menus').all().order_by('-created_at')
+        return MessBooking.objects.prefetch_related('daily_menus').filter(user=user).order_by('-created_at')
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -49,9 +55,16 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
+    def perform_destroy(self, instance):
+        refresh_booking_lifecycle(instance)
+        if not can_user_modify_booking(instance):
+            raise ValidationError({"detail": "Cannot cancel a mess booking whose first meal time has already passed."})
+        instance.delete()
+
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
-        bookings   = MessBooking.objects.filter(user=request.user).order_by('-created_at')
+        refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus').filter(user=request.user))
+        bookings   = MessBooking.objects.prefetch_related('daily_menus').filter(user=request.user).order_by('-created_at')
         serializer = self.get_serializer(bookings, many=True)
         return Response(serializer.data)
 
@@ -64,9 +77,16 @@ class MessBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         booking = self.get_object()
+        refresh_booking_lifecycle(booking)
+        booking.refresh_from_db()
         if booking.status == 'APPROVED':
             return Response(
                 {"detail": "This booking is already approved."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if booking.status != 'PENDING':
+            return Response(
+                {"detail": f"Cannot approve a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         booking.status      = 'APPROVED'
@@ -84,9 +104,16 @@ class MessBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         booking = self.get_object()
+        refresh_booking_lifecycle(booking)
+        booking.refresh_from_db()
         if booking.status == 'REJECTED':
             return Response(
                 {"detail": "This booking is already rejected."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if booking.status not in ['PENDING', 'APPROVED']:
+            return Response(
+                {"detail": f"Cannot reject a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         remark = request.data.get('rejection_remark', '').strip()

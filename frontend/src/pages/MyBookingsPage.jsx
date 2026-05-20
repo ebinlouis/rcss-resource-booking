@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react"
 import api from "../api/axios"
 import MainLayout from "../layouts/MainLayout"
 import BookingModal from "../components/BookingModal"
-import { useNavigate } from "react-router-dom"
 
 import {
   RefreshCcw,
@@ -54,7 +53,17 @@ const timeAgo = (isoString) => {
 }
 
 const getBookingStatusMeta = (booking) => {
-  const isExpired = new Date(booking.end_datetime) < new Date()
+  const isExpired = booking.status === "COMPLETED" || new Date(booking.end_datetime) < new Date()
+
+  if (booking.status === "EXPIRED") {
+    return {
+      title: "Approval Window Expired",
+      description: "This request was not approved before the booking started.",
+      bg: "bg-orange-50",
+      border: "border-orange-100",
+      icon: <AlertCircle className="w-5 h-5 text-orange-600" />
+    }
+  }
 
   if (isExpired) {
     return {
@@ -126,7 +135,6 @@ const BookingCard = ({
   onCancel,
   isActionLoading,
   getStatusBadge,
-  navigate,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -136,7 +144,7 @@ const BookingCard = ({
   const hasNotes =
     booking.user_notes && booking.user_notes.trim().length > 0
 
-  const isExpired = new Date(booking.end_datetime) < new Date()
+  const isExpired = booking.status === "COMPLETED" || new Date(booking.end_datetime) < new Date()
 
   const showEditCancel =
     booking.can_modify &&
@@ -423,8 +431,6 @@ const MyBookingsPage = () => {
   const [error, setError] = useState(null)
   const [isActionLoading, setIsActionLoading] = useState(false)
 
-  const navigate = useNavigate()
-
   // MODAL STATE
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState(null)
@@ -511,7 +517,10 @@ const filteredBookings = useMemo(() => {
       }
 
       if (statusFilter === "COMPLETED") {
-        return new Date(booking.end_datetime) < now
+        return booking.status === "COMPLETED" || (
+          booking.status === "APPROVED" &&
+          new Date(booking.end_datetime) < now
+        )
       }
 
       return true
@@ -542,8 +551,12 @@ const filteredBookings = useMemo(() => {
 
     const completed = myBookings.filter(
       (booking) =>
-        booking.end_datetime &&
-        new Date(booking.end_datetime) < now
+        booking.status === "COMPLETED" ||
+        (
+          booking.status === "APPROVED" &&
+          booking.end_datetime &&
+          new Date(booking.end_datetime) < now
+        )
     ).length
 
     return {
@@ -626,6 +639,20 @@ const confirmCancelBooking = async () => {
           "bg-slate-50 text-slate-700 border-slate-200",
         icon: <AlertCircle className="w-3.5 h-3.5" />,
         label: "Cancelled",
+      },
+
+      EXPIRED: {
+        classes:
+          "bg-orange-50 text-orange-700 border-orange-200",
+        icon: <AlertCircle className="w-3.5 h-3.5" />,
+        label: "Expired",
+      },
+
+      COMPLETED: {
+        classes:
+          "bg-slate-50 text-slate-700 border-slate-200",
+        icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+        label: "Completed",
       },
 
       PENDING: {
@@ -905,7 +932,6 @@ const confirmCancelBooking = async () => {
                       onCancel={handleCancelBooking}
                       isActionLoading={isActionLoading}
                       getStatusBadge={getStatusBadge}
-                      navigate={navigate}
                     />
                   ))}
                 </div>

@@ -1,9 +1,9 @@
 import json
 import uuid
 from datetime import timedelta
-from django.utils import timezone
 from rest_framework import serializers
 
+from apps.approvals.lifecycle import can_user_modify_booking
 from apps.users.models import Role
 from .models import Block, Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest, SpaceApprover
 from .utils import get_overlapping_bookings, build_conflict_report
@@ -150,7 +150,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         user = self._user()
         if user is None:
             return False
-        return obj.user_id == user.pk or user.is_staff or user.is_superuser
+        return can_user_modify_booking(obj) and (
+            obj.user_id == user.pk or user.is_staff or user.is_superuser
+        )
 
     # ── Write logic ───────────────────────────────────────────────────────────
 
@@ -250,9 +252,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # ── 1. Block edits on expired bookings ─────────────────────────────
-        if self.instance and self.instance.end_datetime < timezone.now():
+        if self.instance and not can_user_modify_booking(self.instance):
             raise serializers.ValidationError(
-                {"non_field_errors": ["Cannot modify a booking that has already expired."]}
+                {"non_field_errors": ["Cannot modify a booking whose start time has already passed."]}
             )
 
         space        = data.get('space')

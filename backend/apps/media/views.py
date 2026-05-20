@@ -10,6 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
+from apps.approvals.lifecycle import (
+    can_user_modify_booking,
+    refresh_booking_lifecycle,
+    refresh_queryset_lifecycle,
+)
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.spaces.models import Equipment
 from apps.users.models import Role
@@ -123,6 +128,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         user       = self.request.user
         view_param = self.request.query_params.get('view', 'mine')
         is_admin   = _is_media_admin(user)
+        refresh_queryset_lifecycle(MediaBooking.objects.all())
 
         qs = MediaBooking.objects.select_related(
             'space', 'user', 'department'
@@ -190,11 +196,28 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             _reserve_standard_team_kit(booking)
         if instance.status == 'APPROVED' and not _is_media_admin(user):
             booking.status           = 'PENDING'
+            booking.resolved_by      = None
+            booking.resolved_at      = None
             booking.remarks_by_admin = ''
-            booking.save(update_fields=['status', 'remarks_by_admin'])
+            booking.updated_by       = user
+            booking.save(update_fields=[
+                'status',
+                'resolved_by',
+                'resolved_at',
+                'remarks_by_admin',
+                'updated_by',
+                'updated_at',
+            ])
+
+    def perform_destroy(self, instance):
+        refresh_booking_lifecycle(instance)
+        if not can_user_modify_booking(instance):
+            raise ValidationError({"detail": "Cannot cancel a media request whose setup time has already passed."})
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
+        refresh_queryset_lifecycle(MediaBooking.objects.all())
         req_start_str = request.query_params.get('start')
         req_end_str   = request.query_params.get('end')
         exclude_id    = request.query_params.get('exclude')
@@ -214,7 +237,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         overlapping = MediaBooking.objects.filter(
             setup_start_datetime__lt=req_end,
             teardown_end_datetime__gt=req_start,
-        ).exclude(status__in=['REJECTED', 'CANCELLED']).prefetch_related('equipment_requests')
+        ).exclude(status__in=['REJECTED', 'CANCELLED', 'EXPIRED', 'COMPLETED']).prefetch_related('equipment_requests')
 
         if exclude_id and exclude_id not in ['null', 'undefined', '']:
             overlapping = overlapping.exclude(pk=exclude_id)
@@ -260,6 +283,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def daily_availability(self, request):
+        refresh_queryset_lifecycle(MediaBooking.objects.all())
         date_param   = request.query_params.get('date')
         view_type    = request.query_params.get('type', 'equipment')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
@@ -365,6 +389,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def runsheet(self, request):
+        refresh_queryset_lifecycle(MediaBooking.objects.all())
         date_param   = request.query_params.get('date')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
         if not booking_date:
@@ -389,6 +414,8 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         booking = self.get_object()
+        refresh_booking_lifecycle(booking)
+        booking.refresh_from_db()
         if booking.status != 'APPROVED':
             return Response({"error": "Loadout can only be edited on APPROVED bookings."}, status=status.HTTP_400_BAD_REQUEST)
         if not booking.is_team_request:
@@ -461,11 +488,25 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking    = self.get_object()
         new_status = request.data.get('status')
         remarks    = request.data.get('remarks_by_admin', '')
+        refresh_booking_lifecycle(booking)
+        booking.refresh_from_db()
 
         if new_status not in ['APPROVED', 'REJECTED']:
             return Response({"error": "Invalid status. Must be APPROVED or REJECTED."}, status=status.HTTP_400_BAD_REQUEST)
         if new_status == 'REJECTED' and not remarks.strip():
             return Response({"error": "Remarks are required when rejecting a booking."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_status == 'APPROVED' and booking.status != 'PENDING':
+            return Response(
+                {"error": f"Cannot approve a booking that is currently {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
+            return Response(
+                {"error": f"Cannot reject or cancel a booking that is currently {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         settings = MediaSettings.load()
         if new_status == 'APPROVED':
@@ -486,5 +527,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
+        refresh_queryset_lifecycle(MediaBooking.objects.filter(user=request.user))
         bookings = MediaBooking.objects.filter(user=request.user).order_by('-created_at')
         return Response(self.get_serializer(bookings, many=True).data)

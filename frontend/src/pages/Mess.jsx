@@ -29,6 +29,8 @@ const getStatusStyle = (status) => {
   switch (status?.toLowerCase()) {
     case "approved":
     case "confirmed": return "bg-blue-50 text-blue-700 border border-blue-100"
+    case "completed": return "bg-slate-50 text-slate-700 border border-slate-100"
+    case "expired":   return "bg-orange-50 text-orange-700 border border-orange-100"
     case "rejected":  return "bg-red-50 text-red-700 border border-red-100"
     default:          return "bg-yellow-50 text-yellow-700 border border-yellow-100"
   }
@@ -499,7 +501,7 @@ function Mess() {
               </div>
 
               {/* Footer */}
-              {isEditable(b.status) && (
+              {(b.can_modify ?? isEditable(b.status)) && isEditable(b.status) && (
                 <div className="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3">
                   <button
                     onClick={() => openDeleteModal(b)}

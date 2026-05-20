@@ -87,7 +87,9 @@ function BookingCard({ booking, onSelect }) {
         <div className="flex items-center gap-3 mb-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
             statusLower === "pending"   ? "bg-amber-50 text-amber-700"    :
-            statusLower === "confirmed" ? "bg-emerald-50 text-emerald-700" :
+            statusLower === "confirmed" || statusLower === "approved" ? "bg-emerald-50 text-emerald-700" :
+            statusLower === "completed" ? "bg-slate-50 text-slate-700" :
+            statusLower === "expired"   ? "bg-orange-50 text-orange-700" :
                                           "bg-red-50 text-red-700"
           }`}>
             {booking.status}
@@ -290,7 +292,7 @@ function AdminMess() {
   const dispatchBookings = bookings
     .filter((b) =>
       bookingCoversDate(b, dispatchDate) &&
-      b.status?.toLowerCase() === "confirmed"
+      ["confirmed", "approved"].includes(b.status?.toLowerCase())
     )
     .sort((a, b) => getEarliestTime(a).localeCompare(getEarliestTime(b)));
 
@@ -318,7 +320,7 @@ function AdminMess() {
     setActionLoading(true);
     try {
       await messService.approveBooking(id);
-      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: "confirmed" } : b));
+      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: "APPROVED" } : b));
       showToast("Booking approved.");
       closePanel();
     } catch (err) {

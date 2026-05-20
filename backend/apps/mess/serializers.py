@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework import serializers
 
+from apps.approvals.lifecycle import can_user_modify_booking
 from apps.mess.models import MessBooking, DailyMessMenu
 
 
@@ -84,6 +85,7 @@ class DailyMessMenuSerializer(serializers.ModelSerializer):
 class MessBookingSerializer(serializers.ModelSerializer):
     requester_name  = serializers.ReadOnlyField(source='user.first_name')
     department_name = serializers.ReadOnlyField(source='department.department_name')
+    can_modify      = serializers.SerializerMethodField()
 
     # Writable nested list — sent by the frontend as one payload
     daily_menus = DailyMessMenuSerializer(many=True)
@@ -98,11 +100,17 @@ class MessBookingSerializer(serializers.ModelSerializer):
             'delivery_location', 'purpose_of_programme',
             'rejection_remark',
             'daily_menus',
+            'can_modify',
         ]
         read_only_fields = [
             'id', 'reference_code', 'user', 'department', 'status',
             'created_at', 'updated_at', 'rejection_remark',
         ]
+
+    def get_can_modify(self, obj):
+        request = self.context.get('request')
+        user = request.user if request else None
+        return bool(user and obj.user_id == user.pk and can_user_modify_booking(obj))
 
     # ── Top-level validation ──────────────────────────────────────────────────
 
@@ -113,6 +121,11 @@ class MessBookingSerializer(serializers.ModelSerializer):
         if start and end and start > end:
             raise serializers.ValidationError({
                 "end_date": "End date must be on or after start date."
+            })
+
+        if self.instance and not can_user_modify_booking(self.instance):
+            raise serializers.ValidationError({
+                "non_field_errors": "Cannot modify a mess booking whose first meal time has already passed."
             })
 
         daily_menus = data.get('daily_menus', [])

@@ -13,6 +13,8 @@ const STATUS_STYLES = {
     PENDING:   'bg-yellow-100 text-yellow-800 border-yellow-200',
     REJECTED:  'bg-red-100 text-red-700 border-red-200',
     CANCELLED: 'bg-gray-100 text-gray-600 border-gray-200',
+    EXPIRED:   'bg-orange-100 text-orange-700 border-orange-200',
+    COMPLETED: 'bg-slate-100 text-slate-700 border-slate-200',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
