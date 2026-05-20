@@ -45,6 +45,7 @@ const timeAgo = (isoString) => {
 
 // UPDATED: Now checks expiration using the new teardown_end_datetime
 const checkIsExpired = (booking) => {
+  if (booking.status === "COMPLETED" || booking.status === "EXPIRED") return true;
   try {
       const endString = booking.teardown_end_datetime || booking.event_end_datetime;
       if (endString) {
@@ -154,6 +155,10 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                       ? "Awaiting Admin Review" 
                       : booking.status === "APPROVED" 
                         ? "Equipment/Services Confirmed"
+                        : booking.status === "COMPLETED"
+                          ? "Schedule Completed"
+                          : booking.status === "EXPIRED"
+                            ? "Approval Window Expired"
                         : booking.status === "REJECTED"
                           ? "Declined / Cancelled by Admin"
                           : "Request Cancelled"}
@@ -165,6 +170,10 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                       ? "You will be notified once the media team processes this." 
                       : booking.status === "APPROVED" 
                         ? "Your media request is confirmed. You may edit or cancel if needed."
+                        : booking.status === "COMPLETED"
+                          ? "This media request has already taken place."
+                          : booking.status === "EXPIRED"
+                            ? "This request was not approved before setup was due to begin."
                         : booking.status === "REJECTED"
                           ? "Please check the feedback notes below."
                           : "This request has been withdrawn."}
@@ -332,6 +341,7 @@ const MyMediaBookingsPage = () => {
     { id: 'PENDING', label: 'Pending' },
     { id: 'APPROVED', label: 'Approved' },
     { id: 'COMPLETED', label: 'Completed' },
+    { id: 'EXPIRED', label: 'Expired' },
     { id: 'REJECTED', label: 'Rejected' },
   ]
 
@@ -373,7 +383,7 @@ const MyMediaBookingsPage = () => {
     if (filter !== "ALL") {
         result = result.filter(booking => {
             const isExpired = checkIsExpired(booking);
-            if (filter === "COMPLETED") return isExpired && booking.status === "APPROVED";
+            if (filter === "COMPLETED") return booking.status === "COMPLETED" || (isExpired && booking.status === "APPROVED");
             if (filter === "APPROVED") return booking.status === "APPROVED" && !isExpired;
             return booking.status === filter;
         });
@@ -449,6 +459,8 @@ const MyMediaBookingsPage = () => {
 
     const styles = {
       APPROVED:  "bg-[#dcfce7] text-[#15803d] border-[#bbf7d0]",
+      COMPLETED: "bg-slate-100 text-slate-700 border-slate-200",
+      EXPIRED:   "bg-orange-100 text-orange-700 border-orange-200",
       REJECTED:  "bg-[#fee2e2] text-[#b91c1c] border-[#fecaca]",
       CANCELLED: "bg-[#f1f5f9] text-[#475569] border-[#e2e8f0]",
       PENDING:   "bg-[#fef3c7] text-[#b45309] border-[#fde68a]",

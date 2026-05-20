@@ -23,6 +23,11 @@ import AdminDepartmentsPage from "./pages/admin/AdminDepartmentsPage";
 import AdminTransportPage from "./pages/admin/AdminTransportPage";
 import AdminMess from "./pages/admin/AdminMess";
 import AdminMediaPage from "./pages/admin/AdminMediaPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+
+// New Space Scoping Pages
+import BlocksManagement from "./pages/admin/BlocksManagement";
+import SpaceApproversManagement from "./pages/admin/SpaceApproversManagement";
 
 function App() {
   return (
@@ -52,9 +57,10 @@ function App() {
 
               <Route path="/admin" element={<AdminDashboard />} />
 
-              {/* ── Shared Admin Routes ── */}
-              {/* Lifted equipment route so Media Team can also manage the dynamic inventory */}
-              <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
+              {/* ── Shared Equipment Admin ── */}
+              <Route element={<ProtectedRoute requiredCapability="can_manage_equipment" />}>
+                <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
+              </Route>
 
               {/* ── Mess admin ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_mess" />}>
@@ -70,6 +76,9 @@ function App() {
               {/* ── System admin routes ── */}
               <Route element={<ProtectedRoute requiredCapability="can_manage_system" />}>
                 <Route path="/admin/spaces" element={<AdminSpacesPage />} />
+                <Route path="/admin/blocks" element={<BlocksManagement />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/approvers" element={<SpaceApproversManagement />} />
                 <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
                 <Route path="/admin/transport" element={<AdminTransportPage />} />
                 <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />

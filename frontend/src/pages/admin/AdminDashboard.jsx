@@ -54,7 +54,7 @@ const groupBookings = (list) => {
     const map = new Map();
 
     list.forEach(b => {
-        const key = b.group_id;
+        const key = b.group_id || `${b.domain || 'spaces'}-${b.id}`;
 
         if (!map.has(key)) {
             map.set(key, { ...b, child_bookings: [b] });
@@ -74,6 +74,10 @@ const groupBookings = (list) => {
 
     return Array.from(map.values());
 };
+
+const bookingRowKey = (booking) => (
+    `${booking.domain || 'spaces'}-${booking.group_id || booking.id}-${booking.status || 'UNKNOWN'}`
+);
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -487,7 +491,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                 <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Recurring Slots</p>
                                 <div className="flex flex-wrap gap-2">
                                     {booking.child_bookings.map((child, i) => (
-                                        <span key={child.id} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#4f46e5] bg-[#eff6ff] border border-[#c7d2fe] px-3 py-1.5 rounded-lg">
+                                        <span key={`${child.domain || 'spaces'}-${child.id}-${i}`} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#4f46e5] bg-[#eff6ff] border border-[#c7d2fe] px-3 py-1.5 rounded-lg">
                                             <IconCalendar className="w-3.5 h-3.5" />
                                             Day {i + 1} · {formatDateTime(child.start_datetime)} – {formatDateTime(child.end_datetime)}
                                         </span>
@@ -607,7 +611,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                     </div>
                     {priorityBookings.map((booking) => (
                         <BookingRow
-                            key={booking.group_id}
+                            key={bookingRowKey(booking)}
                             booking={booking}
                             isPendingTab={isPendingTab}
                             onApproveClick={onApproveClick}
@@ -628,7 +632,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                     )}
                     {standardBookings.map((booking) => (
                         <BookingRow
-                            key={booking.group_id}
+                            key={bookingRowKey(booking)}
                             booking={booking}
                             isPendingTab={isPendingTab}
                             onApproveClick={onApproveClick}

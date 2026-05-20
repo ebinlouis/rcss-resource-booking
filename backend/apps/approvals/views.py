@@ -1,33 +1,38 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
 from django.utils import timezone
-from django.db.models import Q
+from datetime import timedelta
 
 from apps.users.permissions import IsApprover
-from apps.users.models import RoleOverride
+from apps.users.models import Role
+from apps.approvals.lifecycle import refresh_booking_lifecycle, refresh_queryset_lifecycle
 
-from apps.spaces.models import SpaceBooking
+from apps.spaces.models import Space, SpaceBooking, SpaceApprover
 from apps.fleet.models import FleetBooking
 from apps.mess.models import MessBooking
 from apps.media.models import MediaBooking
+
 
 # ==========================================
 # CONSTANTS
 # ==========================================
 
 VALID_DOMAINS = {'spaces', 'fleet', 'mess', 'media'}
+AI_LAB_FALLBACK_HOURS = settings.AI_LAB_HOD_FALLBACK_HOURS
+
 
 # ==========================================
-# HELPER
+# HELPERS
 # ==========================================
 
 def _requester_info(user):
     full_name = f"{user.first_name} {user.last_name}".strip() or user.email
-    dept = getattr(user, 'department', None)
+    dept      = getattr(user, 'department', None)
     dept_name = dept.department_name if dept else 'General'
     dept_code = dept.department_code if dept else 'General'
-    phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None) or ''
+    phone     = getattr(user, 'phone', None) or ''
 
     return {
         "requester":       full_name,
@@ -52,19 +57,153 @@ def _build_queue_entry(domain, item, **extra_fields):
     }
 
 
+def _normalise(value):
+    return str(value or '').strip().lower()
+
+
+def _uses_hod_fallback_workflow(space):
+    return getattr(space, 'approval_workflow_type', None) == Space.ApprovalWorkflowType.HOD_FALLBACK
+
+
+def _is_cs_department(department):
+    if not department:
+        return False
+
+    code = _normalise(getattr(department, 'department_code', ''))
+    name = _normalise(getattr(department, 'department_name', ''))
+    return code in {'cs', 'cse'} or name in {'cs', 'cse'} or 'computer science' in name
+
+
+def _is_cs_hod_fallback_booking(booking):
+    return _uses_hod_fallback_workflow(booking.space) and _is_cs_department(getattr(booking.user, 'department', None))
+
+
+def _ai_lab_fallback_ready(booking):
+    fallback_at = booking.created_at + timedelta(hours=AI_LAB_FALLBACK_HOURS)
+    return timezone.now() >= fallback_at
+
+
+def _matches_space_approver_assignment(booking, assignment):
+    role_name = assignment.role.name
+    space = booking.space
+
+    if role_name == Role.Name.RECEPTIONIST:
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'GENERAL'
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+
+    if role_name == Role.Name.LAB_INCHARGE:
+        if _is_cs_hod_fallback_booking(booking) and booking.status == 'PENDING' and not _ai_lab_fallback_ready(booking):
+            return False
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'LAB'
+
+    if role_name == Role.Name.LIBRARIAN:
+        if assignment.scope_type == 'BLOCK' and assignment.block:
+            return space.block_id == assignment.block_id and space.approval_category == 'LIBRARY'
+        if assignment.scope_type == 'SPACE' and assignment.space:
+            return space.id == assignment.space_id
+
+    return False
+
+
+def _user_can_resolve_space_booking(user, effective_roles, booking):
+    if Role.Name.IT_ADMIN in effective_roles:
+        return True
+
+    user_dept = getattr(user, 'department', None)
+    if (
+        Role.Name.HOD in effective_roles
+        and user_dept
+        and getattr(booking.user, 'department_id', None) == user_dept.id
+        and _is_cs_hod_fallback_booking(booking)
+    ):
+        return True
+
+    assignments = (
+        SpaceApprover.objects
+        .filter(user=user, is_active=True)
+        .select_related('block', 'space', 'role')
+    )
+    return any(_matches_space_approver_assignment(booking, assignment) for assignment in assignments)
+
+
+def _get_space_queryset_for_user(user, effective_roles, requested_status):
+    """
+    Builds the SpaceBooking queryset scoped to what this user is allowed to see.
+
+    Scoping rules:
+        IT_ADMIN     → all spaces, no filter
+        HOD          → only their department's bookings (AI Lab / dept-scoped)
+        RECEPTIONIST → spaces in blocks they are assigned to (approval_category=GENERAL)
+        LAB_INCHARGE → specific spaces they are assigned to (approval_category=LAB)
+        LIBRARIAN    → spaces in blocks they are assigned to (approval_category=LIBRARY)
+
+    Multiple SpaceApprover rows per user are supported — a receptionist
+    covering two blocks sees both blocks' bookings unioned together.
+    """
+    is_it_admin = Role.Name.IT_ADMIN in effective_roles
+    is_hod      = Role.Name.HOD in effective_roles
+    user_dept   = getattr(user, 'department', None)
+
+    base_qs = (
+        SpaceBooking.objects
+        .filter(status=requested_status)
+        .select_related('user', 'user__department', 'space', 'space__block')
+        .prefetch_related('requested_equipment__equipment')
+        .order_by('group_id', 'start_datetime')
+    )
+
+    # IT_ADMIN sees everything
+    if is_it_admin:
+        return base_qs
+
+    # Scoped approvers — build filter from SpaceApprover assignments
+    assignments = (
+        SpaceApprover.objects
+        .filter(user=user, is_active=True)
+        .select_related('block', 'space', 'role')
+    )
+
+    if not is_hod and not assignments.exists():
+        return SpaceBooking.objects.none()
+
+    allowed_ids = []
+    assignment_list = list(assignments)
+    for booking in base_qs:
+        hod_can_see = (
+            is_hod
+            and user_dept
+            and getattr(booking.user, 'department_id', None) == user_dept.id
+            and _is_cs_hod_fallback_booking(booking)
+        )
+        assignment_can_see = any(
+            _matches_space_approver_assignment(booking, assignment)
+            for assignment in assignment_list
+        )
+
+        if hod_can_see or assignment_can_see:
+            allowed_ids.append(booking.id)
+
+    if not allowed_ids:
+        return SpaceBooking.objects.none()
+
+    return base_qs.filter(id__in=allowed_ids)
+
+
 # ==========================================
-# 1. ADMIN QUEUE (GET)
+# 1. UNIFIED APPROVAL QUEUE (GET)
 # ==========================================
 
 class UnifiedApprovalQueueView(APIView):
     permission_classes = [IsApprover]
 
     def get(self, request):
-        user = request.user
-        now  = timezone.now()
-
         requested_domains_param = request.query_params.get('domain', '').strip()
-        requested_status = request.query_params.get('status', 'PENDING').upper()
+        requested_status        = request.query_params.get('status', 'PENDING').upper()
 
         if not requested_domains_param:
             return Response(
@@ -80,18 +219,10 @@ class UnifiedApprovalQueueView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        active_override = RoleOverride.objects.filter(
-            user=user, is_active=True
-        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).first()
-
-        effective_role = (
-            active_override.overridden_role.name
-            if active_override
-            else (user.role.name if user.role else None)
-        )
+        effective_roles = request.user.get_effective_roles()
 
         domain_querysets = self._get_domain_querysets(
-            requested_domains, user, effective_role, requested_status
+            requested_domains, request.user, effective_roles, requested_status
         )
 
         unified_queue = []
@@ -110,51 +241,52 @@ class UnifiedApprovalQueueView(APIView):
             "queue":         unified_queue,
         })
 
-    def _get_domain_querysets(self, requested_domains, user, effective_role, requested_status):
-        is_superuser_or_it = user.is_superuser or effective_role == 'IT_ADMIN'
-        is_hod             = effective_role == 'HOD'
-        user_dept          = getattr(user, 'department', None)
+    def _get_domain_querysets(self, requested_domains, user, effective_roles, requested_status):
+        is_it_admin = Role.Name.IT_ADMIN in effective_roles
+        querysets   = {}
 
-        def _apply_role_scope(qs):
-            if is_superuser_or_it:
-                return qs
-            if is_hod and user_dept:
-                return qs.filter(user__department=user_dept)
-            return qs.none()
-
-        querysets = {}
-
-        if 'spaces' in requested_domains:
-            querysets['spaces'] = _apply_role_scope(
-                SpaceBooking.objects
-                .filter(status=requested_status)
-                .select_related('user', 'user__department', 'space')
-                .prefetch_related('requested_equipment__equipment')
-                # Order by group_id + start so siblings are always adjacent — makes
-                # any server-side deduplication or debugging much easier.
-                .order_by('group_id', 'start_datetime')
+        # ── Spaces ────────────────────────────────────────────────────────────
+        is_space_approver = bool(effective_roles & {
+            Role.Name.RECEPTIONIST,
+            Role.Name.LAB_INCHARGE,
+            Role.Name.LIBRARIAN,
+            Role.Name.HOD,
+            Role.Name.IT_ADMIN,
+        })
+        if 'spaces' in requested_domains and is_space_approver:
+            refresh_queryset_lifecycle(SpaceBooking.objects.all())
+            querysets['spaces'] = _get_space_queryset_for_user(
+                user, effective_roles, requested_status
             )
 
+        # ── Fleet ─────────────────────────────────────────────────────────────
         if 'fleet' in requested_domains:
-            querysets['fleet'] = _apply_role_scope(
-                FleetBooking.objects
-                .filter(status=requested_status)
-                .select_related('user', 'user__department', 'vehicle')
-            )
+            if is_it_admin or Role.Name.FLEET_MANAGER in effective_roles:
+                querysets['fleet'] = (
+                    FleetBooking.objects
+                    .filter(status=requested_status)
+                    .select_related('user', 'user__department', 'vehicle')
+                )
 
+        # ── Mess ──────────────────────────────────────────────────────────────
         if 'mess' in requested_domains:
-            querysets['mess'] = _apply_role_scope(
-                MessBooking.objects
-                .filter(status=requested_status)
-                .select_related('user', 'user__department')
-            )
+            if is_it_admin or Role.Name.MESS_MANAGER in effective_roles:
+                refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus'))
+                querysets['mess'] = (
+                    MessBooking.objects
+                    .filter(status=requested_status)
+                    .select_related('user', 'user__department')
+                )
 
+        # ── Media ─────────────────────────────────────────────────────────────
         if 'media' in requested_domains:
-            querysets['media'] = _apply_role_scope(
-                MediaBooking.objects
-                .filter(status=requested_status)
-                .select_related('user', 'user__department')
-            )
+            if is_it_admin or Role.Name.MEDIA_INCHARGE in effective_roles:
+                refresh_queryset_lifecycle(MediaBooking.objects.all())
+                querysets['media'] = (
+                    MediaBooking.objects
+                    .filter(status=requested_status)
+                    .select_related('user', 'user__department')
+                )
 
         return querysets
 
@@ -171,21 +303,20 @@ class UnifiedApprovalQueueView(APIView):
             ]
             return _build_queue_entry(
                 domain, item,
-                # ── group_id is the stable key that lets the frontend collapse all
-                # recurring slots (which share the same UUID) into one card. It must
-                # be serialised as a plain string because JSON has no UUID type.
-                group_id          = str(item.group_id),
-                start_datetime    = getattr(item, 'start_datetime', None),
-                end_datetime      = getattr(item, 'end_datetime', None),
-                attendee_count    = getattr(item, 'attendee_count', None),
-                resource_name     = getattr(item.space, 'name', 'Space Resource'),
-                purpose           = item.purpose_of_booking,
-                purpose_of_booking= item.purpose_of_booking,
-                user_notes        = item.user_notes or "",
-                equipment_requests= equipment_list,
-                space_details     = {
-                    "space_type":    getattr(item.space, 'space_type', None),
-                    "capacity_hard": getattr(item.space, 'capacity_hard', None),
+                group_id           = str(item.group_id),
+                start_datetime     = getattr(item, 'start_datetime', None),
+                end_datetime       = getattr(item, 'end_datetime', None),
+                attendee_count     = getattr(item, 'attendee_count', None),
+                resource_name      = getattr(item.space, 'name', 'Space Resource'),
+                purpose            = item.purpose_of_booking,
+                purpose_of_booking = item.purpose_of_booking,
+                user_notes         = item.user_notes or "",
+                equipment_requests = equipment_list,
+                space_details      = {
+                    "space_type":        getattr(item.space, 'space_type', None),
+                    "approval_category": getattr(item.space, 'approval_category', None),
+                    "block":             getattr(item.space.block, 'name', None),
+                    "capacity_hard":     getattr(item.space, 'capacity_hard', None),
                 },
             )
 
@@ -203,8 +334,8 @@ class UnifiedApprovalQueueView(APIView):
         elif domain == 'mess':
             return _build_queue_entry(
                 domain, item,
-                start_datetime = getattr(item, 'date_of_programme', getattr(item, 'delivery_time', None)),
-                end_datetime   = getattr(item, 'end_time', None),
+                start_datetime = getattr(item, 'start_date', None),
+                end_datetime   = getattr(item, 'end_date', None),
                 attendee_count = getattr(item, 'total_persons', None),
                 resource_name  = f"Catering ({getattr(item, 'total_persons', 0)} persons)",
                 purpose        = getattr(item, 'purpose_of_programme', 'No purpose provided'),
@@ -214,8 +345,8 @@ class UnifiedApprovalQueueView(APIView):
         elif domain == 'media':
             return _build_queue_entry(
                 domain, item,
-                start_datetime = getattr(item, 'event_date', getattr(item, 'start_datetime', None)),
-                end_datetime   = getattr(item, 'end_datetime', None),
+                start_datetime = getattr(item, 'setup_start_datetime', None),
+                end_datetime   = getattr(item, 'teardown_end_datetime', None),
                 attendee_count = getattr(item, 'attendees', None),
                 resource_name  = "Equipment/Media Support",
                 purpose        = getattr(item, 'event_name', getattr(item, 'purpose', 'No purpose provided')),
@@ -239,9 +370,24 @@ class AdminResolveBookingAPIView(APIView):
         'media':  MediaBooking,
     }
 
-    # Models that support grouped recurring bookings via a shared group_id.
-    # When one member of the group is resolved, all siblings are resolved together.
     GROUP_AWARE_MODULES = {'spaces'}
+
+    def _can_resolve_booking(self, module, booking, user):
+        effective_roles = user.get_effective_roles()
+
+        if Role.Name.IT_ADMIN in effective_roles:
+            return True
+
+        if module == 'spaces':
+            return _user_can_resolve_space_booking(user, effective_roles, booking)
+        if module == 'fleet':
+            return Role.Name.FLEET_MANAGER in effective_roles
+        if module == 'mess':
+            return Role.Name.MESS_MANAGER in effective_roles
+        if module == 'media':
+            return Role.Name.MEDIA_INCHARGE in effective_roles
+
+        return False
 
     def patch(self, request):
         module     = request.data.get('module')
@@ -263,7 +409,7 @@ class AdminResolveBookingAPIView(APIView):
 
         if new_status == 'REJECTED' and not remarks:
             return Response(
-                {"error": "You must provide 'remarks' when rejecting/cancelling a request."},
+                {"error": "You must provide 'remarks' when rejecting a request."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -271,19 +417,27 @@ class AdminResolveBookingAPIView(APIView):
         try:
             booking = model_class.objects.get(id=booking_id)
         except model_class.DoesNotExist:
+            return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if module in self.GROUP_AWARE_MODULES:
+            refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+            booking.refresh_from_db()
+        else:
+            refresh_booking_lifecycle(booking)
+            booking.refresh_from_db()
+
+        if not self._can_resolve_booking(module, booking, request.user):
             return Response(
-                {"error": "Booking not found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "You are not authorized to resolve this booking."},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Allow transitioning to APPROVED only if PENDING.
         if new_status == 'APPROVED' and booking.status != 'PENDING':
             return Response(
                 {"error": f"Booking is already {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Allow transitioning to REJECTED if PENDING or APPROVED (revocation).
         if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
             return Response(
                 {"error": f"Cannot reject a booking that is currently {booking.status}."},
@@ -304,10 +458,7 @@ class AdminResolveBookingAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
-    # ── Resolution helpers ────────────────────────────────────────────────────
-
     def _resolve_single(self, booking, new_status, remarks, resolved_by):
-        """Update one booking row. Used for non-group-aware modules."""
         booking.status      = new_status
         booking.resolved_by = resolved_by
         booking.resolved_at = timezone.now()
@@ -316,28 +467,15 @@ class AdminResolveBookingAPIView(APIView):
         booking.save()
 
     def _resolve_group(self, booking, new_status, remarks, resolved_by):
-        """
-        Resolve every sibling that shares the same group_id in one pass.
-
-        Recurring SpaceBookings are stored as N individual rows linked by a
-        shared group_id UUID. The frontend sends only one representative ID
-        (the first child), so we must fan out to all siblings here.
-
-        For non-recurring bookings the SpaceBooking model still assigns a
-        unique group_id per booking (uuid4 default), so this query will
-        simply return one row — identical behaviour to _resolve_single.
-        """
         siblings = (
             SpaceBooking.objects
             .filter(group_id=booking.group_id)
-            # Sanity-check: only touch rows that are legally transitionable.
-            # APPROVED → we are revoking, so include APPROVED siblings too.
-            # PENDING  → normal approval/rejection path.
             .filter(status__in=['PENDING', 'APPROVED'])
         )
-
         resolved_at = timezone.now()
         for sibling in siblings:
+            if new_status == 'APPROVED' and sibling.status != 'PENDING':
+                continue
             sibling.status      = new_status
             sibling.resolved_by = resolved_by
             sibling.resolved_at = resolved_at

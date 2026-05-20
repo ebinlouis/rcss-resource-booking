@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
+from apps.approvals.lifecycle import can_user_modify_booking
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.spaces.models import Space, Equipment
 
@@ -68,7 +69,7 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
     def get_can_modify(self, obj):
         user = self._user()
-        return bool(user and obj.status in ['PENDING', 'APPROVED'] and obj.user_id == user.pk)
+        return bool(user and obj.user_id == user.pk and can_user_modify_booking(obj))
 
     def get_user_details(self, obj):
         user = obj.user
@@ -100,6 +101,11 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "non_field_errors": "Chronology error: Setup must precede Event Start, "
                                     "Event Start must precede Event End, and Event End must precede Teardown."
+            })
+
+        if self.instance and not can_user_modify_booking(self.instance):
+            raise serializers.ValidationError({
+                "non_field_errors": "Cannot modify a media request whose setup time has already passed."
             })
 
         # Past Date & Time validation

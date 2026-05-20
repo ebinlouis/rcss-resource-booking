@@ -3,49 +3,65 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system                                        },
-    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces                },
-    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system                                        },
-    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system                                        },
-    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess                                          },
-    
-    // Media Module
-    { to: '/admin/media',          label: 'Media Approvals', end: false, capability: (c) => c?.can_manage_media                                         },
-    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media                                         },
-    
-    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system                                        },
-    
-    // Equipment moved to the last
+    { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
+    { to: '/admin/spaces',         label: 'Room Catalog',    end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/blocks',         label: 'Blocks',          end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/users',          label: 'Users',           end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/approvers',      label: 'Space Approvers', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/departments',    label: 'Departments',     end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/transport',      label: 'Transport',       end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess },
+    { to: '/admin/media',          label: 'Media Approvals', end: false, capability: (c) => c?.can_manage_media },
+    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media },
+    { to: '/admin/role-overrides', label: 'Role Overrides',  end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/equipment',      label: 'Equipment',       end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
 ];
 
 const NAV_ICONS = {
     'Space Approval':  'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     'Room Catalog':    'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+    'Blocks':          'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+    'Users':           'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
+    'Space Approvers': 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
     'Departments':     'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport':       'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
     'Mess':            'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-    'Media Approvals': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z', // Fixed video camera icon path
-    'Team Schedule':   'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', // Calendar icon
+    'Media Approvals': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
+    'Team Schedule':   'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
     'Role Overrides':  'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
     'Equipment':       'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
 };
 
-const getRoleDisplay = (effectiveRole) => {
-    if (!effectiveRole) return { title: 'Admin Portal', subtitle: 'Staff' };
-    const normalized = effectiveRole.trim().toLowerCase();
-    const map = {
-        'it admin':         { title: 'IT Admin',         subtitle: 'System Operations'   },
-        'mess':             { title: 'Mess Admin',       subtitle: 'Mess Operations'     },
-        'media':            { title: 'Media Admin',      subtitle: 'Media Operations'    },
-        'facility manager': { title: 'Facility Manager', subtitle: 'Spaces & Facilities' },
-        'receptionist':     { title: 'Receptionist',     subtitle: 'Space Bookings'      },
-        'lab in-charge':    { title: 'Lab In-charge',    subtitle: 'Lab Management'      },
-        'librarian':        { title: 'Librarian',        subtitle: 'Library Spaces'      },
-        'principal':        { title: 'Principal',        subtitle: 'Institution Head'    },
-        'hod':              { title: 'Head of Department', subtitle: 'Department Head'     },
-    };
-    return map[normalized] ?? { title: effectiveRole, subtitle: 'Admin Portal' };
+// Priority order — if user has multiple roles, show the most senior one
+const ROLE_PRIORITY = [
+    'IT_ADMIN',
+    'PRINCIPAL',
+    'HOD',
+    'RECEPTIONIST',
+    'LAB_INCHARGE',
+    'LIBRARIAN',
+    'MESS_MANAGER',
+    'MEDIA_INCHARGE',
+    'FLEET_MANAGER',
+];
+
+const ROLE_DISPLAY_MAP = {
+    'IT_ADMIN':         { title: 'IT Admin',           subtitle: 'System Operations'   },
+    'PRINCIPAL':        { title: 'Principal',          subtitle: 'Institution Head'    },
+    'HOD':              { title: 'Head of Department', subtitle: 'Department Head'     },
+    'RECEPTIONIST':     { title: 'Receptionist',       subtitle: 'Space Bookings'      },
+    'LAB_INCHARGE':     { title: 'Lab In-Charge',      subtitle: 'Lab Management'      },
+    'LIBRARIAN':        { title: 'Librarian',          subtitle: 'Library Spaces'      },
+    'MESS_MANAGER':     { title: 'Mess Manager',       subtitle: 'Mess Operations'     },
+    'MEDIA_INCHARGE':   { title: 'Media In-Charge',    subtitle: 'Media Operations'    },
+    'FLEET_MANAGER':    { title: 'Fleet Manager',      subtitle: 'Fleet Operations'    },
+};
+
+const getRoleDisplay = (effectiveRoles = []) => {
+    if (!effectiveRoles.length) return { title: 'Admin Portal', subtitle: 'Staff' };
+    const topRole = ROLE_PRIORITY.find((r) => effectiveRoles.includes(r));
+    if (topRole && ROLE_DISPLAY_MAP[topRole]) return ROLE_DISPLAY_MAP[topRole];
+    return { title: effectiveRoles[0], subtitle: 'Admin Portal' };
 };
 
 const Icon = ({ path, className = 'w-[18px] h-[18px]' }) => (
@@ -76,7 +92,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
         </div>
 
         {/* Nav */}
-        <nav className={`flex-1 pt-4 pb-4 space-y-0.5 transition-all duration-300 ${collapsed ? 'px-2' : 'px-3'}`}>
+        <nav className={`flex-1 overflow-y-auto pt-4 pb-4 space-y-0.5 transition-all duration-300 ${collapsed ? 'px-2' : 'px-3'}`}>
             {!collapsed && (
                 <p className="px-3 mb-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#a8c4b4]">
                     Navigation
@@ -151,7 +167,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
 );
 
 const AdminLayout = () => {
-    const { logout, user, effectiveRole } = useAuth();
+    const { logout, user, effectiveRoles } = useAuth();
     const navigate = useNavigate();
     const [profileOpen,      setProfileOpen]      = useState(false);
     const [mobileOpen,       setMobileOpen]       = useState(false);
@@ -179,7 +195,7 @@ const AdminLayout = () => {
     };
 
     const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));
-    const { title: roleTitle, subtitle: roleSubtitle } = getRoleDisplay(effectiveRole);
+    const { title: roleTitle, subtitle: roleSubtitle } = getRoleDisplay(effectiveRoles);
     const initial = user?.name?.charAt(0)?.toUpperCase() ?? 'A';
 
     const sidebarProps = {
