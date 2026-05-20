@@ -93,4 +93,3 @@ Follow these steps to get the project running on your local machine.
 
 * **Auth User:** We use a `CustomUser` model overriding Django's default. Permissions are handled via an additive `roles = models.ManyToManyField(Role)` field, completely bypassing flat Django Groups.
 * **Mess Bookings:** Split into `MessBooking` (Parent Event) and `DailyMessMenu` (Child Days) to allow per-day menu and headcount customization without data redundancy.
- 
