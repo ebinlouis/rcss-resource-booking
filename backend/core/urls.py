@@ -14,6 +14,7 @@ urlpatterns = [
     # Core Infrastructure API
     path('api/auth/', include('apps.users.urls')),
     path('api/approvals/', include('apps.approvals.urls')),
+    path('api/notifications/', include('apps.notifications.urls')),
 
     # Domain APIs
     path('api/spaces/', include('apps.spaces.urls')),
