@@ -19,7 +19,7 @@ from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.spaces.models import Equipment
 from apps.users.models import Role
 from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
-from apps.notifications.utils import notify_booking_status_change, notify_new_request
+from apps.notifications.utils import mark_pending_request_notifications_read, notify_booking_status_change, notify_new_request
 
 
 # --- Role resolution ---
@@ -542,6 +542,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
+        mark_pending_request_notifications_read(booking)
 
         # Notify the requester of the status change
         notify_booking_status_change(

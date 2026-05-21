@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import messService from "../../api/messService";
+import notificationService from "../../api/notificationService";
 import { MEALS, getEarliestTime, getRequestedMeals, formatDateRange, isMultiDay } from "../../api/messConfig";
 import {
   CheckCircle2, XCircle, Clock3, Users, UtensilsCrossed,
@@ -233,6 +234,7 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
 
 function AdminMess() {
   const { can_manage_mess, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const highlightedReference = searchParams.get("booking") || "";
@@ -351,11 +353,15 @@ function AdminMess() {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  const handleApprove = async (id) => {
+  const handleApprove = async (booking) => {
     setActionLoading(true);
     try {
-      await messService.approveBooking(id);
-      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: "APPROVED" } : b));
+      await messService.approveBooking(booking.id);
+      await notificationService.markBookingRead(booking.reference_code).catch(() => null);
+      if (normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)) {
+        navigate("/admin/mess?tab=pending", { replace: true });
+      }
+      setBookings((prev) => prev.map((b) => b.id === booking.id ? { ...b, status: "APPROVED" } : b));
       showToast("Booking approved.");
       closePanel();
     } catch (err) {
@@ -385,6 +391,10 @@ function AdminMess() {
     setRemarkError("");
     try {
       await messService.rejectBooking(selectedBooking.id, trimmed);
+      await notificationService.markBookingRead(selectedBooking.reference_code).catch(() => null);
+      if (normaliseReference(selectedBooking.reference_code) === normaliseReference(highlightedReference)) {
+        navigate("/admin/mess?tab=pending", { replace: true });
+      }
       setBookings((prev) =>
         prev.map((b) =>
           b.id === selectedBooking.id
@@ -823,7 +833,7 @@ function AdminMess() {
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
                         <XCircle size={18} /> Reject
                       </button>
-                      <button onClick={() => handleApprove(selectedBooking.id)} disabled={actionLoading}
+                      <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
                         {actionLoading
                           ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

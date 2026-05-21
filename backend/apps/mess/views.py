@@ -15,7 +15,7 @@ from apps.mess.models import MessBooking
 from apps.mess.serializers import MessBookingSerializer
 from apps.users.models import Role
 
-from apps.notifications.utils import notify_booking_status_change, notify_new_request
+from apps.notifications.utils import mark_pending_request_notifications_read, notify_booking_status_change, notify_new_request
 
 
 # --- Role resolution ---
@@ -103,6 +103,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by = request.user
         booking.resolved_at = timezone.now()
         booking.save()
+        mark_pending_request_notifications_read(booking)
 
         # Fire the status change notification
         notify_booking_status_change(
@@ -147,6 +148,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
+        mark_pending_request_notifications_read(booking)
 
         # Fire the status change notification
         notify_booking_status_change(

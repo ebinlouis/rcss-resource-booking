@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
 import approvalService from '../../api/approvalService';
+import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -784,6 +785,22 @@ const AdminDashboard = () => {
         return () => window.clearTimeout(timer);
     }, [highlightedReference, isLoading, listForTab]);
 
+    useEffect(() => {
+        if (!highlightedReference || isLoading || activeTab !== 'pending') return undefined;
+        if (raw.pending.some((booking) => bookingMatchesReference(booking, highlightedReference))) return undefined;
+
+        const nextTab = upcoming.some((booking) => bookingMatchesReference(booking, highlightedReference))
+            ? 'upcoming'
+            : history.some((booking) => bookingMatchesReference(booking, highlightedReference))
+                ? 'history'
+                : null;
+
+        if (!nextTab) return undefined;
+
+        const timer = window.setTimeout(() => handleTabChange(nextTab), 0);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, handleTabChange, highlightedReference, history, isLoading, raw.pending, upcoming]);
+
     // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchQueue = useCallback(async ({ showLoading = true } = {}) => {
         if (showLoading) setIsLoading(true);
@@ -843,6 +860,10 @@ const AdminDashboard = () => {
                 status:  'APPROVED',
                 remarks: '',
             });
+            await notificationService.markBookingRead(parentBooking.reference_code).catch(() => null);
+            if (bookingMatchesReference(parentBooking, highlightedReference)) {
+                navigate('/admin?tab=pending', { replace: true });
+            }
 
             setSuccessTarget(parentBooking);
             setApproveTarget(null);
@@ -869,6 +890,10 @@ const AdminDashboard = () => {
                 status:  'REJECTED',
                 remarks,
             });
+            await notificationService.markBookingRead(parentBooking.reference_code).catch(() => null);
+            if (bookingMatchesReference(parentBooking, highlightedReference)) {
+                navigate('/admin?tab=pending', { replace: true });
+            }
 
             setRejectTarget(null);
             await fetchQueue({ showLoading: false });
