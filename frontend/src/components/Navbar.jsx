@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
+import NotificationBell from "./NotificationBell"
 
 import {
   LayoutGrid,
@@ -153,15 +154,7 @@ function Navbar({ onTabChange }) {
           <div className="flex items-center gap-2 md:gap-3">
 
             {/* Notification */}
-            <button className="hidden md:flex relative w-10 h-10 items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 transition">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0
-                  006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714
-                  0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-              </svg>
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-            </button>
+            <NotificationBell className="hidden md:block" />
 
             {/* Profile */}
             <div className="relative" ref={profileRef}>
@@ -200,6 +193,7 @@ function Navbar({ onTabChange }) {
                   <div className="py-1">
                     {[
                       { label: "My Bookings", path: "/my-bookings", d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+                      { label: "Notifications", path: "/notifications", d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
                       { label: "Profile",     path: "/profile",     d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
                     ].map(({ label, path, d }) => (
                       <Link
@@ -279,6 +273,21 @@ function Navbar({ onTabChange }) {
               Admin Portal
             </button>
           )}
+
+          <Link
+            to="/notifications"
+            onClick={() => setMenuOpen(false)}
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition
+              ${location.pathname === "/notifications"
+                ? "bg-green-50 text-green-700 font-semibold"
+                : "text-gray-600 hover:bg-gray-50"
+              }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            Notifications
+          </Link>
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3">

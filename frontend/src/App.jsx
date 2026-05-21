@@ -11,6 +11,7 @@ import Media from "./pages/Media";
 import MediaSchedule from "./pages/MediaSchedule"; // Renamed from MediaRunsheet
 import MyMediaBookingsPage from "./pages/MyMediaBookingsPage";
 import MyBookingsPage from "./pages/MyBookingsPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import Profile from "./pages/Profile";
 
 // Admin Pages
@@ -46,6 +47,8 @@ function App() {
             <Route path="/media/my-bookings" element={<MyMediaBookingsPage />} />
             <Route path="/mess" element={<Mess />} />
             <Route path="/my-bookings" element={<MyBookingsPage />} />
+            <Route path="/bookings/:referenceCode" element={<MyBookingsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
 

@@ -94,14 +94,35 @@ def _resource_name(booking):
     )
 
 
-def _resolver_name(resolved_by):
+def _resolver_title(resolved_by, domain):
     if not resolved_by:
         return 'an approver'
-    full_name = ' '.join(
-        part for part in [resolved_by.first_name, resolved_by.last_name]
-        if part
-    ).strip()
-    return full_name or resolved_by.email
+
+    effective_roles = resolved_by.get_effective_roles()
+    roles = Role.objects.filter(name__in=effective_roles).order_by('name')
+
+    domain_roles = {
+        'spaces': [
+            Role.Name.PRINCIPAL,
+            Role.Name.RECEPTIONIST,
+            Role.Name.LAB_INCHARGE,
+            Role.Name.LIBRARIAN,
+            Role.Name.HOD,
+            Role.Name.IT_ADMIN,
+        ],
+        'fleet':  [Role.Name.FLEET_MANAGER, Role.Name.IT_ADMIN],
+        'mess':   [Role.Name.MESS_MANAGER, Role.Name.IT_ADMIN],
+        'media':  [Role.Name.MEDIA_INCHARGE, Role.Name.IT_ADMIN],
+    }
+
+    role_map = {role.name: role for role in roles}
+    for role_name in domain_roles.get(domain, []):
+        role = role_map.get(role_name)
+        if role:
+            return role.get_name_display()
+
+    role = roles.first()
+    return role.get_name_display() if role else 'an approver'
 
 
 def notify_booking_status_change(booking, new_status, domain, resolved_by, remarks=None):
@@ -113,7 +134,7 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     status_value = str(new_status or '').upper()
     reference    = getattr(booking, 'reference_code', 'Booking')
     resource     = _resource_name(booking)
-    resolver     = _resolver_name(resolved_by)
+    resolver     = _resolver_title(resolved_by, domain)
     link         = f"/bookings/{reference}"
 
     category_map = {
@@ -127,8 +148,8 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
         return None
 
     status_display = status_value.lower()
-    title = f"Booking {status_display}: {reference}"
-    message = f"Your booking {reference} for {resource} was {status_display} by {resolver}."
+    title = f"{resource} booking {status_display}"
+    message = f"Your booking for {resource} was {status_display} by {resolver}."
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
@@ -141,8 +162,8 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     )
 
     if status_value == 'APPROVED':
-        audit_title = f"Booking approved: {reference}"
-        audit_message = f"{resolver} approved {domain} booking {reference} for {resource}."
+        audit_title = f"{resource} booking approved"
+        audit_message = f"{resolver} approved a {domain} booking for {resource}."
         notify_approvers(
             Role.Name.IT_ADMIN,
             Notification.Category.BOOKING_APPROVED,
