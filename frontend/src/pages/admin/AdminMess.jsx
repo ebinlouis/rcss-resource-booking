@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import messService from "../../api/messService";
 import { MEALS, getEarliestTime, getRequestedMeals, formatDateRange, isMultiDay } from "../../api/messConfig";
@@ -26,6 +27,8 @@ const getDepartmentName = (b) => {
   if (typeof b.department === "string") return b.department;
   return "General";
 };
+
+const normaliseReference = (value) => String(value || "").trim().toUpperCase();
 
 // Sum a numeric field across all daily_menus rows (falls back to the flat
 // top-level field for legacy single-day bookings that lack daily_menus).
@@ -70,7 +73,7 @@ function AccessDenied() {
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, onSelect }) {
+function BookingCard({ booking, onSelect, isHighlighted }) {
   const meals       = getRequestedMeals(booking);
   const statusLower = booking.status?.toLowerCase();
   const multiDay    = isMultiDay(booking);
@@ -80,8 +83,9 @@ function BookingCard({ booking, onSelect }) {
 
   return (
     <div
+      data-booking-reference={booking.reference_code || ""}
       onClick={() => onSelect(booking)}
-      className="bg-white border border-gray-200 rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
+      className={`bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`}
     >
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
@@ -229,8 +233,13 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
 
 function AdminMess() {
   const { can_manage_mess, isLoading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const highlightedReference = searchParams.get("booking") || "";
 
-  const [activeTab,      setActiveTab]      = useState("pending");
+  const [activeTab,      setActiveTab]      = useState(() => (
+    ["pending", "dispatch", "history"].includes(requestedTab) ? requestedTab : "pending"
+  ));
   const [bookings,       setBookings]       = useState([]);
   const [isLoading,      setIsLoading]      = useState(true);
   const [toastMsg,       setToastMsg]       = useState("");
@@ -279,6 +288,12 @@ function AdminMess() {
     setTimeout(() => setToastMsg(""), 4000);
   }, []);
 
+  useEffect(() => {
+    if (!["pending", "dispatch", "history"].includes(requestedTab)) return undefined;
+    const timer = window.setTimeout(() => setActiveTab(requestedTab), 0);
+    return () => window.clearTimeout(timer);
+  }, [requestedTab]);
+
   // ── Derived lists ────────────────────────────────────────────────────────────
 
   const pendingBookings = bookings.filter((b) => b.status?.toLowerCase() === "pending");
@@ -313,6 +328,26 @@ function AdminMess() {
     },
     { total: 0, veg: 0, nonveg: 0 }
   );
+
+  useEffect(() => {
+    if (!highlightedReference || isLoading || bookings.length === 0) return undefined;
+
+    const targetBooking = bookings.find(
+      (booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)
+    );
+    if (!targetBooking) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setActiveTab(targetBooking.status?.toLowerCase() === "pending" ? "pending" : "history");
+      openPanel(targetBooking);
+
+      const target = Array.from(document.querySelectorAll("[data-booking-reference]"))
+        .find((element) => normaliseReference(element.getAttribute("data-booking-reference")) === normaliseReference(highlightedReference));
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [bookings, highlightedReference, isLoading, openPanel]);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -463,7 +498,12 @@ function AdminMess() {
                 <p className="text-sm text-gray-500 mt-1">There are no catering requests waiting for your approval.</p>
               </div>
             ) : pendingBookings.map((b) => (
-              <BookingCard key={b.id} booking={b} onSelect={openPanel} />
+              <BookingCard
+                key={b.id}
+                booking={b}
+                onSelect={openPanel}
+                isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
+              />
             ))}
           </div>
         )}
@@ -517,7 +557,12 @@ function AdminMess() {
                 const multiDay    = isMultiDay(b);
 
                 return (
-                  <div key={b.id} onClick={() => openPanel(b)} className="flex gap-4 p-4 hover:bg-gray-50 rounded-xl cursor-pointer transition">
+                  <div
+                    key={b.id}
+                    data-booking-reference={b.reference_code || ""}
+                    onClick={() => openPanel(b)}
+                    className={`flex gap-4 p-4 hover:bg-gray-50 rounded-xl cursor-pointer transition ${normaliseReference(b.reference_code) === normaliseReference(highlightedReference) ? "bg-emerald-50 ring-2 ring-emerald-300" : ""}`}
+                  >
                     <div className="w-20 text-right shrink-0">
                       <span className="text-sm font-bold text-emerald-700">{displayTime}</span>
                     </div>
@@ -571,7 +616,12 @@ function AdminMess() {
                 <p className="text-sm text-gray-500 mt-1">There is no past booking history in the system yet.</p>
               </div>
             ) : historyBookings.map((b) => (
-              <BookingCard key={b.id} booking={b} onSelect={openPanel} />
+              <BookingCard
+                key={b.id}
+                booking={b}
+                onSelect={openPanel}
+                isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
+              />
             ))}
           </div>
         )}

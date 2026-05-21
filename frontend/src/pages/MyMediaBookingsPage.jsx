@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal" 
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import {
   RefreshCcw,
@@ -57,10 +57,18 @@ const checkIsExpired = (booking) => {
   return false;
 };
 
+const normaliseReference = (value) => String(value || "").trim().toUpperCase();
+
 // ─── Booking Card Component (Media Style) ─────────────────────────────────────
 
-const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadge, navigate }) => {
+const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadge, navigate, isHighlighted }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!isHighlighted) return undefined;
+    const timer = window.setTimeout(() => setIsExpanded(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [isHighlighted]);
 
   const equipment    = booking.equipment_requests ?? [];
   const hasEquipment = equipment.length > 0;
@@ -76,7 +84,10 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
   const location  = booking.space_details?.location || 'Location not specified';
 
   return (
-    <div className={`px-7 border-b border-gray-100 last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f8fafc]' : 'bg-white hover:bg-[#f8fafc]'}`}>
+    <div
+      data-booking-reference={booking.reference_code || ""}
+      className={`px-7 border-b border-gray-100 last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f8fafc]' : 'bg-white hover:bg-[#f8fafc]'} ${isHighlighted ? 'ring-2 ring-emerald-300 ring-inset bg-emerald-50/70' : ''}`}
+    >
       
       {/* CLICKABLE QUICK-GLANCE HEADER */}
       <div 
@@ -326,6 +337,8 @@ const MyMediaBookingsPage = () => {
   const [isActionLoading, setIsActionLoading] = useState(false)
 
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const highlightedReference = searchParams.get("booking") || ""
 
   // Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -410,6 +423,30 @@ const MyMediaBookingsPage = () => {
 
     return result;
   }, [myBookings, searchTerm, filter])
+
+  useEffect(() => {
+    if (!highlightedReference) return undefined
+    const timer = window.setTimeout(() => {
+      setSearchTerm(highlightedReference)
+      setFilter("ALL")
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [highlightedReference])
+
+  useEffect(() => {
+    if (!highlightedReference || isLoading || filteredBookings.length === 0) return undefined
+
+    const target = Array.from(document.querySelectorAll("[data-booking-reference]"))
+      .find((element) => normaliseReference(element.getAttribute("data-booking-reference")) === normaliseReference(highlightedReference))
+
+    if (!target) return undefined
+
+    const timer = window.setTimeout(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "center" })
+    }, 80)
+
+    return () => window.clearTimeout(timer)
+  }, [filteredBookings, highlightedReference, isLoading])
 
   // ================= REFRESH =================
 
@@ -601,6 +638,7 @@ const MyMediaBookingsPage = () => {
                   isActionLoading={isActionLoading}
                   getStatusBadge={getStatusBadge}
                   navigate={navigate}
+                  isHighlighted={normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)}
                 />
               ))}
             </div>

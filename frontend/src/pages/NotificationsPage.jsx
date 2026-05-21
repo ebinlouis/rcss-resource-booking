@@ -4,6 +4,7 @@ import { Bell, CheckCheck, ChevronLeft, ChevronRight, Inbox, Loader2 } from 'luc
 
 import MainLayout from '../layouts/MainLayout';
 import notificationService from '../api/notificationService';
+import { getNotificationDestination } from '../utils/notificationNavigation';
 
 const PAGE_SIZE = 20;
 
@@ -93,8 +94,9 @@ const NotificationsPage = () => {
             }
         }
 
-        if (notification.link) {
-            navigate(notification.link);
+        const destination = getNotificationDestination(notification);
+        if (destination) {
+            navigate(destination);
         }
     };
 
@@ -150,8 +152,8 @@ const NotificationsPage = () => {
                     </button>
                 </div>
 
-                <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-xl shadow-emerald-950/5 backdrop-blur-xl ring-1 ring-emerald-900/5">
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-100/80 bg-white/85 px-5 py-4">
                         <div className="flex items-center gap-2">
                             {[
                                 ['ALL', 'All'],
@@ -164,7 +166,7 @@ const NotificationsPage = () => {
                                     className={`px-4 py-2 rounded-xl text-[13px] font-bold transition ${
                                         activeFilter === value
                                             ? 'bg-green-600 text-white shadow-sm'
-                                            : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            : 'border border-gray-200/80 bg-white/90 text-gray-600 hover:bg-white'
                                     }`}
                                 >
                                     {label}
@@ -205,13 +207,13 @@ const NotificationsPage = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-gray-100/80">
                             {visibleNotifications.map((notification) => (
                                 <button
                                     key={notification.id}
                                     type="button"
                                     onClick={() => handleNotificationClick(notification)}
-                                    className="w-full px-6 py-5 text-left hover:bg-gray-50 transition flex gap-4"
+                                    className="flex w-full gap-4 px-6 py-5 text-left transition hover:bg-green-50/60"
                                 >
                                     <span className={`mt-2 w-2.5 h-2.5 rounded-full shrink-0 ${notification.is_read ? 'bg-gray-200' : 'bg-green-500'}`} />
                                     <span className="min-w-0 flex-1">
@@ -235,7 +237,7 @@ const NotificationsPage = () => {
                         </div>
                     )}
 
-                    <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100 bg-gray-50">
+                    <div className="flex items-center justify-between gap-3 border-t border-gray-100/80 bg-white/85 px-5 py-4">
                         <button
                             type="button"
                             onClick={() => setPage((value) => Math.max(1, value - 1))}

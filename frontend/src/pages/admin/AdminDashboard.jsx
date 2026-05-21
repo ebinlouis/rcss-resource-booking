@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
 import approvalService from '../../api/approvalService';
 import { useAuth } from '../../hooks/useAuth';
@@ -78,6 +78,17 @@ const groupBookings = (list) => {
 const bookingRowKey = (booking) => (
     `${booking.domain || 'spaces'}-${booking.group_id || booking.id}-${booking.status || 'UNKNOWN'}`
 );
+
+const normaliseReference = (value) => String(value || '').trim().toUpperCase();
+
+const bookingMatchesReference = (booking, reference) => {
+    const target = normaliseReference(reference);
+    if (!target) return false;
+    if (normaliseReference(booking.reference_code) === target) return true;
+    return (booking.child_bookings ?? []).some(
+        (child) => normaliseReference(child.reference_code) === target
+    );
+};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -333,8 +344,14 @@ const SuccessModal = ({ booking, onClose }) => {
 
 // ─── Booking Row ──────────────────────────────────────────────────────────────
 
-const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendingTab }) => {
+const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendingTab, isHighlighted }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+
+    useEffect(() => {
+        if (!isHighlighted) return undefined;
+        const timer = window.setTimeout(() => setIsExpanded(true), 0);
+        return () => window.clearTimeout(timer);
+    }, [isHighlighted]);
 
     const hasEquipment    = booking.equipment_requests?.length > 0;
     const hasNotes        = booking.user_notes?.trim().length > 0;
@@ -354,7 +371,10 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
     const isRecurring = (booking.child_bookings?.length ?? 1) > 1;
 
     return (
-        <div className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'} ${isExternal && !isExpanded ? 'bg-[#fffdf8]' : ''}`}>
+        <div
+            data-booking-reference={booking.reference_code || ''}
+            className={`px-7 border-b border-[#e8f5ee] last:border-0 transition-colors duration-150 ${isExpanded ? 'bg-[#f6fbf8]' : 'hover:bg-[#f6fbf8]'} ${isExternal && !isExpanded ? 'bg-[#fffdf8]' : ''} ${isHighlighted ? 'ring-2 ring-[#22c55e] ring-inset bg-[#f0fdf4]' : ''}`}
+        >
 
             {/* CLICKABLE QUICK-GLANCE HEADER */}
             <div
@@ -594,7 +614,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
 // ─── Booking List (shared renderer) ──────────────────────────────────────────
 
-function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, actionLoading }) {
+function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, actionLoading, highlightedReference }) {
     const priorityBookings = bookings.filter(b => b.is_external);
     const standardBookings = bookings.filter(b => !b.is_external);
 
@@ -617,6 +637,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                             onApproveClick={onApproveClick}
                             onRejectClick={onRejectClick}
                             isActing={actionLoading === booking.id}
+                            isHighlighted={bookingMatchesReference(booking, highlightedReference)}
                         />
                     ))}
                 </div>
@@ -638,6 +659,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                             onApproveClick={onApproveClick}
                             onRejectClick={onRejectClick}
                             isActing={actionLoading === booking.id}
+                            isHighlighted={bookingMatchesReference(booking, highlightedReference)}
                         />
                     ))}
                 </div>
@@ -653,13 +675,20 @@ const PAGE_DOMAIN = 'spaces';
 const AdminDashboard = () => {
     const { can_manage_system, can_manage_mess, user } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const can_manage_media = user?.capabilities?.can_manage_media;
     const currentUserId    = user?.id;
+    const requestedTab = searchParams.get('tab');
+    const highlightedReference = searchParams.get('booking') || '';
 
     const now = new Date();
 
     // ── Tabs ──────────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState('pending');
+    const [activeTab, setActiveTab] = useState(() => (
+        ['pending', 'upcoming', 'history', 'resolvedByMe'].includes(requestedTab)
+            ? requestedTab
+            : 'pending'
+    ));
 
     // ── Raw fetched data ──────────────────────────────────────────────────────
     const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [] });
@@ -678,11 +707,17 @@ const AdminDashboard = () => {
     const [timingFilter, setTimingFilter] = useState('all');   // all | today | upcoming | past
 
     // Reset filters when switching tabs
-    const handleTabChange = (tab) => {
+    const handleTabChange = useCallback((tab) => {
         setActiveTab(tab);
         setStatusFilter('all');
         setTimingFilter('all');
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!['pending', 'upcoming', 'history', 'resolvedByMe'].includes(requestedTab)) return undefined;
+        const timer = window.setTimeout(() => handleTabChange(requestedTab), 0);
+        return () => window.clearTimeout(timer);
+    }, [handleTabChange, requestedTab]);
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
@@ -733,6 +768,21 @@ const AdminDashboard = () => {
             default:             return [];
         }
     }, [activeTab, raw.pending, upcoming, history, resolvedByMe, applyFilters]);
+
+    useEffect(() => {
+        if (!highlightedReference || isLoading || listForTab.length === 0) return undefined;
+
+        const target = Array.from(document.querySelectorAll('[data-booking-reference]'))
+            .find((element) => normaliseReference(element.getAttribute('data-booking-reference')) === normaliseReference(highlightedReference));
+
+        if (!target) return undefined;
+
+        const timer = window.setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+
+        return () => window.clearTimeout(timer);
+    }, [highlightedReference, isLoading, listForTab]);
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchQueue = useCallback(async ({ showLoading = true } = {}) => {
@@ -1015,6 +1065,7 @@ const AdminDashboard = () => {
                             onApproveClick={setApproveTarget}
                             onRejectClick={setRejectTarget}
                             actionLoading={actionLoading}
+                            highlightedReference={highlightedReference}
                         />
                     )}
                 </div>

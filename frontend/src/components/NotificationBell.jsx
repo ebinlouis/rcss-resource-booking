@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Inbox, Loader2 } from 'lucide-react';
 
 import notificationService from '../api/notificationService';
 import { useAuth } from '../hooks/useAuth';
+import { getNotificationDestination } from '../utils/notificationNavigation';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -139,8 +140,9 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         }
 
         setIsOpen(false);
-        if (notification.link) {
-            navigate(notification.link);
+        const destination = getNotificationDestination(notification);
+        if (destination) {
+            navigate(destination);
         }
     };
 
@@ -182,8 +184,8 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2.5 w-[min(390px,calc(100vw-32px))] rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-black/10 overflow-hidden z-[70]">
-                    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <div className="absolute right-0 top-full mt-2.5 w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-2xl shadow-emerald-950/10 backdrop-blur-xl ring-1 ring-emerald-900/5 z-[70]">
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-100/80 bg-white/85 px-4 py-3">
                         <div>
                             <p className="text-[15px] font-bold text-gray-900 leading-tight">Notifications</p>
                             <p className="text-[13px] text-gray-500 mt-0.5">{unreadCount} unread</p>
@@ -192,7 +194,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                             type="button"
                             onClick={handleMarkAllRead}
                             disabled={!unreadCount || isMarkingAll}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold text-green-700 hover:bg-green-50 disabled:text-gray-300 disabled:hover:bg-transparent transition"
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-green-700 transition hover:bg-green-50 disabled:text-gray-300 disabled:hover:bg-transparent"
                         >
                             {isMarkingAll ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -227,13 +229,13 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                                 <p className="text-[13px] text-gray-400 mt-1">Updates about your bookings will appear here.</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-gray-100">
+                            <div className="divide-y divide-gray-100/80">
                                 {notifications.map((notification) => (
                                     <button
                                         key={notification.id}
                                         type="button"
                                         onClick={() => handleNotificationClick(notification)}
-                                        className="w-full px-4 py-3.5 text-left hover:bg-gray-50 transition flex items-start gap-3"
+                                        className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition hover:bg-green-50/70"
                                     >
                                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notification.is_read ? 'bg-gray-200' : 'bg-green-500'}`} />
                                         <span className="min-w-0 flex-1">
@@ -257,7 +259,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                             </div>
                         )}
                     </div>
-                    <div className="border-t border-gray-100 bg-white px-4 py-3">
+                    <div className="border-t border-gray-100/80 bg-white/85 px-4 py-3">
                         <Link
                             to="/notifications"
                             onClick={() => setIsOpen(false)}
