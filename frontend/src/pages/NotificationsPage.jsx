@@ -4,7 +4,6 @@ import { Bell, CheckCheck, ChevronLeft, ChevronRight, Inbox, Loader2 } from 'luc
 
 import MainLayout from '../layouts/MainLayout';
 import notificationService from '../api/notificationService';
-import NotificationText from '../components/NotificationText';
 
 const PAGE_SIZE = 20;
 
@@ -18,6 +17,20 @@ const formatDateTime = (value) => {
         minute: '2-digit',
         hour12: true,
     }).format(new Date(value));
+};
+
+const getCategoryBadgeStyle = (category) => {
+    if (!category) return 'bg-gray-100 text-gray-600';
+    if (category.includes('APPROVED') || category.includes('ACCEPTED') || category.includes('GRANTED')) {
+        return 'bg-green-100 text-green-800';
+    }
+    if (category.includes('REJECTED') || category.includes('DECLINED')) {
+        return 'bg-red-100 text-red-800';
+    }
+    if (category.includes('CANCELLED') || category.includes('EXPIRED')) {
+        return 'bg-slate-100 text-slate-700';
+    }
+    return 'bg-blue-50 text-blue-700'; 
 };
 
 const NotificationsPage = () => {
@@ -203,17 +216,17 @@ const NotificationsPage = () => {
                                     <span className={`mt-2 w-2.5 h-2.5 rounded-full shrink-0 ${notification.is_read ? 'bg-gray-200' : 'bg-green-500'}`} />
                                     <span className="min-w-0 flex-1">
                                         <span className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <NotificationText className="text-[16px] font-bold text-gray-900 leading-snug">
+                                            <span className="text-[16px] font-bold text-gray-900 leading-snug">
                                                 {notification.title}
-                                            </NotificationText>
+                                            </span>
                                             <span className="text-[12px] text-gray-400 font-semibold shrink-0">
                                                 {formatDateTime(notification.created_at)}
                                             </span>
                                         </span>
-                                        <NotificationText className="block text-[14px] text-gray-700 leading-relaxed mt-2">
+                                        <span className="block text-[14px] text-gray-700 leading-relaxed mt-2">
                                             {notification.message}
-                                        </NotificationText>
-                                        <span className="inline-flex mt-3 px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-[11px] font-bold uppercase tracking-[0.08em]">
+                                        </span>
+                                        <span className={`inline-flex mt-3 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.08em] ${getCategoryBadgeStyle(notification.category)}`}>
                                             {notification.category_display || notification.category}
                                         </span>
                                     </span>

@@ -273,6 +273,15 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             b.resolved_at      = timezone.now()
             b.save()
 
+            # 👇 FIX APPLIED HERE: The backend will now generate the correct Space Name / Role String
+            notify_booking_status_change(
+                booking=b,
+                new_status=new_status,
+                domain='spaces',
+                resolved_by=user,
+                remarks=remarks
+            )
+
         booking.refresh_from_db()
         serializer = self.get_serializer(booking)
         return Response(serializer.data, status=status.HTTP_200_OK)
