@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     # Local Apps
     'apps.users',
     'apps.approvals',
+    'apps.notifications',
     'apps.spaces',
     'apps.fleet',
     'apps.mess',
@@ -122,6 +123,16 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Space approval routing
 # Temporary fallback window until the notification/leave workflow is implemented.
 AI_LAB_HOD_FALLBACK_HOURS = env.int('AI_LAB_HOD_FALLBACK_HOURS', default=24)
+
+# Notification email delivery
+NOTIFICATION_EMAIL_STUB = True
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = env('EMAIL_HOST', default='')
+# EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+# EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+# DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='')
 
 # ==========================================
 # CORS & CSRF CONFIGURATION

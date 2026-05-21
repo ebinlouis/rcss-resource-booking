@@ -12,6 +12,7 @@ from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
     refresh_queryset_lifecycle,
 )
+from apps.notifications.utils import notify_booking_status_change
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
@@ -313,6 +314,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             sibling.resolved_at      = resolved_at
             sibling.remarks_by_admin = remarks
             sibling.save()
+            notify_booking_status_change(sibling, 'CANCELLED', 'spaces', request.user, remarks=remarks)
             cancelled_refs.append(sibling.reference_code)
 
         return Response(

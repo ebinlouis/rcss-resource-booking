@@ -8,6 +8,7 @@ from datetime import timedelta
 from apps.users.permissions import IsApprover
 from apps.users.models import Role
 from apps.approvals.lifecycle import refresh_booking_lifecycle, refresh_queryset_lifecycle
+from apps.notifications.utils import notify_booking_status_change
 
 from apps.spaces.models import Space, SpaceBooking, SpaceApprover
 from apps.fleet.models import FleetBooking
@@ -448,7 +449,7 @@ class AdminResolveBookingAPIView(APIView):
             if module in self.GROUP_AWARE_MODULES:
                 self._resolve_group(booking, new_status, remarks, request.user)
             else:
-                self._resolve_single(booking, new_status, remarks, request.user)
+                self._resolve_single(booking, new_status, remarks, request.user, module)
 
             return Response({
                 "message": f"Booking {booking.reference_code} successfully {new_status.lower()}.",
@@ -458,13 +459,14 @@ class AdminResolveBookingAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
-    def _resolve_single(self, booking, new_status, remarks, resolved_by):
+    def _resolve_single(self, booking, new_status, remarks, resolved_by, module):
         booking.status      = new_status
         booking.resolved_by = resolved_by
         booking.resolved_at = timezone.now()
         if remarks:
             booking.remarks_by_admin = remarks
         booking.save()
+        notify_booking_status_change(booking, new_status, module, resolved_by, remarks=remarks)
 
     def _resolve_group(self, booking, new_status, remarks, resolved_by):
         siblings = (
@@ -482,3 +484,4 @@ class AdminResolveBookingAPIView(APIView):
             if remarks:
                 sibling.remarks_by_admin = remarks
             sibling.save()
+            notify_booking_status_change(sibling, new_status, 'spaces', resolved_by, remarks=remarks)
