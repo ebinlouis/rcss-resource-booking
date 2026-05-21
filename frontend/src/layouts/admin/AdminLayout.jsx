@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import NotificationBell from '../../components/NotificationBell';
 
 const NAV_LINKS = [
     { to: '/admin',                label: 'Space Approval',  end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
@@ -266,14 +267,7 @@ const AdminLayout = () => {
                     </div>
 
                     <div className="flex items-center gap-2.5">
-                        <button className="relative w-10 h-10 flex items-center justify-center rounded-xl
-                            hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d] transition-all duration-150">
-                            <Icon
-                                path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                                className="w-[22px] h-[22px]"
-                            />
-                            <span className="absolute top-[8px] right-[8px] w-2 h-2 rounded-full bg-[#22c55e] border-2 border-white" />
-                        </button>
+                        <NotificationBell tone="admin" />
                         <div className="hidden md:block w-px h-6 bg-[#e8f5ee]" />
                         <div className="relative" ref={profileRef}>
                             <button

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { useParams } from "react-router-dom"
 import api from "../api/axios"
 import MainLayout from "../layouts/MainLayout"
 import BookingModal from "../components/BookingModal"
@@ -135,6 +136,7 @@ const BookingCard = ({
   onCancel,
   isActionLoading,
   getStatusBadge,
+  isHighlighted,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -155,10 +157,13 @@ const BookingCard = ({
 
   return (
     <div
+      data-booking-reference={booking.reference_code || ""}
       className={`
         rounded-3xl border transition-all duration-300 overflow-hidden
         ${
-          isExpanded
+          isHighlighted
+            ? "border-green-400 bg-white shadow-xl ring-4 ring-green-100"
+            : isExpanded
             ? "border-emerald-200 bg-white shadow-lg ring-2 ring-emerald-50"
             : "border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300"
         }
@@ -426,6 +431,7 @@ const BookingCard = ({
 // ─────────────────────────────────────────────────────────────
 
 const MyBookingsPage = () => {
+  const { referenceCode } = useParams()
   const [myBookings, setMyBookings] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -438,7 +444,18 @@ const MyBookingsPage = () => {
   const [statusFilter, setStatusFilter] = useState("ALL")
 
   // SEARCH
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(referenceCode ?? "")
+
+  useEffect(() => {
+    if (!referenceCode) return undefined
+
+    const timer = window.setTimeout(() => {
+      setSearchTerm(referenceCode)
+      setStatusFilter("ALL")
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [referenceCode])
 
   // ───────────────────────────────────────────────────────────
   // FETCH DATA
@@ -489,11 +506,13 @@ const filteredBookings = useMemo(() => {
 
     filtered = filtered.filter((booking) => {
       const hall = booking.space_details?.name?.toLowerCase() || ""
+      const reference = booking.reference_code?.toLowerCase() || ""
       const purpose = booking.purpose_of_booking?.toLowerCase() || ""
       const status = booking.status?.toLowerCase() || ""
 
       return (
         hall.includes(q) ||
+        reference.includes(q) ||
         purpose.includes(q) ||
         status.includes(q)
       )
@@ -529,6 +548,22 @@ const filteredBookings = useMemo(() => {
 
   return filtered
 }, [myBookings, searchTerm, statusFilter])
+
+  useEffect(() => {
+    if (!referenceCode || isLoading || filteredBookings.length === 0) return undefined
+
+    const timer = window.setTimeout(() => {
+      const target = Array.from(document.querySelectorAll("[data-booking-reference]"))
+        .find((element) => element.getAttribute("data-booking-reference") === referenceCode)
+
+      target?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }, 80)
+
+    return () => window.clearTimeout(timer)
+  }, [filteredBookings, isLoading, referenceCode])
 
   // ───────────────────────────────────────────────────────────
   // DASHBOARD STATS
@@ -704,7 +739,7 @@ const confirmCancelBooking = async () => {
 
                 <input
                   type="text"
-                  placeholder="Search by space, purpose, or status..."
+                  placeholder="Search by reference, space, purpose, or status..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="
@@ -932,6 +967,7 @@ const confirmCancelBooking = async () => {
                       onCancel={handleCancelBooking}
                       isActionLoading={isActionLoading}
                       getStatusBadge={getStatusBadge}
+                      isHighlighted={referenceCode === booking.reference_code}
                     />
                   ))}
                 </div>
