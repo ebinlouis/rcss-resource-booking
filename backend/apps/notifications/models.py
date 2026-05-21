@@ -27,15 +27,20 @@ class Notification(models.Model):
     title    = models.CharField(max_length=200)
     message  = models.TextField()
     link     = models.CharField(max_length=255, blank=True, null=True)
+    domain   = models.CharField(max_length=20, blank=True, default='', db_index=True)
+    reference_code = models.CharField(max_length=64, blank=True, default='', db_index=True)
 
-    is_read    = models.BooleanField(default=False, db_index=True)
-    read_at    = models.DateTimeField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_read       = models.BooleanField(default=False, db_index=True)
+    is_actionable = models.BooleanField(default=False, db_index=True)
+    read_at       = models.DateTimeField(blank=True, null=True)
+    created_at    = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['recipient', 'is_read', '-created_at']),
+            models.Index(fields=['recipient', 'is_actionable', '-created_at']),
+            models.Index(fields=['domain', 'reference_code', 'is_actionable']),
             models.Index(fields=['recipient', '-created_at']),
         ]
 

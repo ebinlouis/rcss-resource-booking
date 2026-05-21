@@ -15,7 +15,10 @@ class NotificationSerializer(serializers.ModelSerializer):
             'title',
             'message',
             'link',
+            'domain',
+            'reference_code',
             'is_read',
+            'is_actionable',
             'read_at',
             'created_at',
         ]

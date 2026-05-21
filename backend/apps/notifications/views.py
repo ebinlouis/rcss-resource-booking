@@ -7,7 +7,6 @@ from rest_framework.views import APIView
 
 from apps.notifications.models import Notification
 from apps.notifications.serializers import NotificationSerializer
-from apps.notifications.utils import _reference_link_filter
 
 
 class NotificationPagination(PageNumberPagination):
@@ -22,7 +21,15 @@ class NotificationListAPIView(APIView):
 
     def get(self, request):
         queryset = Notification.objects.filter(recipient=request.user).order_by('-created_at')
-        unread_count = queryset.filter(is_read=False).count()
+        wants_actionable = request.query_params.get('actionable') == 'true'
+        unread_count = (
+            queryset.filter(is_actionable=True).count()
+            if wants_actionable
+            else queryset.filter(is_read=False).count()
+        )
+
+        if wants_actionable:
+            queryset = queryset.filter(is_actionable=True)
         if request.query_params.get('unread') == 'true':
             queryset = queryset.filter(is_read=False)
 
@@ -43,6 +50,14 @@ class NotificationUnreadCountAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.query_params.get('actionable') == 'true':
+            return Response({
+                "unread_count": Notification.objects.filter(
+                    recipient=request.user,
+                    is_actionable=True,
+                ).count()
+            })
+
         return Response({
             "unread_count": Notification.objects.filter(
                 recipient=request.user,
@@ -82,14 +97,20 @@ class NotificationMarkBookingReadAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, reference):
-        updated = Notification.objects.filter(
+        domain = request.data.get('domain', '') or request.query_params.get('domain', '')
+        queryset = Notification.objects.filter(
             recipient=request.user,
-            is_read=False,
             category=Notification.Category.BOOKING_PENDING,
-        ).filter(
-            _reference_link_filter(reference)
-        ).update(
+            reference_code=reference,
+            is_actionable=True,
+        )
+        if domain:
+            queryset = queryset.filter(domain=domain)
+
+        updated = queryset.update(
+            is_actionable=False,
             is_read=True,
             read_at=timezone.now(),
         )
+
         return Response({"updated": updated})

@@ -542,7 +542,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
-        mark_pending_request_notifications_read(booking)
+        mark_pending_request_notifications_read(booking, domain='media')
 
         # Notify the requester of the status change
         notify_booking_status_change(

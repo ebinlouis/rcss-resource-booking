@@ -28,10 +28,11 @@ const extractBookingReference = (link) => {
 
 export const getNotificationDestination = (notification) => {
   const link = notification?.link
-  if (!link) return null
 
-  const reference = extractBookingReference(link)
-  const domain = inferDomain(notification)
+  const reference = notification?.reference_code || extractBookingReference(link)
+  const domain = notification?.domain || inferDomain(notification)
+
+  if (!reference && !link) return null
 
   if (notification.category === 'BOOKING_PENDING' && reference) {
     const adminBase = ADMIN_PENDING_LINKS[domain] ?? ADMIN_PENDING_LINKS.spaces

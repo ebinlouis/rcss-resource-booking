@@ -860,7 +860,7 @@ const AdminDashboard = () => {
                 status:  'APPROVED',
                 remarks: '',
             });
-            await notificationService.markBookingRead(parentBooking.reference_code).catch(() => null);
+            await notificationService.markBookingRead(parentBooking.reference_code, parentBooking.domain || 'spaces').catch(() => null);
             if (bookingMatchesReference(parentBooking, highlightedReference)) {
                 navigate('/admin?tab=pending', { replace: true });
             }
@@ -890,7 +890,7 @@ const AdminDashboard = () => {
                 status:  'REJECTED',
                 remarks,
             });
-            await notificationService.markBookingRead(parentBooking.reference_code).catch(() => null);
+            await notificationService.markBookingRead(parentBooking.reference_code, parentBooking.domain || 'spaces').catch(() => null);
             if (bookingMatchesReference(parentBooking, highlightedReference)) {
                 navigate('/admin?tab=pending', { replace: true });
             }

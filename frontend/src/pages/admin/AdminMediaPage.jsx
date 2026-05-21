@@ -570,7 +570,7 @@ function AdminMediaPage() {
         setActionLoading(approveTarget.id)
         try {
             await mediaApi.reviewBooking(approveTarget.id, { status: 'APPROVED' })
-            await notificationService.markBookingRead(approveTarget.reference_code).catch(() => null)
+            await notificationService.markBookingRead(approveTarget.reference_code, 'media').catch(() => null)
             if (normaliseReference(approveTarget.reference_code) === normaliseReference(highlightedReference)) {
                 navigate('/admin/media?tab=pending', { replace: true })
             }
@@ -589,7 +589,7 @@ function AdminMediaPage() {
         setActionLoading(rejectTarget.id)
         try {
             await mediaApi.reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks_by_admin: remarks })
-            await notificationService.markBookingRead(rejectTarget.reference_code).catch(() => null)
+            await notificationService.markBookingRead(rejectTarget.reference_code, 'media').catch(() => null)
             if (normaliseReference(rejectTarget.reference_code) === normaliseReference(highlightedReference)) {
                 navigate('/admin/media?tab=pending', { replace: true })
             }
