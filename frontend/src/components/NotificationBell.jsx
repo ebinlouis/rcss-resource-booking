@@ -51,6 +51,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState([]);
     const [error, setError] = useState('');
+    const isActionTray = tone === 'admin';
 
     const shellClasses = tone === 'admin'
         ? 'hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d]'
@@ -63,12 +64,12 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
     const loadUnreadCount = useCallback(async () => {
         if (!user) return;
         try {
-            const count = await notificationService.getUnreadCount();
+            const count = await notificationService.getUnreadCount(isActionTray ? { actionable: 'true' } : {});
             setUnreadCount(count);
         } catch {
             setUnreadCount(0);
         }
-    }, [user]);
+    }, [isActionTray, user]);
 
     const loadNotifications = useCallback(async () => {
         if (!user) return;
@@ -76,7 +77,10 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         setError('');
 
         try {
-            const data = await notificationService.getNotifications({ page_size: 10, unread: 'true' });
+            const data = await notificationService.getNotifications({
+                page_size: 10,
+                ...(isActionTray ? { actionable: 'true' } : { unread: 'true' }),
+            });
             setNotifications(data.results ?? []);
             setUnreadCount(data.unread_count ?? 0);
         } catch {
@@ -84,7 +88,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [user]);
+    }, [isActionTray, user]);
 
     useEffect(() => {
         if (!user) {
@@ -127,7 +131,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
     };
 
     const handleNotificationClick = async (notification) => {
-        if (!notification.is_read) {
+        if (!isActionTray && !notification.is_read) {
             try {
                 const updated = await notificationService.markRead(notification.id);
                 setNotifications((current) =>
@@ -182,21 +186,25 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                     <div className="flex items-center justify-between gap-3 border-b border-gray-100/80 bg-white/85 px-4 py-3">
                         <div>
                             <p className="text-[15px] font-bold text-gray-900 leading-tight">Notifications</p>
-                            <p className="text-[13px] text-gray-500 mt-0.5">{unreadCount} unread</p>
+                            <p className="text-[13px] text-gray-500 mt-0.5">
+                                {unreadCount} {isActionTray ? 'needs action' : 'unread'}
+                            </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleMarkAllRead}
-                            disabled={!unreadCount || isMarkingAll}
-                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-green-700 transition hover:bg-green-50 disabled:text-gray-300 disabled:hover:bg-transparent"
-                        >
-                            {isMarkingAll ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                                <CheckCheck className="w-3.5 h-3.5" />
-                            )}
-                            Mark all
-                        </button>
+                        {!isActionTray && (
+                            <button
+                                type="button"
+                                onClick={handleMarkAllRead}
+                                disabled={!unreadCount || isMarkingAll}
+                                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-green-700 transition hover:bg-green-50 disabled:text-gray-300 disabled:hover:bg-transparent"
+                            >
+                                {isMarkingAll ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <CheckCheck className="w-3.5 h-3.5" />
+                                )}
+                                Mark all
+                            </button>
+                        )}
                     </div>
 
                     <div className="max-h-[420px] overflow-y-auto">
@@ -220,7 +228,11 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                             <div className="py-10 px-5 text-center">
                                 <Inbox className="w-7 h-7 text-gray-300 mx-auto mb-2" />
                                 <p className="text-[15px] font-semibold text-gray-700">No notifications</p>
-                                <p className="text-[13px] text-gray-400 mt-1">Updates about your bookings will appear here.</p>
+                                <p className="text-[13px] text-gray-400 mt-1">
+                                    {isActionTray
+                                        ? 'Requests waiting for your decision will appear here.'
+                                        : 'Updates about your bookings will appear here.'}
+                                </p>
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-100/80">

@@ -466,7 +466,7 @@ class AdminResolveBookingAPIView(APIView):
         if remarks:
             booking.remarks_by_admin = remarks
         booking.save()
-        mark_pending_request_notifications_read(booking)
+        mark_pending_request_notifications_read(booking, domain=module)
         notify_booking_status_change(booking, new_status, module, resolved_by, remarks=remarks)
 
     def _resolve_group(self, booking, new_status, remarks, resolved_by):
@@ -485,5 +485,5 @@ class AdminResolveBookingAPIView(APIView):
             if remarks:
                 sibling.remarks_by_admin = remarks
             sibling.save()
-            mark_pending_request_notifications_read(sibling)
+            mark_pending_request_notifications_read(sibling, domain='spaces')
             notify_booking_status_change(sibling, new_status, 'spaces', resolved_by, remarks=remarks)

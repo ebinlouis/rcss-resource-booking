@@ -357,7 +357,7 @@ function AdminMess() {
     setActionLoading(true);
     try {
       await messService.approveBooking(booking.id);
-      await notificationService.markBookingRead(booking.reference_code).catch(() => null);
+      await notificationService.markBookingRead(booking.reference_code, "mess").catch(() => null);
       if (normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)) {
         navigate("/admin/mess?tab=pending", { replace: true });
       }
@@ -391,7 +391,7 @@ function AdminMess() {
     setRemarkError("");
     try {
       await messService.rejectBooking(selectedBooking.id, trimmed);
-      await notificationService.markBookingRead(selectedBooking.reference_code).catch(() => null);
+      await notificationService.markBookingRead(selectedBooking.reference_code, "mess").catch(() => null);
       if (normaliseReference(selectedBooking.reference_code) === normaliseReference(highlightedReference)) {
         navigate("/admin/mess?tab=pending", { replace: true });
       }

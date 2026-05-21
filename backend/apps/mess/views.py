@@ -103,7 +103,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by = request.user
         booking.resolved_at = timezone.now()
         booking.save()
-        mark_pending_request_notifications_read(booking)
+        mark_pending_request_notifications_read(booking, domain='mess')
 
         # Fire the status change notification
         notify_booking_status_change(
@@ -148,7 +148,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
-        mark_pending_request_notifications_read(booking)
+        mark_pending_request_notifications_read(booking, domain='mess')
 
         # Fire the status change notification
         notify_booking_status_change(

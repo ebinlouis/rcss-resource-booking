@@ -1,12 +1,21 @@
 from django.db.models import Q
 from django.utils import timezone
-from urllib.parse import quote
 
 from apps.notifications.models import Notification
 from apps.users.models import CustomUser, Role, RoleOverride
 
 
-def notify(recipient, category, title, message, link=None, send_email=False):
+def notify(
+    recipient,
+    category,
+    title,
+    message,
+    link=None,
+    send_email=False,
+    domain='',
+    reference_code='',
+    is_actionable=False,
+):
     """
     Single entry point for creating notifications.
 
@@ -19,6 +28,9 @@ def notify(recipient, category, title, message, link=None, send_email=False):
         title     = title,
         message   = message,
         link      = link,
+        domain    = domain or '',
+        reference_code = reference_code or '',
+        is_actionable = is_actionable,
     )
 
     if send_email:
@@ -44,7 +56,16 @@ def notify(recipient, category, title, message, link=None, send_email=False):
     return notification
 
 
-def notify_approvers(role_name, category, title, message, link=None):
+def notify_approvers(
+    role_name,
+    category,
+    title,
+    message,
+    link=None,
+    domain='',
+    reference_code='',
+    is_actionable=False,
+):
     """
     Notify all active users who currently hold role_name.
 
@@ -73,7 +94,16 @@ def notify_approvers(role_name, category, title, message, link=None):
 
     created_count = 0
     for recipient in recipients:
-        notify(recipient, category, title, message, link=link)
+        notify(
+            recipient,
+            category,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference_code,
+            is_actionable=is_actionable,
+        )
         created_count += 1
 
     return created_count
@@ -99,24 +129,18 @@ def _booking_reference(booking):
     return getattr(booking, 'reference_code', 'Booking')
 
 
-def _reference_link_filter(reference):
-    encoded_reference = quote(reference, safe='')
-    return (
-        Q(link__icontains=f"booking={reference}") |
-        Q(link__icontains=f"booking={encoded_reference}") |
-        Q(link__icontains=f"/bookings/{reference}") |
-        Q(link__icontains=f"/bookings/{encoded_reference}")
-    )
-
-
-def mark_pending_request_notifications_read(booking):
+def mark_pending_request_notifications_read(booking, domain=''):
     reference = _booking_reference(booking)
-    return Notification.objects.filter(
-        is_read=False,
+    queryset = Notification.objects.filter(
         category=Notification.Category.BOOKING_PENDING,
-    ).filter(
-        _reference_link_filter(reference)
-    ).update(
+        reference_code=reference,
+        is_actionable=True,
+    )
+    if domain:
+        queryset = queryset.filter(domain=domain)
+
+    return queryset.update(
+        is_actionable=False,
         is_read=True,
         read_at=timezone.now(),
     )
@@ -258,7 +282,16 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
-    return notify(booking.user, category, title, message, link=link)
+    return notify(
+        booking.user,
+        category,
+        title,
+        message,
+        link=link,
+        domain=domain,
+        reference_code=reference,
+        is_actionable=False,
+    )
 
 
 def notify_group_status_change(bookings, new_status, domain, resolved_by, remarks=None):
@@ -306,7 +339,16 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
-    return notify(base_booking.user, category, title, message, link=link)
+    return notify(
+        base_booking.user,
+        category,
+        title,
+        message,
+        link=link,
+        domain=domain,
+        reference_code=reference,
+        is_actionable=False,
+    )
 
 
 def notify_new_request(booking, domain, role_name):
@@ -331,6 +373,9 @@ def notify_new_request(booking, domain, role_name):
         title,
         message,
         link=link,
+        domain=domain,
+        reference_code=reference,
+        is_actionable=True,
     )
 
 

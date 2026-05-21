@@ -6,8 +6,8 @@ const notificationService = {
         return response.data;
     },
 
-    getUnreadCount: async () => {
-        const response = await api.get('notifications/unread-count/');
+    getUnreadCount: async (params = {}) => {
+        const response = await api.get('notifications/unread-count/', { params });
         return response.data.unread_count ?? 0;
     },
 
@@ -21,9 +21,12 @@ const notificationService = {
         return response.data;
     },
 
-    markBookingRead: async (reference) => {
+    markBookingRead: async (reference, domain = '') => {
         if (!reference) return { updated: 0 };
-        const response = await api.patch(`notifications/booking/${encodeURIComponent(reference)}/read/`);
+        const response = await api.patch(
+            `notifications/booking/${encodeURIComponent(reference)}/read/`,
+            domain ? { domain } : {},
+        );
         return response.data;
     },
 };
