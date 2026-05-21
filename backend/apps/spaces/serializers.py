@@ -95,35 +95,63 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     space_details = SpaceSerializer(source='space', read_only=True)
 
     equipment_requests = EquipmentRequestSerializer(
-        source   = 'requested_equipment',
-        many     = True,
-        required = False,
+        source='requested_equipment',
+        many=True,
+        required=False,
+        read_only=True,
     )
 
-    # ── Read: role-gated ─────────────────────────────────────────────────────
     purpose_of_booking = serializers.SerializerMethodField()
 
-    # ── Write: accepts incoming purpose from the frontend ────────────────────
     purpose_of_booking_input = serializers.CharField(
-        write_only = True,
-        required   = True,
-        source     = 'purpose_of_booking',
+        write_only=True,
+        required=True,
+        source='purpose_of_booking',
     )
 
     can_modify = serializers.SerializerMethodField()
 
-    class Meta:
-        model  = SpaceBooking
-        fields = [
-            'id', 'reference_code', 'group_id', 'booking_type', 'user', 'department', 'status',
-            'space', 'space_details', 'start_datetime', 'end_datetime',
-            'attendee_count', 'purpose_of_booking', 'purpose_of_booking_input',
-            'user_notes', 'equipment_requests', 'is_external',
-            'created_at', 'updated_at', 'can_modify', 'remarks_by_admin',
-        ]
-        read_only_fields = ['reference_code', 'group_id', 'created_at', 'updated_at', 'user']
+    booked_by_name = serializers.SerializerMethodField()
+    booked_by_designation = serializers.SerializerMethodField()
+    booked_by_department = serializers.SerializerMethodField()
+    booked_by_phone = serializers.SerializerMethodField()
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    class Meta:
+        model = SpaceBooking
+        fields = [
+            'id',
+            'reference_code',
+            'group_id',
+            'booking_type',
+            'user',
+            'department',
+            'status',
+            'space',
+            'space_details',
+            'start_datetime',
+            'end_datetime',
+            'attendee_count',
+            'purpose_of_booking',
+            'booked_by_name',
+            'booked_by_designation',
+            'booked_by_department',
+            'booked_by_phone',
+            'purpose_of_booking_input',
+            'user_notes',
+            'equipment_requests',
+            'is_external',
+            'created_at',
+            'updated_at',
+            'can_modify',
+            'remarks_by_admin',
+        ]
+        read_only_fields = [
+            'reference_code',
+            'group_id',
+            'created_at',
+            'updated_at',
+            'user',
+        ]
 
     def _request(self):
         return self.context.get('request')
@@ -132,52 +160,98 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         req = self._request()
         return req.user if req else None
 
-    # ── SerializerMethodField implementations ─────────────────────────────────
-
     def get_purpose_of_booking(self, obj):
         user = self._user()
+
         if user is None:
             return "Occupied"
+
         if user.is_staff or user.is_superuser:
             return obj.purpose_of_booking
+
         if obj.user_id == user.pk:
             return obj.purpose_of_booking
+
         if user.groups.filter(name='Faculty').exists():
             return obj.purpose_of_booking
+
         return "Occupied"
 
     def get_can_modify(self, obj):
         user = self._user()
+
         if user is None:
             return False
+
         return can_user_modify_booking(obj) and (
             obj.user_id == user.pk or user.is_staff or user.is_superuser
         )
 
-    # ── Write logic ───────────────────────────────────────────────────────────
+    def get_booked_by_name(self, obj):
+        user = obj.user
+        if not user:
+            return None
+
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name or user.email
+
+    def get_booked_by_designation(self, obj):
+        user = obj.user
+        if not user:
+            return None
+
+        return getattr(user, "designation", None)
+
+
+    def get_booked_by_department(self, obj):
+        if not obj.department:
+            return None
+
+        return str(obj.department)
+
+
+    def get_booked_by_phone(self, obj):
+        requester = self._user()
+
+        if requester is None:
+            return None
+
+        is_it_admin = requester.roles.filter(
+            name=Role.Name.IT_ADMIN
+        ).exists()
+
+        if requester.is_staff or requester.is_superuser or is_it_admin:
+            return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
+
+        return None
 
     def create(self, validated_data):
         equipment_data = validated_data.pop('requested_equipment', [])
-        booking_type   = validated_data.get('booking_type', SpaceBooking.BookingType.SINGLE_CONTINUOUS)
+        booking_type = validated_data.get(
+            'booking_type',
+            SpaceBooking.BookingType.SINGLE_CONTINUOUS
+        )
 
         if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
-            start    = validated_data.pop('start_datetime')
-            end      = validated_data.pop('end_datetime')
+            start = validated_data.pop('start_datetime')
+            end = validated_data.pop('end_datetime')
             group_id = uuid.uuid4()
             validated_data['group_id'] = group_id
 
-            days_diff     = (end.date() - start.date()).days
+            days_diff = (end.date() - start.date()).days
             first_booking = None
 
             for i in range(days_diff + 1):
                 slot_start = start + timedelta(days=i)
-                slot_end   = start.replace(
-                    hour=end.hour, minute=end.minute, second=end.second
+                slot_end = start.replace(
+                    hour=end.hour,
+                    minute=end.minute,
+                    second=end.second
                 ) + timedelta(days=i)
 
                 booking = SpaceBooking.objects.create(
-                    start_datetime = slot_start,
-                    end_datetime   = slot_end,
+                    start_datetime=slot_start,
+                    end_datetime=slot_end,
                     **validated_data
                 )
 
@@ -185,155 +259,197 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                     first_booking = booking
 
                 for eq_data in equipment_data:
-                    EquipmentRequest.objects.create(space_booking=booking, **eq_data)
+                    EquipmentRequest.objects.create(
+                        space_booking=booking,
+                        **eq_data
+                    )
 
             return first_booking
 
-        else:
-            booking = super().create(validated_data)
-            for eq_data in equipment_data:
-                EquipmentRequest.objects.create(space_booking=booking, **eq_data)
-            return booking
+        booking = super().create(validated_data)
+
+        for eq_data in equipment_data:
+            EquipmentRequest.objects.create(
+                space_booking=booking,
+                **eq_data
+            )
+
+        return booking
 
     def update(self, instance, validated_data):
         equipment_data = validated_data.pop('requested_equipment', None)
 
-        new_type  = validated_data.get('booking_type', instance.booking_type)
+        new_type = validated_data.get('booking_type', instance.booking_type)
         new_start = validated_data.get('start_datetime', instance.start_datetime)
-        new_end   = validated_data.get('end_datetime', instance.end_datetime)
+        new_end = validated_data.get('end_datetime', instance.end_datetime)
 
-        # Wipe the old group structure (excluding the instance being edited)
-        SpaceBooking.objects.filter(group_id=instance.group_id).exclude(pk=instance.pk).delete()
+        SpaceBooking.objects.filter(
+            group_id=instance.group_id
+        ).exclude(pk=instance.pk).delete()
 
         if new_type == SpaceBooking.BookingType.RECURRING_DAILY:
             days_diff = (new_end.date() - new_start.date()).days
 
-            # Day 1 end time uses the time component of new_end, not the date
             validated_data['end_datetime'] = new_start.replace(
-                hour=new_end.hour, minute=new_end.minute, second=new_end.second, microsecond=0
+                hour=new_end.hour,
+                minute=new_end.minute,
+                second=new_end.second,
+                microsecond=0
             )
 
             instance = super().update(instance, validated_data)
 
             for i in range(1, days_diff + 1):
-                slot_start  = new_start + timedelta(days=i)
-                slot_end    = instance.end_datetime + timedelta(days=i)
+                slot_start = new_start + timedelta(days=i)
+                slot_end = instance.end_datetime + timedelta(days=i)
 
                 new_booking = SpaceBooking.objects.create(
-                    group_id           = instance.group_id,
-                    booking_type       = new_type,
-                    space              = instance.space,
-                    user               = instance.user,
-                    department         = instance.department,
-                    start_datetime     = slot_start,
-                    end_datetime       = slot_end,
-                    attendee_count     = instance.attendee_count,
-                    purpose_of_booking = instance.purpose_of_booking,
-                    is_external        = instance.is_external,
-                    status             = instance.status,
-                    remarks_by_admin   = instance.remarks_by_admin,
+                    group_id=instance.group_id,
+                    booking_type=new_type,
+                    space=instance.space,
+                    user=instance.user,
+                    department=instance.department,
+                    start_datetime=slot_start,
+                    end_datetime=slot_end,
+                    attendee_count=instance.attendee_count,
+                    purpose_of_booking=instance.purpose_of_booking,
+                    is_external=instance.is_external,
+                    status=instance.status,
+                    remarks_by_admin=instance.remarks_by_admin,
                 )
 
                 if equipment_data:
                     for eq in equipment_data:
-                        EquipmentRequest.objects.create(space_booking=new_booking, **eq)
+                        EquipmentRequest.objects.create(
+                            space_booking=new_booking,
+                            **eq
+                        )
 
         else:
             instance = super().update(instance, validated_data)
 
         if equipment_data is not None:
             instance.requested_equipment.all().delete()
+
             for eq_data in equipment_data:
-                EquipmentRequest.objects.create(space_booking=instance, **eq_data)
+                EquipmentRequest.objects.create(
+                    space_booking=instance,
+                    **eq_data
+                )
 
         return instance
 
-    # ── Validation ────────────────────────────────────────────────────────────
-
     def validate(self, data):
-        # ── 1. Block edits on expired bookings ─────────────────────────────
         if self.instance and not can_user_modify_booking(self.instance):
-            raise serializers.ValidationError(
-                {"non_field_errors": ["Cannot modify a booking whose start time has already passed."]}
-            )
+            raise serializers.ValidationError({
+                "non_field_errors": [
+                    "Cannot modify a booking whose start time has already passed."
+                ]
+            })
 
-        space        = data.get('space')
-        attendees    = data.get('attendee_count')
-        start        = data.get('start_datetime')
-        end          = data.get('end_datetime')
-        notes        = data.get('user_notes', '')
-        booking_type = data.get('booking_type', SpaceBooking.BookingType.SINGLE_CONTINUOUS)
+        space = data.get('space')
+        attendees = data.get('attendee_count')
+        start = data.get('start_datetime')
+        end = data.get('end_datetime')
+        notes = data.get('user_notes', '')
+        booking_type = data.get(
+            'booking_type',
+            SpaceBooking.BookingType.SINGLE_CONTINUOUS
+        )
 
-        # ── 2. Capacity checks ──────────────────────────────────────────────
         if space and attendees:
             if attendees > space.capacity_hard:
-                raise serializers.ValidationError(
-                    {"attendee_count": f"Max capacity is {space.capacity_hard}."}
-                )
+                raise serializers.ValidationError({
+                    "attendee_count": f"Max capacity is {space.capacity_hard}."
+                })
 
             min_expected = space.capacity_hard * 0.30
+
             if attendees < min_expected and not notes.strip():
                 raise serializers.ValidationError({
                     "user_notes": (
                         f"This space seats {space.capacity_hard}. "
-                        f"For a group of {attendees}, you must provide a justification in the notes."
+                        f"For a group of {attendees}, provide justification."
                     )
                 })
 
-        # ── 3. Datetime & Overlap sanity ────────────────────────────────────
         if space and start and end:
             exclude_pk = self.instance.pk if self.instance else None
 
             if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
                 if start.time() >= end.time():
-                    raise serializers.ValidationError(
-                        {"start_datetime": "For recurring bookings, the daily start time must be before the daily end time."}
-                    )
+                    raise serializers.ValidationError({
+                        "start_datetime":
+                        "For recurring bookings, start must be before end."
+                    })
 
                 conflicts = []
                 days_diff = (end.date() - start.date()).days
 
                 for i in range(days_diff + 1):
                     slot_start = start + timedelta(days=i)
-                    slot_end   = start.replace(
-                        hour=end.hour, minute=end.minute, second=end.second
+                    slot_end = start.replace(
+                        hour=end.hour,
+                        minute=end.minute,
+                        second=end.second
                     ) + timedelta(days=i)
 
-                    overlapping = get_overlapping_bookings(space, slot_start, slot_end, exclude_pk=exclude_pk)
+                    overlapping = get_overlapping_bookings(
+                        space,
+                        slot_start,
+                        slot_end,
+                        exclude_pk=exclude_pk
+                    )
+
                     if overlapping.exists():
-                        conflicts.extend(build_conflict_report(overlapping, self._user()))
+                        conflicts.extend(
+                            build_conflict_report(overlapping, self._user())
+                        )
 
                 if conflicts:
                     conflict_summary = "; ".join(
-                        f"{c['date']} {c['start']}–{c['end']}" for c in conflicts
+                        f"{c['date']} {c['start']}–{c['end']}"
+                        for c in conflicts
                     )
+
                     raise serializers.ValidationError({
                         "non_field_errors": [
-                            f"Booking conflicts with existing approved bookings: {conflict_summary}"
+                            f"Booking conflicts: {conflict_summary}"
                         ]
                     })
 
             else:
                 if start >= end:
-                    raise serializers.ValidationError(
-                        {"start_datetime": "Must be before end time."}
+                    raise serializers.ValidationError({
+                        "start_datetime": "Must be before end time."
+                    })
+
+                overlapping = get_overlapping_bookings(
+                    space,
+                    start,
+                    end,
+                    exclude_pk=exclude_pk
+                )
+
+                if overlapping.exists():
+                    conflicts = build_conflict_report(
+                        overlapping,
+                        self._user()
                     )
 
-                overlapping = get_overlapping_bookings(space, start, end, exclude_pk=exclude_pk)
-                if overlapping.exists():
-                    conflicts = build_conflict_report(overlapping, self._user())
                     conflict_summary = "; ".join(
-                        f"{c['date']} {c['start']}–{c['end']}" for c in conflicts
+                        f"{c['date']} {c['start']}–{c['end']}"
+                        for c in conflicts
                     )
+
                     raise serializers.ValidationError({
                         "non_field_errors": [
-                            f"Booking conflicts with existing approved bookings: {conflict_summary}"
+                            f"Booking conflicts: {conflict_summary}"
                         ]
                     })
 
         return data
-
-
+    
 # ==========================================
 # 4. BLOCK SERIALIZER
 # ==========================================

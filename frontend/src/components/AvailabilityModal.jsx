@@ -41,15 +41,21 @@ function buildTimeline(bookings) {
     }
 
     if (e > s) {
-      blocks.push({
-        type:       "booked",
-        start:      toTime(s),
-        end:        toTime(e),
-        title:      bk.title,
-        status:     bk.status,
-        isMultiDay: bk.isMultiDay || false,
-        isContinue: bk.isContinue || false,
-      })
+blocks.push({
+  type: "booked",
+  start: toTime(s),
+  end: toTime(e),
+  title: bk.title,
+  status: bk.status,
+  isMultiDay: bk.isMultiDay || false,
+  isContinue: bk.isContinue || false,
+
+  bookedByName: bk.bookedByName,
+  bookedByDesignation: bk.bookedByDesignation,
+  bookedByDepartment: bk.bookedByDepartment,
+  bookedByPhone: bk.bookedByPhone,
+  purpose: bk.purpose,
+})
     }
 
     cursor = Math.max(cursor, e)
@@ -133,14 +139,20 @@ async function loadBookings(spaceId) {
 
       const isContinue = cursor !== startKey // not the first day
 
-      grouped[cursor].push({
-        start:      startStr,
-        end:        endStr,
-        title:      b.purpose_of_booking || "Booked Event",
-        status:     b.status,
-        isMultiDay: isMultiDay,
-        isContinue: isContinue,
-      })
+grouped[cursor].push({
+  start: startStr,
+  end: endStr,
+  title: b.purpose_of_booking || "Booked Event",
+  status: b.status,
+  isMultiDay: isMultiDay,
+  isContinue: isContinue,
+
+  bookedByName: b.booked_by_name,
+  bookedByDesignation: b.booked_by_designation,
+  bookedByDepartment: b.booked_by_department,
+  bookedByPhone: b.booked_by_phone,
+  purpose: b.purpose_of_booking,
+})
 
       if (cursor === endKey) break
       cursor = nextDateKey(cursor)
@@ -161,6 +173,7 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
   const [openBooking,  setOpenBooking]  = useState(false)
   const [roomBookings, setRoomBookings] = useState({})
   const [isLoading,    setIsLoading]    = useState(true)
+  const [activeTooltip, setActiveTooltip] = useState(null)
 
   const monthIndex     = currentDate.getMonth()
   const year           = currentDate.getFullYear()
@@ -206,7 +219,21 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
   }, [spaceId])
 
   const refreshRef = useRef(refresh)
+  const tooltipRef = useRef(null)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
+  useEffect(() => {
+  function handleClickOutside(e) {
+    if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+      setActiveTooltip(null)
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside)
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside)
+  }
+}, [])
 
   const handleCloseBooking = useCallback(() => {
     setOpenBooking(false)
@@ -226,7 +253,7 @@ const dayStatus = (dateKey) => {
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2">
       <div className="bg-white w-full max-w-5xl rounded-2xl flex shadow-xl overflow-hidden">
         {/* ── LEFT: CALENDAR ── */}
-        <div className="w-[62%] p-6 border-r border-gray-100">
+        <div className="w-[68%] p-6 border-r border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Space Availability</p>
@@ -262,7 +289,7 @@ const dayStatus = (dateKey) => {
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-2 flex-1 content-start">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
               <div key={`e-${i}`} />
             ))}
@@ -301,7 +328,7 @@ const dotColor = isSel
   if (status === "past") return
   setSelectedDate(dateKey)
 }}
-                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[44px] transition-all ${cellBg}`}
+                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[64px] transition-all ${cellBg}`}
                 >
                   <span className={`text-[12px] font-medium leading-none ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
                     {day}
@@ -314,7 +341,7 @@ const dotColor = isSel
         </div>
 
         {/* ── RIGHT: TIMELINE ── */}
-        <div className="w-full md:w-[38%] flex flex-col px-4 md:px-6 py-5 max-h-[85vh]">
+        <div className="w-full md:w-[32%] flex flex-col px-4 py-5 max-h-[85vh]">
           <div className="flex justify-between items-start mb-1">
             <div>
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">{spaceName}</p>
@@ -362,10 +389,36 @@ const dotColor = isSel
                       : "Multi-day booking"
                     : block.title
 
-                  return (
-                    <div
-                      key={idx}
-                      className={`border rounded-xl p-4 flex items-start gap-3 ${
+return (
+<div
+  key={idx}
+onClick={(e) => {
+  e.stopPropagation()
+
+  const rect = e.currentTarget.getBoundingClientRect()
+
+  const tooltipWidth = 320
+  const spacing = 16
+
+  let left = rect.left - tooltipWidth - spacing
+  let top = rect.top
+
+  if (left < 20) {
+    left = rect.right + spacing
+  }
+
+  if (top + 320 > window.innerHeight) {
+    top = window.innerHeight - 340
+  }
+
+  setActiveTooltip({
+    booking: block,
+    isPending,
+    left,
+    top,
+  })
+}}
+  className={`border rounded-xl p-3 flex flex-col gap-3 cursor-pointer transition-all ${
                         isPending
                           ? "border-yellow-200 bg-yellow-50"
                           : "border-blue-200 bg-blue-50"
@@ -376,7 +429,7 @@ const dotColor = isSel
                           isPending ? "bg-yellow-500" : "bg-blue-500"
                         }`}
                       />
-                      <div className="flex flex-col gap-1.5">
+                      <div className="relative flex flex-col gap-1.5">
                         {timeLabel && (
                           <p
                             className={`text-sm font-semibold ${
@@ -402,6 +455,7 @@ const dotColor = isSel
                         >
                           {isPending ? "Pending Approval" : "Booked"}
                         </span>
+
                       </div>
                     </div>
                   )
@@ -410,7 +464,7 @@ const dotColor = isSel
                 return (
                   <div
                     key={idx}
-                    className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
+                    className="border border-green-200 bg-green-50 rounded-xl p-3 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
                     onClick={() => { setSelectedSlot(block); setOpenBooking(true) }}
                   >
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-1" />
@@ -435,6 +489,71 @@ const dotColor = isSel
           </button>
         </div>
       </div>
+      {activeTooltip && (
+  <div
+    ref={tooltipRef}
+    className="fixed z-[9999] w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4"
+    style={{
+      left: activeTooltip.left,
+      top: activeTooltip.top,
+    }}
+  >
+    <div className="space-y-3">
+      <div>
+        <p className="text-base font-semibold text-gray-900">
+          {activeTooltip.booking.bookedByName || "Unavailable"}
+        </p>
+        <p className="text-sm text-gray-500 mt-1">
+          {activeTooltip.booking.bookedByDesignation || "Faculty"}
+        </p>
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-500">Department</span>
+          <span className="font-medium text-gray-800">
+            {activeTooltip.booking.bookedByDepartment || "Unavailable"}
+          </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-gray-500">Phone</span>
+          <span className="font-medium text-gray-800">
+            {activeTooltip.booking.bookedByPhone || "Unavailable"}
+          </span>
+        </div>
+
+        <div>
+          <span className="text-gray-500">Purpose</span>
+          <p className="font-medium text-gray-800 mt-1">
+            {activeTooltip.booking.purpose || "Unavailable"}
+          </p>
+        </div>
+
+        <div>
+          <span
+            className={`inline-block text-xs px-2 py-1 rounded-full font-medium ${
+              activeTooltip.isPending
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-blue-100 text-blue-700"
+            }`}
+          >
+            {activeTooltip.isPending ? "Pending Approval" : "Booked"}
+          </span>
+        </div>
+      </div>
+
+      {activeTooltip.booking.bookedByPhone && (
+        <a
+          href={`tel:${activeTooltip.booking.bookedByPhone}`}
+          className="w-full inline-flex justify-center rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 transition"
+        >
+          Call Contact
+        </a>
+      )}
+    </div>
+  </div>
+)}
 
       {openBooking && (
         <BookingModal
