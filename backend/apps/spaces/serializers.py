@@ -48,7 +48,7 @@ class SpaceSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'space_type', 'approval_category',
             'approval_workflow_type', 'capacity_hard',
             'location', 'image_1', 'is_active', 'is_special_purpose',
-            'setup_buffer_minutes', 'teardown_buffer_minutes', 'is_lab',
+            'setup_buffer_minutes', 'teardown_buffer_minutes',
             'built_in_equipment', 'equipment_data',
         ]
 

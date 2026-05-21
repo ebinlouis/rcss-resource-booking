@@ -197,9 +197,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         # Determine which admin handles this space
         category = booking.space.approval_category
-        if category == 'LAB':
+        if category == Space.ApprovalCategory.LAB:
             role = Role.Name.LAB_INCHARGE
-        elif category == 'LIBRARY':
+        elif category == Space.ApprovalCategory.LIBRARY:
             role = Role.Name.LIBRARIAN
         else:
             role = Role.Name.RECEPTIONIST
@@ -234,9 +234,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         # Notify the space admin that an approved booking was edited and needs re-review
         if was_approved and booking.status == 'PENDING':
             category = booking.space.approval_category
-            if category == 'LAB':
+            if category == Space.ApprovalCategory.LAB:
                 role = Role.Name.LAB_INCHARGE
-            elif category == 'LIBRARY':
+            elif category == Space.ApprovalCategory.LIBRARY:
                 role = Role.Name.LIBRARIAN
             else:
                 role = Role.Name.RECEPTIONIST

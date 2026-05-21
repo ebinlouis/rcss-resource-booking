@@ -89,10 +89,6 @@ class Space(models.Model):
         default=0,
         help_text="Minutes blocked after a booking ends (teardown/cleaning)."
     )
-    is_lab = models.BooleanField(
-        default=False,
-        help_text="Enables lab-specific features: timetable upload, lab admin role."
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -64,8 +64,8 @@ class SpaceApproverAdmin(admin.ModelAdmin):
 
 @admin.register(Space)
 class SpaceAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'location', 'block', 'space_type', 'approval_category', 'approval_workflow_type', 'capacity_hard', 'is_active', 'is_lab')
-    list_filter   = ('space_type', 'approval_category', 'approval_workflow_type', 'is_active', 'is_lab', 'block')
+    list_display  = ('name', 'location', 'block', 'space_type', 'approval_category', 'approval_workflow_type', 'capacity_hard', 'is_active')
+    list_filter   = ('space_type', 'approval_category', 'approval_workflow_type', 'is_active', 'block')
     search_fields = ('name', 'description', 'location')
     list_editable = ('is_active',)
     inlines       = [SpaceEquipmentInline]
@@ -82,7 +82,7 @@ class SpaceAdmin(admin.ModelAdmin):
             'fields': ('block', 'approval_category', 'approval_workflow_type'),
         }),
         ('Capacity & Purpose', {
-            'fields': ('capacity_hard', 'is_special_purpose', 'is_lab')
+            'fields': ('capacity_hard', 'is_special_purpose')
         }),
         ('Buffers', {
             'description': 'Minutes blocked before/after each booking for setup and teardown.',
