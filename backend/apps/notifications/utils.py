@@ -125,6 +125,47 @@ def _resolver_title(resolved_by, domain):
     return role.get_name_display() if role else 'an approver'
 
 
+def _format_booking_time(booking):
+    """
+    Extracts and nicely formats the date and time from any type of booking.
+    """
+    # 1. Try to get Datetime objects (Spaces, Fleet)
+    start_dt = getattr(booking, 'start_datetime', None)
+    end_dt   = getattr(booking, 'end_datetime', None)
+
+    # 2. Try to get Date/Time objects (Mess, Media)
+    b_date = getattr(booking, 'booking_date', getattr(booking, 'start_date', None))
+    s_time = getattr(booking, 'start_time', None)
+    e_time = getattr(booking, 'end_time', None)
+
+    if start_dt and end_dt:
+        start_dt = timezone.localtime(start_dt)
+        end_dt   = timezone.localtime(end_dt)
+
+        if start_dt.date() == end_dt.date():
+            # Single day: Oct 24, 2026 (10:00 AM - 02:00 PM)
+            date_str = start_dt.strftime('%b %d, %Y')
+            time_str = f"{start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')}"
+            return f"{date_str} ({time_str})"
+        else:
+            # Multi day: Oct 24, 2026 10:00 AM to Oct 26, 2026 02:00 PM
+            start_str = start_dt.strftime('%b %d, %Y %I:%M %p')
+            end_str   = end_dt.strftime('%b %d, %Y %I:%M %p')
+            return f"{start_str} to {end_str}"
+
+    elif b_date:
+        date_str = b_date.strftime('%b %d, %Y')
+        if s_time and e_time:
+            time_str = f"{s_time.strftime('%I:%M %p')} - {e_time.strftime('%I:%M %p')}"
+            return f"{date_str} ({time_str})"
+        elif s_time:
+            return f"{date_str} ({s_time.strftime('%I:%M %p')})"
+        else:
+            return date_str
+
+    return ""
+
+
 def notify_booking_status_change(booking, new_status, domain, resolved_by, remarks=None):
     """
     Notify the requester that their booking status changed.
@@ -148,8 +189,13 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
         return None
 
     status_display = status_value.lower()
-    title = f"{resource} booking {status_display}"
-    message = f"Your booking for {resource} was {status_display} by {resolver}."
+    title          = f"{resource} booking {status_display}"
+
+    # Generate the schedule string
+    time_str     = _format_booking_time(booking)
+    time_context = f" scheduled for {time_str}" if time_str else ""
+
+    message = f"Your booking for {resource}{time_context} was {status_display} by {resolver}."
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
@@ -162,8 +208,8 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     )
 
     if status_value == 'APPROVED':
-        audit_title = f"{resource} booking approved"
-        audit_message = f"{resolver} approved a {domain} booking for {resource}."
+        audit_title   = f"{resource} booking approved"
+        audit_message = f"{resolver} approved a {domain} booking for {resource}{time_context}."
         notify_approvers(
             Role.Name.IT_ADMIN,
             Notification.Category.BOOKING_APPROVED,

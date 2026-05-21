@@ -15,6 +15,8 @@ from apps.mess.models import MessBooking
 from apps.mess.serializers import MessBookingSerializer
 from apps.users.models import Role
 
+from apps.notifications.utils import notify_booking_status_change
+
 
 # ── Role resolution ───────────────────────────────────────────────────────────
 
@@ -93,6 +95,15 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by = request.user
         booking.resolved_at = timezone.now()
         booking.save()
+
+        # 👇 FIRE THE NEW NOTIFICATION HERE 👇
+        notify_booking_status_change(
+            booking=booking,
+            new_status='APPROVED',
+            domain='mess',
+            resolved_by=request.user,
+        )
+
         return Response({"status": "APPROVED", "message": "Booking approved."})
 
     @action(detail=True, methods=['patch'])
@@ -128,4 +139,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
+
+        # FIRE THE NEW NOTIFICATION HERE
+        notify_booking_status_change(
+            booking=booking,
+            new_status='REJECTED',
+            domain='mess',
+            resolved_by=request.user,
+            remarks=remark
+        )
+
         return Response({"status": "REJECTED", "message": "Booking rejected."})

@@ -4,7 +4,6 @@ import { Bell, CheckCheck, Inbox, Loader2 } from 'lucide-react';
 
 import notificationService from '../api/notificationService';
 import { useAuth } from '../hooks/useAuth';
-import NotificationText from './NotificationText';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -24,6 +23,20 @@ const formatNotificationTime = (value) => {
         day: 'numeric',
         month: 'short',
     });
+};
+
+const getCategoryTextColor = (category) => {
+    if (!category) return 'text-gray-500';
+    if (category.includes('APPROVED') || category.includes('ACCEPTED') || category.includes('GRANTED')) {
+        return 'text-green-600';
+    }
+    if (category.includes('REJECTED') || category.includes('DECLINED')) {
+        return 'text-red-600';
+    }
+    if (category.includes('CANCELLED') || category.includes('EXPIRED')) {
+        return 'text-slate-500';
+    }
+    return 'text-blue-600';
 };
 
 const NotificationBell = ({ className = '', tone = 'user' }) => {
@@ -225,17 +238,17 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notification.is_read ? 'bg-gray-200' : 'bg-green-500'}`} />
                                         <span className="min-w-0 flex-1">
                                             <span className="flex items-center justify-between gap-3">
-                                                <NotificationText className="text-[14px] font-bold text-gray-900 truncate">
+                                                <span className="text-[14px] font-bold text-gray-900 truncate">
                                                     {notification.title}
-                                                </NotificationText>
-                                                <span className="text-[11px] text-gray-400 shrink-0">
+                                                </span>
+                                                <span className="text-[11px] font-medium text-gray-400 shrink-0">
                                                     {formatNotificationTime(notification.created_at)}
                                                 </span>
                                             </span>
-                                            <NotificationText className="block text-[13px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
+                                            <span className="block text-[13px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
                                                 {notification.message}
-                                            </NotificationText>
-                                            <span className="block text-[12px] font-semibold text-gray-400 mt-1.5">
+                                            </span>
+                                            <span className={`block text-[12px] font-bold mt-2 ${getCategoryTextColor(notification.category)}`}>
                                                 {notification.category_display || notification.category}
                                             </span>
                                         </span>
