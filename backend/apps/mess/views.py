@@ -15,10 +15,10 @@ from apps.mess.models import MessBooking
 from apps.mess.serializers import MessBookingSerializer
 from apps.users.models import Role
 
-from apps.notifications.utils import notify_booking_status_change
+from apps.notifications.utils import notify_booking_status_change, notify_new_request
 
 
-# ── Role resolution ───────────────────────────────────────────────────────────
+# --- Role resolution ---
 
 def _is_mess_admin(user):
     return (
@@ -27,7 +27,7 @@ def _is_mess_admin(user):
     )
 
 
-# ── ViewSet ───────────────────────────────────────────────────────────────────
+# --- ViewSet ---
 
 class MessBookingViewSet(viewsets.ModelViewSet):
     queryset           = MessBooking.objects.all().order_by('-created_at')
@@ -51,7 +51,15 @@ class MessBookingViewSet(viewsets.ModelViewSet):
                     "Please contact an administrator before booking."
                 )
             })
-        serializer.save(user=self.request.user, department=user_dept)
+        
+        booking = serializer.save(user=self.request.user, department=user_dept)
+
+        # Fire the notification to mess admins for the new request
+        notify_new_request(
+            booking=booking,
+            domain='mess',
+            role_name=Role.Name.MESS_MANAGER
+        )
 
     @transaction.atomic
     def perform_update(self, serializer):
@@ -96,7 +104,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_at = timezone.now()
         booking.save()
 
-        # 👇 FIRE THE NEW NOTIFICATION HERE 👇
+        # Fire the status change notification
         notify_booking_status_change(
             booking=booking,
             new_status='APPROVED',
@@ -140,7 +148,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_at      = timezone.now()
         booking.save()
 
-        # FIRE THE NEW NOTIFICATION HERE
+        # Fire the status change notification
         notify_booking_status_change(
             booking=booking,
             new_status='REJECTED',

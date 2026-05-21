@@ -221,6 +221,31 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     return notification
 
 
+def notify_new_request(booking, domain, role_name):
+    """
+    Notify the relevant admins that a new booking requires approval.
+    """
+    resource  = _resource_name(booking)
+    reference = getattr(booking, 'reference_code', 'Booking')
+    link      = f"/bookings/{reference}"
+    
+    time_str     = _format_booking_time(booking)
+    time_context = f" scheduled for {time_str}" if time_str else ""
+    
+    requester = getattr(booking.user, 'first_name', None) or 'A user'
+    
+    title   = f"New {domain} request"
+    message = f"{requester} requested {resource}{time_context}. It requires your approval."
+
+    notify_approvers(
+        role_name,
+        Notification.Category.BOOKING_PENDING,
+        title,
+        message,
+        link=link,
+    )
+
+
 def notify_swap_event(swap_request, event):
     """
     Stub for future swap notifications.

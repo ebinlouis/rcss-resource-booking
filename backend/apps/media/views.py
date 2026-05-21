@@ -20,8 +20,10 @@ from apps.spaces.models import Equipment
 from apps.users.models import Role
 from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
 
+from apps.notifications.utils import notify_booking_status_change, notify_new_request
 
-# ── Role resolution ───────────────────────────────────────────────────────────
+
+# --- Role resolution ---
 
 def _is_media_admin(user):
     return (
@@ -30,7 +32,7 @@ def _is_media_admin(user):
     )
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# --- Helpers ---
 
 def _overlapping_team_bookings(start_dt, end_dt, exclude_pk=None):
     qs = MediaBooking.objects.filter(
@@ -98,7 +100,7 @@ def _check_equipment_availability_for_approval(booking):
     return True, ""
 
 
-# ── Views ─────────────────────────────────────────────────────────────────────
+# --- Views ---
 
 class MediaSettingsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -185,6 +187,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking = serializer.save(user=user, department=user.department)
         if booking.is_team_request:
             _reserve_standard_team_kit(booking)
+
+        # Fire the notification to the media admin for the new request
+        notify_new_request(
+            booking=booking,
+            domain='media',
+            role_name=Role.Name.MEDIA_INCHARGE
+        )
 
     @transaction.atomic
     def perform_update(self, serializer):
@@ -523,6 +532,16 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_by      = request.user
         booking.resolved_at      = timezone.now()
         booking.save()
+
+        # Fire the status change notification
+        notify_booking_status_change(
+            booking=booking,
+            new_status=new_status,
+            domain='media',
+            resolved_by=request.user,
+            remarks=remarks
+        )
+
         return Response(self.get_serializer(booking).data)
 
     @action(detail=False, methods=['get'], url_path='my-bookings')
