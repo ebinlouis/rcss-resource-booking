@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
     Building2, ChevronDown, Check, Mail, Package,
     Phone, RefreshCw, Settings, Wrench, X, Users,
@@ -45,6 +46,8 @@ const timeAgo = (iso) => {
 
 const apiError = (err) =>
     err?.response?.data?.error || err?.response?.data?.detail || 'An unexpected error occurred.'
+
+const normaliseReference = (value) => String(value || '').trim().toUpperCase()
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
@@ -289,8 +292,14 @@ function SuccessModal({ booking, onClose }) {
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onRejectClick }) {
+function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onRejectClick, isHighlighted }) {
     const [isExpanded, setIsExpanded] = useState(false)
+
+    useEffect(() => {
+        if (!isHighlighted) return undefined
+        const timer = window.setTimeout(() => setIsExpanded(true), 0)
+        return () => window.clearTimeout(timer)
+    }, [isHighlighted])
 
     const equipment    = booking.equipment_requests ?? []
     const hasEquipment = equipment.length > 0
@@ -311,7 +320,10 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     const toggle = () => { if (!window.getSelection().toString()) setIsExpanded((v) => !v) }
 
     return (
-        <article className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-amber-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'}`}>
+        <article
+            data-booking-reference={booking.reference_code || ''}
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-amber-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'} ${isHighlighted ? 'ring-2 ring-[#22c55e] bg-[#f0fdf4]' : ''}`}
+        >
             {/* ── Collapsed header ── */}
             <div className="block w-full cursor-pointer px-6 py-5 text-left" onClick={toggle}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -504,9 +516,14 @@ async function loadAdminMediaData() {
 
 function AdminMediaPage() {
     const { user, isLoading: authLoading } = useAuth()
+    const [searchParams] = useSearchParams()
     const canManageMedia = user?.capabilities?.can_manage_media
+    const requestedTab = searchParams.get('tab')
+    const highlightedReference = searchParams.get('booking') || ''
 
-    const [activeTab,       setActiveTab]      = useState('pending')
+    const [activeTab,       setActiveTab]      = useState(() => (
+        ['pending', 'active', 'resolved'].includes(requestedTab) ? requestedTab : 'pending'
+    ))
     const [data,            setData]           = useState({ pending: [], resolved: [], active: [] })
     const [loading,         setLoading]        = useState(true)
     const [error,           setError]          = useState('')
@@ -539,6 +556,12 @@ function AdminMediaPage() {
         if (!canManageMedia) return
         ;(async () => { await fetchData({ showLoading: false }) })()
     }, [canManageMedia, fetchData])
+
+    useEffect(() => {
+        if (!['pending', 'active', 'resolved'].includes(requestedTab)) return undefined
+        const timer = window.setTimeout(() => setActiveTab(requestedTab), 0)
+        return () => window.clearTimeout(timer)
+    }, [requestedTab])
 
     const handleApproveConfirm = async () => {
         if (!approveTarget) return
@@ -577,6 +600,21 @@ function AdminMediaPage() {
     const todayStr = new Date().toLocaleDateString('en-CA')
     const sortByExternal = (list) => [...list].sort((a, b) => (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0))
     const list = sortByExternal(data[activeTab] ?? [])
+
+    useEffect(() => {
+        if (!highlightedReference || loading || list.length === 0) return undefined
+
+        const target = Array.from(document.querySelectorAll('[data-booking-reference]'))
+            .find((element) => normaliseReference(element.getAttribute('data-booking-reference')) === normaliseReference(highlightedReference))
+
+        if (!target) return undefined
+
+        const timer = window.setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 80)
+
+        return () => window.clearTimeout(timer)
+    }, [highlightedReference, list, loading])
 
     if (authLoading) {
         return (
@@ -700,6 +738,7 @@ function AdminMediaPage() {
                                 isActing={actionLoading === booking.id}
                                 onApproveClick={setApproveTarget}
                                 onRejectClick={setRejectTarget}
+                                isHighlighted={normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)}
                             />
                         ))
                     )}

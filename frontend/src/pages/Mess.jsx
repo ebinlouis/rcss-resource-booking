@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
@@ -24,6 +25,7 @@ const formatDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
 const todayStr = formatDate(new Date())
+const normaliseReference = (value) => String(value || "").trim().toUpperCase()
 
 const getStatusStyle = (status) => {
   switch (status?.toLowerCase()) {
@@ -83,6 +85,9 @@ const MealTimePills = ({ booking }) => {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function Mess() {
+  const [searchParams] = useSearchParams()
+  const highlightedReference = searchParams.get("booking") || ""
+
   const [bookings,                setBookings]                = useState([])
   const [isLoading,               setIsLoading]               = useState(true)
   const [toastMsg,                setToastMsg]                = useState("")
@@ -127,7 +132,11 @@ function Mess() {
 
   let filteredBookings = [...bookings]
 
-  if (selectedDate) {
+  if (highlightedReference) {
+    filteredBookings = filteredBookings.filter(
+      (b) => normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+    )
+  } else if (selectedDate) {
     // Show bookings whose date range covers the selected date
     filteredBookings = filteredBookings.filter(
       (b) => b.start_date <= selectedDate && b.end_date >= selectedDate
@@ -207,6 +216,26 @@ function Mess() {
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const upcomingCount = bookings.filter((b) => b.end_date >= todayStr).length
+
+  useEffect(() => {
+    if (!highlightedReference || isLoading || bookings.length === 0) return undefined
+
+    const targetBooking = bookings.find(
+      (booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)
+    )
+    if (!targetBooking) return undefined
+
+    const timer = window.setTimeout(() => {
+      setSelectedViewBooking(targetBooking)
+      setDetailDay(0)
+
+      const target = Array.from(document.querySelectorAll("[data-booking-reference]"))
+        .find((element) => normaliseReference(element.getAttribute("data-booking-reference")) === normaliseReference(highlightedReference))
+      target?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }, 80)
+
+    return () => window.clearTimeout(timer)
+  }, [bookings, highlightedReference, isLoading])
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -310,8 +339,9 @@ function Mess() {
           {!isLoading && filteredBookings.map((b) => (
             <div
               key={b.id}
+              data-booking-reference={b.reference_code || ""}
               onClick={() => { setSelectedViewBooking(b); setDetailDay(0) }}
-              className="grid grid-cols-12 items-center px-5 py-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+              className={`grid grid-cols-12 items-center px-5 py-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${normaliseReference(b.reference_code) === normaliseReference(highlightedReference) ? "bg-emerald-50 ring-2 ring-emerald-300 ring-inset" : ""}`}
             >
               <div className="col-span-2">
                 <span className="font-medium text-gray-700 text-sm">{b.reference_code || "N/A"}</span>
