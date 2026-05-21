@@ -12,7 +12,8 @@ from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
     refresh_queryset_lifecycle,
 )
-from apps.notifications.utils import notify_booking_status_change
+from apps.notifications.utils import notify_booking_status_change, notify_new_request
+from apps.users.models import Role
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
@@ -192,7 +193,23 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        booking = serializer.save(user=self.request.user)
+
+        # Determine which admin handles this space
+        category = booking.space.approval_category
+        if category == 'LAB':
+            role = Role.Name.LAB_INCHARGE
+        elif category == 'LIBRARY':
+            role = Role.Name.LIBRARIAN
+        else:
+            role = Role.Name.RECEPTIONIST
+            
+        # Fire the notification to the correct space admin
+        notify_new_request(
+            booking=booking, 
+            domain='space', 
+            role_name=role
+        )
 
     def perform_update(self, serializer):
         user     = self.request.user
@@ -258,7 +275,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Grouped Update Logic ──────────────────────────────────────────────
+        # Grouped Update Logic
         # Safely loops and saves to trigger proper inheritance updates
         bookings_in_group = SpaceBooking.objects.filter(
             group_id=booking.group_id,
@@ -273,7 +290,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             b.resolved_at      = timezone.now()
             b.save()
 
-            # 👇 FIX APPLIED HERE: The backend will now generate the correct Space Name / Role String
+            # Fire the correct Space Name / Role String
             notify_booking_status_change(
                 booking=b,
                 new_status=new_status,
@@ -337,7 +354,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
 
 # ==========================================
-# BLOCK MANAGEMENT  (IT_ADMIN only)
+# BLOCK MANAGEMENT
 # ==========================================
 
 class BlockViewSet(viewsets.ModelViewSet):
@@ -371,7 +388,7 @@ class BlockViewSet(viewsets.ModelViewSet):
 
 
 # ==========================================
-# SPACE APPROVER MANAGEMENT  (IT_ADMIN only)
+# SPACE APPROVER MANAGEMENT
 # api/spaces/approvers/
 # ==========================================
 
