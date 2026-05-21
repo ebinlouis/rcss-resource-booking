@@ -95,8 +95,10 @@ def _resource_name(booking):
 
 
 def _resolver_title(resolved_by, domain):
+    # When triggered by an automated lifecycle transition (e.g. expiry),
+    # resolved_by will be None — fall back to "the system".
     if not resolved_by:
-        return 'an approver'
+        return 'the system'
 
     effective_roles = resolved_by.get_effective_roles()
     roles = Role.objects.filter(name__in=effective_roles).order_by('name')
@@ -171,6 +173,7 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     Notify the requester that their booking status changed.
 
     APPROVED changes also create an audit notification for IT_ADMIN users.
+    EXPIRED changes are triggered by the lifecycle engine with resolved_by=None.
     """
     status_value = str(new_status or '').upper()
     reference    = getattr(booking, 'reference_code', 'Booking')
@@ -182,6 +185,7 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
         'APPROVED':  Notification.Category.BOOKING_APPROVED,
         'REJECTED':  Notification.Category.BOOKING_REJECTED,
         'CANCELLED': Notification.Category.BOOKING_CANCELLED,
+        'EXPIRED':   Notification.Category.SYSTEM,
     }
 
     category = category_map.get(status_value)
@@ -199,17 +203,73 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
-    notification = notify(
-        booking.user,
-        category,
-        title,
-        message,
-        link=link,
-    )
+    notification = notify(booking.user, category, title, message, link=link)
 
     if status_value == 'APPROVED':
         audit_title   = f"{resource} booking approved"
         audit_message = f"{resolver} approved a {domain} booking for {resource}{time_context}."
+        notify_approvers(
+            Role.Name.IT_ADMIN,
+            Notification.Category.BOOKING_APPROVED,
+            audit_title,
+            audit_message,
+            link=link,
+        )
+
+    return notification
+
+
+def notify_group_status_change(bookings, new_status, domain, resolved_by, remarks=None):
+    """
+    Aggregate notifications for recurring booking groups.
+
+    Instead of flooding the user with one notification per date, this sends a
+    single notification that summarises the whole series. For a single booking
+    in the list it falls back to the normal per-booking time format.
+
+    APPROVED changes also create an audit notification for IT_ADMIN users.
+    """
+    if not bookings:
+        return None
+
+    base_booking = bookings[0]
+    status_value = str(new_status or '').upper()
+    reference    = getattr(base_booking, 'reference_code', 'Booking')
+    resource     = _resource_name(base_booking)
+    resolver     = _resolver_title(resolved_by, domain)
+    link         = f"/bookings/{reference}"
+
+    category_map = {
+        'APPROVED':  Notification.Category.BOOKING_APPROVED,
+        'REJECTED':  Notification.Category.BOOKING_REJECTED,
+        'CANCELLED': Notification.Category.BOOKING_CANCELLED,
+        'EXPIRED':   Notification.Category.SYSTEM,
+    }
+
+    category = category_map.get(status_value)
+    if not category:
+        return None
+
+    status_display = status_value.lower()
+    title          = f"{resource} request {status_display}"
+    count          = len(bookings)
+
+    if count > 1:
+        # Summarise the series rather than listing every date
+        time_context = f" (series of {count} scheduled dates)"
+    else:
+        time_str     = _format_booking_time(base_booking)
+        time_context = f" scheduled for {time_str}" if time_str else ""
+
+    message = f"Your recurring request for {resource}{time_context} was {status_display} by {resolver}."
+    if remarks:
+        message = f"{message} Remarks: {remarks}"
+
+    notification = notify(base_booking.user, category, title, message, link=link)
+
+    if status_value == 'APPROVED':
+        audit_title   = f"{resource} series approved"
+        audit_message = f"{resolver} approved a {domain} recurring booking for {resource}{time_context}."
         notify_approvers(
             Role.Name.IT_ADMIN,
             Notification.Category.BOOKING_APPROVED,
@@ -228,12 +288,12 @@ def notify_new_request(booking, domain, role_name):
     resource  = _resource_name(booking)
     reference = getattr(booking, 'reference_code', 'Booking')
     link      = f"/bookings/{reference}"
-    
+
     time_str     = _format_booking_time(booking)
     time_context = f" scheduled for {time_str}" if time_str else ""
-    
+
     requester = getattr(booking.user, 'first_name', None) or 'A user'
-    
+
     title   = f"New {domain} request"
     message = f"{requester} requested {resource}{time_context}. It requires your approval."
 

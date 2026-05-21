@@ -12,7 +12,7 @@ from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
     refresh_queryset_lifecycle,
 )
-from apps.notifications.utils import notify_booking_status_change, notify_new_request
+from apps.notifications.utils import notify_booking_status_change, notify_group_status_change, notify_new_request
 from apps.users.models import Role
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
@@ -203,24 +203,25 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             role = Role.Name.LIBRARIAN
         else:
             role = Role.Name.RECEPTIONIST
-            
+
         # Fire the notification to the correct space admin
         notify_new_request(
-            booking=booking, 
-            domain='space', 
+            booking=booking,
+            domain='spaces',
             role_name=role
         )
 
     def perform_update(self, serializer):
         user     = self.request.user
         instance = serializer.instance
+        was_approved = instance.status == 'APPROVED'   # capture before save
 
         if user.is_staff or user.is_superuser:
             serializer.save(updated_by=user)
             return
 
         extra_fields = {"updated_by": user}
-        if instance.status == 'APPROVED':
+        if was_approved:
             extra_fields.update({
                 "status":           'PENDING',
                 "resolved_by":      None,
@@ -228,7 +229,22 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 "remarks_by_admin": None,
             })
 
-        serializer.save(**extra_fields)
+        booking = serializer.save(**extra_fields)
+
+        # Notify the space admin that an approved booking was edited and needs re-review
+        if was_approved and booking.status == 'PENDING':
+            category = booking.space.approval_category
+            if category == 'LAB':
+                role = Role.Name.LAB_INCHARGE
+            elif category == 'LIBRARY':
+                role = Role.Name.LIBRARIAN
+            else:
+                role = Role.Name.RECEPTIONIST
+            notify_new_request(
+                booking=booking,
+                domain='spaces',
+                role_name=role
+            )
 
     def perform_destroy(self, instance):
         refresh_booking_lifecycle(instance)
@@ -275,12 +291,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Grouped Update Logic
-        # Safely loops and saves to trigger proper inheritance updates
-        bookings_in_group = SpaceBooking.objects.filter(
+        # Apply the status change to all siblings in the group
+        bookings_in_group = list(SpaceBooking.objects.filter(
             group_id=booking.group_id,
             status__in=['PENDING', 'APPROVED'],
-        )
+        ).order_by('start_datetime'))
+
+        updated_bookings = []
         for b in bookings_in_group:
             if new_status == 'APPROVED' and b.status != 'PENDING':
                 continue
@@ -289,10 +306,12 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             b.resolved_by      = user
             b.resolved_at      = timezone.now()
             b.save()
+            updated_bookings.append(b)
 
-            # Fire the correct Space Name / Role String
-            notify_booking_status_change(
-                booking=b,
+        # Fire a single grouped notification instead of one per booking
+        if updated_bookings:
+            notify_group_status_change(
+                bookings=updated_bookings,
                 new_status=new_status,
                 domain='spaces',
                 resolved_by=user,
@@ -330,7 +349,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        siblings       = SpaceBooking.objects.filter(group_id=booking.group_id, status='APPROVED')
+        siblings       = list(SpaceBooking.objects.filter(group_id=booking.group_id, status='APPROVED').order_by('start_datetime'))
         resolved_at    = timezone.now()
         cancelled_refs = []
 
@@ -340,13 +359,22 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             sibling.resolved_at      = resolved_at
             sibling.remarks_by_admin = remarks
             sibling.save()
-            notify_booking_status_change(sibling, 'CANCELLED', 'spaces', request.user, remarks=remarks)
             cancelled_refs.append(sibling.reference_code)
+
+        # Fire a single grouped notification for the full cancellation batch
+        if siblings:
+            notify_group_status_change(
+                bookings=siblings,
+                new_status='CANCELLED',
+                domain='spaces',
+                resolved_by=request.user,
+                remarks=remarks
+            )
 
         return Response(
             {
-                "message":     f"{len(cancelled_refs)} booking(s) cancelled successfully.",
-                "cancelled":   cancelled_refs,
+                "message":      f"{len(cancelled_refs)} booking(s) cancelled successfully.",
+                "cancelled":    cancelled_refs,
                 "cancelled_by": request.user.email,
             },
             status=status.HTTP_200_OK,
@@ -426,7 +454,7 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
         user = instance.user
         role = instance.role
 
-        # Delete the row first so it's excluded from the remaining count.
+        # Delete the row first so it's excluded from the remaining count
         instance.delete()
 
         # Strip the role badge only if no other active assignment remains

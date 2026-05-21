@@ -47,6 +47,19 @@ def _mess_meal_datetimes(booking):
     return values
 
 
+def _get_booking_domain(booking):
+    """
+    Infer the notification domain from the booking model class name.
+    Used when dispatching expiry notifications without a request context.
+    """
+    name = booking.__class__.__name__
+    if 'Space' in name: return 'spaces'
+    if 'Fleet' in name: return 'fleet'
+    if 'Mess'  in name: return 'mess'
+    if 'Media' in name: return 'media'
+    return 'spaces'
+
+
 def get_approval_deadline(booking):
     """
     Last instant where approving still makes business sense.
@@ -121,6 +134,21 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
     booking.status = next_status
     if save:
         booking.save(update_fields=update_fields)
+
+    if next_status == EXPIRED:
+        # Import locally to avoid circular dependencies with models
+        from apps.notifications.utils import notify_booking_status_change
+        notify_booking_status_change(
+            booking=booking,
+            new_status='EXPIRED',
+            domain=_get_booking_domain(booking),
+            resolved_by=None,
+            remarks=(
+                "This request automatically expired because its scheduled "
+                "start time passed before it could be approved."
+            ),
+        )
+
     return True
 
 
