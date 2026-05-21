@@ -19,7 +19,6 @@ from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.spaces.models import Equipment
 from apps.users.models import Role
 from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
-
 from apps.notifications.utils import notify_booking_status_change, notify_new_request
 
 
@@ -188,7 +187,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if booking.is_team_request:
             _reserve_standard_team_kit(booking)
 
-        # Fire the notification to the media admin for the new request
+        # Notify the media admin of the new request
         notify_new_request(
             booking=booking,
             domain='media',
@@ -200,10 +199,14 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         instance         = self.get_object()
         user             = self.request.user
         was_team_request = instance.is_team_request
+        was_approved     = instance.status == 'APPROVED'   # capture before save
+
         booking          = serializer.save()
+
         if booking.is_team_request and not was_team_request:
             _reserve_standard_team_kit(booking)
-        if instance.status == 'APPROVED' and not _is_media_admin(user):
+
+        if was_approved and not _is_media_admin(user):
             booking.status           = 'PENDING'
             booking.resolved_by      = None
             booking.resolved_at      = None
@@ -217,6 +220,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 'updated_by',
                 'updated_at',
             ])
+
+            # Notify the media admin that an approved booking was edited and needs re-review
+            notify_new_request(
+                booking=booking,
+                domain='media',
+                role_name=Role.Name.MEDIA_INCHARGE
+            )
 
     def perform_destroy(self, instance):
         refresh_booking_lifecycle(instance)
@@ -533,7 +543,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.resolved_at      = timezone.now()
         booking.save()
 
-        # Fire the status change notification
+        # Notify the requester of the status change
         notify_booking_status_change(
             booking=booking,
             new_status=new_status,
