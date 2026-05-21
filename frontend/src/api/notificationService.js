@@ -20,6 +20,12 @@ const notificationService = {
         const response = await api.patch('notifications/mark-all-read/');
         return response.data;
     },
+
+    markBookingRead: async (reference) => {
+        if (!reference) return { updated: 0 };
+        const response = await api.patch(`notifications/booking/${encodeURIComponent(reference)}/read/`);
+        return response.data;
+    },
 };
 
 export default notificationService;

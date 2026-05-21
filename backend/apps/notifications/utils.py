@@ -1,5 +1,6 @@
 from django.db.models import Q
 from django.utils import timezone
+from urllib.parse import quote
 
 from apps.notifications.models import Notification
 from apps.users.models import CustomUser, Role, RoleOverride
@@ -96,6 +97,29 @@ def _resource_name(booking):
 
 def _booking_reference(booking):
     return getattr(booking, 'reference_code', 'Booking')
+
+
+def _reference_link_filter(reference):
+    encoded_reference = quote(reference, safe='')
+    return (
+        Q(link__icontains=f"booking={reference}") |
+        Q(link__icontains=f"booking={encoded_reference}") |
+        Q(link__icontains=f"/bookings/{reference}") |
+        Q(link__icontains=f"/bookings/{encoded_reference}")
+    )
+
+
+def mark_pending_request_notifications_read(booking):
+    reference = _booking_reference(booking)
+    return Notification.objects.filter(
+        is_read=False,
+        category=Notification.Category.BOOKING_PENDING,
+    ).filter(
+        _reference_link_filter(reference)
+    ).update(
+        is_read=True,
+        read_at=timezone.now(),
+    )
 
 
 def _requester_link(domain, reference):

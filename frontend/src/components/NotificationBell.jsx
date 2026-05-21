@@ -76,7 +76,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         setError('');
 
         try {
-            const data = await notificationService.getNotifications({ page_size: 10 });
+            const data = await notificationService.getNotifications({ page_size: 10, unread: 'true' });
             setNotifications(data.results ?? []);
             setUnreadCount(data.unread_count ?? 0);
         } catch {
@@ -131,7 +131,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
             try {
                 const updated = await notificationService.markRead(notification.id);
                 setNotifications((current) =>
-                    current.map((item) => (item.id === notification.id ? updated : item))
+                    current.filter((item) => item.id !== updated.id)
                 );
                 setUnreadCount((count) => Math.max(0, count - 1));
             } catch {
@@ -153,13 +153,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         setIsMarkingAll(true);
         try {
             await notificationService.markAllRead();
-            setNotifications((current) =>
-                current.map((item) => ({
-                    ...item,
-                    is_read: true,
-                    read_at: item.read_at ?? new Date().toISOString(),
-                }))
-            );
+            setNotifications([]);
             setUnreadCount(0);
         } finally {
             setIsMarkingAll(false);

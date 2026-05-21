@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
     Building2, ChevronDown, Check, Mail, Package,
     Phone, RefreshCw, Settings, Wrench, X, Users,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
+import notificationService from '../../api/notificationService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -516,6 +517,7 @@ async function loadAdminMediaData() {
 
 function AdminMediaPage() {
     const { user, isLoading: authLoading } = useAuth()
+    const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const canManageMedia = user?.capabilities?.can_manage_media
     const requestedTab = searchParams.get('tab')
@@ -568,6 +570,10 @@ function AdminMediaPage() {
         setActionLoading(approveTarget.id)
         try {
             await mediaApi.reviewBooking(approveTarget.id, { status: 'APPROVED' })
+            await notificationService.markBookingRead(approveTarget.reference_code).catch(() => null)
+            if (normaliseReference(approveTarget.reference_code) === normaliseReference(highlightedReference)) {
+                navigate('/admin/media?tab=pending', { replace: true })
+            }
             setSuccessTarget(approveTarget)
             setApproveTarget(null)
             await fetchData({ showLoading: false })
@@ -583,6 +589,10 @@ function AdminMediaPage() {
         setActionLoading(rejectTarget.id)
         try {
             await mediaApi.reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks_by_admin: remarks })
+            await notificationService.markBookingRead(rejectTarget.reference_code).catch(() => null)
+            if (normaliseReference(rejectTarget.reference_code) === normaliseReference(highlightedReference)) {
+                navigate('/admin/media?tab=pending', { replace: true })
+            }
             setRejectTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
@@ -615,6 +625,22 @@ function AdminMediaPage() {
 
         return () => window.clearTimeout(timer)
     }, [highlightedReference, list, loading])
+
+    useEffect(() => {
+        if (!highlightedReference || loading || activeTab !== 'pending') return undefined
+        if ((data.pending ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))) return undefined
+
+        const nextTab = (data.active ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
+            ? 'active'
+            : (data.resolved ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
+                ? 'resolved'
+                : null
+
+        if (!nextTab) return undefined
+
+        const timer = window.setTimeout(() => setActiveTab(nextTab), 0)
+        return () => window.clearTimeout(timer)
+    }, [activeTab, data.active, data.pending, data.resolved, highlightedReference, loading])
 
     if (authLoading) {
         return (

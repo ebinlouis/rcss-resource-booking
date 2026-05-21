@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from apps.notifications.models import Notification
 from apps.notifications.serializers import NotificationSerializer
+from apps.notifications.utils import _reference_link_filter
 
 
 class NotificationPagination(PageNumberPagination):
@@ -22,6 +23,8 @@ class NotificationListAPIView(APIView):
     def get(self, request):
         queryset = Notification.objects.filter(recipient=request.user).order_by('-created_at')
         unread_count = queryset.filter(is_read=False).count()
+        if request.query_params.get('unread') == 'true':
+            queryset = queryset.filter(is_read=False)
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
@@ -68,6 +71,23 @@ class NotificationMarkAllReadAPIView(APIView):
         updated = Notification.objects.filter(
             recipient=request.user,
             is_read=False,
+        ).update(
+            is_read=True,
+            read_at=timezone.now(),
+        )
+        return Response({"updated": updated})
+
+
+class NotificationMarkBookingReadAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, reference):
+        updated = Notification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+            category=Notification.Category.BOOKING_PENDING,
+        ).filter(
+            _reference_link_filter(reference)
         ).update(
             is_read=True,
             read_at=timezone.now(),
