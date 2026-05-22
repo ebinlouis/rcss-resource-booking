@@ -27,7 +27,7 @@ const addDays = (dateString, days) => {
   return todayKeyFromDate(date)
 }
 
-// UPDATED: Handles both basic YYYY-MM-DD and full ISO DateTimes
+// Handles both basic YYYY-MM-DD and full ISO DateTimes
 const formatDate = (dateString, options = {}) => {
   if (!dateString) return "TBD"
   const date = dateString.includes('T') ? new Date(dateString) : new Date(`${dateString}T00:00:00`);
@@ -35,7 +35,7 @@ const formatDate = (dateString, options = {}) => {
   return date.toLocaleDateString("en-IN", options)
 }
 
-// UPDATED: Handles both HH:MM slot strings AND full ISO DateTimes
+// Handles both HH:MM slot strings AND full ISO DateTimes
 const formatTime = (timeString) => {
   if (!timeString) return "TBD"
   let date;
@@ -66,7 +66,6 @@ function StatusBadge({ status }) {
 }
 
 function RecentRequestCard({ booking }) {
-  // UPDATED: Pluck the unified DateTimes
   const startDt = booking.setup_start_datetime || booking.event_start_datetime;
   const endDt = booking.teardown_end_datetime || booking.event_end_datetime;
 
@@ -236,13 +235,12 @@ function Media() {
   const canGoPrevious = addDays(selectedDate, -7) >= todayKey()
 
   const filteredAvailability = useMemo(() => {
-    // 1. STRICT FILTER: Only show items explicitly flagged for the Media Team Kit
+    // Only show items explicitly flagged for the Media Team Kit
     const mediaGearOnly = availability.filter((item) => item.is_standard_media_kit === true)
 
-    // 2. Apply text search to the remaining items
     const q = search.trim().toLowerCase()
     if (!q) return mediaGearOnly
-    
+
     return mediaGearOnly.filter((item) => {
       const name = item.name?.toLowerCase() || ""
       const category = item.category_display?.toLowerCase() || item.category?.toLowerCase() || ""
@@ -275,7 +273,7 @@ function Media() {
       try {
         const data = await mediaApi.getDailyAvailability(selectedDate, availabilityType)
         if (!active) return
-        
+
         if (availabilityType === "team") {
           setTeamData(data)
         } else {
@@ -372,22 +370,22 @@ function Media() {
                 </button>
 
                 <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
-                {weekDates.map((date) => (
-                  <button
-                    key={date}
-                    onClick={() => setSelectedDate(date)}
-                    className={`min-w-[86px] rounded-xl border px-3 py-2 text-left transition ${
-                      selectedDate === date
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                        : "border-gray-100 bg-white text-gray-600 hover:border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <p className="text-[11px] font-bold uppercase tracking-wide">
-                      {formatDate(date, { weekday: "short" })}
-                    </p>
-                    <p className="mt-0.5 text-[14px] font-semibold">{formatDate(date, { day: "numeric", month: "short" })}</p>
-                  </button>
-                ))}
+                  {weekDates.map((date) => (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedDate(date)}
+                      className={`min-w-[86px] rounded-xl border px-3 py-2 text-left transition ${
+                        selectedDate === date
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                          : "border-gray-100 bg-white text-gray-600 hover:border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <p className="text-[11px] font-bold uppercase tracking-wide">
+                        {formatDate(date, { weekday: "short" })}
+                      </p>
+                      <p className="mt-0.5 text-[14px] font-semibold">{formatDate(date, { day: "numeric", month: "short" })}</p>
+                    </button>
+                  ))}
                 </div>
 
                 <button
@@ -400,11 +398,12 @@ function Media() {
               </div>
             </div>
 
+            {/* ── TYPE SWITCHER TABS — Media Team Coverage first, Equipment second ── */}
             <div className="border-b border-gray-100 bg-gray-50/70 px-6 py-4">
               <div className="mb-4 flex w-fit rounded-xl bg-white p-1 shadow-sm ring-1 ring-gray-100">
                 {[
-                  { id: "equipment", label: "Equipment Inventory", icon: Package },
-                  { id: "team", label: "Media Team Coverage", icon: Clapperboard },
+                  { id: "team",      label: "Media Team Coverage", icon: Clapperboard },
+                  { id: "equipment", label: "Equipment Inventory",  icon: Package      },
                 ].map((item) => {
                   const Icon = item.icon
                   return (
@@ -426,18 +425,18 @@ function Media() {
 
               {availabilityType === "equipment" && (
                 <div className="relative max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Filter equipment..."
-                  className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-[14px] outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-50"
-                />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Filter equipment..."
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-[14px] outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-50"
+                  />
                 </div>
               )}
             </div>
 
-            <div className={`grid gap-3 p-6 md:grid-cols-2`}>
+            <div className="grid gap-3 p-6 md:grid-cols-2">
               {availabilityLoading ? (
                 Array.from({ length: 4 }, (_, index) => (
                   <div key={index} className="h-[104px] animate-pulse rounded-xl bg-gray-50" />
