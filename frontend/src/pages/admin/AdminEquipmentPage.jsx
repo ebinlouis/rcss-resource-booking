@@ -196,9 +196,9 @@ const AdminEquipmentPage = () => {
             {/* Header */}
             <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Equipment Catalog</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Equipment Management</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        Master inventory of all campus equipment available for spaces and bookings.
+                        Track and manage available equipment and inventory.
                     </p>
                 </div>
                 <button

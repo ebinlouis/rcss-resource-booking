@@ -148,7 +148,7 @@ function SpaceCard({ space, onEdit }) {
             <Icon className="w-3.5 h-3.5">
               <path d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" />
             </Icon>
-            Edit Space
+            Edit Room
           </button>
         </div>
       </div>
@@ -189,8 +189,8 @@ const AdminSpacesPage = () => {
         if (isMounted)
           setError(
             err.response?.status === 401
-              ? "You don't have permission to manage spaces."
-              : "Could not load spaces. Please check your connection."
+              ? "You don't have permission to manage rooms."
+              : "Could not load rooms. Please check your connection."
           )
       })
       .finally(() => { if (isMounted) setIsLoading(false) })
@@ -260,14 +260,14 @@ const AdminSpacesPage = () => {
           <div>
             <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
             <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-              Manage Spaces
+              Room Management
             </h1>
             <p className="text-[15px] text-[#374151] mt-2">
               {error
-                ? "Something went wrong loading spaces"
+                ? "Something went wrong loading rooms"
                 : isLoading
-                  ? "Loading catalog…"
-                  : `${spaces.length} space${spaces.length !== 1 ? "s" : ""} in the booking catalog`}
+                  ? "Loading rooms..."
+                  : "Add, edit, and manage available rooms and venues."}
             </p>
           </div>
 
@@ -291,7 +291,7 @@ const AdminSpacesPage = () => {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
             >
               <Icon strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></Icon>
-              Add New Space
+              Add New Room
             </button>
           </div>
         </div>
@@ -299,7 +299,7 @@ const AdminSpacesPage = () => {
         {/* ── Stats ── */}
         <div className="grid grid-cols-3 gap-3 mb-7">
           {[
-            { value: stats.total,   label: "Total spaces" },
+            { value: stats.total,   label: "Total rooms" },
             { value: stats.active,  label: "Active" },
             { value: stats.special, label: "Special purpose" },
           ].map(({ value, label }) => (
@@ -383,12 +383,12 @@ const AdminSpacesPage = () => {
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </Icon>
             </div>
-            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load spaces</p>
+            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load rooms</p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{error}</p>
           </div>
         ) : isLoading && spaces.length === 0 ? (
           <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center">
-            <p className="text-[14px] text-[#94a3b8]">Loading spaces…</p>
+            <p className="text-[14px] text-[#94a3b8]">Loading rooms...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
@@ -398,11 +398,11 @@ const AdminSpacesPage = () => {
               </Icon>
             </div>
             <p className="text-[15px] font-semibold text-[#0f172a]">
-              {spaces.length === 0 ? "No spaces yet" : "No spaces match your filters"}
+              {spaces.length === 0 ? "No rooms yet" : "No rooms match your filters"}
             </p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
               {spaces.length === 0
-                ? `Click "Add New Space" to create the first one.`
+                ? `Click "Add New Room" to create the first one.`
                 : "Try adjusting your search or filter options."}
             </p>
           </div>
@@ -416,7 +416,7 @@ const AdminSpacesPage = () => {
 
         {!error && !isLoading && filtered.length > 0 && isFiltering && (
           <p className="text-center text-[12.5px] text-[#94a3b8] font-medium mt-5">
-            Showing {filtered.length} of {spaces.length} spaces
+            Showing {filtered.length} of {spaces.length} rooms
           </p>
         )}
       </div>

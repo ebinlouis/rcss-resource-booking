@@ -4,12 +4,25 @@ import ProfileHeader from '../components/ProfileHeader';
 import ProfileCompletionCard from '../components/ProfileCompletionCard';
 import ProfileForm from '../components/ProfileForm';
 import profileApi from '../api/profileApi';
-import { Loader2 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { CheckCircle2, Loader2 } from 'lucide-react';
+
+const DetailItem = ({ label, value }) => (
+  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+    <p className="text-sm font-semibold text-gray-800 mt-1 break-words">
+      {value || 'Not added'}
+    </p>
+  </div>
+);
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const { updateUser } = useAuth();
 
   // Load user profile on mount
   useEffect(() => {
@@ -33,6 +46,20 @@ const Profile = () => {
   const handleProfileUpdate = (updatedUser) => {
     setUser(updatedUser);
   };
+
+  const handleProfileSaved = (updatedUser) => {
+    setUser(updatedUser);
+    updateUser?.(updatedUser);
+    setShowEditModal(false);
+    setToastMsg('Profile updated successfully.');
+  };
+
+  useEffect(() => {
+    if (!toastMsg) return undefined;
+
+    const timer = window.setTimeout(() => setToastMsg(''), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toastMsg]);
 
   // Calculate booking eligibility
   const canBookResources = user && (
@@ -75,36 +102,83 @@ const Profile = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
+        {toastMsg && (
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3">
+            <CheckCircle2 size={18} className="text-emerald-400" />
+            <span className="text-sm font-medium">{toastMsg}</span>
+          </div>
+        )}
+
         {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-          <p className="text-gray-600 mt-1">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+            <p className="text-sm text-gray-500 mt-1">
             Manage your institutional profile and booking eligibility
-          </p>
+            </p>
+          </div>
         </div>
 
         {/* Profile Header Card */}
-        <ProfileHeader user={user} />
+        <ProfileHeader user={user} onEdit={() => setShowEditModal(true)} />
 
-        {/* Profile Completion Status */}
-        <ProfileCompletionCard user={user} />
-
-        {/* Profile Form */}
-        <ProfileForm user={user} onUpdate={handleProfileUpdate} />
-
-        {/* Booking Eligibility Notice */}
-        {canBookResources && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <p className="text-green-800 font-medium">
-                Your profile is complete and verified for booking services
-              </p>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+          <div className="xl:col-span-2 space-y-6">
+            {/* Account details */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+              <div className="mb-5">
+                <h2 className="text-base font-semibold text-gray-900">Account Details</h2>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  Your information used across booking requests and approvals.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailItem
+                  label="Full Name"
+                  value={[user.first_name, user.last_name].filter(Boolean).join(' ')}
+                />
+                <DetailItem label="Email" value={user.email} />
+                <DetailItem label="Phone" value={user.phone} />
+                <DetailItem label="Department" value={user.department_name} />
+                <DetailItem label="Designation" value={user.designation} />
+                <DetailItem
+                  label="Role"
+                  value={(user.effective_roles || []).map((role) => role.replaceAll('_', ' ')).join(', ')}
+                />
+              </div>
             </div>
+
           </div>
-        )}
+
+          <div className="space-y-6">
+            {/* Profile Completion Status */}
+            <ProfileCompletionCard user={user} />
+
+            {/* Booking Eligibility Notice */}
+            {canBookResources && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <p className="text-green-800 text-sm font-medium">
+                    Your profile is complete and verified for booking services
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
+
+      {showEditModal && (
+        <ProfileForm
+          user={user}
+          onUpdate={handleProfileUpdate}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={handleProfileSaved}
+        />
+      )}
     </MainLayout>
   );
 };

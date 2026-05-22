@@ -624,7 +624,7 @@ export default function AdminTransportPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Transport Management</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        Manage fleet bookings, approve requests, and reschedule trips.
+                        Manage vehicles, transport bookings, and trip approvals.
                     </p>
                 </div>
                 <button

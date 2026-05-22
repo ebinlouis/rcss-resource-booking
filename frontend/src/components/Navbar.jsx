@@ -46,6 +46,27 @@ const getRoleLabel = (effectiveRoles = []) => {
   return ROLE_DISPLAY_MAP[top] ?? effectiveRoles[0]
 }
 
+function HeaderAvatar({ user }) {
+  const initial = user?.name ? user.name[0].toUpperCase() : "U"
+
+  return (
+    <div
+      className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #14532d, #1e3a5f)" }}
+    >
+      {user?.profile_image ? (
+        <img
+          src={user.profile_image}
+          alt={`${user?.name || "User"} profile`}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        initial
+      )}
+    </div>
+  )
+}
+
 function Navbar({ onTabChange }) {
   const navigate  = useNavigate()
   const location  = useLocation()
@@ -162,12 +183,7 @@ function Navbar({ onTabChange }) {
                 onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen) }}
                 className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition"
               >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm"
-                  style={{ background: "linear-gradient(135deg, #14532d, #1e3a5f)" }}
-                >
-                  {user?.name ? user.name[0].toUpperCase() : "U"}
-                </div>
+                <HeaderAvatar user={user} />
                 <div className="hidden md:block text-left leading-tight">
                   <p className="text-sm font-semibold text-gray-800">
                     {user?.name || "Loading..."}
@@ -291,12 +307,7 @@ function Navbar({ onTabChange }) {
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-            style={{ background: "linear-gradient(135deg, #14532d, #1e3a5f)" }}
-          >
-            {user?.name ? user.name[0].toUpperCase() : "U"}
-          </div>
+          <HeaderAvatar user={user} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900 truncate">{user?.name || "Loading..."}</p>
             <p className="text-xs text-gray-500 truncate">{user?.email || "No email"}</p>

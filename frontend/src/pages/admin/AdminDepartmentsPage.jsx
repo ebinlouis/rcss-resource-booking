@@ -85,8 +85,8 @@ export default function AdminDepartmentsPage() {
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Manage Departments</h1>
-                <p className="text-sm text-gray-500 mt-1">Add or remove departments available for users across the system.</p>
+                <h1 className="text-2xl font-bold text-gray-900">Departments & Faculties</h1>
+                <p className="text-sm text-gray-500 mt-1">Manage departments, HODs, and faculty members.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

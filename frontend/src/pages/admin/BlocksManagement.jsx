@@ -74,8 +74,8 @@ const BlocksManagement = () => {
         <div className="p-6 md:p-10 max-w-6xl mx-auto">
             <div className="flex justify-between items-end mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Campus Blocks</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage physical buildings and wings across the campus.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Buildings</h1>
+                    <p className="text-sm text-gray-500 mt-1">Manage campus buildings and organize rooms by location.</p>
                 </div>
                 <button 
                     onClick={() => { setFormData({name: '', code: '', description: ''}); setEditingId(null); setIsModalOpen(true); }}

@@ -683,8 +683,8 @@ function AdminMediaPage() {
                 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>
                         <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Rajagiri College · Admin</p>
-                        <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Operations</h1>
-                        <p className="mt-2 text-[15px] text-[#374151]">Review media support, portable equipment, and service requests.</p>
+                        <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
+                        <p className="mt-2 text-[15px] text-[#374151]">Manage media equipment requests and event support bookings.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button

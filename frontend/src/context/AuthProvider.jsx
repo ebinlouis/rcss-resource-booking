@@ -51,6 +51,10 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const updateUser = (updatedUser) => {
+        setUser(updatedUser);
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -58,6 +62,7 @@ export const AuthProvider = ({ children }) => {
             isLoading,
             login,
             logout,
+            updateUser,
 
             // Spread the capabilities directly into context so
             // `const { can_manage_mess } = useAuth()` works cleanly.
