@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
   ChevronLeft,
@@ -209,6 +209,7 @@ function AvailabilityRow({ item }) {
     </div>
   )
 }
+
 function TeamFluidView({ teamData }) {
   if (!teamData) return null
 
@@ -313,9 +314,10 @@ function TeamFluidView({ teamData }) {
     </div>
   )
 }
+
 function Media() {
   const navigate = useNavigate()
-
+  const [searchParams] = useSearchParams()
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [availability, setAvailability] = useState([])
   const [teamData, setTeamData] = useState(null)
@@ -328,6 +330,13 @@ function Media() {
 
   const [openCreate, setOpenCreate] = useState(false)
   const [search, setSearch] = useState("")
+  const linkedFormOpened = useRef(false)
+
+  useEffect(() => {
+    if (searchParams.get("linked") !== "1" || linkedFormOpened.current) return
+    linkedFormOpened.current = true
+    setOpenCreate(true)
+  }, [searchParams])
 
   const weekDates = useMemo(() => {
     const base = new Date(`${selectedDate}T00:00:00`)
@@ -451,7 +460,8 @@ function Media() {
       active = false
     }
   }, [])
-    return (
+
+  return (
     <MainLayout>
       <div className="mx-auto w-full max-w-[1280px] space-y-6">
 
@@ -615,7 +625,8 @@ function Media() {
                 </div>
               )}
             </div>
-                        <div className="grid gap-4 p-6 md:grid-cols-2">
+
+            <div className="grid gap-4 p-6 md:grid-cols-2">
               {availabilityLoading ? (
                 Array.from({ length: 4 }, (_, index) => (
                   <div

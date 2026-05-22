@@ -6,6 +6,7 @@ import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
 import { useNavigate } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
+import { bookingSessionActions } from "../store/bookingSessionStore"
 
 import api from "../api/axios"
 
@@ -29,6 +30,10 @@ function Home() {
 
   const [myBookings, setMyBookings] = useState([])
   const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
+
+  useEffect(() => {
+    bookingSessionActions.clearSession()
+  }, [])
 
   useEffect(() => {
     const fetchSpaces = async () => {

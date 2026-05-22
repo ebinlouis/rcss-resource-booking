@@ -28,6 +28,7 @@ class MediaSettings(models.Model):
 
 class MediaBooking(BaseBooking):
     space = models.ForeignKey('spaces.Space', on_delete=models.PROTECT, related_name='media_bookings')
+    event_group_id = models.UUIDField(null=True, blank=True, db_index=True)
     event_name = models.CharField(max_length=200)
 
     # -- Unified Continuous Timestamps --

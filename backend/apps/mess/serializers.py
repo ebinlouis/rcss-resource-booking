@@ -94,6 +94,7 @@ class MessBookingSerializer(serializers.ModelSerializer):
         model  = MessBooking
         fields = [
             'id', 'reference_code', 'user', 'department', 'status',
+            'event_group_id',
             'requester_name', 'department_name',
             'user_notes', 'created_at', 'updated_at',
             'start_date', 'end_date',

@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from apps.spaces.views import booking_group_detail
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -21,6 +22,7 @@ urlpatterns = [
     path('api/fleet/', include('apps.fleet.urls')),
     path('api/mess/', include('apps.mess.urls')),
     path('api/media/', include('apps.media.urls')),
+    path('api/bookings/group/<uuid:event_group_id>/', booking_group_detail),
 
 # Serves uploaded files (images etc.) during development.
 # Django does NOT serve media in production — use nginx/S3 there.

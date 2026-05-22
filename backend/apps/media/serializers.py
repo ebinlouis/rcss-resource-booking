@@ -50,7 +50,7 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'resolved_by', 'updated_by', 'remarks_by_admin', 'user_notes',
             'resolved_at', 'created_at', 'updated_at',
             'user_details',
-            'space', 'space_details',
+            'space', 'space_details', 'event_group_id',
             'event_name',
             'setup_start_datetime', 'event_start_datetime', 'event_end_datetime', 'teardown_end_datetime',
             'equipment_requests', 'requested_services',

@@ -234,6 +234,7 @@ class SpaceBooking(BaseBooking):
         RECURRING_DAILY   = 'RECURRING',  'Recurring Daily'
 
     group_id           = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
+    event_group_id     = models.UUIDField(null=True, blank=True, db_index=True)
     booking_type       = models.CharField(max_length=20, choices=BookingType.choices, default=BookingType.SINGLE_CONTINUOUS)
     space              = models.ForeignKey(Space, on_delete=models.PROTECT, related_name='bookings')
     start_datetime     = models.DateTimeField(db_index=True)

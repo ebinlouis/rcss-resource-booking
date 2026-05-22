@@ -11,6 +11,7 @@ class MessBooking(BaseBooking):
     """
     start_date           = models.DateField(db_index=True)
     end_date             = models.DateField(db_index=True)
+    event_group_id       = models.UUIDField(null=True, blank=True, db_index=True)
     delivery_location    = models.CharField(max_length=255)
     purpose_of_programme = models.TextField()
     rejection_remark     = models.TextField(blank=True, null=True)

@@ -123,6 +123,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'id',
             'reference_code',
             'group_id',
+            'event_group_id',
             'booking_type',
             'user',
             'department',
