@@ -207,7 +207,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if not obj.department:
             return None
 
-        return str(obj.department)
+        return obj.department.department_name
 
 
     def get_booked_by_phone(self, obj):
