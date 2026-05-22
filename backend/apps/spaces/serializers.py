@@ -98,7 +98,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         source='requested_equipment',
         many=True,
         required=False,
-        read_only=True,
     )
 
     purpose_of_booking = serializers.SerializerMethodField()

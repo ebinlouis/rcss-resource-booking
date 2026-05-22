@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Sum
 from django.utils import timezone
 from apps.approvals.lifecycle import can_user_modify_booking
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
@@ -127,9 +128,54 @@ class MediaBookingSerializer(serializers.ModelSerializer):
 
         return data
 
+    def _validate_equipment_availability(self, booking, equipment_data):
+        if not equipment_data:
+            return
+
+        requested_by_equipment = {}
+        equipment_by_id = {}
+        for item in equipment_data:
+            equipment = item['equipment']
+            equipment_by_id[equipment.id] = equipment
+            requested_by_equipment[equipment.id] = (
+                requested_by_equipment.get(equipment.id, 0) + item.get('quantity', 1)
+            )
+
+        requested_ids = list(requested_by_equipment.keys())
+        list(Equipment.objects.select_for_update().filter(id__in=requested_ids))
+
+        inactive_statuses = ['REJECTED', 'CANCELLED', 'EXPIRED', 'COMPLETED']
+        overlapping_bookings = MediaBooking.objects.filter(
+            setup_start_datetime__lt=booking.teardown_end_datetime,
+            teardown_end_datetime__gt=booking.setup_start_datetime,
+        ).exclude(status__in=inactive_statuses)
+
+        if booking.pk:
+            overlapping_bookings = overlapping_bookings.exclude(pk=booking.pk)
+
+        used_map = {
+            row['equipment_id']: row['total_used']
+            for row in MediaEquipmentRequest.objects.filter(
+                media_booking__in=overlapping_bookings,
+                equipment_id__in=requested_ids,
+            ).values('equipment_id').annotate(total_used=Sum('quantity'))
+        }
+
+        for equipment_id, requested_qty in requested_by_equipment.items():
+            equipment = equipment_by_id[equipment_id]
+            available_qty = max(0, equipment.total_owned - used_map.get(equipment.id, 0))
+            if requested_qty > available_qty:
+                raise serializers.ValidationError({
+                    "equipment_requests": (
+                        "Some equipment is no longer available. "
+                        "Please review your quantities."
+                    )
+                })
+
     def create(self, validated_data):
         equipment_data = validated_data.pop('equipment_requests', [])
         booking = MediaBooking.objects.create(**validated_data)
+        self._validate_equipment_availability(booking, equipment_data)
         for item in equipment_data:
             MediaEquipmentRequest.objects.create(
                 media_booking=booking,
@@ -153,6 +199,7 @@ class MediaBookingSerializer(serializers.ModelSerializer):
                 instance.equipment_requests.all().delete()
         else:
             if equipment_data is not None:
+                self._validate_equipment_availability(instance, equipment_data)
                 instance.equipment_requests.all().delete()
                 for item in equipment_data:
                     MediaEquipmentRequest.objects.create(

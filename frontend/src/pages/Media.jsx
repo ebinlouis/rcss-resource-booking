@@ -318,6 +318,7 @@ function TeamFluidView({ teamData }) {
 function Media() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const isLinkedFlow = searchParams.get("linked") === "1"
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [availability, setAvailability] = useState([])
   const [teamData, setTeamData] = useState(null)
@@ -738,7 +739,11 @@ function Media() {
           onClose={() => setOpenCreate(false)}
           onSuccess={() => {
             setOpenCreate(false)
-            refreshMyBookings()
+            if (isLinkedFlow) {
+              navigate("/dashboard?resumeSpace=1")
+            } else {
+              refreshMyBookings()
+            }
           }}
         />
       )}

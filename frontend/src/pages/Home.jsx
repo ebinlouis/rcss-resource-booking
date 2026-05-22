@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
-import { bookingSessionActions } from "../store/bookingSessionStore"
+import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 import api from "../api/axios"
 
@@ -19,6 +18,9 @@ const STATUS_STYLES = {
 }
 
 function Home() {
+  const [searchParams] = useSearchParams()
+  const bookingSession = useBookingSession()
+  const shouldResumeSpace = searchParams.get("resumeSpace") === "1"
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState("All")
 
@@ -32,8 +34,8 @@ function Home() {
   const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
 
   useEffect(() => {
-    bookingSessionActions.clearSession()
-  }, [])
+    if (!shouldResumeSpace) bookingSessionActions.clearSession()
+  }, [shouldResumeSpace])
 
   useEffect(() => {
     const fetchSpaces = async () => {
@@ -64,6 +66,19 @@ function Home() {
     fetchSpaces()
     fetchMyBookings()
   }, [])
+
+  useEffect(() => {
+    if (!shouldResumeSpace || isLoading || dbRooms.length === 0) return
+
+    const draftSpaceId = bookingSession.spaceFormData?.space
+    if (!draftSpaceId) return
+
+    const room = dbRooms.find((item) => String(item.id) === String(draftSpaceId))
+    if (!room) return
+
+    setSelectedRoom(room)
+    setOpenAvailability(true)
+  }, [bookingSession.spaceFormData, dbRooms, isLoading, shouldResumeSpace])
 
   const handleEditBooking = (booking) => {
     const room = dbRooms.find(
@@ -377,6 +392,7 @@ const greeting =
         <AvailabilityModal
           spaceId={selectedRoom.id}
           spaceName={selectedRoom.name}
+          openBookingOnMount={Boolean(bookingSession.spaceFormData?.space)}
           onClose={() => setOpenAvailability(false)}
         />
       )}

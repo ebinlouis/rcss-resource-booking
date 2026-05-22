@@ -168,7 +168,7 @@ grouped[cursor].push({
 // ─────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────
-const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, onClose }) {
+const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, onClose, openBookingOnMount = false }) {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [currentDate,  setCurrentDate]  = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey())
@@ -176,6 +176,7 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
   const [roomBookings, setRoomBookings] = useState({})
   const [isLoading,    setIsLoading]    = useState(true)
   const [activeTooltip, setActiveTooltip] = useState(null)
+  const didOpenBookingOnMount = useRef(false)
 
   const monthIndex     = currentDate.getMonth()
   const year           = currentDate.getFullYear()
@@ -223,6 +224,11 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
   const refreshRef = useRef(refresh)
   const tooltipRef = useRef(null)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
+  useEffect(() => {
+    if (!openBookingOnMount || didOpenBookingOnMount.current) return
+    didOpenBookingOnMount.current = true
+    setOpenBooking(true)
+  }, [openBookingOnMount])
   useEffect(() => {
   function handleClickOutside(e) {
     if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
