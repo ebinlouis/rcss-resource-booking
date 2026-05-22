@@ -455,7 +455,12 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
             </p>
           </div>
 
+          {/* 
+            BUG #3 FIX: Media Team request is now FIRST, Equipment Borrowing SECOND.
+            Emojis replaced with lucide-react icons.
+          */}
           <div className="grid gap-4 p-8 md:grid-cols-2">
+            {/* ── CARD 1: Request media team (first) ── */}
             <button
               onClick={() => {
                 setRequestMode("team")
@@ -480,6 +485,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </p>
             </button>
 
+            {/* ── CARD 2: Borrow equipment (second) ── */}
             <button
               onClick={() => {
                 setRequestMode("equipment")
@@ -754,6 +760,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                             (eq) =>
                               eq.id.toString() === req.equipment.toString()
                           )
+                          // BUG #1 FIX: max is the live currently_available value
                           const maxQty = selectedEq
                             ? selectedEq.currently_available
                             : 1
@@ -839,6 +846,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                                     {errors[`qty_${index}`]}
                                   </p>
                                 )}
+                                {/* Inline max hint */}
                                 {selectedEq && !errors[`qty_${index}`] && (
                                   <p className="text-gray-400 text-[10px] mt-1">
                                     max {maxQty}
@@ -875,6 +883,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 {isTeamRequest ? "2. Event Details" : "3. Event Details"}
               </SectionLabel>
 
+              {/* External Event toggle */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60 mb-4">
                 <div className="flex flex-col pr-4">
                   <span className="text-sm font-semibold text-gray-700">

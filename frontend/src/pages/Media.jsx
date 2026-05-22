@@ -232,6 +232,7 @@ function Media() {
   const canGoPrevious = addDays(selectedDate, -7) >= todayKey()
 
   const filteredAvailability = useMemo(() => {
+    // Only show items explicitly flagged for the Media Team Kit
     const mediaGearOnly = availability.filter((item) => item.is_standard_media_kit === true)
 
     const q = search.trim().toLowerCase()
@@ -395,6 +396,7 @@ function Media() {
             </div>
 
             {/* Media Team Coverage first, Equipment Inventory second */}
+            {/* ── TYPE SWITCHER TABS — Media Team Coverage first, Equipment second ── */}
             <div className="border-b border-gray-100 bg-gray-50/70 px-6 py-4">
               <div className="mb-4 flex w-fit rounded-xl bg-white p-1 shadow-sm ring-1 ring-gray-100">
                 {[
