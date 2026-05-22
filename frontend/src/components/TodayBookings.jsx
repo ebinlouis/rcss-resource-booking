@@ -157,10 +157,18 @@ function BookingDetailPanel({ booking, onClose }) {
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Booked By</h3>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-green-700 font-bold text-sm">
-                  {(raw.booked_by_name || "?")[0].toUpperCase()}
-                </span>
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {raw.booked_by_photo ? (
+                  <img
+                    src={raw.booked_by_photo}
+                    alt={raw.booked_by_name || "User"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-green-700 font-bold text-sm">
+                    {(raw.booked_by_name || "?")[0].toUpperCase()}
+                  </span>
+                )}
               </div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">

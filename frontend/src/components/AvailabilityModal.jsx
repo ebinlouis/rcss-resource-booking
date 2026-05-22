@@ -151,6 +151,7 @@ grouped[cursor].push({
   bookedByDesignation: b.booked_by_designation,
   bookedByDepartment: b.booked_by_department,
   bookedByPhone: b.booked_by_phone,
+  bookedByPhoto: b.booked_by_photo,
   purpose: b.purpose_of_booking,
 })
 
@@ -499,13 +500,28 @@ onClick={(e) => {
     }}
   >
     <div className="space-y-3">
-      <div>
-        <p className="text-base font-semibold text-gray-900">
-          {activeTooltip.booking.bookedByName || "Unavailable"}
-        </p>
-        <p className="text-sm text-gray-500 mt-1">
-          {activeTooltip.booking.bookedByDesignation || "Faculty"}
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+          {activeTooltip.booking.bookedByPhoto ? (
+            <img
+              src={activeTooltip.booking.bookedByPhoto}
+              alt={activeTooltip.booking.bookedByName || "User"}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-green-700 font-bold text-sm">
+              {(activeTooltip.booking.bookedByName || "?")[0].toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div>
+          <p className="text-base font-semibold text-gray-900">
+            {activeTooltip.booking.bookedByName || "Unavailable"}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeTooltip.booking.bookedByDesignation || "Faculty"}
+          </p>
+        </div>
       </div>
 
       <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
