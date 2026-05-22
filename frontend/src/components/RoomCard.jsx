@@ -124,6 +124,13 @@ function RoomCard({ room, onOpenAvailability }) {
           {location}
         </p>
 
+                {/* Description */}
+        {room.description && (
+          <p className="text-gray-500 text-sm mt-1.5 line-clamp-2 font-light leading-relaxed">
+            {room.description}
+          </p>
+        )}
+
         {/* Equipment */}
         {equipment.length > 0 && (
           <div className="mt-4">
