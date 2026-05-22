@@ -112,7 +112,7 @@ function getDayStatus(bookings) {
 // HELPERS — shared fetch logic
 // ─────────────────────────────────────────────
 async function loadBookings(spaceId) {
-  const res  = await api.get("/spaces/requests/")
+  const res  = await api.get("/spaces/requests/?view=general")
   const data = res.data.results || res.data || []
 
   const grouped = {}
