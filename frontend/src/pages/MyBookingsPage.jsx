@@ -89,7 +89,7 @@ const getBookingStatusMeta = (booking) => {
 
     case "APPROVED":
       return {
-        title: "Space Reserved Successfully",
+        title: "Venue Reserved Successfully",
         description:
           "Your booking is confirmed. You may still edit or cancel if needed.",
         bg: "bg-emerald-50",
@@ -214,7 +214,7 @@ const BookingCard = ({
           {/* SPACE */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-3">
-              Space
+              Venue
             </p>
 
             <div className="flex items-start gap-4">
@@ -224,7 +224,7 @@ const BookingCard = ({
 
               <div>
                 <h3 className="text-[18px] font-bold text-gray-900 leading-tight">
-                  {booking.space_details?.name || "Unknown Space"}
+                  {booking.space_details?.name || "Unknown Venue"}
                 </h3>
 
                 <p className="text-[14px] text-gray-500 mt-1 capitalize">
@@ -1007,7 +1007,7 @@ const confirmCancelBooking = async () => {
 
         <p className="text-[14px] text-gray-500 leading-relaxed">
           This will permanently cancel your booking request and free the reserved
-          space for others.
+          venue for others.
         </p>
       </div>
 

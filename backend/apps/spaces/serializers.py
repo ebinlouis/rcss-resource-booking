@@ -115,6 +115,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     booked_by_designation = serializers.SerializerMethodField()
     booked_by_department = serializers.SerializerMethodField()
     booked_by_phone = serializers.SerializerMethodField()
+    booked_by_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = SpaceBooking
@@ -137,6 +138,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'booked_by_designation',
             'booked_by_department',
             'booked_by_phone',
+            'booked_by_photo',
             'purpose_of_booking_input',
             'user_notes',
             'equipment_requests',
@@ -201,7 +203,38 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if not user:
             return None
 
-        return getattr(user, "designation", None)
+        # Use the user's own designation field if filled in
+        if user.designation:
+            return user.designation
+
+        # Fall back to the most relevant role display label
+        ROLE_LABELS = {
+            'IT_ADMIN':         'IT Administrator',
+            'PRINCIPAL':        'Principal',
+            'HOD':              'Head of Department',
+            'RECEPTIONIST':     'Receptionist',
+            'LAB_INCHARGE':     'Lab In-Charge',
+            'LIBRARIAN':        'Librarian',
+            'MESS_MANAGER':     'Mess Manager',
+            'MEDIA_INCHARGE':   'Media In-Charge',
+            'FLEET_MANAGER':    'Fleet Manager',
+            'FACULTY':          'Faculty',
+            'STAFF':            'Staff',
+            'STUDENT':          'Student',
+        }
+        # Priority order — check roles from most specific to most general
+        priority = [
+            'IT_ADMIN', 'PRINCIPAL', 'HOD', 'RECEPTIONIST',
+            'LAB_INCHARGE', 'LIBRARIAN', 'MESS_MANAGER',
+            'MEDIA_INCHARGE', 'FLEET_MANAGER',
+            'FACULTY', 'STAFF', 'STUDENT',
+        ]
+        effective_roles = user.get_effective_roles()
+        for role in priority:
+            if role in effective_roles:
+                return ROLE_LABELS[role]
+
+        return None
 
 
     def get_booked_by_department(self, obj):
@@ -225,6 +258,14 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
 
         return None
+
+    def get_booked_by_photo(self, obj):
+        request = self._request()
+        if not obj.user or not obj.user.profile_image:
+            return None
+        if request:
+            return request.build_absolute_uri(obj.user.profile_image.url)
+        return obj.user.profile_image.url
 
     def create(self, validated_data):
         equipment_data = validated_data.pop('requested_equipment', [])
@@ -587,7 +628,7 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
             user.roles.add(role)
 
         return approver
-
+ 
     # ------------------------------------------------------------------
     # Destroy: strip the role if this was the user's last scoped assignment
     # ------------------------------------------------------------------

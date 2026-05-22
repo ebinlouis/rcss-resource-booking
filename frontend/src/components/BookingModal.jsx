@@ -484,7 +484,7 @@ function BookingModal({
       e.attendees = `Capacity exceeded. Maximum allowed is ${activeSpaceCap}.`
     }
     if (notesRequired && !form.notes.trim())
-      e.notes = "Please explain why this hall is needed for a small group."
+      e.notes = "Please explain why this venue is needed for a small group."
     return e
   }
 
@@ -713,14 +713,14 @@ function BookingModal({
             <p className="text-sm text-green-200/75 mt-3 leading-relaxed">
               {isEdit
                 ? "Editing this booking will send it back to the admin for re-approval."
-                : "Request a space, choose your time, and add any details needed for approval."}
+                : "Request a venue, choose your time, and add any details needed for approval."}
             </p>
 
             {/* Capacity indicator */}
             {activeSpaceCap !== null && (
               <div className="mt-4 bg-white/10 rounded-xl px-4 py-3">
                 <p className="text-[10px] text-green-300 uppercase tracking-wide font-semibold mb-1">
-                  Hall Capacity
+                  Venue Capacity
                 </p>
                 <p className="text-white font-bold text-lg">{activeSpaceCap} seats</p>
                 {Number.isFinite(attendeeCount) && attendeeCount > 0 && (
@@ -882,7 +882,7 @@ function BookingModal({
                 Booking Form
               </p>
               <h2 className="text-xl font-bold text-gray-900">
-                {isEdit ? "Edit your booking" : "Secure this space"}
+                {isEdit ? "Edit your booking" : "Secure this venue"}
               </h2>
             </div>
             <button
@@ -964,7 +964,7 @@ function BookingModal({
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-gray-900">Continuous Event (e.g. Hackathon)</span>
-                        <span className="text-xs text-gray-500 mt-0.5">Blocks the hall completely from the start day to the end day, including overnight.</span>
+                        <span className="text-xs text-gray-500 mt-0.5">Blocks the venue completely from the start day to the end day, including overnight.</span>
                       </div>
                     </label>
                     <label className="flex items-start gap-3 cursor-pointer">
@@ -980,7 +980,7 @@ function BookingModal({
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-gray-900">Daily Recurring (e.g. 5-day Seminar)</span>
-                        <span className="text-xs text-gray-500 mt-0.5">Blocks the hall *only* between the selected times each day.</span>
+                        <span className="text-xs text-gray-500 mt-0.5">Blocks the venue *only* between the selected times each day.</span>
                       </div>
                     </label>
                   </div>
@@ -1214,8 +1214,8 @@ function BookingModal({
                         Capacity exceeded
                       </p>
                       <p className="text-xs text-red-700 mt-0.5">
-                        This hall supports only {activeSpaceCap} attendees. Please
-                        reduce attendees or choose a larger hall.
+                        This venue supports only {activeSpaceCap} attendees. Please
+                        reduce attendees or choose a larger venue.
                       </p>
                     </div>
                   </div>
@@ -1262,13 +1262,13 @@ function BookingModal({
                       <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
                         {attendeeCount} attendees fills only{" "}
                         {Math.round((attendeeCount / activeSpaceCap) * 100)}% of this
-                        hall. Consider a smaller venue, or explain below why this space
+                        venue. Consider a smaller venue, or explain below why this venue
                         is needed.
                       </p>
 
                       {isFetchingSuggestions && (
                         <p className="text-xs text-amber-600 mt-2 animate-pulse">
-                          Finding better-fit halls…
+                          Finding better-fit venues…
                         </p>
                       )}
 
@@ -1310,7 +1310,7 @@ function BookingModal({
                         suggestedHalls.length === 0 &&
                         Number.isFinite(attendeeCount) && (
                           <p className="text-xs text-amber-600 mt-2">
-                            No smaller halls available — please explain in Notes below.
+                            No smaller venues available — please explain in Notes below.
                           </p>
                         )}
                     </div>
@@ -1381,7 +1381,7 @@ function BookingModal({
                   className={`${inputCls(errors.notes)} resize-none`}
                   placeholder={
                     notesRequired
-                      ? "Required: explain why this hall is needed for a small group…"
+                      ? "Required: explain why this venue is needed for a small group…"
                       : "Mention setup, technical support, seating changes…"
                   }
                   value={form.notes}

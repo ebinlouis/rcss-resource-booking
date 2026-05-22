@@ -142,7 +142,7 @@ function BookingDetailPanel({ booking, onClose }) {
                     </div>
                   </div>
                   <div>
-                    <p className="text-gray-400 mb-1 text-xs">Space</p>
+                    <p className="text-gray-400 mb-1 text-xs">Venue</p>
                     <p className="font-medium text-gray-800">{booking.hall}</p>
                   </div>
                 </div>
@@ -157,10 +157,18 @@ function BookingDetailPanel({ booking, onClose }) {
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Booked By</h3>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-green-700 font-bold text-sm">
-                  {(raw.booked_by_name || "?")[0].toUpperCase()}
-                </span>
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {raw.booked_by_photo ? (
+                  <img
+                    src={raw.booked_by_photo}
+                    alt={raw.booked_by_name || "User"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-green-700 font-bold text-sm">
+                    {(raw.booked_by_name || "?")[0].toUpperCase()}
+                  </span>
+                )}
               </div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">
@@ -313,7 +321,7 @@ function TodayBookings({ onEditBooking }) {
       return {
         id:          b.id,
         time:        formatTime(startD),
-        hall:        b.space_details?.name ?? "Unknown Space",
+        hall:        b.space_details?.name ?? "Unknown Venue",
         title:       b.purpose_of_booking,
         duration:    isMultiDay
           ? `${fmtDate(startKey)} – ${fmtDate(endKey)}`
@@ -378,7 +386,7 @@ function TodayBookings({ onEditBooking }) {
           {/* TABLE HEADER */}
           <div className="hidden md:grid grid-cols-12 px-8 py-3 bg-gradient-to-r from-gray-50 to-white border-y border-gray-100/80 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             <div className="col-span-2 pl-6">Time</div>
-            <div className="col-span-5 pl-2">Space & Purpose</div>
+            <div className="col-span-5 pl-2">Venue & Purpose</div>
             <div className="col-span-3 text-center">Duration</div>
             <div className="col-span-2 text-center">Status</div>
           </div>
@@ -477,7 +485,7 @@ function TodayBookings({ onEditBooking }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h8m0 0l-3-3m3 3l-3 3M16 17H8m0 0l3 3m-3-3l3-3" />
               </svg>
             </div>
-            <h2 className="text-base font-bold text-gray-900 mb-1">Request This Space?</h2>
+            <h2 className="text-base font-bold text-gray-900 mb-1">Request This Venue?</h2>
             <p className="text-sm text-gray-500 mb-2">Send a swap request for</p>
             <p className="text-sm font-semibold text-gray-800">{requestBooking.hall}</p>
             <p className="text-xs text-gray-400 mt-1 mb-6">{requestBooking.duration}</p>
