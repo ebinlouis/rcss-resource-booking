@@ -300,6 +300,44 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         ]
         return Response(availability)
 
+    @action(detail=False, methods=['get'], url_path='team_capacity')
+    def team_capacity(self, request):
+        refresh_queryset_lifecycle(MediaBooking.objects.all())
+        req_start_str = request.query_params.get('start')
+        req_end_str = request.query_params.get('end')
+
+        if not all([req_start_str, req_end_str]):
+            return Response(
+                {"error": "start and end parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        req_start = parse_datetime(req_start_str)
+        req_end = parse_datetime(req_end_str)
+
+        if not req_start or not req_end or req_start >= req_end:
+            return Response(
+                {"error": "Invalid date range."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        settings = MediaSettings.load()
+        overlapping_count = _overlapping_team_bookings(req_start, req_end).count()
+        remaining_capacity = max(0, settings.max_concurrent_events - overlapping_count)
+
+        limited_capacity = (
+            remaining_capacity == 0 or
+            (settings.max_concurrent_events > 1 and remaining_capacity == 1)
+        )
+
+        return Response({
+            "max_capacity": settings.max_concurrent_events,
+            "booked_count": overlapping_count,
+            "remaining_capacity": remaining_capacity,
+            "is_full": remaining_capacity == 0,
+            "limited_capacity": limited_capacity,
+        })
+
     @action(detail=False, methods=['get'])
     def daily_availability(self, request):
         refresh_queryset_lifecycle(MediaBooking.objects.all())

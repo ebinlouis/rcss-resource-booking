@@ -19,6 +19,7 @@ const freshSession = () => ({
   messFormData: null,
   mediaFormData: null,
   mediaRequestMode: null,
+  mediaCapacity: null,
   completedBookings: [],
 })
 
@@ -79,6 +80,9 @@ export const bookingSessionActions = {
   },
   setMediaRequestMode(mode) {
     setState({ mediaRequestMode: mode })
+  },
+  setMediaCapacity(data) {
+    setState({ mediaCapacity: data })
   },
   markComplete(type) {
     setState((current) => ({

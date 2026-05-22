@@ -254,6 +254,17 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     }, {})
   }, [availableEquipment])
 
+  const hasEquipmentHardBlock = useMemo(() => {
+    if (isTeamRequest) return false
+    return equipmentRequests.some((req) => {
+      if (!req.equipment) return false
+      const item = availableEquipment.find(
+        (eq) => eq.id.toString() === req.equipment.toString()
+      )
+      return item && Number(req.quantity) > item.currently_available
+    })
+  }, [availableEquipment, equipmentRequests, isTeamRequest])
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -272,13 +283,8 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     const newReqs = [...equipmentRequests]
 
     if (field === "quantity") {
-      // Enforce the available cap client-side immediately
       const parsedVal = parseInt(value, 10)
-      const selectedEq = availableEquipment.find(
-        (eq) => eq.id.toString() === newReqs[index].equipment.toString()
-      )
-      const maxQty = selectedEq ? selectedEq.currently_available : 1
-      newReqs[index][field] = Math.min(Math.max(1, parsedVal || 1), maxQty)
+      newReqs[index][field] = Math.max(1, parsedVal || 1)
     } else {
       newReqs[index][field] = value
       // When equipment changes, reset quantity to 1 (safe default)
@@ -423,7 +429,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
           mapped.timeError = Array.isArray(data.non_field_errors)
             ? data.non_field_errors[0]
             : data.non_field_errors
-        else if (data.equipment_requests && isTeamRequest)
+        else if (data.equipment_requests)
           mapped.timeError = mapped.equipment_requests
         setErrors(mapped)
       } else {
@@ -698,6 +704,13 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 </div>
               )}
 
+              {isLinkedBooking && isTeamRequest && bookingSession.mediaCapacity?.limited_capacity && (
+                <div className="p-3 mt-4 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg font-medium flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  The media team has limited availability for your event slot. Your request will be reviewed by the team.
+                </div>
+              )}
+
               {/* STEP 1: SCHEDULE */}
               <SectionLabel>1. Schedule Context</SectionLabel>
 
@@ -889,11 +902,15 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                                   }
                                   disabled={!req.equipment}
                                 />
-                                {errors[`qty_${index}`] && (
+                                {isOverLimit ? (
+                                  <p className="text-red-500 text-xs mt-1">
+                                    Only {selectedEq.currently_available} available for this slot.
+                                  </p>
+                                ) : errors[`qty_${index}`] ? (
                                   <p className="text-red-500 text-xs mt-1">
                                     {errors[`qty_${index}`]}
                                   </p>
-                                )}
+                                ) : null}
                                 {/* Inline max hint */}
                                 {selectedEq && !errors[`qty_${index}`] && (
                                   <p className="text-gray-400 text-[10px] mt-1">
@@ -1072,7 +1089,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || hasEquipmentHardBlock}
                   className="px-6 py-2.5 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-800 transition-colors shadow-sm disabled:opacity-60"
                 >
                   {submitting

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
@@ -102,8 +102,10 @@ const DurationBadge = ({ booking }) => {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function Mess() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const highlightedReference = searchParams.get("booking") || ""
+  const isLinkedFlow = searchParams.get("linked") === "1"
 
   const [bookings,                setBookings]                = useState([])
   const [isLoading,               setIsLoading]               = useState(true)
@@ -235,6 +237,7 @@ function Mess() {
     showToast(editMode ? "Booking updated successfully!" : "Booking submitted! Awaiting admin approval.")
     setSelectedDate("")
     setRefreshTrigger((prev) => prev + 1)
+    if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
   }
 
   // ── Derived ─────────────────────────────────────────────────────────────────
