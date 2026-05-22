@@ -155,7 +155,6 @@ function TeamFluidView({ teamData }) {
 
   return (
     <div className="space-y-6 md:col-span-2">
-      {/* Overview Card */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white border border-gray-200 px-5 py-4 shadow-sm">
         <div>
           <p className="text-[14px] font-bold text-gray-900">Team Capacity Status</p>
@@ -168,7 +167,6 @@ function TeamFluidView({ teamData }) {
         )}
       </div>
 
-      {/* Fully Booked Warning */}
       {fully_booked_periods?.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
           <p className="text-[14px] font-bold text-red-800 mb-2 flex items-center gap-2">
@@ -188,7 +186,6 @@ function TeamFluidView({ teamData }) {
         </div>
       )}
 
-      {/* Scheduled Commitments List */}
       <div>
         <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-3">Today's Detailed Commitments</p>
         <div className="grid gap-3 md:grid-cols-2">
@@ -398,6 +395,7 @@ function Media() {
               </div>
             </div>
 
+            {/* Media Team Coverage first, Equipment Inventory second */}
             {/* ── TYPE SWITCHER TABS — Media Team Coverage first, Equipment second ── */}
             <div className="border-b border-gray-100 bg-gray-50/70 px-6 py-4">
               <div className="mb-4 flex w-fit rounded-xl bg-white p-1 shadow-sm ring-1 ring-gray-100">

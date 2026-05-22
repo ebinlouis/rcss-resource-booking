@@ -123,6 +123,12 @@ function RoomCard({ room, onOpenAvailability }) {
           </svg>
           {location}
         </p>
+        {/* Description */}
+        {room.description && (
+          <p className="text-gray-500 text-sm mt-1.5 line-clamp-2 font-light leading-relaxed">
+            {room.description}
+          </p>
+        )}
 
                 {/* Description */}
         {room.description && (

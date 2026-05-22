@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import api from "../../api/axios"
+import spaceAdminService from "../../api/spaceAdminService"
 import SpaceFormModal from "../../components/admin/SpaceFormModal"
+import { parseSpaceLocation } from "../../utils/spaceLocation"
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -44,7 +47,8 @@ function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", str
 // Space Card
 // ─────────────────────────────────────────────────────────────
 
-function SpaceCard({ space, onEdit }) {
+function SpaceCard({ space, blocks, onEdit }) {
+  const { blockName, locationDetails } = parseSpaceLocation(space.location, blocks)
   const typeMeta = SPACE_TYPE_META[space.space_type] ?? {
     label: space.space_type,
     color: "bg-[#f1f5f9] text-[#475569] border-[#e2e8f0]",
@@ -112,7 +116,18 @@ function SpaceCard({ space, onEdit }) {
           <h3 className="text-[15px] font-bold text-[#0f172a] leading-tight tracking-tight">
             {space.name}
           </h3>
-          <p className="text-[12.5px] text-[#6b7280] mt-0.5 leading-tight">{space.location || "—"}</p>
+          {(blockName || locationDetails) ? (
+            <div className="mt-0.5 space-y-0.5">
+              {blockName && (
+                <p className="text-[12.5px] font-semibold text-[#374151] leading-tight">{blockName}</p>
+              )}
+              {locationDetails && (
+                <p className="text-[12px] text-[#6b7280] leading-tight">{locationDetails}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-[#6b7280] mt-0.5 leading-tight">—</p>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -161,7 +176,9 @@ function SpaceCard({ space, onEdit }) {
 // ─────────────────────────────────────────────────────────────
 
 const AdminSpacesPage = () => {
+  const navigate = useNavigate()
   const [spaces, setSpaces]           = useState([])
+  const [blocks, setBlocks]           = useState([])
   const [isLoading, setIsLoading]     = useState(true)
   const [error, setError]             = useState(null)
   const [refreshCount, setRefreshCount] = useState(0)
@@ -174,14 +191,18 @@ const AdminSpacesPage = () => {
   const [filterActive, setFilterActive] = useState("ALL")
   const [filterSpecial, setFilterSpecial] = useState(false)
 
-  // ── Fetch ──
+  // ── Fetch rooms + blocks ──
   useEffect(() => {
     let isMounted = true
 
-    api.get("/spaces/catalog/")
-      .then((res) => {
+    Promise.all([
+      api.get("/spaces/catalog/"),
+      spaceAdminService.getBlocks(),
+    ])
+      .then(([spacesRes, blocksData]) => {
         if (isMounted) {
-          setSpaces(res.data.results ?? res.data ?? [])
+          setSpaces(spacesRes.data.results ?? spacesRes.data ?? [])
+          setBlocks(Array.isArray(blocksData) ? blocksData : blocksData.results ?? [])
           setError(null)
         }
       })
@@ -271,7 +292,17 @@ const AdminSpacesPage = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/blocks")}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
+            >
+              <Icon className="w-4 h-4">
+                <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
+              </Icon>
+              Manage Blocks
+            </button>
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -409,7 +440,7 @@ const AdminSpacesPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((space) => (
-              <SpaceCard key={space.id} space={space} onEdit={openEdit} />
+              <SpaceCard key={space.id} space={space} blocks={blocks} onEdit={openEdit} />
             ))}
           </div>
         )}
