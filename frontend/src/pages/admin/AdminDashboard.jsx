@@ -984,10 +984,10 @@ const AdminDashboard = () => {
                             Rajagiri College · Admin
                         </p>
                         <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-                            Space Approval
+                            Room Bookings
                         </h1>
                         <p className="text-[15px] text-[#374151] mt-2">
-                            Review new requests and manage active reservations.
+                            Review and manage room booking requests.
                         </p>
                     </div>
                     <button

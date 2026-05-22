@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from apps.fleet.models import Vehicle, FleetBooking
 
 
@@ -78,6 +79,20 @@ class FleetBookingSerializer(serializers.ModelSerializer):
         passengers = data.get('total_passengers')
         start = data.get('start_datetime')
         end = data.get('end_datetime')
+
+        # Coerce naive datetimes to the current timezone so comparisons work
+        # correctly regardless of whether the frontend sends a naive or aware
+        # ISO string.  Django's DateTimeField already does this when
+        # USE_TZ=True, but defensive coercion here prevents the
+        # "can't compare offset-naive and offset-aware datetimes" TypeError
+        # that surfaces when Django receives a naive string and the serializer
+        # field has not yet attached tzinfo.
+        if start and timezone.is_naive(start):
+            start = timezone.make_aware(start)
+            data['start_datetime'] = start
+        if end and timezone.is_naive(end):
+            end = timezone.make_aware(end)
+            data['end_datetime'] = end
 
         # 1. End must be after start
         if start and end and start >= end:

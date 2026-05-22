@@ -207,7 +207,7 @@ function AdminUsersPage() {
                     </p>
                     <h1 className="text-[26px] font-bold tracking-tight text-gray-950">User Management</h1>
                     <p className="mt-2 text-[15px] text-gray-600">
-                        Promote users by managing their identity badges before assigning scoped keycards.
+                        Manage user roles and access for the admin portal.
                     </p>
                 </div>
                 <div className="relative w-full md:w-[360px]">

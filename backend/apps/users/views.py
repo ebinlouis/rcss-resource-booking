@@ -5,7 +5,11 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action  # <-- ADDED
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils import timezone
 from django.db.models import Q
 
@@ -84,7 +88,7 @@ class LogoutView(APIView):
 # CURRENT USER VIEW
 # ==========================================
 
-def _build_user_response(user):
+def _build_user_response(user, request=None):
     """
     Builds the standard user response dict used by both
     CurrentUserView (GET) and UserProfileUpdateView (PATCH).
@@ -153,6 +157,12 @@ def _build_user_response(user):
             'can_manage_principal_view': True,
         }
 
+    profile_image_url = None
+    if user.profile_image:
+        profile_image_url = user.profile_image.url
+        if request is not None:
+            profile_image_url = request.build_absolute_uri(profile_image_url)
+
     return {
         'id':                   user.id,
         'email':                user.email,
@@ -161,6 +171,7 @@ def _build_user_response(user):
         'last_name':            user.last_name,
         'phone':                user.phone,
         'designation':          user.designation,
+        'profile_image':        profile_image_url,
         'employee_student_id':  user.employee_student_id,
         'department':           user.department_id,
         'department_name':      user.department.department_name if user.department else None,
@@ -179,7 +190,7 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(_build_user_response(request.user))
+        return Response(_build_user_response(request.user, request))
 
 
 # ==========================================
@@ -188,12 +199,17 @@ class CurrentUserView(APIView):
 
 class UserProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-    UPDATABLE_FIELDS = ['first_name', 'last_name', 'phone', 'designation', 'department']
+    UPDATABLE_FIELDS = [
+        'first_name', 'last_name', 'email', 'phone',
+        'designation', 'department', 'profile_image',
+    ]
 
     def patch(self, request):
         user   = request.user
         errors = {}
+        update_fields = set()
 
         for field in self.UPDATABLE_FIELDS:
             if field not in request.data:
@@ -208,24 +224,58 @@ class UserProfileUpdateView(APIView):
                         user.department = Department.objects.get(pk=int(value))
                     except (Department.DoesNotExist, ValueError):
                         errors['department'] = 'Invalid department selected.'
+                update_fields.add('department_id')
+            elif field == 'email':
+                email = get_user_model().objects.normalize_email(str(value).strip())
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    errors['email'] = 'Enter a valid email address.'
+                    continue
+
+                if CustomUser.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
+                    errors['email'] = 'This email address is already in use.'
+                    continue
+
+                user.email = email
+                update_fields.add('email')
+            elif field == 'profile_image':
+                uploaded = request.FILES.get('profile_image')
+                if not uploaded:
+                    continue
+
+                allowed_types = {
+                    'image/jpeg',
+                    'image/png',
+                    'image/webp',
+                }
+                if uploaded.content_type not in allowed_types:
+                    errors['profile_image'] = 'Upload a JPG, PNG, JPEG, or WEBP image.'
+                    continue
+
+                user.profile_image = uploaded
+                update_fields.add('profile_image')
             elif field == 'first_name':
                 if not str(value).strip():
                     errors['first_name'] = 'First name cannot be blank.'
                 else:
                     setattr(user, field, str(value).strip())
+                    update_fields.add(field)
             elif field == 'phone':
                 setattr(user, field, str(value).strip() if value else None)
+                update_fields.add(field)
             else:
                 setattr(user, field, str(value).strip() if value else None)
+                update_fields.add(field)
 
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
-        user.save(update_fields=[
-            'first_name', 'last_name', 'phone', 'designation', 'department_id',
-        ])
+        if update_fields:
+            update_fields.add('updated_at')
+            user.save(update_fields=list(update_fields))
 
-        return Response(_build_user_response(user))
+        return Response(_build_user_response(user, request))
 
 
 # ==========================================

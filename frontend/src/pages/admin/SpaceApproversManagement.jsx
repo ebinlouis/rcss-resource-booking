@@ -70,8 +70,8 @@ const SpaceApproversManagement = () => {
         <div className="p-6 md:p-10 max-w-6xl mx-auto">
             <div className="flex justify-between items-end mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Space Approvers</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage scoped keycards for block and space approvers.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Room Managers</h1>
+                    <p className="text-sm text-gray-500 mt-1">Assign staff who can approve or manage room bookings.</p>
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}

@@ -217,6 +217,37 @@ function TransportBookingModal({
     setApiError("")
     setFieldErrors({})
 
+    // ── Client-side required-field guard ──────────────
+    if (!form.pickup_date) {
+      setApiError("Please select a pickup date.")
+      return
+    }
+    if (!form.pickup_time_24) {
+      setApiError("Please select a pickup time.")
+      return
+    }
+    if (!form.vehicle) {
+      setApiError("Please select a vehicle.")
+      return
+    }
+    if (!form.purpose.trim()) {
+      setApiError("Please enter a purpose for the trip.")
+      return
+    }
+    if (!form.pickup_location.trim()) {
+      setApiError("Please enter a pickup location.")
+      return
+    }
+    if (!form.destination.trim()) {
+      setApiError("Please enter a destination.")
+      return
+    }
+    if (!form.total_passengers || Number(form.total_passengers) < 1) {
+      setApiError("Please enter the number of passengers.")
+      return
+    }
+    // ─────────────────────────────────────────────────
+
     if (isPastPickupDate) {
 
       setApiError(
@@ -242,45 +273,53 @@ function TransportBookingModal({
 
     try {
 
+      const pickupDateTime =
+        `${form.pickup_date}T${form.pickup_time_24}:00`
+
+      let returnDateTime = null
+
+      if (
+        form.return_required &&
+        form.return_date &&
+        form.return_time_24
+      ) {
+        returnDateTime =
+          `${form.return_date}T${form.return_time_24}:00`
+      } else {
+
+        // Default end time = pickup + 2 hours.
+        // MUST stay in local time (no .toISOString() — that converts to UTC
+        // and produces a Z-suffix string that mismatches start_datetime's
+        // naive local format, causing a backend validation error).
+        const pickup = new Date(pickupDateTime)
+
+        pickup.setHours(
+          pickup.getHours() + 2
+        )
+
+        // Format as "YYYY-MM-DDTHH:MM:SS" in local time, matching start_datetime
+        const pad = (n) => String(n).padStart(2, "0")
+        returnDateTime =
+          `${pickup.getFullYear()}-${pad(pickup.getMonth() + 1)}-${pad(pickup.getDate())}` +
+          `T${pad(pickup.getHours())}:${pad(pickup.getMinutes())}:${pad(pickup.getSeconds())}`
+      }
+
       const payload = {
-        vehicle:
-          Number(form.vehicle),
+        vehicle: Number(form.vehicle),
 
-        purpose:
-          form.purpose,
+        purpose: form.purpose,
 
-        pickup_date:
-          form.pickup_date,
+        start_datetime: pickupDateTime,
 
-        pickup_time:
-          `${form.pickup_time} ${form.pickup_period}`,
+        end_datetime: returnDateTime,
 
-        pickup_location:
-          form.pickup_location,
+        pickup_location: form.pickup_location,
 
-        destination:
-          form.destination,
+        destination: form.destination,
 
-        return_required:
-          form.return_required,
+        total_passengers: Number(form.total_passengers),
 
-        return_date:
-          form.return_date,
-
-        return_time:
-          `${form.return_time} ${form.return_period}`,
-
-        return_pickup_location:
-          form.return_pickup_location,
-
-        return_destination:
-          form.return_destination,
-
-        total_passengers:
-          Number(form.total_passengers),
-
-        user_notes:
-          form.user_notes
+        user_notes: form.user_notes
       }
 
       let result
@@ -303,9 +342,27 @@ function TransportBookingModal({
 
     } catch (err) {
 
-      setApiError(
-        "Failed to submit booking."
-      )
+      // Extract the most useful error message from the server response.
+      // DRF returns field errors as { field: ["message"] } or { detail: "..." }
+      // or { error: "..." } — unwrap whichever shape arrives.
+      const data = err?.response?.data
+      if (data) {
+        if (typeof data === "string") {
+          setApiError(data)
+        } else if (data.detail) {
+          setApiError(data.detail)
+        } else if (data.error) {
+          setApiError(data.error)
+        } else {
+          // Field-level errors — flatten to first message
+          const firstKey = Object.keys(data)[0]
+          const firstVal = data[firstKey]
+          const msg = Array.isArray(firstVal) ? firstVal[0] : String(firstVal)
+          setApiError(`${firstKey}: ${msg}`)
+        }
+      } else {
+        setApiError("Failed to submit booking. Please try again.")
+      }
 
     } finally {
 

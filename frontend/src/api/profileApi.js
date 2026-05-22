@@ -10,7 +10,10 @@ const profileApi = {
     },
 
     updateProfile: async (profileData) => {
-        const response = await api.patch('auth/profile/', profileData);
+        const isFormData = profileData instanceof FormData;
+        const response = await api.patch('auth/profile/', profileData, {
+            headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+        });
         return response.data;
     },
 
