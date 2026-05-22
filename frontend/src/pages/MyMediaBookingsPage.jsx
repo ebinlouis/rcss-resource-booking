@@ -80,7 +80,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
   // Media allows modification if PENDING or APPROVED
   const showEditCancel = booking.can_modify !== false && (booking.status === "PENDING" || booking.status === "APPROVED") && !isExpired;
 
-  const spaceName = booking.space_details?.name || 'Any suitable space';
+  const spaceName = booking.space_details?.name || 'Any suitable venue';
   const location  = booking.space_details?.location || 'Location not specified';
 
   return (
@@ -113,9 +113,9 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
         {/* 3-col info grid (Always Visible) */}
         <div className="grid gap-7 grid-cols-1 md:grid-cols-3" style={{ gridTemplateColumns: '1.8fr 1.6fr 2.6fr' }}>
           
-          {/* Space / Location */}
+          {/* Venue / Location */}
           <div>
-            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2.5">Space & Location</p>
+            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-gray-500 mb-2.5">Venue & Location</p>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
                 <Building2 className="w-5 h-5" />
@@ -552,7 +552,7 @@ const MyMediaBookingsPage = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search events, spaces, codes..."
+                placeholder="Search events, venues, codes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl text-[14px] bg-white outline-none focus:ring-2 focus:ring-emerald-50 focus:border-emerald-500 placeholder:text-gray-400 shadow-sm transition-all"

@@ -9,7 +9,7 @@ import MainLayout from "../layouts/MainLayout"
 
 import api from "../api/axios"
 
-const FILTERS = ["All", "Available", "In use"]
+const FILTERS = ["All", "Halls", "Labs", "Open Areas"]
 
 const STATUS_STYLES = {
   APPROVED: "bg-green-100 text-green-700",
@@ -37,7 +37,7 @@ function Home() {
         const spaceData = response.data.results ?? response.data
         setDbRooms(spaceData || [])
       } catch (error) {
-        console.error("Failed to fetch spaces:", error)
+        console.error("Failed to fetch venues:", error)
         setDbRooms([])
       } finally {
         setIsLoading(false)
@@ -68,12 +68,26 @@ function Home() {
     setOpenAvailability(true)
   }
 
-  const filteredRooms = dbRooms.filter((r) => {
-    const matchesSearch =
-      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (r.space_type || "").toLowerCase().includes(search.toLowerCase())
-    return matchesSearch
-  })
+const filteredRooms = dbRooms.filter((r) => {
+  const roomType = (r.space_type || "").toLowerCase()
+
+  const matchesSearch =
+    (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    roomType.includes(search.toLowerCase())
+
+  const matchesFilter =
+    activeFilter === "All" ||
+    (activeFilter === "Halls" && roomType.includes("hall")) ||
+    (activeFilter === "Labs" && roomType.includes("lab")) ||
+    (activeFilter === "Open Areas" &&
+      (roomType.includes("open") || roomType.includes("outdoor")))
+
+  return matchesSearch && matchesFilter
+})
+
+  const approvedRequests = myBookings.filter(
+  (booking) => booking.status === "APPROVED"
+).length
 
 const auth = useAuth();
 const user = auth?.user;
@@ -135,13 +149,13 @@ const greeting =
 
     {/* Label */}
     <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-      Spaces
+      Approved Requests
     </p>
 
     {/* Number */}
   <div className="flex-1 flex items-center justify-center">
     <h2 className="text-4xl font-bold leading-none text-white">
-      {dbRooms?.length || 0}
+      {approvedRequests}
     </h2>
   </div>
 
@@ -155,7 +169,7 @@ const greeting =
 
     {/* Label */}
     <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-      Requests
+      Total Requests
     </p>
 
     {/* Number */}
@@ -270,11 +284,11 @@ const greeting =
 
         <div className="mb-5">
   <h2 className="text-lg font-semibold text-gray-900">
-    Bookable spaces
+    Bookable Venues
   </h2>
 
   <p className="text-sm text-gray-400 mt-0.5">
-    Browse available halls, labs, and meeting spaces for your next booking
+    Browse available halls, labs, and meeting venues for your next booking
   </p>
 </div>
 
@@ -304,7 +318,7 @@ const greeting =
             </span>
             <input
               type="text"
-              placeholder="Search spaces…"
+              placeholder="Search venues"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-10 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-green-700/20 focus:border-green-700 placeholder:text-gray-400 shadow-sm transition"
@@ -322,14 +336,14 @@ const greeting =
 
         {(search || activeFilter !== "All") && (
           <p className="text-xs text-gray-400 mb-4">
-            {filteredRooms.length} space{filteredRooms.length !== 1 ? "s" : ""} found
+            {filteredRooms.length} venue{filteredRooms.length !== 1 ? "s" : ""} found
           </p>
         )}
 
         {isLoading ? (
           <div className="flex justify-center items-center py-14">
             <p className="text-sm text-gray-500 font-medium animate-pulse">
-              Loading spaces from database...
+              Loading venues from database...
             </p>
           </div>
         ) : filteredRooms.length > 0 ? (
@@ -347,7 +361,7 @@ const greeting =
           </div>
         ) : (
           <div className="border border-dashed border-gray-200 rounded-xl bg-white px-6 py-12 text-center">
-            <p className="text-sm font-medium text-gray-600">No spaces match your search</p>
+            <p className="text-sm font-medium text-gray-600">No venues match your search</p>
             <p className="text-xs text-gray-400 mt-1">Try a different name or filter</p>
           </div>
         )}

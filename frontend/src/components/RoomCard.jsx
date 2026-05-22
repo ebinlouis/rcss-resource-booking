@@ -130,13 +130,6 @@ function RoomCard({ room, onOpenAvailability }) {
           </p>
         )}
 
-                {/* Description */}
-        {room.description && (
-          <p className="text-gray-500 text-sm mt-1.5 line-clamp-2 font-light leading-relaxed">
-            {room.description}
-          </p>
-        )}
-
         {/* Equipment */}
         {equipment.length > 0 && (
           <div className="mt-4">
@@ -187,7 +180,7 @@ function RoomCard({ room, onOpenAvailability }) {
                   d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-              Schedule
+              Check Availability
             </button>
 
             {/* Book Button */}
@@ -195,7 +188,7 @@ function RoomCard({ room, onOpenAvailability }) {
               onClick={() => setOpenBooking(true)}
               className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-emerald-100 transition-all"
             >
-              + Book Now
+              + Book Venue
             </button>
 
           </div>

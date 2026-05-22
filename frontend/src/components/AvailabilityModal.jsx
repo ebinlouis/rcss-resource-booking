@@ -54,6 +54,7 @@ blocks.push({
   bookedByDesignation: bk.bookedByDesignation,
   bookedByDepartment: bk.bookedByDepartment,
   bookedByPhone: bk.bookedByPhone,
+  bookedByPhoto: bk.bookedByPhoto,
   purpose: bk.purpose,
 })
     }
@@ -197,7 +198,7 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
         const grouped = await loadBookings(spaceId)
         if (!cancelled) setRoomBookings(grouped)
       } catch (err) {
-        console.error("Failed to load space bookings:", err)
+        console.error("Failed to load venue bookings:", err)
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -213,7 +214,7 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
       const grouped = await loadBookings(spaceId)
       setRoomBookings(grouped)
     } catch (err) {
-      console.error("Failed to reload space bookings:", err)
+      console.error("Failed to reload venue bookings:", err)
     } finally {
       setIsLoading(false)
     }
@@ -257,7 +258,7 @@ const dayStatus = (dateKey) => {
         <div className="w-[68%] p-6 border-r border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Space Availability</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Venue Availability</p>
               <h2 className="text-lg font-semibold text-gray-900">{monthName} {year}</h2>
             </div>
             <div className="flex gap-1">

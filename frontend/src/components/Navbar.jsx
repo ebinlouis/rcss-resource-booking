@@ -12,10 +12,10 @@ import {
 } from "lucide-react"
 
 const TABS = [
-  { name: "Spaces",    path: "/dashboard", icon: LayoutGrid      },
+  { name: "Venues",    path: "/dashboard", icon: LayoutGrid      },
   { name: "Transport", path: "/transport", icon: Bus             },
   { name: "Media",     path: "/media",     icon: Clapperboard    },
-  { name: "Mess",      path: "/mess",      icon: UtensilsCrossed },
+  { name: "Food",      path: "/mess",      icon: UtensilsCrossed },
 ]
 
 const ROLE_DISPLAY_MAP = {
