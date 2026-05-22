@@ -37,7 +37,7 @@ class MediaBooking(BaseBooking):
     teardown_end_datetime = models.DateTimeField(db_index=True)
 
     requested_services = models.TextField(blank=True, null=True)
-   
+
     is_external_event = models.BooleanField(
         default=False,
         help_text="True if this event is organised by an external party outside the college."
@@ -77,8 +77,8 @@ class MediaBooking(BaseBooking):
 
 class MediaEquipmentRequest(models.Model):
     media_booking = models.ForeignKey(
-        MediaBooking, 
-        on_delete=models.CASCADE, 
+        MediaBooking,
+        on_delete=models.CASCADE,
         related_name='equipment_requests'
     )
     equipment = models.ForeignKey('spaces.Equipment', on_delete=models.RESTRICT)
@@ -97,34 +97,59 @@ class MediaEquipmentRequest(models.Model):
         ]
 
     def clean(self):
+        """
+        Validates that the requested quantity does not exceed what is available
+        during this booking's time block.
+
+        The check is run for ALL terminal-eligible statuses. It is intentionally
+        skipped only for REJECTED / CANCELLED / EXPIRED / COMPLETED bookings,
+        because those bookings no longer hold any real-world inventory.
+
+        Crucially, this includes PENDING bookings: a user must not be allowed
+        to request more equipment than exists in total, even before approval.
+        At approval time the view layer re-checks against only APPROVED bookings
+        (i.e. confirmed usage), which is the correct gate for actual conflicts.
+        """
         super().clean()
-        
+
         if not hasattr(self, 'media_booking') or not hasattr(self, 'equipment'):
             return
 
-        if self.media_booking.status != 'APPROVED':
+        # Skip validation for bookings that are no longer active / relevant.
+        INACTIVE_STATUSES = {'REJECTED', 'CANCELLED', 'EXPIRED', 'COMPLETED'}
+        if self.media_booking.status in INACTIVE_STATUSES:
             return
 
-        # 1. Find all OTHER approved bookings overlapping with this CONTINUOUS time block
-        overlapping_bookings = MediaBooking.objects.filter(
+        # Count how much of this equipment is already committed in OTHER
+        # APPROVED bookings that overlap with this booking's full time block.
+        # We deliberately check only APPROVED here so that multiple simultaneous
+        # PENDING requests for the same scarce gear are not blocked against each
+        # other — that would make the approval process a race condition.
+        # The approval view is responsible for the APPROVED-vs-APPROVED conflict
+        # check at decision time.
+        overlapping_approved = MediaBooking.objects.filter(
             status='APPROVED',
             setup_start_datetime__lt=self.media_booking.teardown_end_datetime,
-            teardown_end_datetime__gt=self.media_booking.setup_start_datetime
+            teardown_end_datetime__gt=self.media_booking.setup_start_datetime,
         ).exclude(pk=self.media_booking.pk)
 
-        # 2. Count how many of THIS specific equipment are already used by others
-        used_quantity = MediaEquipmentRequest.objects.filter(
-            media_booking__in=overlapping_bookings,
-            equipment=self.equipment
-        ).aggregate(total_used=Sum('quantity'))['total_used'] or 0
+        used_by_approved = (
+            MediaEquipmentRequest.objects.filter(
+                media_booking__in=overlapping_approved,
+                equipment=self.equipment,
+            ).aggregate(total_used=Sum('quantity'))['total_used'] or 0
+        )
 
-        # 3. Calculate max available (Total Owned - Used by Others)
-        available_qty = max(0, self.equipment.total_owned - used_quantity)
+        available_qty = max(0, self.equipment.total_owned - used_by_approved)
 
-        # 4. Block the save if they ask for too many
         if self.quantity > available_qty:
             raise ValidationError({
-                'quantity': f"Cannot reserve {self.quantity}. Only {available_qty} '{self.equipment.name}' available during this time block."
+                'quantity': (
+                    f"Cannot request {self.quantity}x '{self.equipment.name}'. "
+                    f"Only {available_qty} unit(s) are available during this time block "
+                    f"(total owned: {self.equipment.total_owned}, "
+                    f"already committed by approved bookings: {used_by_approved})."
+                )
             })
 
     def save(self, *args, **kwargs):
