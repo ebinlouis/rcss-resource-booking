@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import spaceAdminService from '../../api/spaceAdminService';
 
 const BlocksManagement = () => {
+    const navigate = useNavigate();
     const [blocks, setBlocks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,65 +73,92 @@ const BlocksManagement = () => {
     };
 
     return (
-        <div className="p-6 md:p-10 max-w-6xl mx-auto">
-            <div className="flex justify-between items-end mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Buildings</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage campus buildings and organize rooms by location.</p>
-                </div>
-                <button 
-                    onClick={() => { setFormData({name: '', code: '', description: ''}); setEditingId(null); setIsModalOpen(true); }}
-                    className="bg-[#15803d] hover:bg-[#166534] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm"
+        <div className="min-h-full bg-[#f6fbf8] p-6 md:p-8">
+            <div className="max-w-[1200px] mx-auto">
+                <button
+                    type="button"
+                    onClick={() => navigate('/admin/spaces')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition mb-5"
                 >
-                    + Add Block
+                    <svg
+                        viewBox="0 0 24 24"
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                    Back
                 </button>
-            </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-gray-50 border-b border-gray-100">
-                            <th className="caps-label px-6 py-4">Code</th>
-                            <th className="caps-label px-6 py-4">Block Name</th>
-                            <th className="caps-label px-6 py-4">Description</th>
-                            <th className="caps-label px-6 py-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {isLoading ? (
-                            <tr><td colSpan="4" className="text-center py-10 text-gray-500 text-sm">Loading blocks...</td></tr>
-                        ) : blocks.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-10 text-gray-500 text-sm">No blocks configured yet.</td></tr>
-                        ) : (
-                            blocks.map(block => (
-                                <tr key={block.id} className="hover:bg-gray-50/50 transition">
-                                    {/* Display the Code */}
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-lg text-xs font-bold text-gray-700 tracking-wide">
-                                            {block.code}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 font-semibold text-gray-900">{block.name}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{block.description || '-'}</td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button 
-                                            onClick={() => openEdit(block)}
-                                            className="text-[#15803d] hover:text-[#166534] text-sm font-medium transition"
-                                        >
-                                            Edit
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                <div className="flex justify-between items-end flex-wrap gap-4 mb-7">
+                    <div>
+                        <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
+                        <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
+                            Campus Blocks
+                        </h1>
+                        <p className="text-[15px] text-[#374151] mt-2">
+                            Manage campus blocks and locations.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => { setFormData({ name: '', code: '', description: '' }); setEditingId(null); setIsModalOpen(true); }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
+                    >
+                        + Add Block
+                    </button>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-[#e8f5ee] overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-[#f6fbf8] border-b border-[#e8f5ee]">
+                                <th className="caps-label px-6 py-4">Code</th>
+                                <th className="caps-label px-6 py-4">Block Name</th>
+                                <th className="caps-label px-6 py-4">Description</th>
+                                <th className="caps-label px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#e8f5ee]">
+                            {isLoading ? (
+                                <tr><td colSpan="4" className="text-center py-10 text-[#94a3b8] text-[13.5px]">Loading blocks...</td></tr>
+                            ) : blocks.length === 0 ? (
+                                <tr><td colSpan="4" className="text-center py-10 text-[#94a3b8] text-[13.5px]">No blocks configured yet.</td></tr>
+                            ) : (
+                                blocks.map(block => (
+                                    <tr key={block.id} className="hover:bg-[#f0fdf4]/50 transition">
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#f0fdf4] rounded-lg text-[11px] font-bold text-[#14532d] tracking-wide border border-[#d1fae5]">
+                                                {block.code}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-[14px] font-semibold text-[#0f172a]">{block.name}</td>
+                                        <td className="px-6 py-4 text-[13.5px] text-[#6b7280]">{block.description || '—'}</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                type="button"
+                                                onClick={() => openEdit(block)}
+                                                className="text-[13px] font-semibold text-[#15803d] hover:text-[#166534] transition"
+                                            >
+                                                Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Block Form Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-[#e8f5ee] w-full max-w-md p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">
                             {editingId ? 'Edit Block' : 'Create New Block'}
                         </h3>
@@ -170,8 +199,14 @@ const BlocksManagement = () => {
                                 />
                             </div>
                             <div className="flex gap-3 justify-end pt-4">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
-                                <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-lg transition">Save Block</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="px-4 py-2.5 text-[13px] font-semibold text-[#4a6b58] border border-[#d1fae5] bg-white hover:bg-[#f0fdf4] rounded-xl transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button type="submit" className="px-4 py-2.5 text-[13px] font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-xl transition">Save Block</button>
                             </div>
                         </form>
                     </div>

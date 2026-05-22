@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import api from "../../api/axios"
+import spaceAdminService from "../../api/spaceAdminService"
+import { combineSpaceLocation, parseSpaceLocation } from "../../utils/spaceLocation"
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -157,20 +159,27 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
   const isEdit = !!initialData
   const fileInputRef = useRef(null)
 
+  const [blocks, setBlocks] = useState([])
+  const [blocksLoading, setBlocksLoading] = useState(true)
+
   // ── Form state ──
-  const [form, setForm] = useState(() => ({
-    name: initialData?.name ?? "",
-    space_type: initialData?.space_type ?? "",
-    approval_category: initialData?.approval_category ?? "GENERAL",
-    approval_workflow_type: initialData?.approval_workflow_type ?? "DIRECT",
-    capacity_hard: initialData?.capacity_hard ?? "",
-    location: initialData?.location ?? "",
-    description: initialData?.description ?? "",
-    is_active: initialData?.is_active ?? true,
-    is_special_purpose: initialData?.is_special_purpose ?? false,
-    setup_buffer_minutes: initialData?.setup_buffer_minutes ?? 0,
-    teardown_buffer_minutes: initialData?.teardown_buffer_minutes ?? 0,
-  }))
+  const [form, setForm] = useState(() => {
+    const parsed = parseSpaceLocation(initialData?.location ?? "", [])
+    return {
+      name: initialData?.name ?? "",
+      space_type: initialData?.space_type ?? "",
+      approval_category: initialData?.approval_category ?? "GENERAL",
+      approval_workflow_type: initialData?.approval_workflow_type ?? "DIRECT",
+      capacity_hard: initialData?.capacity_hard ?? "",
+      blockId: parsed.blockId,
+      locationDetails: parsed.locationDetails,
+      description: initialData?.description ?? "",
+      is_active: initialData?.is_active ?? true,
+      is_special_purpose: initialData?.is_special_purpose ?? false,
+      setup_buffer_minutes: initialData?.setup_buffer_minutes ?? 0,
+      teardown_buffer_minutes: initialData?.teardown_buffer_minutes ?? 0,
+    }
+  })
 
   // Image state
   const [imageFile, setImageFile] = useState(null)
@@ -193,7 +202,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  // ── Load equipment options ──
+  // ── Load equipment options + blocks ──
   useEffect(() => {
     const load = async () => {
       try {
@@ -206,6 +215,33 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    const loadBlocks = async () => {
+      setBlocksLoading(true)
+      try {
+        const data = await spaceAdminService.getBlocks()
+        const list = Array.isArray(data) ? data : data.results ?? []
+        if (!isMounted) return
+        setBlocks(list.filter((b) => b.is_active !== false))
+        if (initialData?.location) {
+          const parsed = parseSpaceLocation(initialData.location, list)
+          setForm((p) => ({
+            ...p,
+            blockId: parsed.blockId || p.blockId,
+            locationDetails: parsed.locationDetails || p.locationDetails,
+          }))
+        }
+      } catch {
+        // Non-fatal — dropdown may be empty
+      } finally {
+        if (isMounted) setBlocksLoading(false)
+      }
+    }
+    loadBlocks()
+    return () => { isMounted = false }
+  }, [initialData?.location])
 
   // ── Helpers ──
   const set = (key, val) => {
@@ -252,7 +288,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
     if (!form.approval_workflow_type) e.approval_workflow_type = "Select an approval workflow"
     if (!form.capacity_hard || Number(form.capacity_hard) < 1)
       e.capacity_hard = "Enter a valid capacity (≥ 1)"
-    if (!form.location.trim()) e.location = "Location is required"
+    if (!form.blockId) e.blockId = "Select a block"
+    if (!form.locationDetails.trim()) e.locationDetails = "Location details are required"
     for (const row of equipmentRows) {
       if (!row.equipment) {
         e.equipment = "All equipment rows must have an item selected"
@@ -280,7 +317,12 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       fd.append("approval_category", form.approval_category)
       fd.append("approval_workflow_type", form.approval_workflow_type)
       fd.append("capacity_hard", Number(form.capacity_hard))
-      fd.append("location", form.location.trim())
+      const selectedBlock = blocks.find((b) => String(b.id) === String(form.blockId))
+      const locationValue = combineSpaceLocation(
+        selectedBlock?.name ?? "",
+        form.locationDetails.trim()
+      )
+      fd.append("location", locationValue)
       fd.append("description", form.description.trim())
       fd.append("is_active", form.is_active)
       fd.append("is_special_purpose", form.is_special_purpose)
@@ -315,8 +357,10 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
         mapped.capacity_hard = Array.isArray(errData.capacity_hard)
           ? errData.capacity_hard[0]
           : errData.capacity_hard
-      if (errData.location)
-        mapped.location = Array.isArray(errData.location) ? errData.location[0] : errData.location
+      if (errData.location) {
+        const msg = Array.isArray(errData.location) ? errData.location[0] : errData.location
+        mapped.locationDetails = msg
+      }
       if (errData.non_field_errors)
         mapped.server = Array.isArray(errData.non_field_errors)
           ? errData.non_field_errors[0]
@@ -529,24 +573,41 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               </Field>
             </div>
 
+            <Field label="Capacity (seats)" required error={errors.capacity_hard}>
+              <input
+                type="number"
+                min="1"
+                className={inputCls(errors.capacity_hard)}
+                value={form.capacity_hard}
+                onChange={(e) => set("capacity_hard", e.target.value)}
+                placeholder="e.g. 150"
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+              />
+            </Field>
+
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Capacity (seats)" required error={errors.capacity_hard}>
-                <input
-                  type="number"
-                  min="1"
-                  className={inputCls(errors.capacity_hard)}
-                  value={form.capacity_hard}
-                  onChange={(e) => set("capacity_hard", e.target.value)}
-                  placeholder="e.g. 150"
+              <Field label="Block" required error={errors.blockId}>
+                <select
+                  className={inputCls(errors.blockId)}
+                  value={form.blockId}
+                  onChange={(e) => set("blockId", e.target.value)}
+                  disabled={blocksLoading}
                   style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
-                />
+                >
+                  <option value="">Select block…</option>
+                  {blocks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
-              <Field label="Location / Block" required error={errors.location}>
+              <Field label="Location Details" required error={errors.locationDetails}>
                 <input
-                  className={inputCls(errors.location)}
-                  value={form.location}
-                  onChange={(e) => set("location", e.target.value)}
-                  placeholder="e.g. Block A, Ground Floor"
+                  className={inputCls(errors.locationDetails)}
+                  value={form.locationDetails}
+                  onChange={(e) => set("locationDetails", e.target.value)}
+                  placeholder="e.g. Ground Floor, Room 101"
                   style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
                 />
               </Field>
