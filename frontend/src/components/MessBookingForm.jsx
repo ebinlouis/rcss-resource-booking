@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
+import { useNavigate } from "react-router-dom"
 import messService from "../api/messService"
 import { MEALS, getDateRange } from "../api/messConfig"
 import { Copy, ChevronLeft, ChevronRight } from "lucide-react"
+import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -241,13 +243,18 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
 // ── Main Component ────────────────────────────────────────────────────────────
 
 function MessBookingForm({ onClose, onSave, editData }) {
+  const navigate = useNavigate()
+  const bookingSession = useBookingSession()
+  const linkedSpace = bookingSession.spaceFormData
+  const linkedEventGroupId = editData?.event_group_id || linkedSpace?.event_group_id || bookingSession.eventGroupId
+  const isLinkedBooking = Boolean(!editData && linkedSpace?.event_group_id)
 
   // ── Event-level state ─────────────────────────────────────────────────────
   const [eventForm, setEventForm] = useState({
-    purpose_of_programme: sanitize(editData?.purpose_of_programme),
-    start_date:           sanitize(editData?.start_date),
-    end_date:             sanitize(editData?.end_date),
-    delivery_location:    sanitize(editData?.delivery_location),
+    purpose_of_programme: sanitize(editData?.purpose_of_programme ?? linkedSpace?.purpose),
+    start_date:           sanitize(editData?.start_date ?? linkedSpace?.start_date),
+    end_date:             sanitize(editData?.end_date ?? linkedSpace?.end_date ?? linkedSpace?.start_date),
+    delivery_location:    sanitize(editData?.delivery_location ?? linkedSpace?.spaceName),
     user_notes:           sanitize(editData?.user_notes),
   })
 
@@ -435,12 +442,17 @@ function MessBookingForm({ onClose, onSave, editData }) {
       daily_menus,
     }
 
+    if (isLinkedBooking || editData?.event_group_id) {
+      payload.event_group_id = linkedEventGroupId
+    }
+
     setIsSubmitting(true)
     try {
       if (editData?.id) {
         await messService.updateBooking(editData.id, payload)
       } else {
         await messService.createBooking(payload)
+        if (isLinkedBooking) bookingSessionActions.markComplete("mess")
       }
       if (isMounted.current) { setIsSubmitting(false); onSave?.() }
     } catch (err) {
@@ -578,6 +590,27 @@ function MessBookingForm({ onClose, onSave, editData }) {
             )}
 
             {/* ── Event Details ── */}
+            {isLinkedBooking && !bookingSession.completedBookings.includes("media") && (
+              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">This Mess request is linked to your Space booking.</p>
+                    <p className="text-xs text-green-700 mt-0.5">You can add Media for the same date, time, and room.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose()
+                      navigate("/media?linked=1")
+                    }}
+                    className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white hover:bg-green-800"
+                  >
+                    Add Media
+                  </button>
+                </div>
+              </div>
+            )}
+
             <SectionLabel>Event Details</SectionLabel>
 
             {/* DATE RANGE */}

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
   ChevronLeft,
@@ -209,6 +209,7 @@ function TeamFluidView({ teamData }) {
 
 function Media() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [availability, setAvailability] = useState([])
   const [teamData, setTeamData] = useState(null)
@@ -219,6 +220,13 @@ function Media() {
   const [myLoading, setMyLoading] = useState(true)
   const [openCreate, setOpenCreate] = useState(false)
   const [search, setSearch] = useState("")
+  const linkedFormOpened = useRef(false)
+
+  useEffect(() => {
+    if (searchParams.get("linked") !== "1" || linkedFormOpened.current) return
+    linkedFormOpened.current = true
+    setOpenCreate(true)
+  }, [searchParams])
 
   const weekDates = useMemo(() => {
     const base = new Date(`${selectedDate}T00:00:00`)

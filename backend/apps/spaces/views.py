@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
@@ -25,6 +25,11 @@ from .serializers import (
     SpaceApproverSerializer,
 )
 from .utils import get_overlapping_bookings, build_conflict_report
+from .linked_bookings import (
+    cancel_linked_siblings_for_space,
+    capture_space_anchor,
+    sync_linked_siblings_after_space_edit,
+)
 
 
 # ==========================================
@@ -214,10 +219,16 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user     = self.request.user
         instance = serializer.instance
+        previous_anchor = capture_space_anchor(instance)
         was_approved = instance.status == 'APPROVED'   # capture before save
 
         if user.is_staff or user.is_superuser:
-            serializer.save(updated_by=user)
+            booking = serializer.save(updated_by=user)
+            sync_linked_siblings_after_space_edit(
+                booking,
+                previous_anchor=previous_anchor,
+                actor=user,
+            )
             return
 
         extra_fields = {"updated_by": user}
@@ -230,6 +241,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             })
 
         booking = serializer.save(**extra_fields)
+        sync_linked_siblings_after_space_edit(
+            booking,
+            previous_anchor=previous_anchor,
+            actor=user,
+        )
 
         # Notify the space admin that an approved booking was edited and needs re-review
         if was_approved and booking.status == 'PENDING':
@@ -250,7 +266,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
             raise ValidationError({"detail": "Cannot cancel a booking whose start time has already passed."})
-        instance.delete()
+        instance.status = 'CANCELLED'
+        instance.resolved_at = timezone.now()
+        instance.remarks_by_admin = 'Cancelled by requester.'
+        instance.save(update_fields=['status', 'resolved_at', 'remarks_by_admin', 'updated_at'])
+        cancel_linked_siblings_for_space(instance, reason='Linked Space booking was cancelled by requester.')
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
@@ -318,6 +338,12 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 remarks=remarks
             )
 
+        if new_status == 'REJECTED':
+            cancel_linked_siblings_for_space(
+                booking,
+                reason=remarks or 'Linked Space booking was rejected.',
+            )
+
         booking.refresh_from_db()
         serializer = self.get_serializer(booking)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -369,6 +395,10 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 domain='spaces',
                 resolved_by=request.user,
                 remarks=remarks
+            )
+            cancel_linked_siblings_for_space(
+                booking,
+                reason=remarks or 'Linked Space booking was cancelled by the Principal.',
             )
 
         return Response(
@@ -466,3 +496,123 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
 
         if remaining == 0:
             user.roles.remove(role)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def booking_group_detail(request, event_group_id):
+    from apps.media.models import MediaBooking
+    from apps.media.serializers import MediaBookingSerializer
+    from apps.mess.models import MessBooking
+    from apps.mess.serializers import MessBookingSerializer
+
+    space_bookings = (
+        SpaceBooking.objects
+        .filter(event_group_id=event_group_id)
+        .select_related('space', 'user', 'department')
+        .order_by('start_datetime')
+    )
+    mess_booking = (
+        MessBooking.objects
+        .filter(event_group_id=event_group_id)
+        .prefetch_related('daily_menus')
+        .order_by('-created_at')
+        .first()
+    )
+    media_booking = (
+        MediaBooking.objects
+        .filter(event_group_id=event_group_id)
+        .select_related('space', 'user', 'department')
+        .prefetch_related('equipment_requests__equipment')
+        .order_by('-created_at')
+        .first()
+    )
+
+    anchor = space_bookings.first()
+    if not anchor and not mess_booking and not media_booking:
+        return Response(
+            {"detail": "No bookings found for this event group."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    can_view = request.user.is_staff or request.user.is_superuser
+    owners = [
+        getattr(anchor, 'user_id', None),
+        getattr(mess_booking, 'user_id', None),
+        getattr(media_booking, 'user_id', None),
+    ]
+    if not can_view and request.user.id not in owners:
+        return Response(
+            {"detail": "Not authorized to view this booking group."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def summarize_space(booking):
+        if not booking:
+            return None
+        start = timezone.localtime(booking.start_datetime)
+        end = timezone.localtime(booking.end_datetime)
+        return {
+            "type": "space",
+            "id": booking.id,
+            "reference_code": booking.reference_code,
+            "status": booking.status,
+            "date": start.date().isoformat(),
+            "start_datetime": booking.start_datetime.isoformat(),
+            "end_datetime": booking.end_datetime.isoformat(),
+            "start_time": start.strftime("%H:%M"),
+            "end_time": end.strftime("%H:%M"),
+            "space": booking.space_id,
+            "space_name": booking.space.name,
+        }
+
+    def summarize_mess(booking):
+        if not booking:
+            return None
+        return {
+            "id": booking.id,
+            "reference_code": booking.reference_code,
+            "status": booking.status,
+            "start_date": booking.start_date.isoformat(),
+            "end_date": booking.end_date.isoformat(),
+            "delivery_location": booking.delivery_location,
+        }
+
+    def summarize_media(booking):
+        if not booking:
+            return None
+        start = timezone.localtime(booking.event_start_datetime)
+        return {
+            "id": booking.id,
+            "reference_code": booking.reference_code,
+            "status": booking.status,
+            "date": start.date().isoformat(),
+            "event_start_datetime": booking.event_start_datetime.isoformat(),
+            "event_end_datetime": booking.event_end_datetime.isoformat(),
+            "space": booking.space_id,
+            "space_name": booking.space.name,
+        }
+
+    return Response({
+        "event_group_id": str(event_group_id),
+        "anchor": summarize_space(anchor),
+        "space_bookings": SpaceBookingSerializer(
+            space_bookings,
+            many=True,
+            context={"request": request},
+        ).data,
+        "siblings": {
+            "mess": summarize_mess(mess_booking),
+            "media": summarize_media(media_booking),
+        },
+        "details": {
+            "mess": MessBookingSerializer(
+                mess_booking,
+                context={"request": request},
+            ).data if mess_booking else None,
+            "media": MediaBookingSerializer(
+                media_booking,
+                context={"request": request},
+            ).data if media_booking else None,
+        },
+    })

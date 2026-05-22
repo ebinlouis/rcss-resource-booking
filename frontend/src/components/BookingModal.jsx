@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
+import { useNavigate } from "react-router-dom"
 import api from "../api/axios"
+import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -117,6 +119,8 @@ function BookingModal({
   prefillEnd = "",
 }) {
   const isEdit = !!initialData
+  const navigate = useNavigate()
+  const bookingSession = useBookingSession()
 
   const [activeSpaceId, setActiveSpaceId] = useState(initialSpaceId)
   const [activeSpaceName, setActiveSpaceName] = useState(initialSpaceName)
@@ -443,6 +447,21 @@ function BookingModal({
 
   const notesRequired = isLowOccupancy
 
+  useEffect(() => {
+    if (isEdit) return
+    bookingSessionActions.setSpaceFormData({
+      space: activeSpaceId,
+      spaceName: activeSpaceName,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      purpose: form.purpose,
+      attendees: form.attendees,
+      location: activeSpaceName,
+    })
+  }, [activeSpaceId, activeSpaceName, form, isEdit])
+
   // ─────────────────────────────────────────────────────────────
   // Validation & Submit
   // ─────────────────────────────────────────────────────────────
@@ -502,7 +521,23 @@ function BookingModal({
       if (isEdit) {
         await api.patch(`/spaces/requests/${initialData.id}/`, payload)
       } else {
-        await api.post("/spaces/requests/", payload)
+        payload.event_group_id = bookingSession.eventGroupId
+        const response = await api.post("/spaces/requests/", payload)
+        bookingSessionActions.setSpaceFormData({
+          id: response.data?.id,
+          reference_code: response.data?.reference_code,
+          event_group_id: response.data?.event_group_id || bookingSession.eventGroupId,
+          space: activeSpaceId,
+          spaceName: activeSpaceName,
+          start_date: form.start_date,
+          end_date: endDate,
+          start_time: form.start_time,
+          end_time: form.end_time,
+          start_datetime,
+          end_datetime,
+          purpose: form.purpose,
+        })
+        bookingSessionActions.markComplete("space")
       }
 
       setSubmitted(true)
@@ -541,6 +576,26 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
 
   if (submitted) {
+    const finishBooking = () => {
+      bookingSessionActions.clearSession()
+      onClose()
+    }
+
+    const continueLinkedBooking = (target) => {
+      bookingSessionActions.setSpaceFormData({
+        event_group_id: bookingSession.eventGroupId,
+        space: activeSpaceId,
+        spaceName: activeSpaceName,
+        start_date: form.start_date,
+        end_date: form.end_date || form.start_date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        purpose: form.purpose,
+      })
+      onClose()
+      navigate(target)
+    }
+
     return createPortal(
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
         <div className="bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 max-w-sm w-full text-center">
@@ -570,11 +625,27 @@ function BookingModal({
               </span>
             )}
           </p>
+          {!isEdit && (
+            <div className="grid grid-cols-1 gap-2 w-full mt-2">
+              <button
+                onClick={() => continueLinkedBooking("/mess?linked=1")}
+                className="w-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 py-2.5 rounded-xl text-sm font-semibold transition"
+              >
+                Add Mess Booking
+              </button>
+              <button
+                onClick={() => continueLinkedBooking("/media?linked=1")}
+                className="w-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 py-2.5 rounded-xl text-sm font-semibold transition"
+              >
+                Add Media Booking
+              </button>
+            </div>
+          )}
           <button
-            onClick={onClose}
-            className="mt-2 w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition"
+            onClick={finishBooking}
+            className={`${isEdit ? "mt-2" : ""} w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition`}
           >
-            Done
+            {isEdit ? "Done" : "Finish Booking"}
           </button>
         </div>
       </div>,
@@ -1317,6 +1388,17 @@ function BookingModal({
                   onChange={(e) => set("notes", e.target.value)}
                 />
               </Field>
+
+              {!isEdit && (
+                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3.5">
+                  <p className="text-sm font-semibold text-green-900">
+                    After submitting this Space request, you can link Mess or Media to the same event.
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    The next screen will keep the date, time, and room ready for the linked forms.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

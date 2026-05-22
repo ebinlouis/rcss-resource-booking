@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom"
 import { useState, useEffect, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Camera,
   Clapperboard,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react"
 import mediaService from "../api/mediaApi"
 import ErrorBoundary from "./ErrorBoundary"
+import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatForDatetimeLocal = (isoString) => {
@@ -31,6 +33,11 @@ const formatVisualTime = (isoString) => {
     hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric',
   });
 };
+
+const toDatetimeLocal = (date, time) => {
+  if (!date || !time) return ""
+  return `${date}T${time}`
+}
 
 // ── Field Wrapper ──────────────────────────────────────────────────────────
 function Field({ label, required, children, error, helpText }) {
@@ -82,8 +89,15 @@ const INITIAL_FORM = {
 }
 
 function MediaBookingModal({ onClose, onSuccess, initialData }) {
+  const navigate = useNavigate()
+  const bookingSession = useBookingSession()
+  const linkedSpace = bookingSession.spaceFormData
+  const isLinkedBooking = Boolean(!initialData && linkedSpace?.event_group_id)
+
   const [requestMode, setRequestMode] = useState(() =>
-    initialData ? (initialData.is_team_request ? "team" : "equipment") : null
+    initialData
+      ? (initialData.is_team_request ? "team" : "equipment")
+      : (bookingSession.mediaRequestMode || (isLinkedBooking ? "team" : null))
   )
 
   const [needsBuffer, setNeedsBuffer] = useState(() => {
@@ -110,6 +124,19 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
           initialData.space_details?.id ||
           initialData.space ||
           "",
+      };
+    }
+    if (isLinkedBooking) {
+      return {
+        ...INITIAL_FORM,
+        event_name: linkedSpace?.purpose || "",
+        space: linkedSpace?.space || "",
+        event_start_datetime: toDatetimeLocal(linkedSpace?.start_date, linkedSpace?.start_time),
+        event_end_datetime: toDatetimeLocal(linkedSpace?.end_date || linkedSpace?.start_date, linkedSpace?.end_time),
+        setup_start_datetime: toDatetimeLocal(linkedSpace?.start_date, linkedSpace?.start_time),
+        teardown_end_datetime: toDatetimeLocal(linkedSpace?.end_date || linkedSpace?.start_date, linkedSpace?.end_time),
+        is_team_request: true,
+        requested_services: "Media team coverage",
       };
     }
     return INITIAL_FORM;
@@ -362,6 +389,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       user_notes: formData.user_notes,
     }
 
+    if (isLinkedBooking || initialData?.event_group_id) {
+      payload.event_group_id = initialData?.event_group_id || linkedSpace?.event_group_id || bookingSession.eventGroupId
+    }
+
     if (!isTeamRequest) {
       payload.equipment_requests = equipmentRequests
         .filter((req) => req.equipment)
@@ -377,6 +408,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
         await mediaService.updateBooking(initialData.id, payload)
       } else {
         await mediaService.createBooking(payload)
+        if (isLinkedBooking) bookingSessionActions.markComplete("media")
       }
       onSuccess?.()
       setSubmitted(true)
@@ -428,11 +460,25 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </span>
             )}
           </p>
+          {isLinkedBooking && !bookingSession.completedBookings.includes("mess") && (
+            <button
+              onClick={() => {
+                onClose()
+                navigate("/mess?linked=1")
+              }}
+              className="mt-2 w-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 py-2.5 rounded-xl text-sm font-semibold transition"
+            >
+              Add Mess Booking
+            </button>
+          )}
           <button
-            onClick={onClose}
-            className="mt-2 w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition"
+            onClick={() => {
+              if (isLinkedBooking) bookingSessionActions.clearSession()
+              onClose()
+            }}
+            className={`${isLinkedBooking && !bookingSession.completedBookings.includes("mess") ? "" : "mt-2"} w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition`}
           >
-            Done
+            {isLinkedBooking ? "Finish Booking" : "Done"}
           </button>
         </div>
       </div>,
@@ -464,6 +510,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
             <button
               onClick={() => {
                 setRequestMode("team")
+                bookingSessionActions.setMediaRequestMode("team")
                 setNeedsBuffer(false)
                 setEquipmentRequests([])
                 setAvailableEquipment([])
@@ -489,6 +536,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
             <button
               onClick={() => {
                 setRequestMode("equipment")
+                bookingSessionActions.setMediaRequestMode("equipment")
                 setFormData((prev) => ({ ...prev, is_team_request: false }))
               }}
               className="text-left rounded-2xl border border-gray-200 bg-white p-5 hover:border-green-200 hover:bg-green-50 transition group"
