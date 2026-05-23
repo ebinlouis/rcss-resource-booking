@@ -98,6 +98,7 @@ function BookingModal({
   prefillStart = "",
   prefillEnd = "",
   wizardMode = false,
+  isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
 }) {
   const isEdit = !!initialData
   const bookingSession = useBookingSession()
@@ -130,13 +131,35 @@ function BookingModal({
         bookingType: initialData.booking_type || "SINGLE",
       }
     }
+
+    // ─── FIX: when isStandalone, never pull date/time from the session draft.
+    // This prevents "ghost data" from a previous calendar-click bleeding into
+    // a fresh standalone booking form.
+    if (isStandalone) {
+      return {
+        purpose: "",
+        department: "",
+        start_date: "",
+        end_date: "",
+        start_time: "",
+        end_time: "",
+        attendees: "",
+        requirements: [],
+        notes: "",
+        isExternal: false,
+        bookingType: "SINGLE",
+      }
+    }
+
+    const isNewDate = prefillDate && sessionDraft?.start_date && sessionDraft.start_date !== prefillDate;
+
     return {
       purpose: sessionDraft?.purpose || "",
       department: sessionDraft?.department || "",
-      start_date: sessionDraft?.start_date || prefillDate,
-      end_date: sessionDraft?.end_date || prefillDate,
-      start_time: sessionDraft?.start_time || prefillStart,
-      end_time: sessionDraft?.end_time || prefillEnd,
+      start_date: isNewDate ? prefillDate : (sessionDraft?.start_date || prefillDate),
+      end_date: isNewDate ? prefillDate : (sessionDraft?.end_date || prefillDate),
+      start_time: prefillStart || sessionDraft?.start_time || "",
+      end_time: prefillEnd || sessionDraft?.end_time || "",
       attendees: sessionDraft?.attendees || "",
       requirements: sessionDraft?.requirements || [],
       notes: sessionDraft?.notes || "",
@@ -270,6 +293,7 @@ function BookingModal({
         setIsAvailable(false)
         setAvailabilityMsg("End date cannot be before start date.")
         setAvailabilityConflicts([])
+        return
       }, 0)
       return
     }
@@ -421,7 +445,7 @@ function BookingModal({
     )
 
   useEffect(() => {
-    if (isEdit) return
+    if (isEdit || isStandalone) return
     bookingSessionActions.setSpaceFormData({
       event_group_id: bookingSession.eventGroupId,
       space: activeSpaceId,
@@ -439,7 +463,7 @@ function BookingModal({
       bookingType: form.bookingType,
       location: activeSpaceName,
     })
-  }, [activeSpaceId, activeSpaceName, bookingSession.eventGroupId, form, isEdit])
+  }, [activeSpaceId, activeSpaceName, bookingSession.eventGroupId, form, isEdit, isStandalone])
 
   const continueLinkedBooking = (target) => {
     bookingSessionActions.setSpaceFormData({

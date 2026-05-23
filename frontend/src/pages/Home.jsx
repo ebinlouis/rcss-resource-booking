@@ -24,8 +24,8 @@ function Home() {
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState("All")
 
-  const [selectedRoom, setSelectedRoom] = useState(null)
-  const [openAvailability, setOpenAvailability] = useState(false)
+  // null = closed. { room } = open for that room.
+  const [availabilityTarget, setAvailabilityTarget] = useState(null)
 
   const [dbRooms, setDbRooms] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -42,7 +42,19 @@ function Home() {
       try {
         const response = await api.get("/spaces/catalog/")
         const spaceData = response.data.results ?? response.data
-        setDbRooms(spaceData || [])
+        const rooms = spaceData || []
+        setDbRooms(rooms)
+
+        // FIX: Replaced the separate useEffect with this logic.
+        // We set the availabilityTarget right when the data is fetched, 
+        // completely avoiding the "cascading renders" warning.
+        if (shouldResumeSpace && bookingSession.spaceFormData?.space) {
+          const draftSpaceId = bookingSession.spaceFormData.space
+          const room = rooms.find((item) => String(item.id) === String(draftSpaceId))
+          if (room) {
+            setAvailabilityTarget(room)
+          }
+        }
       } catch (error) {
         console.error("Failed to fetch venues:", error)
         setDbRooms([])
@@ -65,57 +77,44 @@ function Home() {
 
     fetchSpaces()
     fetchMyBookings()
-  }, [])
-
-  useEffect(() => {
-    if (!shouldResumeSpace || isLoading || dbRooms.length === 0) return
-
-    const draftSpaceId = bookingSession.spaceFormData?.space
-    if (!draftSpaceId) return
-
-    const room = dbRooms.find((item) => String(item.id) === String(draftSpaceId))
-    if (!room) return
-
-    setSelectedRoom(room)
-    setOpenAvailability(true)
-  }, [bookingSession.spaceFormData, dbRooms, isLoading, shouldResumeSpace])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty array ensures this only runs on mount
 
   const handleEditBooking = (booking) => {
     const room = dbRooms.find(
       (r) => r.name.toLowerCase() === booking.hall.toLowerCase()
     )
-    setSelectedRoom(room || { name: booking.hall })
-    setOpenAvailability(true)
+    setAvailabilityTarget(room || { name: booking.hall })
   }
 
-const filteredRooms = dbRooms.filter((r) => {
-  const roomType = (r.space_type || "").toLowerCase()
+  const filteredRooms = dbRooms.filter((r) => {
+    const roomType = (r.space_type || "").toLowerCase()
 
-  const matchesSearch =
-    (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    roomType.includes(search.toLowerCase())
+    const matchesSearch =
+      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      roomType.includes(search.toLowerCase())
 
-  const matchesFilter =
-    activeFilter === "All" ||
-    (activeFilter === "Halls" && roomType.includes("hall")) ||
-    (activeFilter === "Labs" && roomType.includes("lab")) ||
-    (activeFilter === "Open Areas" &&
-      (roomType.includes("open") || roomType.includes("outdoor")))
+    const matchesFilter =
+      activeFilter === "All" ||
+      (activeFilter === "Halls" && roomType.includes("hall")) ||
+      (activeFilter === "Labs" && roomType.includes("lab")) ||
+      (activeFilter === "Open Areas" &&
+        (roomType.includes("open") || roomType.includes("outdoor")))
 
-  return matchesSearch && matchesFilter
-})
+    return matchesSearch && matchesFilter
+  })
 
   const approvedRequests = myBookings.filter(
-  (booking) => booking.status === "APPROVED"
-).length
+    (booking) => booking.status === "APPROVED"
+  ).length
 
-const auth = useAuth();
-const user = auth?.user;
-const navigate = useNavigate()
-const location = useLocation()
-const hour = new Date().getHours()
-const greeting =
-  hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+  const auth = useAuth()
+  const user = auth?.user
+  const navigate = useNavigate()
+  const location = useLocation()
+  const hour = new Date().getHours()
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
 
   const handleLinkedIntent = (target) => {
     const sequence = ["space"]
@@ -128,111 +127,66 @@ const greeting =
       sequence,
       initialStep: target,
     })
-    setOpenAvailability(false)
+    setAvailabilityTarget(null)
   }
 
   return (
     <MainLayout>
 
-{/* Welcome */}
-<div className="relative overflow-hidden rounded-[32px] p-5 text-white shadow-[0_20px_60px_rgba(16,185,129,0.35)]">
+      {/* Welcome */}
+      <div className="relative overflow-hidden rounded-[32px] p-5 text-white shadow-[0_20px_60px_rgba(16,185,129,0.35)]">
+        <div
+          className="absolute inset-0 bg-cover bg-center scale-105"
+          style={{ backgroundImage: "url('/Rectangle.png')" }}
+        />
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div>
+            <h1 className="mt-3 text-4xl text-white lg:text-5xl font-bold tracking-tight drop-shadow-lg">
+              {greeting}, {user?.name || "User"}
+            </h1>
+            <p className="mt-4 ml-5 text-[12px] font-medium uppercase tracking-[0.25em] text-white/80">
+              Resource Booking made simple
+            </p>
+          </div>
 
-  {/* Background Image */}
-  <div
-    className="absolute inset-0 bg-cover bg-center scale-105"
-    style={{
-      backgroundImage: "url('/Rectangle.png')",
-    }}
-  />
+          <div className="grid grid-cols-2 gap-4 min-w-[260px]">
+            <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
+              <div className="flex flex-col h-full">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+                  Approved Requests
+                </p>
+                <div className="flex-1 flex items-center justify-center">
+                  <h2 className="text-4xl font-bold leading-none text-white">
+                    {approvedRequests}
+                  </h2>
+                </div>
+              </div>
+            </div>
 
-  {/* Dark overlay */}
-  <div className="absolute inset-0 bg-black/10" />
+            <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
+              <div className="flex flex-col h-full">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+                  Total Requests
+                </p>
+                <div className="flex-1 flex items-center justify-center">
+                  <h2 className="text-4xl font-bold leading-none text-white">
+                    {myBookings?.length || 0}
+                  </h2>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  {/* Grid pattern
-  <div className="absolute inset-0 opacity-20">
-    <div
-      className="h-full w-full"
-      style={{
-        backgroundImage:
-          "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-        backgroundSize: "40px 40px",
-      }}
-    />
-  </div> */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch mt-6">
+        <div className="relative lg:col-span-2">
+          <TodayBookings onEditBooking={handleEditBooking} />
+        </div>
 
-  {/* Content */}
-  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-
-    {/* Left side */}
-    <div>
-      <h1 className="mt-3 text-4xl text-white lg:text-5xl font-bold tracking-tight drop-shadow-lg">
-        {greeting}, {user?.name || "User"}
-      </h1>
-
-      <p className="mt-4 ml-5 text-[12px] font-medium uppercase tracking-[0.25em] text-white/80">
-        Resource Booking made simple
-      </p>
-    </div>
-
-    {/* Right side mini cards */}
-    <div className="grid grid-cols-2 gap-4 min-w-[260px]">
-
-      {/* Spaces card */}
-<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
-
-  <div className="flex flex-col h-full">
-
-    {/* Label */}
-    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-      Approved Requests
-    </p>
-
-    {/* Number */}
-  <div className="flex-1 flex items-center justify-center">
-    <h2 className="text-4xl font-bold leading-none text-white">
-      {approvedRequests}
-    </h2>
-  </div>
-
-  </div>
-</div>
-
-      {/* Requests card */}
-<div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
-
-  <div className="flex flex-col h-full">
-
-    {/* Label */}
-    <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-      Total Requests
-    </p>
-
-    {/* Number */}
-    <div className="flex-1 flex items-center justify-center">
-    <h2 className="text-4xl font-bold leading-none text-white">
-      {myBookings?.length || 0}
-    </h2>
-  </div>
-
-  </div>
-</div>
-
-    </div>
-  </div>
-</div>
-
-      {/* TOP SPLIT LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-
-{/* LEFT: General campus activity feed */}
-<div className="relative lg:col-span-2">
-  <TodayBookings onEditBooking={handleEditBooking} />
-</div>
-
-        {/* RIGHT: This user's own requests — max 3 shown */}
         <div className="lg:col-span-1 lg:mt-4">
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 sticky top-6">
-
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-900">My Requests</h2>
               {myBookings.length > 0 && (
@@ -258,7 +212,6 @@ const greeting =
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Only 3 max */}
                 {myBookings.slice(0, 3).map((booking) => (
                   <div
                     key={booking.id}
@@ -288,46 +241,26 @@ const greeting =
             )}
 
             <button
-  onClick={() => navigate("/my-bookings")}
-  className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-100 hover:bg-green-700 rounded-lg transition"
->
-  View all bookings
-
-  <svg
-    className="w-3.5 h-3.5"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M9 5l7 7-7 7"
-    />
-  </svg>
-
-</button>
-
+              onClick={() => navigate("/my-bookings")}
+              className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-100 hover:bg-green-700 rounded-lg transition"
+            >
+              View all bookings
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
         </div>
-
       </div>
 
-      {/* SPACES SECTION */}
       <div className="mt-10">
-
         <div className="mb-5">
-  <h2 className="text-lg font-semibold text-gray-900">
-    Bookable Venues
-  </h2>
+          <h2 className="text-lg font-semibold text-gray-900">Bookable Venues</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Browse available halls, labs, and meeting venues for your next booking
+          </p>
+        </div>
 
-  <p className="text-sm text-gray-400 mt-0.5">
-    Browse available halls, labs, and meeting venues for your next booking
-  </p>
-</div>
-
-        {/* Filters + Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div className="flex gap-2 flex-wrap">
             {FILTERS.map((f) => (
@@ -369,12 +302,6 @@ const greeting =
           </div>
         </div>
 
-        {(search || activeFilter !== "All") && (
-          <p className="text-xs text-gray-400 mb-4">
-            {filteredRooms.length} venue{filteredRooms.length !== 1 ? "s" : ""} found
-          </p>
-        )}
-
         {isLoading ? (
           <div className="flex justify-center items-center py-14">
             <p className="text-sm text-gray-500 font-medium animate-pulse">
@@ -387,10 +314,7 @@ const greeting =
               <RoomCard
                 key={room.id}
                 room={room}
-                onOpenAvailability={() => {
-                  setSelectedRoom(room)
-                  setOpenAvailability(true)
-                }}
+                onOpenAvailability={() => setAvailabilityTarget(room)}
               />
             ))}
           </div>
@@ -400,16 +324,26 @@ const greeting =
             <p className="text-xs text-gray-400 mt-1">Try a different name or filter</p>
           </div>
         )}
-
       </div>
 
-      {openAvailability && selectedRoom && (
+      {availabilityTarget && (
         <AvailabilityModal
-          spaceId={selectedRoom.id}
-          spaceName={selectedRoom.name}
-          openBookingOnMount={Boolean(bookingSession.spaceFormData?.space)}
-          onClose={() => setOpenAvailability(false)}
+          spaceId={availabilityTarget.id}
+          spaceName={availabilityTarget.name}
+          openBookingOnMount={
+            shouldResumeSpace &&
+            Boolean(bookingSession.spaceFormData?.space) &&
+            String(bookingSession.spaceFormData?.space) === String(availabilityTarget.id)
+          }
+          onClose={() => setAvailabilityTarget(null)}
           onLinkedIntent={handleLinkedIntent}
+          initialDate={
+            shouldResumeSpace &&
+            Boolean(bookingSession.spaceFormData?.space) &&
+            String(bookingSession.spaceFormData?.space) === String(availabilityTarget.id)
+              ? bookingSession.spaceFormData?.start_date
+              : null
+          }
         />
       )}
 
