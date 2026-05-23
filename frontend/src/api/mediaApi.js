@@ -58,6 +58,11 @@ const mediaApi = {
     return Array.isArray(data) ? data : (data.results ?? []);
   },
 
+  getHistoryBookings: async () => {
+    const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'history' } });
+    return Array.isArray(data) ? data : (data.results ?? []);
+  },
+
   getResolvedByMe: async () => {
     const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'resolved_by_me' } });
     return Array.isArray(data) ? data : (data.results ?? []);

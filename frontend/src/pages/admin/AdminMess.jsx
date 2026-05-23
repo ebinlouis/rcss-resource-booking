@@ -104,6 +104,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
             statusLower === "confirmed" || statusLower === "approved" ? "bg-emerald-50 text-emerald-700" :
             statusLower === "completed" ? "bg-slate-50 text-slate-700" :
             statusLower === "expired"   ? "bg-orange-50 text-orange-700" :
+            statusLower === "cancelled" ? "bg-gray-100 text-gray-600" :
                                           "bg-red-50 text-red-700"
           }`}>
             {booking.status}
@@ -790,12 +791,12 @@ function AdminMess() {
                 </div>
               )}
 
-              {/* Rejection remark (if already rejected) */}
-              {selectedBooking.status?.toLowerCase() === "rejected" && selectedBooking.rejection_remark && (
+              {/* Rejection/cancellation remark */}
+              {["rejected", "cancelled"].includes(selectedBooking.status?.toLowerCase()) && (selectedBooking.rejection_remark || selectedBooking.remarks_by_admin) && (
                 <div>
-                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Rejection Reason</p>
+                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Rejection / Cancellation Reason</p>
                   <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 leading-relaxed">
-                    {selectedBooking.rejection_remark}
+                    {selectedBooking.rejection_remark || selectedBooking.remarks_by_admin}
                   </p>
                 </div>
               )}
