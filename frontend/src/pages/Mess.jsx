@@ -135,15 +135,6 @@ function Mess() {
 
   const [detailDay, setDetailDay] = useState(0)
   const isFirstLoad = useRef(true)
-  const linkedFormOpened = useRef(false)
-
-  useEffect(() => {
-    if (searchParams.get("linked") !== "1" || linkedFormOpened.current) return
-    linkedFormOpened.current = true
-    setEditMode(false)
-    setSelectedEditBooking(null)
-    setShowForm(true)
-  }, [searchParams])
 
   // ── Data fetching ───────────────────────────────────────────────────────────
 

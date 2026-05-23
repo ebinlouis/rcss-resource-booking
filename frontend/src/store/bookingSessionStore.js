@@ -21,6 +21,16 @@ const freshSession = () => ({
   mediaRequestMode: null,
   mediaCapacity: null,
   completedBookings: [],
+  submittedBookings: {
+    space: null,
+    mess: null,
+    media: null,
+  },
+  wizardActive: false,
+  wizardOrigin: "/dashboard",
+  wizardSequence: [],
+  wizardInitialStep: null,
+  wizardSuccess: false,
 })
 
 const readSession = () => {
@@ -66,24 +76,70 @@ export const bookingSessionActions = {
       spaceFormData: { ...(current.spaceFormData || {}), ...data },
     }))
   },
+
   setMessFormData(data) {
     setState((current) => ({
       ...current,
       messFormData: { ...(current.messFormData || {}), ...data },
     }))
   },
+
   setMediaFormData(data) {
     setState((current) => ({
       ...current,
       mediaFormData: { ...(current.mediaFormData || {}), ...data },
     }))
   },
+
   setMediaRequestMode(mode) {
     setState({ mediaRequestMode: mode })
   },
+
   setMediaCapacity(data) {
     setState({ mediaCapacity: data })
   },
+
+  // startWizard — call when user clicks Add Mess / Add Media from BookingModal.
+  // Space form data must already be written to the store before calling this.
+  startWizard({ origin = "/dashboard", sequence = ["space", "review"], initialStep = "space" } = {}) {
+    setState((current) => ({
+      ...current,
+      wizardActive: true,
+      wizardOrigin: origin,
+      wizardSequence: sequence,
+      wizardInitialStep: initialStep,
+      wizardSuccess: false,
+    }))
+  },
+
+  setWizardSequence(sequence) {
+    setState({ wizardSequence: sequence })
+  },
+
+  setWizardInitialStep(step) {
+    setState({ wizardInitialStep: step })
+  },
+
+  // closeWizard — only for partial-failure retry where Space already submitted.
+  // For clean cancel, call clearSession() instead.
+  closeWizard() {
+    setState({
+      wizardActive: false,
+      wizardSequence: [],
+      wizardInitialStep: null,
+      wizardSuccess: false,
+    })
+  },
+
+  markWizardSuccess() {
+    setState((current) => ({
+      ...freshSession(),
+      wizardActive: true,
+      wizardOrigin: current.wizardOrigin || "/dashboard",
+      wizardSuccess: true,
+    }))
+  },
+
   markComplete(type) {
     setState((current) => ({
       ...current,
@@ -92,6 +148,17 @@ export const bookingSessionActions = {
         : [...current.completedBookings, type],
     }))
   },
+
+  markSubmitted(type, booking) {
+    setState((current) => ({
+      ...current,
+      submittedBookings: {
+        ...(current.submittedBookings || {}),
+        [type]: booking || true,
+      },
+    }))
+  },
+
   clearSession() {
     state = freshSession()
     emit()

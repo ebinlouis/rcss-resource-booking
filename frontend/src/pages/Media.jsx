@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
@@ -331,13 +331,6 @@ function Media() {
 
   const [openCreate, setOpenCreate] = useState(false)
   const [search, setSearch] = useState("")
-  const linkedFormOpened = useRef(false)
-
-  useEffect(() => {
-    if (searchParams.get("linked") !== "1" || linkedFormOpened.current) return
-    linkedFormOpened.current = true
-    setOpenCreate(true)
-  }, [searchParams])
 
   const weekDates = useMemo(() => {
     const base = new Date(`${selectedDate}T00:00:00`)
