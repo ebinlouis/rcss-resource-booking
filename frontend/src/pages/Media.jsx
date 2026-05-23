@@ -33,6 +33,15 @@ const addDays = (dateString, days) => {
   return todayKeyFromDate(date)
 }
 
+const getWeekStart = (dateString) => {
+  const date = new Date(`${dateString}T00:00:00`)
+  const day = date.getDay() // 0 = Sunday
+
+  date.setDate(date.getDate() - day)
+
+  return todayKeyFromDate(date)
+}
+
 const formatDate = (dateString, options = {}) => {
   if (!dateString) return "TBD"
 
@@ -338,8 +347,8 @@ function Media() {
   const [search, setSearch] = useState("")
 
   const weekDates = useMemo(() => {
-    const base = new Date(`${selectedDate}T00:00:00`)
-
+    const weekStart = getWeekStart(selectedDate)
+    const base = new Date(`${weekStart}T00:00:00`)
     return Array.from({ length: 7 }, (_, index) => {
       const day = new Date(base)
       day.setDate(base.getDate() + index)
@@ -347,7 +356,7 @@ function Media() {
     })
   }, [selectedDate])
 
-  const canGoPrevious = addDays(selectedDate, -7) >= todayKey()
+  // const canGoPrevious = addDays(selectedDate, -7) >= todayKey()
 
   const filteredAvailability = useMemo(() => {
     const mediaGearOnly = availability.filter(
@@ -535,9 +544,11 @@ function Media() {
               <div className="mt-5 flex items-center gap-2">
 
                 <button
-                  onClick={() => setSelectedDate(addDays(selectedDate, -7))}
-                  disabled={!canGoPrevious}
-                  className="flex h-12 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={() => {
+                    const previousDate = addDays(getWeekStart(selectedDate), -7)
+                    setSelectedDate(previousDate)
+                  }}
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -568,8 +579,11 @@ function Media() {
                 </div>
 
                 <button
-                  onClick={() => setSelectedDate(addDays(selectedDate, 7))}
-                  className="flex h-12 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
+                  onClick={() => {
+                    const nextDate = addDays(getWeekStart(selectedDate), 7)
+                    setSelectedDate(nextDate)
+                  }}
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition hover:border-gray-300 hover:bg-gray-50"
                 >
                   <ChevronRightIcon className="h-5 w-5" />
                 </button>
