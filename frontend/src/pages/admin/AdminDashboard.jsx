@@ -6,8 +6,64 @@ import approvalService from '../../api/approvalService';
 import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime';
+import api from '../../api/axios';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
+
+// ─── Calendar date helpers (mirrors Media.jsx pattern) ───────────────────────
+
+const todayDateKey = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const dateKeyFromDate = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const addCalDays = (dateString, days) => {
+    const date = new Date(`${dateString}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    return dateKeyFromDate(date);
+};
+
+const getCalWeekStart = (dateString) => {
+    const date = new Date(`${dateString}T00:00:00`);
+    date.setDate(date.getDate() - date.getDay()); // rewind to Sunday
+    return dateKeyFromDate(date);
+};
+
+const formatCalDate = (dateString, options = {}) => {
+    if (!dateString) return '';
+    const date = new Date(`${dateString}T00:00:00`);
+    return date.toLocaleDateString('en-IN', options);
+};
+
+// Check whether a booking overlaps a given YYYY-MM-DD date string
+const bookingOverlapsDate = (booking, dateKey) => {
+    // Try every date field the booking might carry
+    const candidates = [
+        booking.start_datetime,
+        booking.end_datetime,
+        booking.event_date,
+        booking.reservation_date,
+    ].filter(Boolean);
+
+    if (candidates.length === 0) return true; // no date info → always show
+
+    const target = new Date(`${dateKey}T00:00:00`);
+    const targetEnd = new Date(`${dateKey}T23:59:59`);
+
+    // A booking overlaps if start <= targetEnd AND end >= target
+    const start = booking.start_datetime ? new Date(booking.start_datetime) : null;
+    const end   = booking.end_datetime   ? new Date(booking.end_datetime)   : null;
+
+    if (start && end) {
+        return start <= targetEnd && end >= target;
+    }
+    if (start) return dateKeyFromDate(start) === dateKey;
+    return false;
+};
+
 
 const formatDateTime = (isoString) => {
     if (!isoString) return 'TBD';
@@ -720,6 +776,9 @@ const AdminDashboard = () => {
             : 'pending'
     ));
 
+    // ── Optional date filter (empty string = no filter) ──────────────────────
+    const [dateFilter, setDateFilter] = useState('');
+
     // ── Raw fetched data ──────────────────────────────────────────────────────
     const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [], cancelled: [] });
 
@@ -733,8 +792,23 @@ const AdminDashboard = () => {
     const [successTarget, setSuccessTarget] = useState(null);
 
     // ── Filters (only apply to history / resolved tabs) ───────────────────────
-    const [statusFilter, setStatusFilter] = useState('all');   // all | approved | rejected | cancelled
-    const [timingFilter, setTimingFilter] = useState('all');   // all | today | upcoming | past
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [timingFilter, setTimingFilter] = useState('all');
+
+    // ── Unified filter toolbar state ──────────────────────────────────────────
+    const [searchQuery, setSearchQuery]   = useState('');
+    const [venueFilter, setVenueFilter]   = useState('all');
+    const [venues,      setVenues]        = useState([]);
+
+    // Fetch venues once on mount
+    useEffect(() => {
+        api.get('/spaces/catalog/')
+            .then(r => {
+                const list = Array.isArray(r.data) ? r.data : (r.data.results ?? []);
+                setVenues(list);
+            })
+            .catch(() => {});
+    }, []);
 
     // Reset filters when switching tabs
     const handleTabChange = useCallback((tab) => {
@@ -800,6 +874,37 @@ const AdminDashboard = () => {
             default:             return [];
         }
     }, [activeTab, raw.pending, upcoming, history, resolvedByMe, applyFilters]);
+
+    // ── Combined display list: tab → optional date → venue → search ──────────
+    const displayList = useMemo(() => {
+        let result = listForTab;
+
+        if (dateFilter) {
+            result = result.filter((b) => bookingOverlapsDate(b, dateFilter));
+        }
+
+        if (venueFilter !== 'all') {
+            result = result.filter(b => {
+                const name = (b.resource_name || b.space_details?.name || '').toLowerCase();
+                return name === venueFilter.toLowerCase();
+            });
+        }
+
+        const q = searchQuery.trim().toLowerCase();
+        if (q) {
+            result = result.filter(b => {
+                const fields = [
+                    b.requester, b.user_name,
+                    b.resource_name, b.space_details?.name,
+                    b.department_name, b.department,
+                    b.reference_code,
+                ].map(v => (v || '').toLowerCase());
+                return fields.some(f => f.includes(q));
+            });
+        }
+
+        return result;
+    }, [listForTab, dateFilter, venueFilter, searchQuery]);
 
     useEffect(() => {
         if (!highlightedReference || isLoading || listForTab.length === 0) return undefined;
@@ -1051,7 +1156,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="mb-5 flex w-fit flex-wrap gap-1 rounded-2xl bg-[#e8f5ee] p-1">
+                <div className="mb-4 flex w-fit flex-wrap gap-1 rounded-2xl bg-[#e8f5ee] p-1">
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
@@ -1070,32 +1175,95 @@ const AdminDashboard = () => {
                     ))}
                 </div>
 
-                {/* Filter bar */}
-                {showFilters && (
-                    <div className="mb-4 flex flex-wrap gap-x-6 gap-y-3 bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
-                        <FilterPills
-                            label="Status"
-                            options={statusOptions}
-                            value={statusFilter}
-                            onChange={setStatusFilter}
-                        />
-                        <div className="w-px bg-[#e8f5ee] self-stretch hidden sm:block" />
-                        <FilterPills
-                            label="Timing"
-                            options={timingOptions}
-                            value={timingFilter}
-                            onChange={setTimingFilter}
-                        />
+                {/* ── Filter Toolbar ── */}
+                <div className="mb-4 rounded-2xl border border-[#e8f5ee] bg-white shadow-sm overflow-hidden">
+
+                    {/* Controls row */}
+                    <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+
+                        {/* Search */}
+                        <div className="relative flex-1 min-w-[180px]">
+                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Search by name, venue, ref…"
+                                className="w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-2.5 pl-9 pr-8 text-[13.5px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7] placeholder:text-[#9ca3af]"
+                            />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#374151] transition">
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Venue dropdown */}
+                        <div className="relative min-w-[160px]">
+                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01"/></svg>
+                            <select
+                                value={venueFilter}
+                                onChange={e => setVenueFilter(e.target.value)}
+                                className="w-full appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-2.5 pl-9 pr-8 text-[13.5px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7] cursor-pointer"
+                            >
+                                <option value="all">All Venues</option>
+                                {venues.map(v => (
+                                    <option key={v.id} value={v.name}>{v.name}</option>
+                                ))}
+                            </select>
+                            <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+
+                        {/* Date filter — opt-in; empty = show all */}
+                        {dateFilter ? (
+                            <div className="flex items-center gap-1.5 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2.5">
+                                <svg className="w-4 h-4 text-[#15803d] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <span className="text-[13px] font-semibold text-[#15803d] whitespace-nowrap">
+                                    {formatCalDate(dateFilter, { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                                <button onClick={() => setDateFilter('')} className="ml-1 text-[#15803d] hover:text-[#166534] transition" aria-label="Clear date filter">
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="relative">
+                                <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <input
+                                    type="date"
+                                    value=""
+                                    onChange={e => e.target.value && setDateFilter(e.target.value)}
+                                    className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-2.5 pl-9 pr-3 text-[13.5px] text-[#9ca3af] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7] cursor-pointer"
+                                    placeholder="Filter by date"
+                                />
+                            </div>
+                        )}
+
+                        {/* Clear all */}
+                        {(searchQuery || venueFilter !== 'all' || dateFilter) && (
+                            <button
+                                onClick={() => { setSearchQuery(''); setVenueFilter('all'); setDateFilter(''); }}
+                                className="text-[12px] font-bold text-[#dc2626] hover:underline whitespace-nowrap transition"
+                            >
+                                Clear all
+                            </button>
+                        )}
                     </div>
-                )}
+
+                    {/* Status/timing pills (history/resolvedByMe only) */}
+                    {showFilters && (
+                        <div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-[#e8f5ee] px-5 py-3">
+                            <FilterPills label="Status" options={statusOptions} value={statusFilter} onChange={setStatusFilter} />
+                            <div className="w-px bg-[#e8f5ee] self-stretch hidden sm:block" />
+                            <FilterPills label="Timing" options={timingOptions} value={timingFilter} onChange={setTimingFilter} />
+                        </div>
+                    )}
+                </div>
 
                 {/* Queue panel */}
                 <div className="bg-white border border-[#e8f5ee] rounded-2xl overflow-hidden shadow-sm">
                     {error ? (
                         <div className="py-20 text-center px-8">
-                            <div className="w-12 h-12 rounded-full bg-[#fef2f2] flex items-center justify-center mx-auto mb-4 text-[#dc2626]">
-                                <IconAlert />
-                            </div>
+                            <div className="w-12 h-12 rounded-full bg-[#fef2f2] flex items-center justify-center mx-auto mb-4 text-[#dc2626]"><IconAlert /></div>
                             <p className="text-[15px] font-semibold text-[#0f172a]">Could not load bookings</p>
                             <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">Sign out and back in, then try again.</p>
                         </div>
@@ -1103,25 +1271,15 @@ const AdminDashboard = () => {
                         <div className="py-20 text-center">
                             <p className="text-[14px] text-[#a8c4b4]">Loading bookings…</p>
                         </div>
-                    ) : listForTab.length === 0 ? (
+                    ) : displayList.length === 0 ? (
                         <div className="py-20 text-center px-8">
-                            <div className="w-12 h-12 rounded-full bg-[#dcfce7] flex items-center justify-center mx-auto mb-4 text-[#15803d]">
-                                <IconCheck className="w-6 h-6" />
-                            </div>
-                            <p className="text-[15px] font-semibold text-[#0f172a]">
-                                {showFilters && (statusFilter !== 'all' || timingFilter !== 'all')
-                                    ? 'No bookings match your filters.'
-                                    : 'Nothing here yet.'}
-                            </p>
-                            <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">
-                                {showFilters && (statusFilter !== 'all' || timingFilter !== 'all')
-                                    ? 'Try adjusting or clearing the filters above.'
-                                    : `There are no ${activeTab} bookings right now.`}
-                            </p>
+                            <div className="w-12 h-12 rounded-full bg-[#dcfce7] flex items-center justify-center mx-auto mb-4 text-[#15803d]"><IconCheck className="w-6 h-6" /></div>
+                            <p className="text-[15px] font-semibold text-[#0f172a]">No requests match your filters.</p>
+                            <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">Try a different date, venue, or search term.</p>
                         </div>
                     ) : (
                         <BookingList
-                            bookings={listForTab}
+                            bookings={displayList}
                             isPendingTab={activeTab === 'pending'}
                             onApproveClick={setApproveTarget}
                             onRejectClick={setRejectTarget}
