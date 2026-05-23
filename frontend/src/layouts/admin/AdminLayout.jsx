@@ -1,14 +1,15 @@
+import Tooltip from "../../components/Tooltip";
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/NotificationBell';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Room Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/spaces',         label: 'Room Management',      end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
+    { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/blocks',         label: 'Blocks',          end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/users',          label: 'Users',           end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/approvers',      label: 'Room Managers',        end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/departments',    label: 'Departments & Faculties', end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/transport',      label: 'Transport Management', end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess },
@@ -19,11 +20,11 @@ const NAV_LINKS = [
 ];
 
 const NAV_ICONS = {
-    'Room Bookings':   'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    'Room Management': 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+    'Venue Bookings':   'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    'Venue Management': 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
     'Blocks':          'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
     'Users':           'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
-    'Room Managers':   'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    'Venue Managers':   'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
     'Departments & Faculties': 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport Management': 'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
     'Mess':            'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
@@ -50,7 +51,7 @@ const ROLE_DISPLAY_MAP = {
     'IT_ADMIN':         { title: 'IT Admin',           subtitle: 'System Operations'   },
     'PRINCIPAL':        { title: 'Principal',          subtitle: 'Institution Head'    },
     'HOD':              { title: 'Head of Department', subtitle: 'Department Head'     },
-    'RECEPTIONIST':     { title: 'Receptionist',       subtitle: 'Room Bookings'       },
+    'RECEPTIONIST':     { title: 'Receptionist',       subtitle: 'Venue Bookings'       },
     'LAB_INCHARGE':     { title: 'Lab In-Charge',      subtitle: 'Lab Management'      },
     'LIBRARIAN':        { title: 'Librarian',          subtitle: 'Library Rooms'       },
     'MESS_MANAGER':     { title: 'Mess Manager',       subtitle: 'Mess Operations'     },
@@ -124,7 +125,7 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                                 }`}
                             >
                                 <Icon
-                                    path={NAV_ICONS[label] ?? NAV_ICONS['Room Management']}
+                                    path={NAV_ICONS[label] ?? NAV_ICONS['Venue Management']}
                                     className="w-[19px] h-[19px]"
                                 />
                             </span>
@@ -140,29 +141,33 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
 
         {/* User Footer */}
         <div className={`pb-4 border-t border-[#e8f5ee] pt-3 transition-all duration-300 ${collapsed ? 'px-2' : 'px-3'}`}>
-            <button
+            <Tooltip text="Go back to the main user-facing portal to browse venues and manage your own bookings." position="right">
+              <button
                 onClick={() => onNavigate('/dashboard')}
                 title={collapsed ? 'User Portal' : undefined}
                 className={`w-full flex items-center transition-all duration-150 font-medium mb-1 rounded-xl hover:bg-[#f0fdf4] text-[#4a6b58] ${
                     collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
                 }`}
-            >
+              >
                 <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[19px] h-[19px] text-[#86a898] shrink-0" />
                 {!collapsed && 'User Portal'}
-            </button>
-            <button
+              </button>
+            </Tooltip>
+            <Tooltip text="Log out of your admin session." position="right">
+              <button
                 onClick={onLogout}
                 title={collapsed ? 'Sign out' : undefined}
                 className={`w-full flex items-center transition-all duration-150 font-medium rounded-xl hover:bg-[#fff1f2] text-[#dc2626] ${
                     collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
                 }`}
-            >
+              >
                 <Icon
                     path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                     className="w-[19px] h-[19px] shrink-0"
                 />
                 {!collapsed && 'Sign out'}
-            </button>
+                </button>
+            </Tooltip>
         </div>
     </>
 );

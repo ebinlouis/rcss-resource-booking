@@ -1,3 +1,4 @@
+import Tooltip from "./Tooltip"
 import { useState, useEffect, useRef, useCallback, memo } from "react"
 import BookingModal from "./BookingModal"
 import { bookingSessionActions } from "../store/bookingSessionStore"
@@ -286,14 +287,18 @@ const AvailabilityModal = memo(function AvailabilityModal({
               <h2 className="text-lg font-semibold text-gray-900">{monthName} {year}</h2>
             </div>
             <div className="flex gap-1">
-              <button
-                onClick={() => changeMonth(-1)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition"
-              >←</button>
-              <button
-                onClick={() => changeMonth(1)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition"
-              >→</button>
+              <Tooltip text="View the previous month." position="top">
+                <button
+                  onClick={() => changeMonth(-1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition"
+                >←</button>
+              </Tooltip>
+              <Tooltip text="View the next month." position="top">
+                <button
+                  onClick={() => changeMonth(1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition"
+                >→</button>
+              </Tooltip>
             </div>
           </div>
 
@@ -377,9 +382,11 @@ const AvailabilityModal = memo(function AvailabilityModal({
                 })}
               </p>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5">
-              ✕
-            </button>
+            <Tooltip text="Close this calendar and go back." position="left">
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5">
+                ✕
+              </button>
+            </Tooltip>
           </div>
 
           <div className="text-xs text-gray-400 mb-3">
@@ -462,19 +469,22 @@ const AvailabilityModal = memo(function AvailabilityModal({
             )}
           </div>
 
-          {/* "Open booking form" — blank slate, no prefill, no session draft dates */}
-          <button
-            onClick={() => {
-              setSelectedSlot(null)
-              bookingSessionActions.clearSession()
-              setIsStandalone(true) // Ghost data blocked: BookingModal ignores draft dates
-              setOpenBooking(true)
-            }}
-            className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
-          >
-            Open booking form
-          </button>
-        </div>
+<Tooltip
+  text="Open the booking form for this venue and create a new request."
+  position="top"
+>
+  <button
+    onClick={() => {
+      setSelectedSlot(null)
+      bookingSessionActions.clearSession()
+      setIsStandalone(true)
+      setOpenBooking(true)
+    }}
+    className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
+  >
+    Open booking form
+  </button>
+</Tooltip></div>
       </div>
       
       {activeTooltip && (

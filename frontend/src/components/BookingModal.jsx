@@ -1,3 +1,4 @@
+import Tooltip from "./Tooltip"
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import api from "../api/axios"
@@ -1214,13 +1215,12 @@ function BookingModal({
                 {isEdit ? "Edit your booking" : "Secure this venue"}
               </h2>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
-            >
-              ✕
-            </button>
-          </div>
+<button
+  onClick={onClose}
+  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
+>
+  ✕
+</button></div>
 
           {/* RE-APPROVAL NOTICE */}
           {isEdit && initialData?.status === "APPROVED" && (
@@ -1257,20 +1257,29 @@ function BookingModal({
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
-                className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}
-              </button>
-            </div>
+<button
+  onClick={onClose}
+  className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+>
+  Cancel
+</button>
+
+<Tooltip
+  text={
+    isEdit
+      ? "Save your changes. The booking will be re-reviewed if it was already approved."
+      : "Submit your booking request. An admin will review and approve it."
+  }
+  position="top"
+>
+  <button
+    onClick={handleSubmit}
+    disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
+    className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}
+  </button>
+</Tooltip></div>
           </div>
         </div>
       </div>

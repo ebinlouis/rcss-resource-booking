@@ -4,6 +4,7 @@ import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
 import SpaceFormModal from "../../components/admin/SpaceFormModal"
 import { parseSpaceLocation } from "../../utils/spaceLocation"
+import Tooltip from "../../components/Tooltip"
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -163,7 +164,7 @@ function SpaceCard({ space, blocks, onEdit }) {
             <Icon className="w-3.5 h-3.5">
               <path d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" />
             </Icon>
-            Edit Room
+            Edit Venue
           </button>
         </div>
       </div>
@@ -210,8 +211,8 @@ const AdminSpacesPage = () => {
         if (isMounted)
           setError(
             err.response?.status === 401
-              ? "You don't have permission to manage rooms."
-              : "Could not load rooms. Please check your connection."
+              ? "You don't have permission to manage venues."
+              : "Could not load venues. Please check your connection."
           )
       })
       .finally(() => { if (isMounted) setIsLoading(false) })
@@ -281,28 +282,32 @@ const AdminSpacesPage = () => {
           <div>
             <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
             <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-              Room Management
+              Venue Management
             </h1>
             <p className="text-[15px] text-[#374151] mt-2">
               {error
-                ? "Something went wrong loading rooms"
+                ? "Something went wrong loading venues"
                 : isLoading
-                  ? "Loading rooms..."
+                  ? "Loading venues..."
                   : "Add, edit, and manage available rooms and venues."}
             </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/blocks")}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
-            >
-              <Icon className="w-4 h-4">
-                <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
-              </Icon>
-              Manage Blocks
-            </button>
+            <Tooltip text="Add Blocks (e.g. Main Block, Science Block)" position="top">
+              <button
+                type="button"
+                onClick={() => navigate("/admin/blocks")}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
+              >
+                <Icon className="w-4 h-4">
+                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
+                </Icon>
+                Manage Blocks
+              </button>
+            </Tooltip>
+            <Tooltip text="Reload this page" position="top">
+
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -317,12 +322,13 @@ const AdminSpacesPage = () => {
               </Icon>
               Refresh
             </button>
+            </Tooltip>
             <button
               onClick={openCreate}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
             >
               <Icon strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></Icon>
-              Add New Room
+              Add New Venue
             </button>
           </div>
         </div>
@@ -330,7 +336,7 @@ const AdminSpacesPage = () => {
         {/* ── Stats ── */}
         <div className="grid grid-cols-3 gap-3 mb-7">
           {[
-            { value: stats.total,   label: "Total rooms" },
+            { value: stats.total,   label: "Total venues" },
             { value: stats.active,  label: "Active" },
             { value: stats.special, label: "Special purpose" },
           ].map(({ value, label }) => (
@@ -393,15 +399,17 @@ const AdminSpacesPage = () => {
           </div>
 
           {/* Special toggle */}
-          <button
-            onClick={() => setFilterSpecial((v) => !v)}
-            className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
-              ${filterSpecial
-                ? "bg-amber-500 text-white border-amber-500"
-                : "bg-white text-[#374151] border-[#e2e8f0] hover:border-amber-300"}`}
-          >
-            Special only
-          </button>
+          <Tooltip text="Show only venues that require special approval (e.g. labs, library)." position="top">
+            <button
+              onClick={() => setFilterSpecial((v) => !v)}
+              className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
+                ${filterSpecial
+                  ? "bg-amber-500 text-white border-amber-500"
+                  : "bg-white text-[#374151] border-[#e2e8f0] hover:border-amber-300"}`}
+            >
+              Special only
+            </button>
+          </Tooltip>
         </div>
 
         {/* ── Content ── */}
@@ -414,12 +422,12 @@ const AdminSpacesPage = () => {
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </Icon>
             </div>
-            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load rooms</p>
+            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load venues</p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{error}</p>
           </div>
         ) : isLoading && spaces.length === 0 ? (
           <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center">
-            <p className="text-[14px] text-[#94a3b8]">Loading rooms...</p>
+            <p className="text-[14px] text-[#94a3b8]">Loading venues...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
@@ -429,11 +437,11 @@ const AdminSpacesPage = () => {
               </Icon>
             </div>
             <p className="text-[15px] font-semibold text-[#0f172a]">
-              {spaces.length === 0 ? "No rooms yet" : "No rooms match your filters"}
+              {spaces.length === 0 ? "No venues yet" : "No venues match your filters"}
             </p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
               {spaces.length === 0
-                ? `Click "Add New Room" to create the first one.`
+                ? `Click "Add New Venue" to create the first one.`
                 : "Try adjusting your search or filter options."}
             </p>
           </div>
@@ -447,7 +455,7 @@ const AdminSpacesPage = () => {
 
         {!error && !isLoading && filtered.length > 0 && isFiltering && (
           <p className="text-center text-[12.5px] text-[#94a3b8] font-medium mt-5">
-            Showing {filtered.length} of {spaces.length} rooms
+            Showing {filtered.length} of {spaces.length} venues
           </p>
         )}
       </div>

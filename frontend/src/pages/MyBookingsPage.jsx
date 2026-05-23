@@ -1,3 +1,4 @@
+import Tooltip from "../components/Tooltip"
 import { useState, useEffect, useMemo } from "react"
 import { useParams } from "react-router-dom"
 import api from "../api/axios"
@@ -196,17 +197,19 @@ const BookingCard = ({
               Submitted {timeAgo(getSubmissionTimestamp(booking))}
             </span>
 
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition">
-              <span className="text-[13px] font-medium text-gray-500">
-                {isExpanded ? "Hide Details" : "View Details"}
-              </span>
+            <Tooltip text={isExpanded ? "Collapse this booking card." : "Expand to see full details, notes, and actions for this booking."} position="top">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer">
+                <span className="text-[13px] font-medium text-gray-500">
+                  {isExpanded ? "Hide Details" : "View Details"}
+                </span>
 
-              <ChevronDown
-                className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${
-                  isExpanded ? "rotate-180" : ""
-                }`}
-              />
-            </div>
+                <ChevronDown
+                  className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${
+                    isExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+            </Tooltip>
           </div>
         </div>
 
@@ -393,32 +396,43 @@ const BookingCard = ({
         )}
 
         {showEditCancel && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onCancel(booking.id)
-            }}
-            disabled={isActionLoading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-40"
-          >
-            <Trash2 className="w-4 h-4" />
-            {isActionLoading ? "Processing..." : "Cancel Request"}
-          </button>
+          <Tooltip text="Withdraw this booking request. This cannot be undone." position="top">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onCancel(booking.id)
+              }}
+              disabled={isActionLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isActionLoading ? "Processing..." : "Cancel Request"}
+            </button>
+          </Tooltip>
         )}
 
         {showEditCancel && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit(booking)
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-[13px] font-semibold hover:bg-green-700 transition-all"
+          <Tooltip
+            text={
+              booking.status === "APPROVED"
+                ? "Change your booking details. Note: edits to an approved booking will need admin re-approval."
+                : "Update the details of this pending booking request."
+            }
+            position="top"
           >
-            <Pencil className="w-4 h-4" />
-            {booking.status === "APPROVED"
-              ? "Edit & Re-submit"
-              : "Edit Details"}
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(booking)
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-[13px] font-semibold hover:bg-green-700 transition-all"
+            >
+              <Pencil className="w-4 h-4" />
+              {booking.status === "APPROVED"
+                ? "Edit & Re-submit"
+                : "Edit Details"}
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>

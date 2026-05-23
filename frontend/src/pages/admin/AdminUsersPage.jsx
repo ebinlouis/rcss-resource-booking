@@ -1,3 +1,4 @@
+import Tooltip from '../../components/Tooltip'
 import { useEffect, useMemo, useState } from 'react';
 import { Search, ShieldCheck, X } from 'lucide-react';
 import adminUserService from '../../api/adminUserService';
@@ -52,13 +53,15 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
                         <h2 className="mt-1 text-[20px] font-bold text-gray-950">{getUserName(user)}</h2>
                         <p className="mt-1 text-[14px] text-gray-500">{user.email} · {user.employee_student_id}</p>
                     </div>
-                    <button
+                    <Tooltip text="Close without saving." position="left">
+                      <button
                         type="button"
                         onClick={onClose}
                         className="rounded-xl p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                    >
+                      >
                         <X className="h-5 w-5" />
-                    </button>
+                      </button>
+                    </Tooltip>
                 </div>
 
                 <div className="max-h-[62vh] space-y-5 overflow-y-auto px-6 py-5">
@@ -100,22 +103,26 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
                 </div>
 
                 <div className="flex justify-end gap-3 border-t border-green-100 px-6 py-5">
-                    <button
+                    <Tooltip text="Discard any changes and close this panel." position="top">
+                      <button
                         type="button"
                         onClick={onClose}
                         disabled={isSaving}
                         className="rounded-xl border border-gray-200 px-5 py-2.5 text-[14px] font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-                    >
+                      >
                         Cancel
-                    </button>
-                    <button
+                      </button>
+                    </Tooltip>
+                    <Tooltip text="Save the selected roles for this user. Changes take effect immediately." position="top">
+                      <button
                         type="button"
                         onClick={() => onSave(user.id, selectedRoles)}
                         disabled={isSaving}
                         className="rounded-xl bg-green-700 px-5 py-2.5 text-[14px] font-bold text-white transition hover:bg-green-800 disabled:opacity-50"
-                    >
+                      >
                         {isSaving ? 'Saving...' : 'Save Roles'}
-                    </button>
+                      </button>
+                    </Tooltip>
                 </div>
             </div>
         </div>
@@ -275,13 +282,15 @@ function AdminUsersPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button
+                                        <Tooltip text="Assign or remove system roles for this user (e.g. Admin, Faculty, Lab In-Charge)." position="left">
+                                          <button
                                             type="button"
                                             onClick={() => setSelectedUser(user)}
                                             className="rounded-xl bg-gray-950 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-black"
-                                        >
+                                          >
                                             Edit Roles
-                                        </button>
+                                          </button>
+                                        </Tooltip>
                                     </td>
                                 </tr>
                             ))}

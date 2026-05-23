@@ -1,3 +1,4 @@
+import Tooltip from "./Tooltip"
 import { useState } from "react"
 import BookingModal from "./BookingModal"
 
@@ -162,34 +163,38 @@ function RoomCard({ room, onOpenAvailability }) {
           <div className="flex gap-2">
 
             {/* Schedule Button */}
-            <button
-              onClick={onOpenAvailability}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-emerald-500 hover:text-emerald-600 transition-all text-xs font-medium"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <Tooltip text="See which time slots are already booked so you can pick the right time." position="top">
+              <button
+                onClick={onOpenAvailability}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-emerald-500 hover:text-emerald-600 transition-all text-xs font-medium"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              Check Availability
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10m-11 8h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+                Check Availability
+              </button>
+            </Tooltip>
 
             {/* Book Button */}
-            <button
-              onClick={() => setOpenBooking(true)}
-              className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-emerald-100 transition-all"
-            >
-              + Book Venue
-            </button>
+            <Tooltip text="Fill in the details and send a booking request for this venue." position="top">
+              <button
+                onClick={() => setOpenBooking(true)}
+                className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-emerald-100 transition-all"
+              >
+                + Book Venue
+              </button>
+            </Tooltip>
 
           </div>
         </div>
