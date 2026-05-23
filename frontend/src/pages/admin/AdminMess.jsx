@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import messService from "../../api/messService";
 import notificationService from "../../api/notificationService";
 import { MEALS, getEarliestTime, getRequestedMeals, formatDateRange, isMultiDay } from "../../api/messConfig";
+import { compareSubmissionTimeDesc, getSubmissionTimestamp } from "../../utils/submissionTime";
 import {
   CheckCircle2, XCircle, Clock3, Users, UtensilsCrossed,
   X, CalendarDays, ChefHat, ChevronRight, History,
@@ -30,6 +31,14 @@ const getDepartmentName = (b) => {
 };
 
 const normaliseReference = (value) => String(value || "").trim().toUpperCase();
+
+const timeAgo = (isoString) => {
+  if (!isoString) return "";
+  const mins = Math.max(0, Math.round((Date.now() - new Date(isoString)) / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+};
 
 // Sum a numeric field across all daily_menus rows (falls back to the flat
 // top-level field for legacy single-day bookings that lack daily_menus).
@@ -105,6 +114,11 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
             </span>
           )}
           <span className="text-xs font-mono text-gray-400">{booking.reference_code}</span>
+          {getSubmissionTimestamp(booking) && (
+            <span className="text-xs text-gray-400">
+              Submitted {timeAgo(getSubmissionTimestamp(booking))}
+            </span>
+          )}
         </div>
 
         <h3 className="text-base font-bold text-gray-900">{booking.purpose_of_programme}</h3>
@@ -298,7 +312,9 @@ function AdminMess() {
 
   // ── Derived lists ────────────────────────────────────────────────────────────
 
-  const pendingBookings = bookings.filter((b) => b.status?.toLowerCase() === "pending");
+  const pendingBookings = bookings
+    .filter((b) => b.status?.toLowerCase() === "pending")
+    .sort(compareSubmissionTimeDesc);
 
   const historyBookings = [...bookings].sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)

@@ -110,11 +110,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     can_modify = serializers.SerializerMethodField()
 
-    booked_by_name = serializers.SerializerMethodField()
+    booked_by_name        = serializers.SerializerMethodField()
     booked_by_designation = serializers.SerializerMethodField()
-    booked_by_department = serializers.SerializerMethodField()
-    booked_by_phone = serializers.SerializerMethodField()
-    booked_by_photo = serializers.SerializerMethodField()
+    booked_by_department  = serializers.SerializerMethodField()
+    booked_by_phone       = serializers.SerializerMethodField()
+    booked_by_photo       = serializers.SerializerMethodField()
 
     class Meta:
         model = SpaceBooking
@@ -202,11 +202,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if not user:
             return None
 
-        # Use the user's own designation field if filled in
         if user.designation:
             return user.designation
 
-        # Fall back to the most relevant role display label
         ROLE_LABELS = {
             'IT_ADMIN':         'IT Administrator',
             'PRINCIPAL':        'Principal',
@@ -221,7 +219,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'STAFF':            'Staff',
             'STUDENT':          'Student',
         }
-        # Priority order — check roles from most specific to most general
         priority = [
             'IT_ADMIN', 'PRINCIPAL', 'HOD', 'RECEPTIONIST',
             'LAB_INCHARGE', 'LIBRARIAN', 'MESS_MANAGER',
@@ -235,13 +232,10 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
         return None
 
-
     def get_booked_by_department(self, obj):
         if not obj.department:
             return None
-
         return obj.department.department_name
-
 
     def get_booked_by_phone(self, obj):
         requester = self._user()
@@ -320,9 +314,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         equipment_data = validated_data.pop('requested_equipment', None)
 
-        new_type = validated_data.get('booking_type', instance.booking_type)
+        new_type  = validated_data.get('booking_type', instance.booking_type)
         new_start = validated_data.get('start_datetime', instance.start_datetime)
-        new_end = validated_data.get('end_datetime', instance.end_datetime)
+        new_end   = validated_data.get('end_datetime', instance.end_datetime)
 
         SpaceBooking.objects.filter(
             group_id=instance.group_id
@@ -342,7 +336,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
             for i in range(1, days_diff + 1):
                 slot_start = new_start + timedelta(days=i)
-                slot_end = instance.end_datetime + timedelta(days=i)
+                slot_end   = instance.end_datetime + timedelta(days=i)
 
                 new_booking = SpaceBooking.objects.create(
                     group_id=instance.group_id,
@@ -388,11 +382,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                 ]
             })
 
-        space = data.get('space')
-        attendees = data.get('attendee_count')
-        start = data.get('start_datetime')
-        end = data.get('end_datetime')
-        notes = data.get('user_notes', '')
+        space        = data.get('space')
+        attendees    = data.get('attendee_count')
+        start        = data.get('start_datetime')
+        end          = data.get('end_datetime')
+        notes        = data.get('user_notes', '')
         booking_type = data.get(
             'booking_type',
             SpaceBooking.BookingType.SINGLE_CONTINUOUS
@@ -424,12 +418,12 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                         "For recurring bookings, start must be before end."
                     })
 
-                conflicts = []
-                days_diff = (end.date() - start.date()).days
+                conflicts  = []
+                days_diff  = (end.date() - start.date()).days
 
                 for i in range(days_diff + 1):
                     slot_start = start + timedelta(days=i)
-                    slot_end = start.replace(
+                    slot_end   = start.replace(
                         hour=end.hour,
                         minute=end.minute,
                         second=end.second
@@ -490,7 +484,8 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                     })
 
         return data
-    
+
+
 # ==========================================
 # 4. BLOCK SERIALIZER
 # ==========================================
@@ -526,11 +521,11 @@ SCOPED_APPROVER_ROLES = {
 
 class SpaceApproverSerializer(serializers.ModelSerializer):
     # Read-only display fields — keeps the write surface clean (FK ids only)
-    user_email   = serializers.EmailField(source='user.email',            read_only=True)
-    user_name    = serializers.CharField(source='user.first_name',        read_only=True)
-    role_display = serializers.CharField(source='role.get_name_display',  read_only=True)
-    block_name   = serializers.CharField(source='block.name',             read_only=True)
-    space_name   = serializers.CharField(source='space.name',             read_only=True)
+    user_email   = serializers.EmailField(source='user.email',           read_only=True)
+    user_name    = serializers.CharField(source='user.first_name',       read_only=True)
+    role_display = serializers.CharField(source='role.get_name_display', read_only=True)
+    block_name   = serializers.CharField(source='block.name',            read_only=True)
+    space_name   = serializers.CharField(source='space.name',            read_only=True)
 
     class Meta:
         model  = SpaceApprover
@@ -593,14 +588,6 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
                     {"block": "block must be empty when scope_type is SPACE."}
                 )
 
-        # ── Role ↔ user consistency check REMOVED ────────────────────
-        # Previously we required the user to already hold the role before
-        # creating a SpaceApprover assignment. This caused a chicken-and-egg
-        # problem for IT Admins: they had to grant the role separately first.
-        #
-        # The role is now granted automatically in create() below, making
-        # SpaceApprover assignment a single atomic action.
-
         return data
 
     # ------------------------------------------------------------------
@@ -611,25 +598,19 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
         """
         Creates the SpaceApprover assignment and automatically grants the
         associated role to the user if they don't already hold it.
-
-        This makes scope assignment a single IT Admin action rather than
-        requiring a separate role-grant step first.
         """
         approver = super().create(validated_data)
 
         user = approver.user
         role = approver.role
 
-        # Idempotent: only adds the role if the user doesn't already have it.
-        # Works whether roles is a M2M field or a through-table —
-        # adjust to match your CustomUser.roles field name if different.
         if not user.roles.filter(id=role.id).exists():
             user.roles.add(role)
 
         return approver
- 
+
     # ------------------------------------------------------------------
-    # Destroy: strip the role if this was the user's last scoped assignment
+    # to_representation: flag last assignment for role
     # ------------------------------------------------------------------
 
     def to_representation(self, instance):

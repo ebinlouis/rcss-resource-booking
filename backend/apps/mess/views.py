@@ -30,7 +30,7 @@ def _is_mess_admin(user):
 # --- ViewSet ---
 
 class MessBookingViewSet(viewsets.ModelViewSet):
-    queryset           = MessBooking.objects.all().order_by('-created_at')
+    queryset           = MessBooking.objects.all().order_by('-updated_at')
     serializer_class   = MessBookingSerializer
     permission_classes = [IsAuthenticated]
 
@@ -38,23 +38,22 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         user = self.request.user
         refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus'))
         if _is_mess_admin(user):
-            return MessBooking.objects.prefetch_related('daily_menus').all().order_by('-created_at')
-        return MessBooking.objects.prefetch_related('daily_menus').filter(user=user).order_by('-created_at')
+            return MessBooking.objects.prefetch_related('daily_menus').all().order_by('-updated_at')
+        return MessBooking.objects.prefetch_related('daily_menus').filter(user=user).order_by('-updated_at')
 
     @transaction.atomic
     def perform_create(self, serializer):
-        user_dept = getattr(self.request.user, 'department', None)
-        if not user_dept:
+        user = self.request.user
+        if Role.Name.STUDENT in user.get_effective_roles():
             raise ValidationError({
-                "non_field_errors": (
-                    "Your user profile is not assigned to a department. "
-                    "Please contact an administrator before booking."
-                )
+                "non_field_errors": "Students are not permitted to make mess bookings."
             })
-        
-        booking = serializer.save(user=self.request.user, department=user_dept)
 
-        # Fire the notification to mess admins for the new request
+        user_dept = getattr(user, 'department', None)
+        booking = serializer.save(
+            user=user,
+            **({"department": user_dept} if user_dept else {})
+        )
         notify_new_request(
             booking=booking,
             domain='mess',
@@ -63,7 +62,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        serializer.save()
+        was_approved = serializer.instance.status == 'APPROVED'
+        booking = serializer.save(updated_by=self.request.user)
+        if was_approved and booking.status == 'PENDING':
+            notify_new_request(
+                booking=booking,
+                domain='mess',
+                role_name=Role.Name.MESS_MANAGER
+            )
 
     def perform_destroy(self, instance):
         refresh_booking_lifecycle(instance)
@@ -74,7 +80,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
         refresh_queryset_lifecycle(MessBooking.objects.prefetch_related('daily_menus').filter(user=request.user))
-        bookings   = MessBooking.objects.prefetch_related('daily_menus').filter(user=request.user).order_by('-created_at')
+        bookings   = MessBooking.objects.prefetch_related('daily_menus').filter(user=request.user).order_by('-updated_at')
         serializer = self.get_serializer(bookings, many=True)
         return Response(serializer.data)
 
@@ -105,7 +111,6 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.save()
         mark_pending_request_notifications_read(booking, domain='mess')
 
-        # Fire the status change notification
         notify_booking_status_change(
             booking=booking,
             new_status='APPROVED',
@@ -150,7 +155,6 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         booking.save()
         mark_pending_request_notifications_read(booking, domain='mess')
 
-        # Fire the status change notification
         notify_booking_status_change(
             booking=booking,
             new_status='REJECTED',

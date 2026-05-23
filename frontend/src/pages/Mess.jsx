@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
+import { getSubmissionTimestamp } from "../utils/submissionTime"
 import {
   MEALS,
   getEarliestTime,
@@ -26,6 +27,14 @@ const formatDate = (d) =>
 
 const todayStr = formatDate(new Date())
 const normaliseReference = (value) => String(value || "").trim().toUpperCase()
+
+const timeAgo = (isoString) => {
+  if (!isoString) return ""
+  const mins = Math.max(0, Math.round((Date.now() - new Date(isoString)) / 60000))
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.round(mins / 60)
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`
+}
 
 const formatShortDate = (dateStr) => {
   if (!dateStr) return "—"
@@ -396,6 +405,11 @@ function Mess() {
                   <Clock3 size={12} className="text-emerald-500 shrink-0" />
                   Starts {getEarliestTime(b)}
                 </p>
+                {getSubmissionTimestamp(b) && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Submitted {timeAgo(getSubmissionTimestamp(b))}
+                  </p>
+                )}
               </div>
 
               {/* Meal pills — stay text-sm */}

@@ -194,7 +194,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             SpaceBooking.objects
             .filter(user=user)
             .select_related('space', 'user')
-            .order_by('-created_at')
+            .order_by('-updated_at')
         )
 
     def perform_create(self, serializer):
@@ -516,7 +516,7 @@ def booking_group_detail(request, event_group_id):
         MessBooking.objects
         .filter(event_group_id=event_group_id)
         .prefetch_related('daily_menus')
-        .order_by('-created_at')
+        .order_by('-updated_at')
         .first()
     )
     media_booking = (
@@ -524,7 +524,7 @@ def booking_group_detail(request, event_group_id):
         .filter(event_group_id=event_group_id)
         .select_related('space', 'user', 'department')
         .prefetch_related('equipment_requests__equipment')
-        .order_by('-created_at')
+        .order_by('-updated_at')
         .first()
     )
 

@@ -13,33 +13,38 @@ class BaseBooking(models.Model):
 
     reference_code = models.CharField(max_length=20, unique=True, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="%(class)s_requests")
-    department = models.ForeignKey('users.Department', on_delete=models.PROTECT)
-    
+    department = models.ForeignKey(
+        'users.Department',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+    )
+
     status = models.CharField(
-        max_length=20, 
-        choices=BookingStatus.choices, 
-        default=BookingStatus.PENDING, 
+        max_length=20,
+        choices=BookingStatus.choices,
+        default=BookingStatus.PENDING,
         db_index=True
     )
-    
+
     resolved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="%(class)s_resolved"
     )
     updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="%(class)s_updated"
     )
-    
+
     remarks_by_admin = models.TextField(blank=True, null=True)
     user_notes = models.TextField(blank=True, null=True)
-    
+
     resolved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

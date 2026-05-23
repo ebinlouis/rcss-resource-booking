@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal" 
 import { useNavigate, useSearchParams } from "react-router-dom"
+import { getSubmissionTimestamp } from "../utils/submissionTime"
 
 import {
   RefreshCcw,
@@ -103,7 +104,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[13px] text-gray-500 font-medium">Submitted {timeAgo(booking.created_at)}</span>
+            <span className="text-[13px] text-gray-500 font-medium">Submitted {timeAgo(getSubmissionTimestamp(booking))}</span>
             <div className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center transition-colors">
               <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
             </div>

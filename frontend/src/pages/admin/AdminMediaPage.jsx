@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
 import notificationService from '../../api/notificationService'
+import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -330,7 +331,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="min-w-0 text-[18px] font-bold leading-tight tracking-tight text-[#0f172a]">{booking.event_name}</h2>
                     <div className="flex items-center gap-3">
-                        {booking.created_at && <span className="text-[13px] font-medium text-[#6b7280]">Submitted {timeAgo(booking.created_at)}</span>}
+                        {getSubmissionTimestamp(booking) && <span className="text-[13px] font-medium text-[#6b7280]">Submitted {timeAgo(getSubmissionTimestamp(booking))}</span>}
                         <span className="flex h-8 w-8 items-center justify-center rounded-full text-[#94a3b8] transition hover:bg-[#e8f5ee]">
                             <ChevronDown className={`h-5 w-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                         </span>
@@ -608,7 +609,12 @@ function AdminMediaPage() {
     }
 
     const todayStr = new Date().toLocaleDateString('en-CA')
-    const sortByExternal = (list) => [...list].sort((a, b) => (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0))
+    const sortByExternal = (list) => [...list].sort((a, b) => {
+        const externalDelta = (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0)
+        if (externalDelta) return externalDelta
+        if (activeTab === 'pending') return compareSubmissionTimeDesc(a, b)
+        return 0
+    })
     const list = sortByExternal(data[activeTab] ?? [])
 
     useEffect(() => {

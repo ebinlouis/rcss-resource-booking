@@ -139,7 +139,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             return qs
 
         VIEW_MAP = {
-            'pending':        (lambda: qs.filter(status='PENDING').order_by('-created_at'),            is_admin),
+            'pending':        (lambda: qs.filter(status='PENDING').order_by('-updated_at'),            is_admin),
             'active':         (lambda: qs.filter(status='APPROVED').order_by('setup_start_datetime'),  is_admin),
             'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),           is_admin),
         }
@@ -150,11 +150,11 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         if view_param == 'general':
             return (
-                qs.order_by('-created_at') if is_admin
+                qs.order_by('-updated_at') if is_admin
                 else qs.filter(user=user).exclude(status='REJECTED').order_by('setup_start_datetime')
             )
 
-        return qs.filter(user=user).order_by('-created_at')
+        return qs.filter(user=user).order_by('-updated_at')
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -176,18 +176,22 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         user = self.request.user
-        if not getattr(user, 'department', None):
+
+        # Gate: students cannot make media bookings
+        if Role.Name.STUDENT in user.get_effective_roles():
             raise ValidationError({
-                "non_field_errors": (
-                    "Your user profile is not assigned to a department. "
-                    "Please contact an administrator before booking."
-                )
+                "non_field_errors": "Students are not permitted to make media bookings."
             })
-        booking = serializer.save(user=user, department=user.department)
+
+        user_dept = getattr(user, 'department', None)
+        booking = serializer.save(
+            user=user,
+            **({"department": user_dept} if user_dept else {})
+        )
+
         if booking.is_team_request:
             _reserve_standard_team_kit(booking)
 
-        # Notify the media admin of the new request
         notify_new_request(
             booking=booking,
             domain='media',
@@ -199,9 +203,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         instance         = self.get_object()
         user             = self.request.user
         was_team_request = instance.is_team_request
-        was_approved     = instance.status == 'APPROVED'   # capture before save
+        was_approved     = instance.status == 'APPROVED'
 
-        booking          = serializer.save()
+        booking = serializer.save()
 
         if booking.is_team_request and not was_team_request:
             _reserve_standard_team_kit(booking)
@@ -221,7 +225,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 'updated_at',
             ])
 
-            # Notify the media admin that an approved booking was edited and needs re-review
             notify_new_request(
                 booking=booking,
                 domain='media',
@@ -304,7 +307,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
     def team_capacity(self, request):
         refresh_queryset_lifecycle(MediaBooking.objects.all())
         req_start_str = request.query_params.get('start')
-        req_end_str = request.query_params.get('end')
+        req_end_str   = request.query_params.get('end')
 
         if not all([req_start_str, req_end_str]):
             return Response(
@@ -313,7 +316,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             )
 
         req_start = parse_datetime(req_start_str)
-        req_end = parse_datetime(req_end_str)
+        req_end   = parse_datetime(req_end_str)
 
         if not req_start or not req_end or req_start >= req_end:
             return Response(
@@ -582,7 +585,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.save()
         mark_pending_request_notifications_read(booking, domain='media')
 
-        # Notify the requester of the status change
         notify_booking_status_change(
             booking=booking,
             new_status=new_status,
@@ -596,5 +598,5 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
         refresh_queryset_lifecycle(MediaBooking.objects.filter(user=request.user))
-        bookings = MediaBooking.objects.filter(user=request.user).order_by('-created_at')
+        bookings = MediaBooking.objects.filter(user=request.user).order_by('-updated_at')
         return Response(self.get_serializer(bookings, many=True).data)
