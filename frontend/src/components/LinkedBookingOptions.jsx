@@ -16,13 +16,13 @@ function LinkedBookingOptions({
 
   useEffect(() => {
     if (!visible || !startIso || !endIso) {
-      setMediaCapacity(null)
-      bookingSessionActions.setMediaCapacity(null)
       return undefined
     }
 
     let cancelled = false
     const timer = window.setTimeout(async () => {
+      setMediaCapacity(null)
+      bookingSessionActions.setMediaCapacity(null)
       setIsCheckingMedia(true)
       try {
         const response = await api.get("/media/bookings/team_capacity/", {
