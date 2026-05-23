@@ -1,3 +1,4 @@
+import Tooltip from "./Tooltip"
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
@@ -924,12 +925,14 @@ function BookingModal({
               </h2>
             </div>
             {!wizardMode && (
-              <button
-                onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
-              >
-                ✕
-              </button>
+              <Tooltip text="Close this form without saving." position="left">
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
+                >
+                  ✕
+                </button>
+              </Tooltip>
             )}
           </div>
 
@@ -1458,20 +1461,33 @@ function BookingModal({
             </div>
             <div className="flex gap-2">
               {!wizardMode && (
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
-                >
-                  Cancel
-                </button>
+                <Tooltip text="Discard this form and go back without saving anything." position="top">
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+                  >
+                    Cancel
+                  </button>
+                </Tooltip>
               )}
-              <button
-                onClick={wizardMode ? onWizardNext : handleSubmit}
-                disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
-                className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              <Tooltip
+                text={
+                  isEdit
+                    ? "Save your changes. The booking will be re-reviewed if it was already approved."
+                    : wizardMode
+                    ? "Continue to the next step of the booking process."
+                    : "Submit your booking request. An admin will review and approve it."
+                }
+                position="top"
               >
-                {isSubmitting ? "Saving..." : isEdit ? "Update Request" : wizardMode ? "Next" : "Send Request"}
-              </button>
+                <button
+                  onClick={wizardMode ? onWizardNext : handleSubmit}
+                  disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
+                  className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? "Saving..." : isEdit ? "Update Request" : wizardMode ? "Next" : "Send Request"}
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>

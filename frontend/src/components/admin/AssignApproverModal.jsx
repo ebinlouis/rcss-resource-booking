@@ -157,9 +157,9 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 overflow-visible max-h-[90vh] overflow-y-auto">
                 
-                <h3 className="text-base font-bold text-gray-900 mb-1">Assign Space Approver</h3>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Assign Venue Approver</h3>
                 <p className="text-xs text-gray-500 mb-5">
-                    Give a user a scoped keycard for a block or one specific space. The matching role badge is added automatically.
+                   Choose a user and assign approval access for selected venues. Role permissions will be applied automatically.
                 </p>
 
                 {error && (
@@ -173,7 +173,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                     {/* TARGET USER AUTOCOMPLETE */}
                     <div className="relative">
                         <label className="block caps-label mb-1.5">
-                            Target User <span className="text-red-500">*</span>
+                            Select User <span className="text-red-500">*</span>
                         </label>
                         
                         {selectedUser ? (
@@ -238,7 +238,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                     {/* ASSIGN ROLE */}
                     <div>
                         <label className="block caps-label mb-1.5">
-                            Assign Role <span className="text-red-500">*</span>
+                            Approval Role <span className="text-red-500">*</span>
                         </label>
                         <select 
                             required
@@ -248,7 +248,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                             onChange={handleRoleChange}
                         >
                             <option value="" disabled>
-                                {isLoadingData ? "Loading..." : "-- Select Role --"}
+                                {isLoadingData ? "Loading..." : "-- Choose role --"}
                             </option>
                             {scopedRoles.map(r => {
                                 const val = getRoleValue(r);
@@ -339,7 +339,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                             }
                             className="px-4 py-2 text-sm font-semibold text-white bg-gray-900 hover:bg-black rounded-lg transition disabled:opacity-50 shadow-sm"
                         >
-                            {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
+                            {isSubmitting ? 'Assigning...' : 'Assign Access'}
                         </button>
                     </div>
                 </form>

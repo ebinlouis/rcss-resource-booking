@@ -421,7 +421,7 @@ function TodayBookings({ onEditBooking }) {
                         <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{b.hall}</p>
                         {b.isMultiDay && (
                           <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                            {b.isContinue ? "Continues" : "Multi-day"}
+                            {b.isContinue ? "Multi-day" : "Multi-day"}
                           </span>
                         )}
                       </div>

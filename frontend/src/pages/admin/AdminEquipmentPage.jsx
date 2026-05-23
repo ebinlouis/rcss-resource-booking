@@ -3,7 +3,7 @@ import api from '../../api/axios';
 
 // Must match EquipmentCategory choices in models.py exactly
 const EQUIPMENT_CATEGORIES = [
-    { value: 'AV',         label: 'Audio / Visual' },
+    { value: 'AV',         label: 'Audio & Visual' },
     { value: 'LIGHTING',   label: 'Lighting'        },
     { value: 'FURNITURE',  label: 'Furniture'       },
     { value: 'COMPUTING',  label: 'Computing'       },
@@ -361,12 +361,12 @@ const AdminEquipmentPage = () => {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-1">
-                            {editingItem ? 'Edit Equipment' : 'Add New Equipment'}
+                            {editingItem ? 'Edit Equipment' : 'Add Equipment'}
                         </h3>
                         <p className="text-xs text-gray-500 mb-6">
                             {editingItem
                                 ? 'Update the details for this equipment item.'
-                                : 'Register a new item to the master equipment catalog.'}
+                                : 'Add a new equipment item for booking and management.'}
                         </p>
 
                         <form onSubmit={handleSave} className="space-y-4">
@@ -375,7 +375,7 @@ const AdminEquipmentPage = () => {
                                 <input
                                     required
                                     type="text"
-                                    placeholder="e.g. Sony A7S III Camera"
+                                    placeholder="e.g., Sony A7S III Camera"
                                     value={formData.name}
                                     onChange={(e) => patchForm({ name: e.target.value })}
                                     className={inputCls}
@@ -396,7 +396,7 @@ const AdminEquipmentPage = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <FieldLabel>Qty Owned *</FieldLabel>
+                                    <FieldLabel>Total Quantity *</FieldLabel>
                                     <input
                                         required
                                         type="number"
@@ -412,7 +412,7 @@ const AdminEquipmentPage = () => {
                                 <FieldLabel>Description</FieldLabel>
                                 <textarea
                                     rows={3}
-                                    placeholder="Model number, specs, or any notes…"
+                                    placeholder="Model details, specifications, or additional notes..."
                                     value={formData.description}
                                     onChange={(e) => patchForm({ description: e.target.value })}
                                     className={`${inputCls} resize-none`}
@@ -424,13 +424,13 @@ const AdminEquipmentPage = () => {
                                     checked={formData.is_portable}
                                     onChange={() => patchForm({ is_portable: !formData.is_portable })}
                                     label="Portable"
-                                    sublabel="Can move between spaces"
+                                    sublabel="Can be moved between venues"
                                 />
                                 <Toggle
                                     checked={formData.is_active}
                                     onChange={() => patchForm({ is_active: !formData.is_active })}
-                                    label="Active"
-                                    sublabel="Available for assignment"
+                                    label="Available"
+                                    sublabel="Can be assigned for bookings"
                                 />
                                 <div className="w-full">
                                     <Toggle

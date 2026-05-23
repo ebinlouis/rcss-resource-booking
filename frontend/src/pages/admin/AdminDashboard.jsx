@@ -1,3 +1,4 @@
+import Tooltip from '../../components/Tooltip'
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
@@ -241,13 +242,15 @@ const ApproveModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => 
                     >
                         Cancel
                     </button>
-                    <button
+                    <Tooltip text="Confirm approval. The venue will be reserved and the requester notified." position="top">
+                      <button
                         onClick={() => onConfirm()}
                         disabled={isLoading}
                         className="px-6 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition disabled:opacity-40 flex items-center gap-2"
-                    >
+                      >
                         {isLoading ? 'Approving...' : 'Yes, Approve'}
-                    </button>
+                      </button>
+                    </Tooltip>
                 </div>
             </div>
         </div>
@@ -577,33 +580,39 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         <div className="flex items-center justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
                             {isPendingTab ? (
                                 <>
-                                    <button
+                                    <Tooltip text="Reject this request. You'll be asked to provide a reason which will be shared with the requester." position="top">
+                                      <button
                                         onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
                                         disabled={isActing}
                                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
-                                    >
+                                      >
                                         <IconX /> Reject
-                                    </button>
-                                    <button
+                                      </button>
+                                    </Tooltip>
+                                    <Tooltip text="Approve this booking request. The requester will be notified and the venue will be reserved." position="top">
+                                      <button
                                         onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
                                         disabled={isActing}
                                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
-                                    >
+                                      >
                                         {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
-                                    </button>
+                                      </button>
+                                    </Tooltip>
                                 </>
                             ) : isExpired ? (
                                 <span className="text-[13px] font-bold text-gray-500 uppercase tracking-wider px-5 py-2 bg-gray-100 rounded-xl">
                                     Event Completed
                                 </span>
                             ) : booking.status === 'APPROVED' ? (
-                                <button
+                                <Tooltip text="Revoke this approval and cancel the booking. The requester will be notified and the venue will be freed up." position="top">
+                                  <button
                                     onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
                                     disabled={isActing}
                                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
-                                >
+                                  >
                                     <IconX /> Revoke & Cancel Booking
-                                </button>
+                                  </button>
+                                </Tooltip>
                             ) : booking.status === 'REJECTED' ? (
                                 <span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
                                     Rejected / Cancelled
@@ -988,20 +997,22 @@ const AdminDashboard = () => {
                             Rajagiri College · Admin
                         </p>
                         <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-                            Room Bookings
+                            Venue Bookings
                         </h1>
                         <p className="text-[15px] text-[#374151] mt-2">
-                            Review and manage room booking requests.
+                            Review and manage venue booking requests.
                         </p>
                     </div>
-                    <button
+                    <Tooltip text="Reload the booking queue to see the latest requests." position="top">
+                      <button
                         onClick={() => fetchQueue({ showLoading: true })}
                         disabled={isLoading}
                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] font-semibold text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
-                    >
+                      >
                         <IconRefresh spinning={isLoading} />
                         Refresh
-                    </button>
+                      </button>
+                    </Tooltip>
                 </div>
 
                 {/* Stat strip */}

@@ -161,8 +161,8 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 overflow-visible max-h-[90vh] overflow-y-auto">
-                <h3 className="text-base font-bold text-gray-900 mb-1">Grant Temporary Access</h3>
-                <p className="text-xs text-gray-500 mb-5">Search for a user to temporarily elevate their permissions.</p>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Assign Temporary Access</h3>
+                <p className="text-xs text-gray-500 mb-5">Grant temporary access to a user for a limited period.</p>
 
                 {error && (
                     <div className="mb-5 flex items-start gap-2 rounded-lg bg-red-50 border border-red-100 p-3 text-xs text-red-600">
@@ -173,7 +173,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* TARGET USER AUTOCOMPLETE */}
                     <div className="relative">
-                        <label className="block caps-label mb-1.5">Target User <span className="text-red-500">*</span></label>
+                        <label className="block caps-label mb-1.5">Select User <span className="text-red-500">*</span></label>
                         {selectedUser ? (
                             <div className="flex items-center justify-between w-full border border-green-200 bg-green-50 rounded-lg px-3 py-2">
                                 <div>
@@ -206,9 +206,9 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
 
                     {/* ELEVATE TO ROLE */}
                     <div>
-                        <label className="block caps-label mb-1.5">Elevate to Role <span className="text-red-500">*</span></label>
+                        <label className="block caps-label mb-1.5">Assign Temporary Role<span className="text-red-500">*</span></label>
                         <select required disabled={isLoadingData} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition disabled:opacity-50" value={selectedRole} onChange={handleRoleChange}>
-                            <option value="" disabled>{isLoadingData ? "Loading..." : "-- Select Role --"}</option>
+                            <option value="" disabled>{isLoadingData ? "Loading..." : "-- Choose Role --"}</option>
                             {roles.map(r => <option key={r.id} value={r.id}>{r.name} - {r.description}</option>)}
                         </select>
                     </div>
@@ -247,8 +247,8 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
 
                     {/* REASON */}
                     <div>
-                        <label className="block caps-label mb-1.5">Reason for Override <span className="text-red-500">*</span></label>
-                        <input type="text" required maxLength={250} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition" placeholder="e.g., Covering for Someone's leave" value={reason} onChange={(e) => setReason(e.target.value)} />
+                        <label className="block caps-label mb-1.5">Reason for Temporary Access * <span className="text-red-500">*</span></label>
+                        <input type="text" required maxLength={250} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition" placeholder="e.g., Covering for a staff member on leave" value={reason} onChange={(e) => setReason(e.target.value)} />
                     </div>
 
                     {/* VALID UNTIL */}
@@ -267,7 +267,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                     <div className="flex gap-3 mt-6 justify-end pt-2">
                         <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
                         <button type="submit" disabled={isSubmitting || !selectedUser || !selectedRole || !validUntil || !reason || (isRoleScoped && scopeType === 'BLOCK' && !selectedBlockId) || (isRoleScoped && scopeType === 'SPACE' && !selectedSpaceId)} className="px-4 py-2 text-sm font-semibold text-white bg-gray-900 hover:bg-black rounded-lg transition disabled:opacity-50 shadow-sm">
-                            {isSubmitting ? 'Granting...' : 'Authorize Upgrade'}
+                            {isSubmitting ? 'Granting...' : 'Assign Access'}
                         </button>
                     </div>
                 </form>

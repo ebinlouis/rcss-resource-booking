@@ -27,6 +27,7 @@ import {
     rescheduleBooking,
     getVehicles,
 } from '../../api/fleetApi'
+import Tooltip from "../../components/Tooltip"
 
 // ==========================================
 // SHARED STYLE MAP  (mirrors Transport.jsx)
@@ -627,6 +628,7 @@ export default function AdminTransportPage() {
                         Manage vehicles, transport bookings, and trip approvals.
                     </p>
                 </div>
+                <Tooltip text="Reload this page" position="left">
                 <button
                     onClick={refresh}
                     disabled={isLoading}
@@ -635,6 +637,7 @@ export default function AdminTransportPage() {
                     <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                     Refresh
                 </button>
+                </Tooltip>
             </div>
             <ApprovalConfirmCard
             booking={lastApproved}
