@@ -5,6 +5,7 @@ import { Bell, CheckCheck, ChevronLeft, ChevronRight, Inbox, Loader2 } from 'luc
 import MainLayout from '../layouts/MainLayout';
 import notificationService from '../api/notificationService';
 import { getNotificationDestination } from '../utils/notificationNavigation';
+import { useAuth } from '../hooks/useAuth';
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +37,7 @@ const getCategoryBadgeStyle = (category) => {
 
 const NotificationsPage = () => {
     const navigate = useNavigate();
+    const { effectiveRoles } = useAuth();
     const [page, setPage] = useState(1);
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [data, setData] = useState({
@@ -94,7 +96,7 @@ const NotificationsPage = () => {
             }
         }
 
-        const destination = getNotificationDestination(notification);
+        const destination = getNotificationDestination(notification, effectiveRoles);
         if (destination) {
             navigate(destination);
         }

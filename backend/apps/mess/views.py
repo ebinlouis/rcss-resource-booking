@@ -75,7 +75,18 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
             raise ValidationError({"detail": "Cannot cancel a mess booking whose first meal time has already passed."})
-        instance.delete()
+        instance.status = 'CANCELLED'
+        instance.resolved_by = None
+        instance.resolved_at = timezone.now()
+        instance.remarks_by_admin = 'Cancelled by requester.'
+        instance.save(update_fields=[
+            'status',
+            'resolved_by',
+            'resolved_at',
+            'remarks_by_admin',
+            'updated_at',
+        ])
+        mark_pending_request_notifications_read(instance, domain='mess')
 
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):

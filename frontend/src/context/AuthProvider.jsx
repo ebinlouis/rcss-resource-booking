@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthContext } from './AuthContext';
 import api from '../api/axios';
 
@@ -6,33 +6,49 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const checkAuthStatus = useCallback(async () => {
-        try {
-            const response = await api.get('auth/me/');
-            setUser(response.data);
-        } catch {
-            // Credentials absent or expired — treat as logged out.
-            setUser(null);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    // FIX: Wrapping checkAuthStatus() in an async IIFE means all setState
-    // calls inside it happen inside an async callback, not synchronously in
-    // the effect body, which satisfies the lint rule.
     useEffect(() => {
-        (async () => {
-            await checkAuthStatus();
-        })();
-    }, [checkAuthStatus]);
+        // This flag prevents React from complaining about setting state 
+        // on a component that might have already unmounted.
+        let isMounted = true;
+
+        const initializeAuth = async () => {
+            try {
+                const response = await api.get('auth/me/');
+                if (isMounted) {
+                    setUser(response.data);
+                }
+            } catch {
+                if (isMounted) {
+                    setUser(null);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        initializeAuth();
+
+        // Cleanup function runs when the component unmounts
+        return () => {
+            isMounted = false;
+        };
+    }, []); // Empty dependency array ensures this strictly runs only once on mount
 
     const login = async (credentials) => {
         try {
             const response = await api.post('auth/login/', credentials);
+            
             if (response.status === 200) {
-                await checkAuthStatus();
-                return { success: true, user: response.data };
+                // Fetch fresh user data immediately after successful login
+                try {
+                    const userResponse = await api.get('auth/me/');
+                    setUser(userResponse.data);
+                    return { success: true, user: userResponse.data };
+                } catch {
+                    return { success: false, error: 'Failed to fetch user profile.' };
+                }
             }
             return { success: false, error: 'Invalid credentials' };
         } catch (err) {
@@ -47,6 +63,7 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.error('Logout request failed', err);
         } finally {
+            // Guarantee the user is cleared locally even if the network fails
             setUser(null);
         }
     };
@@ -64,8 +81,7 @@ export const AuthProvider = ({ children }) => {
             logout,
             updateUser,
 
-            // Spread the capabilities directly into context so
-            // `const { can_manage_mess } = useAuth()` works cleanly.
+            // Spread the capabilities directly into context
             ...user?.capabilities,
         }}>
             {children}

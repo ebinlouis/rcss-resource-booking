@@ -141,6 +141,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         VIEW_MAP = {
             'pending':        (lambda: qs.filter(status='PENDING').order_by('-updated_at'),            is_admin),
             'active':         (lambda: qs.filter(status='APPROVED').order_by('setup_start_datetime'),  is_admin),
+            'history':        (lambda: qs.exclude(status='PENDING').order_by('-updated_at'),           is_admin),
             'resolved_by_me': (lambda: qs.filter(resolved_by=user).order_by('-resolved_at'),           is_admin),
         }
 
@@ -235,7 +236,18 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
             raise ValidationError({"detail": "Cannot cancel a media request whose setup time has already passed."})
-        instance.delete()
+        instance.status = 'CANCELLED'
+        instance.resolved_by = None
+        instance.resolved_at = timezone.now()
+        instance.remarks_by_admin = 'Cancelled by requester.'
+        instance.save(update_fields=[
+            'status',
+            'resolved_by',
+            'resolved_at',
+            'remarks_by_admin',
+            'updated_at',
+        ])
+        mark_pending_request_notifications_read(instance, domain='media')
 
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
@@ -372,7 +384,16 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 e_local = timezone.localtime(e_clamp)
                 s_str   = s_local.strftime("%H:%M")
                 e_str   = "23:59" if e_clamp >= day_end else e_local.strftime("%H:%M")
-                slots.append({"start_time": s_str, "end_time": e_str, "event_name": b.event_name})
+                actual_start = timezone.localtime(b.setup_start_datetime)
+                actual_end = timezone.localtime(b.teardown_end_datetime)
+                slots.append({
+                    "start_time": s_str,
+                    "end_time": e_str,
+                    "actual_start": actual_start.isoformat(),
+                    "actual_end": actual_end.isoformat(),
+                    "is_multiday": actual_start.date() != actual_end.date(),
+                    "event_name": b.event_name,
+                })
                 time_points += [(s_str, 1), (e_str, -1)]
 
             time_points.sort(key=lambda x: (x[0], x[1]))
