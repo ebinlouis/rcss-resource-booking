@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react"
 import BookingModal from "./BookingModal"
+import { bookingSessionActions } from "../store/bookingSessionStore"
 import api from "../api/axios"
 
 // ─────────────────────────────────────────────
@@ -41,22 +42,22 @@ function buildTimeline(bookings) {
     }
 
     if (e > s) {
-blocks.push({
-  type: "booked",
-  start: toTime(s),
-  end: toTime(e),
-  title: bk.title,
-  status: bk.status,
-  isMultiDay: bk.isMultiDay || false,
-  isContinue: bk.isContinue || false,
+      blocks.push({
+        type: "booked",
+        start: toTime(s),
+        end: toTime(e),
+        title: bk.title,
+        status: bk.status,
+        isMultiDay: bk.isMultiDay || false,
+        isContinue: bk.isContinue || false,
 
-  bookedByName: bk.bookedByName,
-  bookedByDesignation: bk.bookedByDesignation,
-  bookedByDepartment: bk.bookedByDepartment,
-  bookedByPhone: bk.bookedByPhone,
-  bookedByPhoto: bk.bookedByPhoto,
-  purpose: bk.purpose,
-})
+        bookedByName: bk.bookedByName,
+        bookedByDesignation: bk.bookedByDesignation,
+        bookedByDepartment: bk.bookedByDepartment,
+        bookedByPhone: bk.bookedByPhone,
+        bookedByPhoto: bk.bookedByPhoto,
+        purpose: bk.purpose,
+      })
     }
 
     cursor = Math.max(cursor, e)
@@ -87,10 +88,6 @@ const nextDateKey = (dateKey) => {
 function getDayStatus(bookings) {
   if (!bookings || bookings.length === 0) return "free"
 
-  // Use actual booking hours (not the forced full-day expansion used by
-  // buildTimeline for conflict purposes) so a multi-day booking that only
-  // covers e.g. 10:00–13:00 shows yellow (partial) on every spanned day,
-  // not blue (full).
   const dayStart = toMins(DAY_START)
   const dayEnd   = toMins(DAY_END)
 
@@ -130,31 +127,29 @@ async function loadBookings(spaceId) {
     const startStr = `${String(startD.getHours()).padStart(2, "0")}:${String(startD.getMinutes()).padStart(2, "0")}`
     const endStr   = `${String(endD.getHours()).padStart(2, "0")}:${String(endD.getMinutes()).padStart(2, "0")}`
 
-    // Walk every calendar day the booking spans and register it.
-    // Cap at 366 days to guard against corrupt end_datetime values.
     const MAX_SPAN = 366
     let cursor = startKey
     let iterations = 0
     while (cursor <= endKey && iterations < MAX_SPAN) {
       if (!grouped[cursor]) grouped[cursor] = []
 
-      const isContinue = cursor !== startKey // not the first day
+      const isContinue = cursor !== startKey
 
-grouped[cursor].push({
-  start: startStr,
-  end: endStr,
-  title: b.purpose_of_booking || "Booked Event",
-  status: b.status,
-  isMultiDay: isMultiDay,
-  isContinue: isContinue,
+      grouped[cursor].push({
+        start: startStr,
+        end: endStr,
+        title: b.purpose_of_booking || "Booked Event",
+        status: b.status,
+        isMultiDay: isMultiDay,
+        isContinue: isContinue,
 
-  bookedByName: b.booked_by_name,
-  bookedByDesignation: b.booked_by_designation,
-  bookedByDepartment: b.booked_by_department,
-  bookedByPhone: b.booked_by_phone,
-  bookedByPhoto: b.booked_by_photo,
-  purpose: b.purpose_of_booking,
-})
+        bookedByName: b.booked_by_name,
+        bookedByDesignation: b.booked_by_designation,
+        bookedByDepartment: b.booked_by_department,
+        bookedByPhone: b.booked_by_phone,
+        bookedByPhoto: b.booked_by_photo,
+        purpose: b.purpose_of_booking,
+      })
 
       if (cursor === endKey) break
       cursor = nextDateKey(cursor)
@@ -174,11 +169,17 @@ const AvailabilityModal = memo(function AvailabilityModal({
   onClose,
   openBookingOnMount = false,
   onLinkedIntent,
+  initialDate = null,
 }) {
   const [selectedSlot, setSelectedSlot] = useState(null)
-  const [currentDate,  setCurrentDate]  = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(todayKey())
+  const [currentDate,  setCurrentDate]  = useState(initialDate ? new Date(initialDate + "T00:00:00") : new Date())
+  const [selectedDate, setSelectedDate] = useState(initialDate || todayKey())
   const [openBooking,  setOpenBooking]  = useState(false)
+  
+  // Tracks whether BookingModal was opened as a blank standalone form.
+  // When true, BookingModal ignores session draft dates and prefill props entirely.
+  const [isStandalone, setIsStandalone] = useState(false)
+  
   const [roomBookings, setRoomBookings] = useState({})
   const [isLoading,    setIsLoading]    = useState(true)
   const [activeTooltip, setActiveTooltip] = useState(null)
@@ -230,44 +231,50 @@ const AvailabilityModal = memo(function AvailabilityModal({
   const refreshRef = useRef(refresh)
   const tooltipRef = useRef(null)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
+  
+  // Resume from wizard: prefill is allowed, not standalone
   useEffect(() => {
     if (!openBookingOnMount || didOpenBookingOnMount.current) return
     didOpenBookingOnMount.current = true
+    setIsStandalone(false)
     setOpenBooking(true)
   }, [openBookingOnMount])
+
   useEffect(() => {
-  function handleClickOutside(e) {
-    if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
-      setActiveTooltip(null)
+    function handleClickOutside(e) {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+        setActiveTooltip(null)
+      }
     }
-  }
 
-  document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener("mousedown", handleClickOutside)
 
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside)
-  }
-}, [])
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   const handleCloseBooking = useCallback(() => {
     setOpenBooking(false)
+    setIsStandalone(false)
+    bookingSessionActions.clearSession()
     refreshRef.current()
   }, [])
 
   const handleLinkedIntent = useCallback((target) => {
     setOpenBooking(false)
+    setIsStandalone(false)
     onLinkedIntent?.(target)
   }, [onLinkedIntent])
 
   const dayBookings = roomBookings[selectedDate] || []
   const timeline    = buildTimeline(dayBookings)
-const dayStatus = (dateKey) => {
-  const today = todayKey()
-
-  if (dateKey < today) return "past"
-
-  return getDayStatus(roomBookings[dateKey])
-}
+  const dayStatus = (dateKey) => {
+    const today = todayKey()
+    if (dateKey < today) return "past"
+    return getDayStatus(roomBookings[dateKey])
+  }
+  
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2">
       <div className="bg-white w-full max-w-5xl rounded-2xl flex shadow-xl overflow-hidden">
@@ -320,33 +327,33 @@ const dayStatus = (dateKey) => {
               const isToday = dateKey === todayKey()
               const status  = dayStatus(dateKey)
 
-const cellBg = isSel
-  ? "bg-green-700 text-white ring-2 ring-green-700 ring-offset-1"
-  : status === "past"
-  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-  : status === "full"
-  ? "bg-blue-50 hover:bg-blue-100 text-blue-800"
-  : status === "partial"
-  ? "bg-yellow-50 hover:bg-yellow-100 text-yellow-800"
-  : "bg-green-50 hover:bg-green-100 text-green-700"
+              const cellBg = isSel
+                ? "bg-green-700 text-white ring-2 ring-green-700 ring-offset-1"
+                : status === "past"
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : status === "full"
+                ? "bg-blue-50 hover:bg-blue-100 text-blue-800"
+                : status === "partial"
+                ? "bg-yellow-50 hover:bg-yellow-100 text-yellow-800"
+                : "bg-green-50 hover:bg-green-100 text-green-700"
 
-const dotColor = isSel
-  ? "bg-white/70"
-  : status === "past"
-  ? "bg-gray-300"
-  : status === "full"
-  ? "bg-blue-400"
-  : status === "partial"
-  ? "bg-yellow-400"
-  : "bg-green-400"
+              const dotColor = isSel
+                ? "bg-white/70"
+                : status === "past"
+                ? "bg-gray-300"
+                : status === "full"
+                ? "bg-blue-400"
+                : status === "partial"
+                ? "bg-yellow-400"
+                : "bg-green-400"
 
               return (
                 <div
                   key={day}
                   onClick={() => {
-  if (status === "past") return
-  setSelectedDate(dateKey)
-}}
+                    if (status === "past") return
+                    setSelectedDate(dateKey)
+                  }}
                   className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[64px] transition-all ${cellBg}`}
                 >
                   <span className={`text-[12px] font-medium leading-none ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
@@ -396,102 +403,57 @@ const dotColor = isSel
               timeline.map((block, idx) => {
                 if (block.type === "booked") {
                   const isPending = block.status === "PENDING"
-
-                  // Multi-day block gets a special label; single-day shows times normally
-                  const timeLabel = block.isMultiDay
-                    ? null
-                    : `${block.start} – ${block.end}`
-
+                  const timeLabel = block.isMultiDay ? null : `${block.start} – ${block.end}`
                   const titleLabel = block.isMultiDay
-                    ? block.isContinue
-                      ? "Multi-day booking (continues)"
-                      : "Multi-day booking"
+                    ? block.isContinue ? "Multi-day booking (continues)" : "Multi-day booking"
                     : block.title
 
-return (
-<div
-  key={idx}
-onClick={(e) => {
-  e.stopPropagation()
+                  return (
+                    <div
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const tooltipWidth = 320
+                        const spacing = 16
+                        let left = rect.left - tooltipWidth - spacing
+                        let top = rect.top
+                        if (left < 20) left = rect.right + spacing
+                        if (top + 320 > window.innerHeight) top = window.innerHeight - 340
 
-  const rect = e.currentTarget.getBoundingClientRect()
-
-  const tooltipWidth = 320
-  const spacing = 16
-
-  let left = rect.left - tooltipWidth - spacing
-  let top = rect.top
-
-  if (left < 20) {
-    left = rect.right + spacing
-  }
-
-  if (top + 320 > window.innerHeight) {
-    top = window.innerHeight - 340
-  }
-
-  setActiveTooltip({
-    booking: block,
-    isPending,
-    left,
-    top,
-  })
-}}
-  className={`border rounded-xl p-3 flex flex-col gap-3 cursor-pointer transition-all ${
-                        isPending
-                          ? "border-yellow-200 bg-yellow-50"
-                          : "border-blue-200 bg-blue-50"
+                        setActiveTooltip({ booking: block, isPending, left, top })
+                      }}
+                      className={`border rounded-xl p-3 flex flex-col gap-3 cursor-pointer transition-all ${
+                        isPending ? "border-yellow-200 bg-yellow-50" : "border-blue-200 bg-blue-50"
                       }`}
                     >
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
-                          isPending ? "bg-yellow-500" : "bg-blue-500"
-                        }`}
-                      />
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-yellow-500" : "bg-blue-500"}`} />
                       <div className="relative flex flex-col gap-1.5">
-                        {timeLabel && (
-                          <p
-                            className={`text-sm font-semibold ${
-                              isPending ? "text-yellow-900" : "text-blue-900"
-                            }`}
-                          >
-                            {timeLabel}
-                          </p>
-                        )}
-                        <p
-                          className={`text-xs leading-relaxed ${
-                            isPending ? "text-yellow-600" : "text-blue-600"
-                          }`}
-                        >
-                          {titleLabel}
-                        </p>
-                        <span
-                          className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                            isPending
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
+                        {timeLabel && <p className={`text-sm font-semibold ${isPending ? "text-yellow-900" : "text-blue-900"}`}>{timeLabel}</p>}
+                        <p className={`text-xs leading-relaxed ${isPending ? "text-yellow-600" : "text-blue-600"}`}>{titleLabel}</p>
+                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
                           {isPending ? "Pending Approval" : "Booked"}
                         </span>
-
                       </div>
                     </div>
                   )
                 }
 
+                // Free slot — clicking prefills the booking form with the slot's time
                 return (
                   <div
                     key={idx}
                     className="border border-green-200 bg-green-50 rounded-xl p-3 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
-                    onClick={() => { setSelectedSlot(block); setOpenBooking(true) }}
+                    onClick={() => {
+                      setSelectedSlot(block)
+                      setIsStandalone(false) // Prefill allowed: date + slot times flow through
+                      setOpenBooking(true)
+                    }}
                   >
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-1" />
                     <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                       <p className="text-sm font-semibold text-green-700">{block.start} – {block.end}</p>
-                      <span className="w-fit text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                        Available
-                      </span>
+                      <span className="w-fit text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Available</span>
                       <p className="text-[11px] text-gray-400 break-words leading-tight">Tap to book</p>
                     </div>
                   </div>
@@ -500,102 +462,80 @@ onClick={(e) => {
             )}
           </div>
 
+          {/* "Open booking form" — blank slate, no prefill, no session draft dates */}
           <button
-            onClick={() => { setSelectedSlot(null); setOpenBooking(true) }}
+            onClick={() => {
+              setSelectedSlot(null)
+              bookingSessionActions.clearSession()
+              setIsStandalone(true) // Ghost data blocked: BookingModal ignores draft dates
+              setOpenBooking(true)
+            }}
             className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
           >
             Open booking form
           </button>
         </div>
       </div>
+      
       {activeTooltip && (
-  <div
-    ref={tooltipRef}
-    className="fixed z-[9999] w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4"
-    style={{
-      left: activeTooltip.left,
-      top: activeTooltip.top,
-    }}
-  >
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {activeTooltip.booking.bookedByPhoto ? (
-            <img
-              src={activeTooltip.booking.bookedByPhoto}
-              alt={activeTooltip.booking.bookedByName || "User"}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="text-green-700 font-bold text-sm">
-              {(activeTooltip.booking.bookedByName || "?")[0].toUpperCase()}
-            </span>
-          )}
-        </div>
-        <div>
-          <p className="text-base font-semibold text-gray-900">
-            {activeTooltip.booking.bookedByName || "Unavailable"}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            {activeTooltip.booking.bookedByDesignation || "Faculty"}
-          </p>
-        </div>
-      </div>
-
-      <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Department</span>
-          <span className="font-medium text-gray-800">
-            {activeTooltip.booking.bookedByDepartment || "Unavailable"}
-          </span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-gray-500">Phone</span>
-          <span className="font-medium text-gray-800">
-            {activeTooltip.booking.bookedByPhone || "Unavailable"}
-          </span>
-        </div>
-
-        <div>
-          <span className="text-gray-500">Purpose</span>
-          <p className="font-medium text-gray-800 mt-1">
-            {activeTooltip.booking.purpose || "Unavailable"}
-          </p>
-        </div>
-
-        <div>
-          <span
-            className={`inline-block text-xs px-2 py-1 rounded-full font-medium ${
-              activeTooltip.isPending
-                ? "bg-yellow-100 text-yellow-800"
-                : "bg-blue-100 text-blue-700"
-            }`}
-          >
-            {activeTooltip.isPending ? "Pending Approval" : "Booked"}
-          </span>
-        </div>
-      </div>
-
-      {activeTooltip.booking.bookedByPhone && (
-        <a
-          href={`tel:${activeTooltip.booking.bookedByPhone}`}
-          className="w-full inline-flex justify-center rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 transition"
+        <div
+          ref={tooltipRef}
+          className="fixed z-[9999] w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4"
+          style={{ left: activeTooltip.left, top: activeTooltip.top }}
         >
-          Call Contact
-        </a>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {activeTooltip.booking.bookedByPhoto ? (
+                  <img src={activeTooltip.booking.bookedByPhoto} alt={activeTooltip.booking.bookedByName || "User"} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-green-700 font-bold text-sm">{(activeTooltip.booking.bookedByName || "?")[0].toUpperCase()}</span>
+                )}
+              </div>
+              <div>
+                <p className="text-base font-semibold text-gray-900">{activeTooltip.booking.bookedByName || "Unavailable"}</p>
+                <p className="text-sm text-gray-500 mt-1">{activeTooltip.booking.bookedByDesignation || "Faculty"}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Department</span>
+                <span className="font-medium text-gray-800">{activeTooltip.booking.bookedByDepartment || "Unavailable"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Phone</span>
+                <span className="font-medium text-gray-800">{activeTooltip.booking.bookedByPhone || "Unavailable"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Purpose</span>
+                <p className="font-medium text-gray-800 mt-1">{activeTooltip.booking.purpose || "Unavailable"}</p>
+              </div>
+              <div>
+                <span className={`inline-block text-xs px-2 py-1 rounded-full font-medium ${activeTooltip.isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
+                  {activeTooltip.isPending ? "Pending Approval" : "Booked"}
+                </span>
+              </div>
+            </div>
+
+            {activeTooltip.booking.bookedByPhone && (
+              <a href={`tel:${activeTooltip.booking.bookedByPhone}`} className="w-full inline-flex justify-center rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 transition">
+                Call Contact
+              </a>
+            )}
+          </div>
+        </div>
       )}
-    </div>
-  </div>
-)}
 
       {openBooking && (
         <BookingModal
+          key={`${isStandalone}-${selectedSlot?.start ?? "none"}-${selectedDate}`}
           spaceId={spaceId}
           spaceName={spaceName}
-          prefillDate={selectedDate}
-          prefillStart={selectedSlot?.start || ""}
-          prefillEnd={selectedSlot?.end   || ""}
+          isStandalone={isStandalone}
+          prefillDate={isStandalone ? "" : selectedDate}
+          prefillStart={isStandalone ? "" : (selectedSlot?.start || "")}
+          prefillEnd={isStandalone ? "" : (selectedSlot?.end   || "")}
           onClose={handleCloseBooking}
           onLinkedIntent={handleLinkedIntent}
         />
