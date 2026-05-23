@@ -109,7 +109,29 @@ def notify_approvers(
     return created_count
 
 
-def _resource_name(booking):
+def _resource_name(booking, domain=''):
+    domain = (domain or '').lower()
+
+    if domain == 'media':
+        return (
+            getattr(booking, 'event_name', None)
+            or getattr(getattr(booking, 'space', None), 'name', None)
+            or 'media request'
+        )
+
+    if domain == 'mess':
+        return (
+            getattr(booking, 'purpose_of_programme', None)
+            or getattr(booking, 'delivery_location', None)
+            or 'mess request'
+        )
+
+    if domain == 'fleet':
+        vehicle = getattr(booking, 'vehicle', None)
+        if vehicle:
+            return getattr(vehicle, 'name', None) or str(vehicle)
+        return 'fleet request'
+
     space = getattr(booking, 'space', None)
     if space:
         return getattr(space, 'name', None) or str(space)
@@ -120,6 +142,7 @@ def _resource_name(booking):
 
     return (
         getattr(booking, 'event_name', None)
+        or getattr(booking, 'purpose_of_programme', None)
         or getattr(booking, 'delivery_location', None)
         or 'requested resource'
     )
@@ -207,10 +230,83 @@ def _resolver_title(resolved_by, domain):
     return role.get_name_display() if role else 'an approver'
 
 
-def _format_booking_time(booking):
+def _format_datetime_range(start_dt, end_dt):
+    start_dt = timezone.localtime(start_dt)
+    end_dt   = timezone.localtime(end_dt)
+
+    if start_dt.date() == end_dt.date():
+        date_str = start_dt.strftime('%b %d, %Y')
+        time_str = f"{start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')}"
+        return f"{date_str} ({time_str})"
+
+    start_str = start_dt.strftime('%b %d, %Y %I:%M %p')
+    end_str   = end_dt.strftime('%b %d, %Y %I:%M %p')
+    return f"{start_str} to {end_str}"
+
+
+def _mess_first_meal_time(booking):
+    relation = getattr(booking, 'daily_menus', None)
+    if not relation:
+        return None
+
+    try:
+        menus = relation.all()
+    except AttributeError:
+        menus = relation
+
+    meal_fields = [
+        'breakfast_time',
+        'morning_tea_time',
+        'lunch_time',
+        'evening_tea_time',
+        'dinner_time',
+    ]
+    times = []
+    for menu in menus:
+        menu_date = getattr(menu, 'date', None)
+        for field in meal_fields:
+            meal_time = getattr(menu, field, None)
+            if menu_date and meal_time:
+                times.append((menu_date, meal_time))
+
+    if not times:
+        return None
+
+    return min(times, key=lambda item: (item[0], item[1]))[1]
+
+
+def _format_booking_time(booking, domain=''):
     """
     Extracts and nicely formats the date and time from any type of booking.
     """
+    domain = (domain or '').lower()
+
+    if domain == 'media':
+        start_dt = (
+            getattr(booking, 'event_start_datetime', None)
+            or getattr(booking, 'setup_start_datetime', None)
+        )
+        end_dt = (
+            getattr(booking, 'event_end_datetime', None)
+            or getattr(booking, 'teardown_end_datetime', None)
+        )
+        if start_dt and end_dt:
+            return _format_datetime_range(start_dt, end_dt)
+
+    if domain == 'mess':
+        start_date = getattr(booking, 'start_date', None)
+        end_date = getattr(booking, 'end_date', None) or start_date
+        if start_date:
+            if end_date and end_date != start_date:
+                date_str = f"{start_date.strftime('%b %d, %Y')} to {end_date.strftime('%b %d, %Y')}"
+            else:
+                date_str = start_date.strftime('%b %d, %Y')
+
+            first_meal = _mess_first_meal_time(booking)
+            if first_meal:
+                return f"{date_str} (first meal {first_meal.strftime('%I:%M %p')})"
+            return date_str
+
     # 1. Try to get Datetime objects (Spaces, Fleet)
     start_dt = getattr(booking, 'start_datetime', None)
     end_dt   = getattr(booking, 'end_datetime', None)
@@ -221,19 +317,7 @@ def _format_booking_time(booking):
     e_time = getattr(booking, 'end_time', None)
 
     if start_dt and end_dt:
-        start_dt = timezone.localtime(start_dt)
-        end_dt   = timezone.localtime(end_dt)
-
-        if start_dt.date() == end_dt.date():
-            # Single day: Oct 24, 2026 (10:00 AM - 02:00 PM)
-            date_str = start_dt.strftime('%b %d, %Y')
-            time_str = f"{start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')}"
-            return f"{date_str} ({time_str})"
-        else:
-            # Multi day: Oct 24, 2026 10:00 AM to Oct 26, 2026 02:00 PM
-            start_str = start_dt.strftime('%b %d, %Y %I:%M %p')
-            end_str   = end_dt.strftime('%b %d, %Y %I:%M %p')
-            return f"{start_str} to {end_str}"
+        return _format_datetime_range(start_dt, end_dt)
 
     elif b_date:
         date_str = b_date.strftime('%b %d, %Y')
@@ -256,7 +340,7 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     """
     status_value = str(new_status or '').upper()
     reference    = _booking_reference(booking)
-    resource     = _resource_name(booking)
+    resource     = _resource_name(booking, domain)
     resolver     = _resolver_title(resolved_by, domain)
     link         = _requester_link(domain, reference)
 
@@ -275,7 +359,7 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
     title          = f"{resource} booking {status_display}"
 
     # Generate the schedule string
-    time_str     = _format_booking_time(booking)
+    time_str     = _format_booking_time(booking, domain)
     time_context = f" scheduled for {time_str}" if time_str else ""
 
     message = f"Your booking for {resource}{time_context} was {status_display} by {resolver}."
@@ -309,7 +393,7 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
     base_booking = bookings[0]
     status_value = str(new_status or '').upper()
     reference    = _booking_reference(base_booking)
-    resource     = _resource_name(base_booking)
+    resource     = _resource_name(base_booking, domain)
     resolver     = _resolver_title(resolved_by, domain)
     link         = _requester_link(domain, reference)
 
@@ -332,7 +416,7 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
         # Summarise the series rather than listing every date
         time_context = f" (series of {count} scheduled dates)"
     else:
-        time_str     = _format_booking_time(base_booking)
+        time_str     = _format_booking_time(base_booking, domain)
         time_context = f" scheduled for {time_str}" if time_str else ""
 
     message = f"Your recurring request for {resource}{time_context} was {status_display} by {resolver}."
@@ -355,11 +439,11 @@ def notify_new_request(booking, domain, role_name):
     """
     Notify the relevant admins that a new booking requires approval.
     """
-    resource  = _resource_name(booking)
+    resource  = _resource_name(booking, domain)
     reference = _booking_reference(booking)
     link      = _approver_link(domain, reference)
 
-    time_str     = _format_booking_time(booking)
+    time_str     = _format_booking_time(booking, domain)
     time_context = f" scheduled for {time_str}" if time_str else ""
 
     requester = getattr(booking.user, 'first_name', None) or 'A user'

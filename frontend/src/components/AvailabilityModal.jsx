@@ -168,7 +168,13 @@ grouped[cursor].push({
 // ─────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────
-const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, onClose, openBookingOnMount = false }) {
+const AvailabilityModal = memo(function AvailabilityModal({
+  spaceId,
+  spaceName,
+  onClose,
+  openBookingOnMount = false,
+  onLinkedIntent,
+}) {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [currentDate,  setCurrentDate]  = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(todayKey())
@@ -247,6 +253,11 @@ const AvailabilityModal = memo(function AvailabilityModal({ spaceId, spaceName, 
     setOpenBooking(false)
     refreshRef.current()
   }, [])
+
+  const handleLinkedIntent = useCallback((target) => {
+    setOpenBooking(false)
+    onLinkedIntent?.(target)
+  }, [onLinkedIntent])
 
   const dayBookings = roomBookings[selectedDate] || []
   const timeline    = buildTimeline(dayBookings)
@@ -586,6 +597,7 @@ onClick={(e) => {
           prefillStart={selectedSlot?.start || ""}
           prefillEnd={selectedSlot?.end   || ""}
           onClose={handleCloseBooking}
+          onLinkedIntent={handleLinkedIntent}
         />
       )}
     </div>

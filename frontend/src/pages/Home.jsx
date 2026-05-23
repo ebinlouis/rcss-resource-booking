@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
 import AvailabilityModal from "../components/AvailabilityModal"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import MainLayout from "../layouts/MainLayout"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
@@ -112,9 +112,24 @@ const filteredRooms = dbRooms.filter((r) => {
 const auth = useAuth();
 const user = auth?.user;
 const navigate = useNavigate()
+const location = useLocation()
 const hour = new Date().getHours()
 const greeting =
   hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+
+  const handleLinkedIntent = (target) => {
+    const sequence = ["space"]
+    if (target === "mess" || bookingSession.messFormData) sequence.push("mess")
+    if (target === "media" || bookingSession.mediaFormData) sequence.push("media")
+    sequence.push("review")
+
+    bookingSessionActions.startWizard({
+      origin: `${location.pathname}${location.search}`,
+      sequence,
+      initialStep: target,
+    })
+    setOpenAvailability(false)
+  }
 
   return (
     <MainLayout>
@@ -394,6 +409,7 @@ const greeting =
           spaceName={selectedRoom.name}
           openBookingOnMount={Boolean(bookingSession.spaceFormData?.space)}
           onClose={() => setOpenAvailability(false)}
+          onLinkedIntent={handleLinkedIntent}
         />
       )}
 

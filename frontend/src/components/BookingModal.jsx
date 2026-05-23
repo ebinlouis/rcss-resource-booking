@@ -118,6 +118,9 @@ function BookingModal({
   prefillDate = "",
   prefillStart = "",
   prefillEnd = "",
+  onLinkedIntent,
+  wizardMode = false,
+  onWizardNext,
 }) {
   const isEdit = !!initialData
   const navigate = useNavigate()
@@ -514,8 +517,18 @@ function BookingModal({
       isExternal: form.isExternal,
       bookingType: form.bookingType,
     })
+
+    const finalSequence = target === "mess"
+      ? ["space", "mess", "review"]
+      : ["space", "media", "review"]
+
+    bookingSessionActions.startWizard({
+      origin: window.location.pathname,
+      sequence: finalSequence,
+      initialStep: target,
+    })
+
     onClose()
-    navigate(target)
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -700,9 +713,9 @@ function BookingModal({
   // Main Modal
   // ─────────────────────────────────────────────────────────────
 
-  return createPortal(
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]">
+  const modalContent = (
+    <div className={wizardMode ? "flex w-full h-full" : "fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4"}>
+      <div className={wizardMode ? "bg-white w-full flex overflow-hidden" : "bg-white w-full max-w-4xl rounded-2xl flex overflow-hidden shadow-2xl max-h-[92vh]"}>
 
         {/* ═══════════════════════════════════════════════════ */}
         {/* LEFT PANEL                                         */}
@@ -910,12 +923,14 @@ function BookingModal({
                 {isEdit ? "Edit your booking" : "Secure this venue"}
               </h2>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
-            >
-              ✕
-            </button>
+            {!wizardMode && (
+              <button
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           {/* RE-APPROVAL NOTICE */}
@@ -1419,14 +1434,14 @@ function BookingModal({
                 startIso={linkedStartIso}
                 endIso={linkedEndIso}
                 completedBookings={bookingSession.completedBookings}
-                onAddMess={() => continueLinkedBooking("/mess?linked=1")}
-                onAddMedia={() => continueLinkedBooking("/media?linked=1")}
+                onAddMess={() => continueLinkedBooking("mess")}
+                onAddMedia={() => continueLinkedBooking("media")}
               />
             </div>
           </div>
 
           {/* FOOTER */}
-          <div className="shrink-0 flex justify-between items-center px-7 py-4 border-t border-gray-100 bg-gray-50/60">
+          <div className={wizardMode ? "hidden" : "shrink-0 flex justify-between items-center px-7 py-4 border-t border-gray-100 bg-gray-50/60"}>
             <div>
               {errors.server && (
                 <p className="text-xs text-red-500 font-medium">{errors.server}</p>
@@ -1442,26 +1457,29 @@ function BookingModal({
               )}
             </div>
             <div className="flex gap-2">
+              {!wizardMode && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+                >
+                  Cancel
+                </button>
+              )}
               <button
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
+                onClick={wizardMode ? onWizardNext : handleSubmit}
                 disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
                 className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}
+                {isSubmitting ? "Saving..." : isEdit ? "Update Request" : wizardMode ? "Next" : "Send Request"}
               </button>
             </div>
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   )
+
+  return wizardMode ? modalContent : createPortal(modalContent, document.body)
 }
 
 export default BookingModal
