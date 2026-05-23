@@ -157,7 +157,7 @@ function AvailabilityRow({ item }) {
                 : "text-green-700"
             }`}
           >
-            {available}/{total}
+            {available} of {total}
           </p>
 
           <p className="text-xs text-gray-400">
@@ -505,13 +505,13 @@ function Media() {
                     )}
 
                     <h2 className="text-lg font-semibold text-gray-900">
-                      Availability Overview
+                      Check Availability
                     </h2>
                   </div>
 
                   <p className="mt-1 text-sm text-gray-500">
                     {availabilityType === "equipment"
-                      ? "Check equipment inventory"
+                      ? "Check what equipment is available "
                       : "Check media team availability"}{" "}
                     for{" "}
                     {formatDate(selectedDate, {
@@ -665,11 +665,11 @@ function Media() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
-                  My Requests
+                  My Bookings
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Your recent media bookings
+                  Track your recent bookings
                 </p>
               </div>
 
@@ -726,7 +726,7 @@ function Media() {
                   myLoading ? "animate-spin" : ""
                 }`}
               />
-              Refresh Status
+              Refresh Bookings
             </button>
           </aside>
         </div>
