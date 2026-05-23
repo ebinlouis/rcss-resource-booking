@@ -51,6 +51,7 @@ def _build_queue_entry(domain, item, **extra_fields):
         "reference_code": item.reference_code,
         **_requester_info(item.user),
         "created_at":     item.created_at,
+        "updated_at":     item.updated_at,
         "is_external":    getattr(item, 'is_external', False),
         "status":         getattr(item, 'status', 'PENDING'),
         "resolved_by_id": getattr(item, 'resolved_by_id', None),
@@ -322,7 +323,10 @@ class UnifiedApprovalQueueView(APIView):
                     unified_queue.append(entry)
 
         unified_queue.sort(
-            key=lambda x: (not x.get('is_external', False), x['created_at'])
+            key=lambda x: (
+                not x.get('is_external', False),
+                -(x.get('updated_at') or x['created_at']).timestamp(),
+            )
         )
 
         return Response({

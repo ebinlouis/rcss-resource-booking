@@ -4,6 +4,7 @@ import { Phone, Mail } from 'lucide-react';
 import approvalService from '../../api/approvalService';
 import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
+import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,9 @@ const groupBookings = (list) => {
             }
             if (new Date(b.start_datetime) < new Date(parent.start_datetime)) {
                 parent.start_datetime = b.start_datetime;
+            }
+            if (b.updated_at && (!parent.updated_at || new Date(b.updated_at) > new Date(parent.updated_at))) {
+                parent.updated_at = b.updated_at;
             }
         }
     });
@@ -413,7 +417,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         )}
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-[13px] text-[#6b7280] font-medium">Submitted {timeAgo(booking.created_at)}</span>
+                        <span className="text-[13px] text-[#6b7280] font-medium">Submitted {timeAgo(getSubmissionTimestamp(booking))}</span>
                         <div className="w-8 h-8 rounded-full hover:bg-[#e8f5ee] flex items-center justify-center transition-colors">
                             <IconChevron expanded={isExpanded} className="w-5 h-5 text-[#94a3b8]" />
                         </div>
@@ -762,7 +766,7 @@ const AdminDashboard = () => {
     // ── What renders in the queue panel ───────────────────────────────────────
     const listForTab = useMemo(() => {
         switch (activeTab) {
-            case 'pending':      return raw.pending;
+            case 'pending':      return [...raw.pending].sort(compareSubmissionTimeDesc);
             case 'upcoming':     return upcoming;
             case 'history':      return applyFilters(history);
             case 'resolvedByMe': return applyFilters(resolvedByMe);

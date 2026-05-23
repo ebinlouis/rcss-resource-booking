@@ -84,8 +84,8 @@ class DailyMessMenuSerializer(serializers.ModelSerializer):
 
 class MessBookingSerializer(serializers.ModelSerializer):
     requester_name  = serializers.ReadOnlyField(source='user.first_name')
-    department_name = serializers.ReadOnlyField(source='department.department_name')
     can_modify      = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField()
 
     # Writable nested list — sent by the frontend as one payload
     daily_menus = DailyMessMenuSerializer(many=True)
@@ -107,6 +107,9 @@ class MessBookingSerializer(serializers.ModelSerializer):
             'id', 'reference_code', 'user', 'department', 'status',
             'created_at', 'updated_at', 'rejection_remark',
         ]
+
+    def get_department_name(self, obj):
+        return obj.department.department_name if obj.department else ""
 
     def get_can_modify(self, obj):
         request = self.context.get('request')
@@ -208,10 +211,10 @@ class MessBookingSerializer(serializers.ModelSerializer):
         daily_menus_data = validated_data.pop('daily_menus', None)
 
         # Force status back to PENDING and clear resolution on any edit
-        validated_data['status']       = 'PENDING'
+        validated_data['status']           = 'PENDING'
         validated_data['rejection_remark'] = ''
-        validated_data['resolved_by']  = None
-        validated_data['resolved_at']  = None
+        validated_data['resolved_by']      = None
+        validated_data['resolved_at']      = None
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

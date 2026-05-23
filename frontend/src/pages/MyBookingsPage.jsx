@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom"
 import api from "../api/axios"
 import MainLayout from "../layouts/MainLayout"
 import BookingModal from "../components/BookingModal"
+import { getSubmissionTimestamp } from "../utils/submissionTime"
 
 import {
   RefreshCcw,
@@ -192,7 +193,7 @@ const BookingCard = ({
 
           <div className="flex items-center gap-4">
             <span className="text-[13px] font-medium text-gray-500">
-              Submitted {timeAgo(booking.created_at)}
+              Submitted {timeAgo(getSubmissionTimestamp(booking))}
             </span>
 
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition">
