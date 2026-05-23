@@ -100,6 +100,7 @@ function BookingModal({
   prefillEnd = "",
   wizardMode = false,
   isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
+  onLinkedIntent,
 }) {
   const isEdit = !!initialData
   const bookingSession = useBookingSession()
@@ -485,6 +486,11 @@ function BookingModal({
       isExternal: form.isExternal,
       bookingType: form.bookingType,
     })
+
+    if (onLinkedIntent) {
+      onLinkedIntent(target)
+      return
+    }
 
     const finalSequence = target === "mess"
       ? ["space", "mess", "review"]
