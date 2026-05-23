@@ -680,7 +680,7 @@ const MessDraftStep = forwardRef(function MessDraftStep({ mediaInSequence, onAdd
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-green-700">Mess</p>
         <h2 className="mt-1 text-2xl font-bold text-gray-950">Add catering details</h2>
@@ -1012,7 +1012,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep(_, ref) {
   }))
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-green-700">Media</p>
         <h2 className="mt-1 text-2xl font-bold text-gray-950">Add media support</h2>

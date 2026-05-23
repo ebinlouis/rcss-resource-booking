@@ -41,7 +41,7 @@ const getCategoryTextColor = (category) => {
 };
 
 const NotificationBell = ({ className = '', tone = 'user' }) => {
-    const { user } = useAuth();
+    const { user, effectiveRoles } = useAuth();
     const navigate = useNavigate();
     const rootRef = useRef(null);
 
@@ -144,7 +144,7 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         }
 
         setIsOpen(false);
-        const destination = getNotificationDestination(notification);
+        const destination = getNotificationDestination(notification, effectiveRoles);
         if (destination) {
             navigate(destination);
         }

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute"; 
 import LinkedBookingWizard from "./components/LinkedBookingWizard";
 
 // Pages
@@ -9,7 +10,7 @@ import Home from "./pages/Home";
 import Transport from "./pages/Transport";
 import Mess from "./pages/Mess";
 import Media from "./pages/Media";
-import MediaSchedule from "./pages/MediaSchedule"; // Renamed from MediaRunsheet
+import MediaSchedule from "./pages/MediaSchedule"; 
 import MyMediaBookingsPage from "./pages/MyMediaBookingsPage";
 import MyBookingsPage from "./pages/MyBookingsPage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -37,10 +38,16 @@ function App() {
       <BrowserRouter>
         <Routes>
 
-          {/* Public Route */}
-          <Route path="/" element={<Login />} />
+          {/* ========================================== */}
+          {/* PUBLIC ROUTES (Logged-out users only)        */}
+          {/* ========================================== */}
+          <Route element={<PublicRoute />}>
+            <Route path="/" element={<Login />} />
+          </Route>
 
-          {/* General Protected Routes */}
+          {/* ========================================== */}
+          {/* GENERAL PROTECTED ROUTES (Logged-in users)   */}
+          {/* ========================================== */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Home />} />
             <Route path="/transport" element={<Transport />} />

@@ -469,9 +469,9 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                             </div>
                         )}
 
-                        {booking.status === 'REJECTED' && booking.remarks_by_admin && (
+                        {['REJECTED', 'CANCELLED'].includes(booking.status) && booking.remarks_by_admin && (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
-                                <FieldLabel>Rejection Reason</FieldLabel>
+                                <FieldLabel>Rejection / Cancellation Reason</FieldLabel>
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">{booking.remarks_by_admin}</p>
                             </div>
                         )}
@@ -491,6 +491,10 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                             <button onClick={(e) => { e.stopPropagation(); onRejectClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all disabled:opacity-40">
                                 <X className="h-4 w-4" /> Revoke & Cancel Booking
                             </button>
+                        ) : booking.status === 'CANCELLED' ? (
+                            <span className="rounded-xl bg-gray-100 px-5 py-2 text-[13px] font-bold uppercase tracking-wider text-gray-500">
+                                Cancelled
+                            </span>
                         ) : null}
                     </div>
                 </div>
@@ -504,16 +508,18 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
 const TABS = [
     { id: 'pending',  label: 'Pending Requests', key: 'pending'  },
     { id: 'active',   label: 'Active Bookings',  key: 'active'   },
+    { id: 'history',  label: 'History',          key: 'history'  },
     { id: 'resolved', label: 'Resolved by Me',   key: 'resolved' },
 ]
 
 async function loadAdminMediaData() {
-    const [pending, resolved, active] = await Promise.all([
+    const [pending, resolved, active, history] = await Promise.all([
         mediaApi.getPendingBookings(),
         mediaApi.getResolvedByMe(),
         mediaApi.getActiveBookings(),
+        mediaApi.getHistoryBookings(),
     ])
-    return { pending, resolved, active }
+    return { pending, resolved, active, history }
 }
 
 function AdminMediaPage() {
@@ -525,9 +531,9 @@ function AdminMediaPage() {
     const highlightedReference = searchParams.get('booking') || ''
 
     const [activeTab,       setActiveTab]      = useState(() => (
-        ['pending', 'active', 'resolved'].includes(requestedTab) ? requestedTab : 'pending'
+        ['pending', 'active', 'history', 'resolved'].includes(requestedTab) ? requestedTab : 'pending'
     ))
-    const [data,            setData]           = useState({ pending: [], resolved: [], active: [] })
+    const [data,            setData]           = useState({ pending: [], resolved: [], active: [], history: [] })
     const [loading,         setLoading]        = useState(true)
     const [error,           setError]          = useState('')
     const [actionLoading,   setActionLoading]  = useState(null)
@@ -561,7 +567,7 @@ function AdminMediaPage() {
     }, [canManageMedia, fetchData])
 
     useEffect(() => {
-        if (!['pending', 'active', 'resolved'].includes(requestedTab)) return undefined
+        if (!['pending', 'active', 'history', 'resolved'].includes(requestedTab)) return undefined
         const timer = window.setTimeout(() => setActiveTab(requestedTab), 0)
         return () => window.clearTimeout(timer)
     }, [requestedTab])
@@ -613,6 +619,9 @@ function AdminMediaPage() {
         const externalDelta = (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0)
         if (externalDelta) return externalDelta
         if (activeTab === 'pending') return compareSubmissionTimeDesc(a, b)
+        if (activeTab === 'history' || activeTab === 'resolved') {
+            return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+        }
         return 0
     })
     const list = sortByExternal(data[activeTab] ?? [])
@@ -636,9 +645,11 @@ function AdminMediaPage() {
         if (!highlightedReference || loading || activeTab !== 'pending') return undefined
         if ((data.pending ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))) return undefined
 
-        const nextTab = (data.active ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
-            ? 'active'
-            : (data.resolved ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
+        const nextTab = (data.history ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
+            ? 'history'
+            : (data.active ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
+                ? 'active'
+                : (data.resolved ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
                 ? 'resolved'
                 : null
 
@@ -646,7 +657,7 @@ function AdminMediaPage() {
 
         const timer = window.setTimeout(() => setActiveTab(nextTab), 0)
         return () => window.clearTimeout(timer)
-    }, [activeTab, data.active, data.pending, data.resolved, highlightedReference, loading])
+    }, [activeTab, data.active, data.history, data.pending, data.resolved, highlightedReference, loading])
 
     if (authLoading) {
         return (

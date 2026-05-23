@@ -565,7 +565,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                             </div>
                         )}
 
-                        {booking.status === 'REJECTED' && booking.remarks_by_admin && (
+                        {['REJECTED', 'CANCELLED'].includes(booking.status) && booking.remarks_by_admin && (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
                                 <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection / Cancellation Reason</p>
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">
@@ -604,7 +604,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                 >
                                     <IconX /> Revoke & Cancel Booking
                                 </button>
-                            ) : booking.status === 'REJECTED' ? (
+                            ) : ['REJECTED', 'CANCELLED'].includes(booking.status) ? (
                                 <span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
                                     Rejected / Cancelled
                                 </span>
@@ -696,7 +696,7 @@ const AdminDashboard = () => {
     ));
 
     // ── Raw fetched data ──────────────────────────────────────────────────────
-    const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [] });
+    const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [], cancelled: [] });
 
     // ── UI state ──────────────────────────────────────────────────────────────
     const [isLoading,     setIsLoading]     = useState(true);
@@ -708,7 +708,7 @@ const AdminDashboard = () => {
     const [successTarget, setSuccessTarget] = useState(null);
 
     // ── Filters (only apply to history / resolved tabs) ───────────────────────
-    const [statusFilter, setStatusFilter] = useState('all');   // all | approved | rejected
+    const [statusFilter, setStatusFilter] = useState('all');   // all | approved | rejected | cancelled
     const [timingFilter, setTimingFilter] = useState('all');   // all | today | upcoming | past
 
     // Reset filters when switching tabs
@@ -726,9 +726,9 @@ const AdminDashboard = () => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
-        return [...raw.approved, ...raw.rejected]
+        return [...raw.approved, ...raw.rejected, ...raw.cancelled]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }, [raw.approved, raw.rejected]);
+    }, [raw.approved, raw.rejected, raw.cancelled]);
 
     const upcoming = useMemo(() => {
         return raw.approved
@@ -749,6 +749,8 @@ const AdminDashboard = () => {
             result = result.filter(b => b.status === 'APPROVED');
         } else if (statusFilter === 'rejected') {
             result = result.filter(b => b.status === 'REJECTED');
+        } else if (statusFilter === 'cancelled') {
+            result = result.filter(b => b.status === 'CANCELLED');
         }
 
         if (timingFilter === 'today') {
@@ -793,10 +795,10 @@ const AdminDashboard = () => {
         if (!highlightedReference || isLoading || activeTab !== 'pending') return undefined;
         if (raw.pending.some((booking) => bookingMatchesReference(booking, highlightedReference))) return undefined;
 
-        const nextTab = upcoming.some((booking) => bookingMatchesReference(booking, highlightedReference))
-            ? 'upcoming'
-            : history.some((booking) => bookingMatchesReference(booking, highlightedReference))
-                ? 'history'
+        const nextTab = history.some((booking) => bookingMatchesReference(booking, highlightedReference))
+            ? 'history'
+            : upcoming.some((booking) => bookingMatchesReference(booking, highlightedReference))
+                ? 'upcoming'
                 : null;
 
         if (!nextTab) return undefined;
@@ -810,16 +812,18 @@ const AdminDashboard = () => {
         if (showLoading) setIsLoading(true);
         setError(null);
         try {
-            const [pendingData, approvedData, rejectedData] = await Promise.all([
+            const [pendingData, approvedData, rejectedData, cancelledData] = await Promise.all([
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'PENDING'  }).catch(() => ({ queue: [] })),
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'APPROVED' }).catch(() => ({ queue: [] })),
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'REJECTED' }).catch(() => ({ queue: [] })),
+                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'CANCELLED' }).catch(() => ({ queue: [] })),
             ]);
 
             setRaw({
                 pending:  groupBookings(pendingData.queue),
                 approved: groupBookings(approvedData.queue),
                 rejected: groupBookings(rejectedData.queue),
+                cancelled: groupBookings(cancelledData.queue),
             });
         } catch (err) {
             console.error('Fetch error:', err);
@@ -939,6 +943,7 @@ const AdminDashboard = () => {
         { value: 'all',      label: 'All',      count: baseList.length },
         { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
         { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
+        { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
     ];
 
     const timingOptions = [

@@ -290,25 +290,30 @@ function TeamFluidView({ teamData }) {
         </p>
 
         <div className="grid gap-3 md:grid-cols-2">
-          {booked_slots.map((slot, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition"
-            >
-              <p className="text-sm font-semibold text-gray-900">
-                {slot.event_name}
-              </p>
+          {booked_slots.map((slot, i) => {
+            const displayStart = slot.is_multiday ? slot.actual_start : slot.start_time
+            const displayEnd = slot.is_multiday ? slot.actual_end : slot.end_time
 
-              <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700">
-                <Clock className="h-4 w-4" />
-                {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition"
+              >
+                <p className="text-sm font-semibold text-gray-900">
+                  {slot.event_name}
+                </p>
+
+                <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700">
+                  <Clock className="h-4 w-4" />
+                  {formatTime(displayStart)} – {formatTime(displayEnd)}
+                </div>
+
+                <p className="mt-3 text-xs text-gray-400">
+                  Includes setup and teardown time
+                </p>
               </div>
-
-              <p className="mt-3 text-xs text-gray-400">
-                Includes setup and teardown time
-              </p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

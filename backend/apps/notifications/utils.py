@@ -275,6 +275,50 @@ def _mess_first_meal_time(booking):
     return min(times, key=lambda item: (item[0], item[1]))[1]
 
 
+def _format_short_date(date_value):
+    if not date_value:
+        return ''
+    return f"{date_value.day} {date_value.strftime('%b')}"
+
+
+def _format_short_date_range(start_date, end_date):
+    if not start_date:
+        return ''
+    end_date = end_date or start_date
+    if start_date == end_date:
+        return _format_short_date(start_date)
+    return f"{_format_short_date(start_date)} - {_format_short_date(end_date)}"
+
+
+def _format_time_value(time_value):
+    if not time_value:
+        return ''
+    return time_value.strftime('%I:%M %p').lstrip('0')
+
+
+def _format_mess_date_range(booking):
+    start_date = getattr(booking, 'start_date', None)
+    end_date = getattr(booking, 'end_date', None) or start_date
+    return _format_short_date_range(start_date, end_date)
+
+
+def _format_media_date_range(booking):
+    setup_start = getattr(booking, 'setup_start_datetime', None)
+    teardown_end = getattr(booking, 'teardown_end_datetime', None)
+    event_start = getattr(booking, 'event_start_datetime', None)
+
+    if setup_start and teardown_end:
+        setup_date = timezone.localtime(setup_start).date()
+        teardown_date = timezone.localtime(teardown_end).date()
+        if setup_date != teardown_date:
+            return _format_short_date_range(setup_date, teardown_date)
+
+    display_dt = event_start or setup_start or teardown_end
+    if display_dt:
+        return _format_short_date(timezone.localtime(display_dt).date())
+    return ''
+
+
 def _format_booking_time(booking, domain=''):
     """
     Extracts and nicely formats the date and time from any type of booking.
@@ -356,6 +400,46 @@ def notify_booking_status_change(booking, new_status, domain, resolved_by, remar
         return None
 
     status_display = status_value.lower()
+
+    if domain == 'mess':
+        date_range = _format_mess_date_range(booking)
+        date_context = f" for {date_range}" if date_range else ""
+        title = f"Catering Request {status_value.title()}"
+        message = f"Your catering request{date_context} was {status_display} by {resolver}."
+        if remarks:
+            message = f"{message} Remarks: {remarks}"
+
+        return notify(
+            booking.user,
+            category,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=False,
+        )
+
+    if domain == 'media':
+        event_name = getattr(booking, 'event_name', None) or 'the event'
+        date_range = _format_media_date_range(booking)
+        date_context = f" on {date_range}" if date_range else ""
+        title = f"Media Request {status_value.title()}"
+        message = f"Your media request for {event_name}{date_context} was {status_display} by {resolver}."
+        if remarks:
+            message = f"{message} Remarks: {remarks}"
+
+        return notify(
+            booking.user,
+            category,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=False,
+        )
+
     title          = f"{resource} booking {status_display}"
 
     # Generate the schedule string
@@ -450,6 +534,27 @@ def notify_new_request(booking, domain, role_name):
 
     title   = f"New {domain} request"
     message = f"{requester} requested {resource}{time_context}. It requires your approval."
+
+    if domain == 'mess':
+        date_range = _format_mess_date_range(booking)
+        first_meal = _mess_first_meal_time(booking)
+        title = "New Catering Request"
+        if date_range and first_meal:
+            message = f"{requester} requested catering for {date_range}, first meal at {_format_time_value(first_meal)}."
+        elif date_range:
+            message = f"{requester} requested catering for {date_range}."
+        else:
+            message = f"{requester} submitted a new catering request."
+
+    elif domain == 'media':
+        event_name = getattr(booking, 'event_name', None) or 'the event'
+        date_range = _format_media_date_range(booking)
+        request_label = "Media team request" if getattr(booking, 'is_team_request', False) else "Equipment request"
+        title = "New Media Request"
+        if date_range:
+            message = f"{requester} — {request_label} for {event_name} on {date_range}."
+        else:
+            message = f"{requester} — {request_label} for {event_name}."
 
     notify_approvers(
         role_name,
