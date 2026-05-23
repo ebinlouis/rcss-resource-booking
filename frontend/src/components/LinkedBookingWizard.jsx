@@ -28,6 +28,7 @@ import useWizardSubmit from "../hooks/useWizardSubmit"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 import BookingModal from "./BookingModal"
 import WizardReviewScreen from "./WizardReviewScreen"
+import { useAuth } from "../hooks/useAuth"
 
 const variants = {
   enter: (direction) => ({
@@ -1307,6 +1308,7 @@ const buildSpaceError = (draft) => {
 function LinkedBookingWizard() {
   const session = useBookingSession()
   const navigate = useNavigate()
+  const { user, isLoading } = useAuth()
   const stepRef = useRef(null)
   const [activeStep, setActiveStep] = useState(null)
   const [direction, setDirection] = useState(1)
@@ -1314,6 +1316,12 @@ function LinkedBookingWizard() {
   const [showCancel, setShowCancel] = useState(false)
   const [spaceError, setSpaceError] = useState("")
   const { submit, submitting, errors, retry, statuses } = useWizardSubmit()
+
+  useEffect(() => {
+    if (!isLoading && !user && session.wizardActive) {
+      bookingSessionActions.clearSession()
+    }
+  }, [isLoading, user, session.wizardActive])
 
   const sequence = useMemo(
     () => (session.wizardSequence?.length ? session.wizardSequence : ["space", "review"]),
@@ -1451,7 +1459,7 @@ function LinkedBookingWizard() {
 
   return (
     <AnimatePresence>
-      {session.wizardActive && (
+      {session.wizardActive && user && (
         <MotionDiv
           key={session.wizardSuccess ? "wizard-success" : "linked-booking-wizard"}
           initial={{ opacity: 0 }}
