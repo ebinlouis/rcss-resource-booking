@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom"
+import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
@@ -127,6 +128,13 @@ function Mess() {
 
   const [selectedViewBooking,     setSelectedViewBooking]     = useState(null)
   const [showForm,                setShowForm]                = useState(false)
+  const { user } = useAuth()
+  const location  = useLocation()
+
+  const handleNewBooking = () => {
+    if (!user) { navigate("/login", { state: { from: location.pathname } }); return }
+    setEditMode(false); setSelectedEditBooking(null); setShowForm(true)
+  }
   const [editMode,                setEditMode]                = useState(false)
   const [selectedEditBooking,     setSelectedEditBooking]     = useState(null)
   const [showDeleteModal,         setShowDeleteModal]         = useState(false)
@@ -139,6 +147,7 @@ function Mess() {
   // ── Data fetching ───────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (!user) { setIsLoading(false); return }
     let isMounted = true
     const fetchBookings = async () => {
       if (isFirstLoad.current) { setIsLoading(true); isFirstLoad.current = false }
@@ -152,7 +161,7 @@ function Mess() {
     }
     fetchBookings()
     return () => { isMounted = false }
-  }, [refreshTrigger])
+  }, [refreshTrigger, user])
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
@@ -283,7 +292,7 @@ function Mess() {
             <p className="text-base text-slate-600 mt-0.5">Manage your food and catering requests</p>
           </div>
           <button
-            onClick={() => { setEditMode(false); setSelectedEditBooking(null); setShowForm(true) }}
+            onClick={handleNewBooking}
             className="inline-flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl shadow-sm text-base font-semibold transition-colors"
           >
             <span className="text-lg leading-none">+</span>
@@ -342,7 +351,7 @@ function Mess() {
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
 
           {/* Table header */}
-          <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
+          <div className="hidden md:grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
             <span className="col-span-2 caps-label">Start Date</span>
             <span className="col-span-2 caps-label">End Date</span>
             <span className="col-span-3 caps-label">Event</span>
@@ -352,80 +361,157 @@ function Mess() {
             <span className="col-span-1 caps-label text-right">·</span>
           </div>
 
-          {isLoading && (
+          {!user && (
+            <div className="py-16 text-center space-y-3">
+              <p className="text-base text-slate-500">Sign in to view your mess bookings</p>
+              <button
+                onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+
+          {user && isLoading && (
             <div className="py-16 flex justify-center items-center gap-2 text-base text-slate-500">
               <span className="w-4 h-4 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
               Loading bookings…
             </div>
           )}
 
-          {!isLoading && filteredBookings.length === 0 && (
+          {user && !isLoading && filteredBookings.length === 0 && (
             <div className="py-16 text-center text-base text-slate-500">
               No bookings match the selected filters.
             </div>
           )}
 
-          {!isLoading && filteredBookings.map((b, idx) => (
-            <div
-              key={b.id}
-              data-booking-reference={b.reference_code || ""}
-              onClick={() => { setSelectedViewBooking(b); setDetailDay(0) }}
-              className={[
-                "grid grid-cols-12 items-center px-5 py-4 cursor-pointer transition-colors",
-                idx !== filteredBookings.length - 1 ? "border-b border-slate-100" : "",
-                "hover:bg-slate-50/70",
-                normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
-                  ? "bg-emerald-50 ring-2 ring-emerald-300 ring-inset"
-                  : "",
-              ].join(" ")}
-            >
-              {/* Start date */}
-              <div className="col-span-2">
-                <p className="text-base font-semibold text-slate-800 tabular-nums">{formatShortDate(b.start_date)}</p>
-              </div>
+{user && !isLoading && filteredBookings.map((b, idx) => (
+  <React.Fragment key={b.id}>
 
-              {/* End date */}
-              <div className="col-span-2">
-                <p className="text-base font-semibold text-slate-800 tabular-nums">{formatShortDate(b.end_date)}</p>
-              </div>
+    {/* MOBILE CARD */}
+    <div
+      data-booking-reference={b.reference_code || ""}
+      onClick={() => {
+        setSelectedViewBooking(b)
+        setDetailDay(0)
+      }}
+      className={`md:hidden mx-3 my-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 cursor-pointer transition ${
+        normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+          ? "ring-2 ring-emerald-300"
+          : ""
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-base font-bold text-slate-900 truncate">
+            {b.purpose_of_programme}
+          </h3>
+          <p className="text-sm text-slate-500 mt-1">
+            {formatDateRange(b.start_date, b.end_date)}
+          </p>
+        </div>
 
-              {/* Event name + start time */}
-              <div className="col-span-3 pr-4">
-                <p className="text-base font-semibold text-slate-900 truncate">{b.purpose_of_programme}</p>
-                <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
-                  <Clock3 size={12} className="text-emerald-500 shrink-0" />
-                  Starts {getEarliestTime(b)}
-                </p>
-                {getSubmissionTimestamp(b) && (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Submitted {timeAgo(getSubmissionTimestamp(b))}
-                  </p>
-                )}
-              </div>
+        <span className={`text-[11px] px-2.5 py-1 rounded-full font-semibold ${getStatusStyle(b.status)}`}>
+          {b.status}
+        </span>
+      </div>
 
-              {/* Meal pills — stay text-sm */}
-              <div className="col-span-2 pr-4">
-                <MealTimePills booking={b} />
-              </div>
+      <div className="mt-4 space-y-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">
+            Meals
+          </p>
+          <MealTimePills booking={b} />
+        </div>
 
-              {/* Duration badge — stays text-xs */}
-              <div className="col-span-1">
-                <DurationBadge booking={b} />
-              </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">
+              Starts
+            </p>
+            <p className="text-sm font-semibold text-emerald-600">
+              {getEarliestTime(b)}
+            </p>
+          </div>
 
-              {/* Status */}
-              <div className="col-span-1">
-                <span className={`caps-label px-2 py-1 rounded-md ${getStatusStyle(b.status)}`}>
-                  {b.status}
-                </span>
-              </div>
+          <DurationBadge booking={b} />
+        </div>
 
-              {/* Chevron */}
-              <div className="col-span-1 flex justify-end">
-                <ChevronRight size={16} className="text-slate-400" />
-              </div>
-            </div>
-          ))}
+        {getSubmissionTimestamp(b) && (
+          <p className="text-xs text-slate-400">
+            Submitted {timeAgo(getSubmissionTimestamp(b))}
+          </p>
+        )}
+      </div>
+    </div>
+
+    {/* DESKTOP TABLE */}
+    <div
+      data-booking-reference={b.reference_code || ""}
+      onClick={() => {
+        setSelectedViewBooking(b)
+        setDetailDay(0)
+      }}
+      className={[
+        "hidden md:grid grid-cols-12 items-center px-5 py-4 cursor-pointer transition-colors",
+        idx !== filteredBookings.length - 1 ? "border-b border-slate-100" : "",
+        "hover:bg-slate-50/70",
+        normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+          ? "bg-emerald-50 ring-2 ring-emerald-300 ring-inset"
+          : "",
+      ].join(" ")}
+    >
+      <div className="col-span-2">
+        <p className="text-base font-semibold text-slate-800 tabular-nums">
+          {formatShortDate(b.start_date)}
+        </p>
+      </div>
+
+      <div className="col-span-2">
+        <p className="text-base font-semibold text-slate-800 tabular-nums">
+          {formatShortDate(b.end_date)}
+        </p>
+      </div>
+
+      <div className="col-span-3 pr-4">
+        <p className="text-base font-semibold text-slate-900 truncate">
+          {b.purpose_of_programme}
+        </p>
+
+        <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
+          <Clock3 size={12} className="text-emerald-500 shrink-0" />
+          Starts {getEarliestTime(b)}
+        </p>
+
+        {getSubmissionTimestamp(b) && (
+          <p className="text-xs text-slate-400 mt-0.5">
+            Submitted {timeAgo(getSubmissionTimestamp(b))}
+          </p>
+        )}
+      </div>
+
+      <div className="col-span-2 pr-4">
+        <MealTimePills booking={b} />
+      </div>
+
+      <div className="col-span-1">
+        <DurationBadge booking={b} />
+      </div>
+
+      <div className="col-span-1">
+        <span className={`caps-label px-2 py-1 rounded-md ${getStatusStyle(b.status)}`}>
+          {b.status}
+        </span>
+      </div>
+
+      <div className="col-span-1 flex justify-end">
+        <ChevronRight size={16} className="text-slate-400" />
+      </div>
+    </div>
+
+  </React.Fragment>
+))}
         </div>
       </div>
 

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
+import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
 import TransportBookingModal from "../components/TransportBookingModal"
 import { getMyBookings, cancelBooking } from "../api/fleetApi"
@@ -101,7 +103,12 @@ function Transport() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
 
+  const { user } = useAuth()
+  const navigate  = useNavigate()
+  const location  = useLocation()
+
   const fetchBookings = useCallback(async () => {
+    if (!user) { setLoading(false); return }
     setLoading(true)
     setLoadError("")
 
@@ -120,7 +127,7 @@ function Transport() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     fetchBookings()
@@ -132,6 +139,7 @@ function Transport() {
   })
 
   const openCreateModal = () => {
+    if (!user) { navigate("/login", { state: { from: location.pathname } }); return }
     setEditData(null)
     setShowModal(true)
   }
@@ -290,8 +298,21 @@ function Transport() {
             </div>
           )}
 
+          {/* Guest prompt */}
+          {!loading && !user && (
+            <div className="px-6 py-8 text-center space-y-3">
+              <p className="text-sm text-gray-500 font-medium">Sign in to view and manage transport bookings</p>
+              <button
+                onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-xs font-semibold hover:bg-green-800 transition"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+
           {/* Error */}
-          {!loading && loadError && (
+          {!loading && user && loadError && (
             <div className="px-6 py-8 text-center">
               <p className="text-sm font-medium text-red-600">
                 {loadError}
@@ -300,7 +321,7 @@ function Transport() {
           )}
 
           {/* Empty */}
-          {!loading && !loadError && bookingsForDate.length === 0 && (
+          {!loading && user && !loadError && bookingsForDate.length === 0 && (
             <EmptyState
               date={selectedDate}
               onBook={openCreateModal}
@@ -309,6 +330,7 @@ function Transport() {
 
           {/* Booking cards */}
           {!loading &&
+            user &&
             !loadError &&
             bookingsForDate.map((booking) => {
               const cardStyle =

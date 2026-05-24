@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react"
+import { useAuth } from "../hooks/useAuth"
+import { useNavigate, useLocation } from "react-router-dom"
 import { createPortal } from "react-dom"
 import api from "../api/axios"
 
@@ -70,7 +72,7 @@ function CancelSuccessModal({ booking, onClose }) {
 
 /* ================= DETAIL SIDE PANEL ================= */
 
-function BookingDetailPanel({ booking, onClose }) {
+function BookingDetailPanel({ booking, onClose, user, onLoginRedirect }) {
   if (!booking) return null
 
   const raw = booking.raw
@@ -189,9 +191,18 @@ function BookingDetailPanel({ booking, onClose }) {
               </div>
               <div className="flex justify-between items-center py-2 border-b border-gray-50">
                 <span className="text-gray-400 text-xs">Phone</span>
-                <span className="font-medium text-gray-800">
-                  {raw.booked_by_phone || "Unavailable"}
-                </span>
+                {user ? (
+                  <span className="font-medium text-gray-800">
+                    {raw.booked_by_phone || "Unavailable"}
+                  </span>
+                ) : (
+                  <button
+                    onClick={onLoginRedirect}
+                    className="text-xs text-green-700 font-semibold hover:underline"
+                  >
+                    Sign in to view
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -199,7 +210,7 @@ function BookingDetailPanel({ booking, onClose }) {
         </div>
 
         {/* Footer CTA */}
-        {raw.booked_by_phone && (
+        {raw.booked_by_phone && user && (
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
             <a
               href={`tel:${raw.booked_by_phone}`}
@@ -247,6 +258,9 @@ function TodayBookings({ onEditBooking }) {
   const [requestBooking, setRequestBooking] = useState(null)
   const [requestSent, setRequestSent]       = useState(null)
   const [detailBooking, setDetailBooking]   = useState(null)
+  const { user } = useAuth()
+  const navigate  = useNavigate()
+  const location  = useLocation()
 
   const isToday    = selectedDate === todayKey()
   const isPastDate = selectedDate < todayKey()
@@ -473,6 +487,8 @@ function TodayBookings({ onEditBooking }) {
         <BookingDetailPanel
           booking={detailBooking}
           onClose={() => setDetailBooking(null)}
+          user={user}
+          onLoginRedirect={() => { setDetailBooking(null); navigate("/login", { state: { from: location.pathname } }) }}
         />
       )}
 

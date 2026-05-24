@@ -17,7 +17,10 @@ export const AuthProvider = ({ children }) => {
                 if (isMounted) {
                     setUser(response.data);
                 }
-            } catch {
+            } catch (err) {
+                    if (err?.response?.status !== 401) {
+        console.error("Auth check failed:", err);
+    }
                 if (isMounted) {
                     setUser(null);
                 }

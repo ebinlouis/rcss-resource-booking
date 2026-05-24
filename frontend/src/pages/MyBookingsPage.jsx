@@ -174,10 +174,10 @@ const BookingCard = ({
       {/* CLICKABLE HEADER */}
       <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="cursor-pointer px-8 py-7 select-none"
+        className="cursor-pointer px-4 py-4 md:px-8 md:py-7 select-none"
       >
         {/* TOP ROW */}
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-7">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
           <div className="flex items-center flex-wrap gap-3">
             {getStatusBadge(booking.status)}
 
@@ -192,7 +192,7 @@ const BookingCard = ({
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
             <span className="text-[13px] font-medium text-gray-500">
               Submitted {timeAgo(getSubmissionTimestamp(booking))}
             </span>
@@ -214,7 +214,7 @@ const BookingCard = ({
         </div>
 
         {/* MAIN GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-8">
           {/* SPACE */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-3">
@@ -222,12 +222,12 @@ const BookingCard = ({
             </p>
 
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
-                <Building2 className="w-6 h-6 text-green-700" />
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5 md:w-6 md:h-6 text-green-700" />
               </div>
 
               <div>
-                <h3 className="text-[18px] font-bold text-gray-900 leading-tight">
+                <h3 className="text-[15px] md:text-[18px] font-bold text-gray-900 leading-tight">
                   {booking.space_details?.name || "Unknown Venue"}
                 </h3>
 
@@ -245,11 +245,11 @@ const BookingCard = ({
               Schedule
             </p>
 
-            <div className="relative pl-7">
+            <div className="relative pl-5 md:pl-7">
               <div className="absolute left-[10px] top-4 bottom-4 w-px bg-gray-200"></div>
 
               {/* START */}
-              <div className="relative flex items-start gap-4 mb-6">
+              <div className="relative flex items-start gap-4 mb-4 md:mb-6">
                 <span className="absolute left-[-17px] top-2.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white shadow"></span>
 
                 <div>
@@ -287,7 +287,7 @@ const BookingCard = ({
             </p>
 
             <div
-              className={`rounded-2xl border p-4 ${statusMeta.bg} ${statusMeta.border}`}
+              className={`rounded-xl md:rounded-2xl border p-2.5 md:p-3 md:p-4 ${statusMeta.bg} ${statusMeta.border}`}
             >
               <div className="flex items-start gap-3">
                 <div className="shrink-0 mt-0.5">{statusMeta.icon}</div>
@@ -309,7 +309,7 @@ const BookingCard = ({
 
       {/* EXPANDED CONTENT */}
 {isExpanded && (
-  <div className="px-8 pb-5 animate-in fade-in slide-in-from-top-2 duration-200">
+  <div className="px-4 pb-4 md:px-8 md:pb-5 animate-in fade-in slide-in-from-top-2 duration-200">
     <div className="border-t border-gray-200 pt-4">
 
       {/* PURPOSE */}
@@ -318,7 +318,7 @@ const BookingCard = ({
           Purpose of Booking
         </p>
 
-        <div className="rounded-xl border border-green-100 bg-green-50 p-3">
+        <div className="rounded-xl border border-green-100 bg-green-50 p-2.5 md:p-3">
           <p className="text-[14px] text-green-900 font-medium leading-relaxed">
             {booking.purpose_of_booking ||
               booking.purpose ||
@@ -364,7 +364,7 @@ const BookingCard = ({
             Additional Notes
           </p>
 
-          <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-3">
+          <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-2.5 md:p-3">
             <p className="text-[13px] text-gray-700 leading-relaxed">
               {booking.user_notes}
             </p>
@@ -379,7 +379,7 @@ const BookingCard = ({
             Administrator Feedback
           </p>
 
-          <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+          <div className="rounded-xl border border-red-100 bg-red-50 p-2.5 md:p-3">
             <p className="text-[13px] italic text-red-900 leading-relaxed">
               "{booking.remarks_by_admin}"
             </p>
@@ -729,23 +729,23 @@ const confirmCancelBooking = async () => {
       
     <MainLayout>
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
-        <div className="max-w-[1450px] mx-auto w-full px-6 py-8">
+        <div className="max-w-[1450px] mx-auto w-full px-3 md:px-6 py-4 md:py-8">
 
           {/* PAGE HEADER */}
-          <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6 mb-8">
+          <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 md:gap-6 mb-5 md:mb-8">
             {/* LEFT */}
             <div>
-              <h1 className="text-[34px] font-bold tracking-tight text-gray-900 leading-none">
+              <h1 className="text-[24px] md:text-[34px] font-bold tracking-tight text-gray-900 leading-none">
                 My Bookings
               </h1>
 
-              <p className="text-[15px] text-gray-600 mt-3 max-w-2xl">
+              <p className="text-[13px] md:text-[15px] text-gray-600 mt-2 md:mt-3 max-w-2xl">
                 Review, track, and manage all your workspace reservations from one place.
               </p>
             </div>
 
             {/* RIGHT CONTROLS */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3 w-full xl:w-auto">
               {/* SEARCH */}
               <div className="relative w-full sm:w-[340px]">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -761,7 +761,7 @@ const confirmCancelBooking = async () => {
                     w-full
                     pl-11
                     pr-11
-                    py-3
+                    py-2.5 md:py-3
                     rounded-2xl
                     border
                     border-gray-200
@@ -796,9 +796,9 @@ const confirmCancelBooking = async () => {
                   items-center
                   justify-center
                   gap-2
-                  px-6
-                  py-3
-                  rounded-2xl
+    px-4 md:px-6
+py-2.5 md:py-3
+rounded-xl md:rounded-2xl
                   border
                   border-gray-200
                   bg-white
@@ -825,9 +825,9 @@ const confirmCancelBooking = async () => {
           {/* BOOKINGS PANEL */}
           <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             {/* PANEL HEADER */}
-            <div className="flex items-center justify-between px-8 py-6 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 md:px-8 py-4 md:py-6 border-b border-gray-200">
               <div>
-                <h2 className="text-[22px] font-bold text-gray-900">
+                <h2 className="text-[18px] md:text-[22px] font-bold text-gray-900">
                   Booking History
                 </h2>
               </div>
@@ -881,7 +881,7 @@ const confirmCancelBooking = async () => {
                         {/* CONTENT STATES */}
             {isLoading ? (
               <div className="py-28 text-center px-8">
-                <div className="w-16 h-16 rounded-3xl bg-green-50 border border-green -100 flex items-center justify-center mx-auto mb-5">
+                <div className="w-16 h-16 rounded-2xl md:rounded-3xl bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-5">
                   <RefreshCcw className="w-6 h-6 text-green-600 animate-spin" />
                 </div>
 
@@ -895,7 +895,7 @@ const confirmCancelBooking = async () => {
               </div>
             ) : error ? (
               <div className="py-28 text-center px-8">
-                <div className="w-16 h-16 rounded-3xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-5">
+                <div className="w-16 h-16 rounded-2xl md:rounded-3xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-5">
                   <AlertCircle className="w-6 h-6 text-red-600" />
                 </div>
 
@@ -930,7 +930,7 @@ const confirmCancelBooking = async () => {
               </div>
             ) : filteredBookings.length === 0 ? (
               <div className="py-28 text-center px-8">
-                <div className="w-16 h-16 rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-5">
+                <div className="w-16 h-16 rounded-2xl md:rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-5">
                   <CalendarClock className="w-6 h-6 text-slate-600" />
                 </div>
 
@@ -972,7 +972,7 @@ const confirmCancelBooking = async () => {
                 )}
               </div>
             ) : (
-              <div className="bg-slate-50 p-6">
+              <div className="bg-slate-50 p-2 md:p-6">
                 <div className="flex flex-col gap-5">
                   {filteredBookings.map((booking) => (
                     <BookingCard

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/Login.css';
 
@@ -11,6 +11,8 @@ export default function Login() {
     const [isLoading, setIsLoading] = useState(false);
 
     const navigate = useNavigate();
+    const location = useLocation();
+    const from = location.state?.from;
     const { login } = useAuth();
 
     const handleLogin = async (e) => {
@@ -29,19 +31,24 @@ export default function Login() {
             const userData = result.user;
             const capabilities = userData?.capabilities || {};
 
-            if (
-                userData?.is_superuser ||
-                capabilities.can_manage_system ||
-                capabilities.can_access_admin_portal
-            ) {
-                navigate('/admin');
-            } else if (capabilities.can_manage_mess) {
-                navigate('/admin/mess');
-            } else {
-                navigate('/dashboard');
-            }
+            if (from) {
+    navigate(from, { replace: true });
+    return;
+}
 
-        } catch {
+if (
+    userData?.is_superuser ||
+    capabilities.can_manage_system ||
+    capabilities.can_access_admin_portal
+) {
+    navigate('/admin', { replace: true });
+} else if (capabilities.can_manage_mess) {
+    navigate('/admin/mess', { replace: true });
+} else {
+    navigate('/dashboard', { replace: true });
+}
+
+        } catch (err) {
             setError('An unexpected error occurred. Please try again.');
         } finally {
             setIsLoading(false);

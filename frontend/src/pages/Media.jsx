@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom"
+import { useAuth } from "../hooks/useAuth"
 import {
   CalendarDays,
   ChevronLeft,
@@ -322,6 +323,13 @@ function TeamFluidView({ teamData }) {
 
 function Media() {
   const navigate = useNavigate()
+  const location  = useLocation()
+  const { user }  = useAuth()
+
+  const handleBookMedia = () => {
+    if (!user) { navigate("/login", { state: { from: location.pathname } }); return }
+    setOpenCreate(true)
+  }
   const [searchParams] = useSearchParams()
   const isLinkedFlow = searchParams.get("linked") === "1"
   const [selectedDate, setSelectedDate] = useState(todayKey())
@@ -453,12 +461,13 @@ function Media() {
       }
     }
 
-    loadBookings()
+    if (user) loadBookings()
+    else setMyLoading(false)
 
     return () => {
       active = false
     }
-  }, [])
+  }, [user])
 
   return (
     <MainLayout>
@@ -478,7 +487,7 @@ function Media() {
           </div>
 
           <button
-            onClick={() => setOpenCreate(true)}
+            onClick={handleBookMedia}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
           >
             <Plus className="h-4 w-4" />
@@ -676,7 +685,18 @@ function Media() {
               <CalendarDays className="h-5 w-5 text-gray-400" />
             </div>
 
-            {myLoading ? (
+            {!user ? (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center space-y-3">
+                <Clapperboard className="mx-auto h-6 w-6 text-gray-300" />
+                <p className="text-sm font-semibold text-gray-700">Sign in to see your bookings</p>
+                <button
+                  onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-xs font-semibold hover:bg-green-800 transition"
+                >
+                  Sign In
+                </button>
+              </div>
+            ) : myLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((item) => (
                   <div
@@ -688,46 +708,37 @@ function Media() {
             ) : recentBookings.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center">
                 <Clapperboard className="mx-auto mb-3 h-6 w-6 text-gray-300" />
-
-                <p className="text-sm font-semibold text-gray-700">
-                  No media bookings yet
-                </p>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Your booking requests will appear here.
-                </p>
+                <p className="text-sm font-semibold text-gray-700">No media bookings yet</p>
+                <p className="mt-1 text-sm text-gray-500">Your booking requests will appear here.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentBookings.map((booking) => (
-                  <RecentRequestCard
-                    key={booking.id}
-                    booking={booking}
-                  />
+                  <RecentRequestCard key={booking.id} booking={booking} />
                 ))}
               </div>
             )}
 
-            <button
-              onClick={() => navigate("/media/my-bookings")}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
-            >
-              View All Bookings
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            {user && (
+              <>
+                <button
+                  onClick={() => navigate("/media/my-bookings")}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+                >
+                  View All Bookings
+                  <ChevronRight className="h-4 w-4" />
+                </button>
 
-            <button
-              onClick={refreshMyBookings}
-              disabled={myLoading}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
-            >
-              <RefreshCcw
-                className={`h-4 w-4 ${
-                  myLoading ? "animate-spin" : ""
-                }`}
-              />
-              Refresh Bookings
-            </button>
+                <button
+                  onClick={refreshMyBookings}
+                  disabled={myLoading}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
+                >
+                  <RefreshCcw className={`h-4 w-4 ${myLoading ? "animate-spin" : ""}`} />
+                  Refresh Bookings
+                </button>
+              </>
+            )}
           </aside>
         </div>
       </div>

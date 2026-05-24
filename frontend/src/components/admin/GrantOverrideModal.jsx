@@ -141,13 +141,13 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
             console.error("Payload Error:", err.response?.data);
             
             // Clean up Django's raw constraint errors
-            let errorMsg = 'Failed to grant override. Ensure all required fields are filled.';
+            let errorMsg = 'Failed to grant access. Ensure all required fields are filled.';
             const data = err.response?.data;
             
             if (data) {
                 const rawError = data.non_field_errors?.[0] || data.user?.[0] || data.block?.[0] || data.error;
                 if (rawError && rawError.includes('unique set')) {
-                    errorMsg = "This user already holds an active override for this exact role.";
+                    errorMsg = "This user already holds an active access for this exact role.";
                 } else if (rawError) {
                     errorMsg = rawError;
                 }

@@ -1,6 +1,8 @@
 import Tooltip from "./Tooltip"
 import { useState } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import BookingModal from "./BookingModal"
+import { useAuth } from "../hooks/useAuth"
 
 const MEDIA_BASE = "http://localhost:8000"
 
@@ -9,6 +11,17 @@ const mediaUrl = (path) =>
 
 function RoomCard({ room, onOpenAvailability }) {
   const [openBooking, setOpenBooking] = useState(false)
+  const { user } = useAuth()
+  const navigate  = useNavigate()
+  const currentPath = useLocation().pathname
+
+  const handleBookClick = () => {
+    if (!user) {
+      navigate("/login", { state: { from: currentPath } })
+      return
+    }
+    setOpenBooking(true)
+  }
 
   const formattedType = room.space_type
     ? room.space_type
@@ -189,7 +202,7 @@ function RoomCard({ room, onOpenAvailability }) {
             {/* Book Button */}
             <Tooltip text="Fill in the details and send a booking request for this venue." position="top">
               <button
-                onClick={() => setOpenBooking(true)}
+                onClick={handleBookClick}
                 className="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 shadow-lg shadow-emerald-100 transition-all"
               >
                 + Book Venue

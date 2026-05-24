@@ -174,71 +174,85 @@ function Navbar({ onTabChange }) {
           {/* Right Section */}
           <div className="flex items-center gap-2 md:gap-3">
 
-            {/* Notification */}
-            <NotificationBell className="hidden md:block" />
+            {user ? (
+              <>
+                {/* Notification */}
+                <NotificationBell className="hidden md:block" />
 
-            {/* Profile */}
-            <div className="relative" ref={profileRef}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen) }}
-                className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition"
-              >
-                <HeaderAvatar user={user} />
-                <div className="hidden md:block text-left leading-tight">
-                  <p className="text-sm font-semibold text-gray-800">
-                    {user?.name || "Loading..."}
-                  </p>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">
-                    {roleLabel}
-                  </p>
-                </div>
-                <svg
-                  className={`hidden md:block w-3 h-3 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {profileOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
-                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{user?.name || "User"}</p>
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email || "No email provided"}</p>
-                  </div>
-                  <div className="py-1">
-                    {[
-                      { label: "My Bookings", path: "/my-bookings", d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-                      { label: "Notifications", path: "/notifications", d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
-                      { label: "Profile",     path: "/profile",     d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-                    ].map(({ label, path, d }) => (
-                      <Link
-                        key={label}
-                        to={path}
-                        onClick={() => setProfileOpen(false)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition text-left"
-                      >
-                        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d={d} />
-                        </svg>
-                        {label}
-                      </Link>
-                    ))}
-                  </div>
-                  <div className="border-t border-gray-100 py-1">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition text-left font-medium"
+                {/* Profile dropdown */}
+                <div className="relative" ref={profileRef}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen) }}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition"
+                  >
+                    <HeaderAvatar user={user} />
+                    <div className="hidden md:block text-left leading-tight">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {user?.name || "Loading..."}
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">
+                        {roleLabel}
+                      </p>
+                    </div>
+                    <svg
+                      className={`hidden md:block w-3 h-3 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
                     >
-                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Sign out
-                    </button>
-                  </div>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {profileOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{user?.name || "User"}</p>
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email || "No email provided"}</p>
+                      </div>
+                      <div className="py-1">
+                        {[
+                          { label: "My Bookings",   path: "/my-bookings",   d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+                          { label: "Notifications", path: "/notifications", d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
+                          { label: "Profile",       path: "/profile",       d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+                        ].map(({ label, path, d }) => (
+                          <Link
+                            key={label}
+                            to={path}
+                            onClick={() => setProfileOpen(false)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition text-left"
+                          >
+                            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+                            </svg>
+                            {label}
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="border-t border-gray-100 py-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition text-left font-medium"
+                        >
+                          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Sign In
+              </Link>
+            )}
 
             {/* Mobile menu button */}
             <button
@@ -307,17 +321,32 @@ function Navbar({ onTabChange }) {
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3">
-          <HeaderAvatar user={user} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{user?.name || "Loading..."}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email || "No email"}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="ml-auto text-xs text-red-600 font-bold bg-white px-3 py-1.5 rounded border border-red-100 shadow-sm"
-          >
-            Sign out
-          </button>
+          {user ? (
+            <>
+              <HeaderAvatar user={user} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">{user?.name || "Loading..."}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email || "No email"}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="ml-auto text-xs text-red-600 font-bold bg-white px-3 py-1.5 rounded border border-red-100 shadow-sm"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              onClick={() => setMenuOpen(false)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-700 text-white text-sm font-semibold"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Sign In
+            </Link>
+          )}
         </div>
       </div>
     </header>

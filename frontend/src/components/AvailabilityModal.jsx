@@ -3,6 +3,9 @@ import { useState, useEffect, useRef, useCallback, memo } from "react"
 import BookingModal from "./BookingModal"
 import { bookingSessionActions } from "../store/bookingSessionStore"
 import api from "../api/axios"
+import { useNavigate } from "react-router-dom"
+import { useContext } from "react"
+import { AuthContext } from "../context/AuthContext"
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -229,6 +232,9 @@ const AvailabilityModal = memo(function AvailabilityModal({
     }
   }, [spaceId])
 
+
+  const navigate = useNavigate()
+  const { user } = useContext(AuthContext)
   const refreshRef = useRef(refresh)
   const tooltipRef = useRef(null)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
@@ -242,18 +248,20 @@ const AvailabilityModal = memo(function AvailabilityModal({
   }, [openBookingOnMount])
 
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
-        setActiveTooltip(null)
-      }
-    }
+  function handleClickOutside(e) {
+    if (!activeTooltip) return
 
-    document.addEventListener("mousedown", handleClickOutside)
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
+    if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+      setActiveTooltip(null)
     }
-  }, [])
+  }
+
+  document.addEventListener("click", handleClickOutside)
+
+  return () => {
+    document.removeEventListener("click", handleClickOutside)
+  }
+}, [activeTooltip])
 
   const handleCloseBooking = useCallback(() => {
     setOpenBooking(false)
@@ -277,10 +285,10 @@ const AvailabilityModal = memo(function AvailabilityModal({
   }
   
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2">
-      <div className="bg-white w-full max-w-5xl rounded-2xl flex shadow-xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 px-2 md:px-4">
+      <div className="bg-white w-full max-w-5xl rounded-2xl flex flex-col md:flex-row shadow-xl overflow-hidden max-h-[92vh]">
         {/* ── LEFT: CALENDAR ── */}
-        <div className="w-[68%] p-6 border-r border-gray-100">
+        <div className="w-full md:w-[68%] p-4 md:p-6 border-b md:border-b-0 md:border-r border-gray-100 overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Venue Availability</p>
@@ -302,7 +310,7 @@ const AvailabilityModal = memo(function AvailabilityModal({
             </div>
           </div>
 
-          <div className="flex gap-4 mb-3">
+          <div className="flex gap-2 md:gap-4 mb-3 text-[10px] md:text-xs flex-wrap">
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Free
             </span>
@@ -359,7 +367,7 @@ const AvailabilityModal = memo(function AvailabilityModal({
                     if (status === "past") return
                     setSelectedDate(dateKey)
                   }}
-                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-start pt-1.5 pb-1 gap-1 min-h-[64px] transition-all ${cellBg}`}
+                  className={`relative rounded-lg cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[42px] md:min-h-[64px] transition-all ${cellBg}`}
                 >
                   <span className={`text-[12px] font-medium leading-none ${isToday && !isSel ? "underline underline-offset-2" : ""}`}>
                     {day}
@@ -372,7 +380,7 @@ const AvailabilityModal = memo(function AvailabilityModal({
         </div>
 
         {/* ── RIGHT: TIMELINE ── */}
-        <div className="w-full md:w-[32%] flex flex-col px-4 py-5 max-h-[85vh]">
+        <div className="w-full md:w-[32%] flex flex-col px-4 py-4 md:py-5 max-h-[45vh] md:max-h-[85vh] overflow-y-auto">
           <div className="flex justify-between items-start mb-1">
             <div>
               <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">{spaceName}</p>
@@ -415,35 +423,91 @@ const AvailabilityModal = memo(function AvailabilityModal({
                     ? block.isContinue ? "Multi-day booking (continues)" : "Multi-day booking"
                     : block.title
 
-                  return (
-                    <div
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const tooltipWidth = 320
-                        const spacing = 16
-                        let left = rect.left - tooltipWidth - spacing
-                        let top = rect.top
-                        if (left < 20) left = rect.right + spacing
-                        if (top + 320 > window.innerHeight) top = window.innerHeight - 340
+return (
+  <div
+    key={idx}
+onClick={(e) => {
+  e.stopPropagation()
 
-                        setActiveTooltip({ booking: block, isPending, left, top })
-                      }}
-                      className={`border rounded-xl p-3 flex flex-col gap-3 cursor-pointer transition-all ${
-                        isPending ? "border-yellow-200 bg-yellow-50" : "border-blue-200 bg-blue-50"
-                      }`}
-                    >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${isPending ? "bg-yellow-500" : "bg-blue-500"}`} />
-                      <div className="relative flex flex-col gap-1.5">
-                        {timeLabel && <p className={`text-sm font-semibold ${isPending ? "text-yellow-900" : "text-blue-900"}`}>{timeLabel}</p>}
-                        <p className={`text-xs leading-relaxed ${isPending ? "text-yellow-600" : "text-blue-600"}`}>{titleLabel}</p>
-                        <span className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
-                          {isPending ? "Pending Approval" : "Booked"}
-                        </span>
-                      </div>
-                    </div>
-                  )
+  const rect = e.currentTarget.getBoundingClientRect()
+  const isMobile = window.innerWidth < 768
+
+  let left
+  let top
+
+  if (isMobile) {
+    left = 16
+    top = 80
+  } else {
+    const tooltipWidth = 300
+    const spacing = 16
+
+    left = rect.left - tooltipWidth - spacing
+    top = rect.top
+
+    if (left < 20) {
+      left = rect.right + spacing
+    }
+
+    if (left + tooltipWidth > window.innerWidth) {
+      left = window.innerWidth - tooltipWidth - 20
+    }
+
+    if (top + 340 > window.innerHeight) {
+      top = window.innerHeight - 360
+    }
+  }
+
+  setActiveTooltip({
+    booking: block,
+    isPending,
+    left,
+    top,
+  })
+}}
+    className={`border rounded-xl p-2.5 md:p-3 flex flex-col gap-2 cursor-pointer transition-all ${
+      isPending
+        ? "border-yellow-200 bg-yellow-50"
+        : "border-blue-200 bg-blue-50"
+    }`}
+  >
+    <span
+      className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
+        isPending ? "bg-yellow-500" : "bg-blue-500"
+      }`}
+    />
+
+    <div className="relative flex flex-col gap-1.5">
+      {timeLabel && (
+        <p
+          className={`text-sm font-semibold ${
+            isPending ? "text-yellow-900" : "text-blue-900"
+          }`}
+        >
+          {timeLabel}
+        </p>
+      )}
+
+      <p
+        className={`text-xs leading-relaxed ${
+          isPending ? "text-yellow-600" : "text-blue-600"
+        }`}
+      >
+        {titleLabel}
+      </p>
+
+      <span
+        className={`w-fit text-[11px] px-2 py-0.5 rounded-full font-medium ${
+          isPending
+            ? "bg-yellow-100 text-yellow-800"
+            : "bg-blue-100 text-blue-700"
+        }`}
+      >
+        {isPending ? "Pending Approval" : "Booked"}
+      </span>
+    </div>
+  </div>
+)
                 }
 
                 // Free slot — clicking prefills the booking form with the slot's time
@@ -452,6 +516,12 @@ const AvailabilityModal = memo(function AvailabilityModal({
                     key={idx}
                     className="border border-green-200 bg-green-50 rounded-xl p-3 flex items-start gap-3 cursor-pointer hover:bg-green-100 transition overflow-hidden"
                     onClick={() => {
+                      if (!user) {
+  navigate("/login", {
+  state: { from: window.location.pathname }
+})
+  return
+}
                       setSelectedSlot(block)
                       setIsStandalone(false) // Prefill allowed: date + slot times flow through
                       setOpenBooking(true)
@@ -474,12 +544,19 @@ const AvailabilityModal = memo(function AvailabilityModal({
   position="top"
 >
   <button
-    onClick={() => {
-      setSelectedSlot(null)
-      bookingSessionActions.clearSession()
-      setIsStandalone(true)
-      setOpenBooking(true)
-    }}
+onClick={() => {
+  if (!user) {
+    navigate("/login", {
+  state: { from: window.location.pathname }
+})
+    return
+  }
+
+  setSelectedSlot(null)
+  bookingSessionActions.clearSession()
+  setIsStandalone(true)
+  setOpenBooking(true)
+}}
     className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
   >
     Open booking form
@@ -487,55 +564,110 @@ const AvailabilityModal = memo(function AvailabilityModal({
 </Tooltip></div>
       </div>
       
-      {activeTooltip && (
-        <div
-          ref={tooltipRef}
-          className="fixed z-[9999] w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4"
-          style={{ left: activeTooltip.left, top: activeTooltip.top }}
-        >
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {activeTooltip.booking.bookedByPhoto ? (
-                  <img src={activeTooltip.booking.bookedByPhoto} alt={activeTooltip.booking.bookedByName || "User"} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-green-700 font-bold text-sm">{(activeTooltip.booking.bookedByName || "?")[0].toUpperCase()}</span>
-                )}
-              </div>
-              <div>
-                <p className="text-base font-semibold text-gray-900">{activeTooltip.booking.bookedByName || "Unavailable"}</p>
-                <p className="text-sm text-gray-500 mt-1">{activeTooltip.booking.bookedByDesignation || "Faculty"}</p>
-              </div>
+{activeTooltip && (
+  <div
+    ref={tooltipRef}
+    onClick={(e) => e.stopPropagation()}
+    className="fixed z-[9999] w-[300px] max-w-[90vw] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden"
+    style={{ center: activeTooltip.center}}
+  >
+    {/* Header */}
+    <div className="px-4 py-3 bg-green-50 border-b border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-green-100 overflow-hidden shrink-0">
+          {activeTooltip.booking.bookedByPhoto ? (
+            <img
+              src={activeTooltip.booking.bookedByPhoto}
+              alt={activeTooltip.booking.bookedByName || "User"}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-green-700 font-bold">
+              {(activeTooltip.booking.bookedByName || "?")[0].toUpperCase()}
             </div>
-
-            <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Department</span>
-                <span className="font-medium text-gray-800">{activeTooltip.booking.bookedByDepartment || "Unavailable"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Phone</span>
-                <span className="font-medium text-gray-800">{activeTooltip.booking.bookedByPhone || "Unavailable"}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Purpose</span>
-                <p className="font-medium text-gray-800 mt-1">{activeTooltip.booking.purpose || "Unavailable"}</p>
-              </div>
-              <div>
-                <span className={`inline-block text-xs px-2 py-1 rounded-full font-medium ${activeTooltip.isPending ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-700"}`}>
-                  {activeTooltip.isPending ? "Pending Approval" : "Booked"}
-                </span>
-              </div>
-            </div>
-
-            {activeTooltip.booking.bookedByPhone && (
-              <a href={`tel:${activeTooltip.booking.bookedByPhone}`} className="w-full inline-flex justify-center rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 transition">
-                Call Contact
-              </a>
-            )}
-          </div>
+          )}
         </div>
-      )}
+
+        <div className="min-w-0">
+          <p className="text-xl font-bold text-gray-900 truncate">
+            {activeTooltip.booking.bookedByName || "Unavailable"}
+          </p>
+          <p className="text-sm text-gray-500 truncate">
+            {activeTooltip.booking.bookedByDesignation || "Faculty"}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Body */}
+    <div className="px-4 py-4 space-y-4">
+<div className="grid grid-cols-1 gap-y-3 text-sm">
+<div>
+  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
+    Department
+  </p>
+  <p className="text-sm text-gray-800 font-medium leading-snug">
+    {activeTooltip.booking.bookedByDepartment || "Unavailable"}
+  </p>
+</div>
+
+<div>
+  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
+    Phone
+  </p>
+</div>{user ? (
+          <span className="text-gray-800 font-medium">
+            {activeTooltip.booking.bookedByPhone || "Unavailable"}
+          </span>
+        ) : (
+          <button
+            onClick={() =>
+              navigate("/login", {
+                state: { from: window.location.pathname },
+              })
+            }
+            className="text-green-700 font-semibold hover:underline text-left"
+          >
+            Sign in to view
+          </button>
+        )}
+      </div>
+
+      {/* Purpose */}
+      <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+          Purpose
+        </p>
+        <p className="text-sm text-gray-800 break-words">
+          {activeTooltip.booking.purpose || "Unavailable"}
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between gap-3">
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-semibold ${
+            activeTooltip.isPending
+              ? "bg-yellow-100 text-yellow-800"
+              : "bg-blue-100 text-blue-700"
+          }`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+          {activeTooltip.isPending ? "Pending" : "Booked"}
+        </span>
+
+        {activeTooltip.booking.bookedByPhone && user && (
+          <a
+            href={`tel:${activeTooltip.booking.bookedByPhone}`}
+            className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+          >
+            Call
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
       {openBooking && (
         <BookingModal
