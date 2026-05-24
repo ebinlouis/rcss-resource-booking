@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
 import messService from "../api/messService"
+import AutoSuggestInput from "./AutoSuggestInput"
 import { MEALS, getDateRange } from "../api/messConfig"
 import { Copy, ChevronLeft, ChevronRight } from "lucide-react"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
@@ -223,12 +224,13 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
                     value={dayMenu[meal.timeKey]}
                     onChange={(e) => set(meal.timeKey, e.target.value)}
                   />
-                  <input
-                    type="text"
+                  <AutoSuggestInput
+                    value={dayMenu[meal.menuKey] || ""}
                     placeholder={meal.menuPlaceholder}
-                    className={`${inputCls} sm:w-2/3 bg-white`}
-                    value={dayMenu[meal.menuKey]}
-                    onChange={(e) => set(meal.menuKey, e.target.value)}
+                    suggestionsFetcher={() =>
+                      messService.getSuggestions(meal.menuKey)
+                    }
+                    onChange={(value) => set(meal.menuKey, value)}
                   />
                 </div>
               )}
@@ -663,23 +665,19 @@ function MessBookingForm({ onClose, onSave, editData }) {
             </Field>
 
             <Field label="Purpose of Programme" required>
-              <div>
-                <textarea
-                  required
-                  maxLength={200}
-                  className={`${inputCls} min-h-[72px] resize-none`}
-                  placeholder="E.g., Tech Symposium Guest Catering"
-                  value={eventForm.purpose_of_programme}
-                  onChange={(e) =>
-                    setEventForm((prev) => ({ ...prev, purpose_of_programme: e.target.value }))
-                  }
-                />
-                <div className="flex justify-end mt-1">
-                  <p className={`text-[11px] font-medium ${eventForm.purpose_of_programme.length >= 180 ? "text-red-500" : "text-gray-400"}`}>
-                    {eventForm.purpose_of_programme.length} / 200
-                  </p>
-                </div>
-              </div>
+              <AutoSuggestInput
+                value={eventForm.purpose_of_programme}
+                placeholder="E.g., Tech Symposium Guest Catering"
+                suggestionsFetcher={() =>
+                  messService.getSuggestions("purpose_of_programme")
+                }
+                onChange={(value) =>
+                  setEventForm((prev) => ({
+                    ...prev,
+                    purpose_of_programme: value,
+                  }))
+                }
+              />
             </Field>
 
             {/* ── Per-day panels ── */}
