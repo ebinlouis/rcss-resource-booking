@@ -519,6 +519,52 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
     )
 
 
+def notify_incharge_booking_edited(booking, domain, role_name):
+    """
+    Notify the relevant admins that an already approved booking was edited and needs re-review.
+    """
+    resource  = _resource_name(booking, domain)
+    reference = _booking_reference(booking)
+    link      = _approver_link(domain, reference)
+    requester = getattr(booking.user, 'first_name', None) or 'A user'
+
+    title   = f"{domain.capitalize()} Booking Updated"
+    message = f"{requester} updated their approved booking for {resource}. Please review the changes."
+
+    notify_approvers(
+        role_name,
+        Notification.Category.BOOKING_PENDING,
+        title,
+        message,
+        link=link,
+        domain=domain,
+        reference_code=reference,
+        is_actionable=True,
+    )
+
+def notify_incharge_cancelled(booking, domain, role_name):
+    """
+    Notify the relevant admins that an active or pending booking was cancelled by the user.
+    """
+    resource  = _resource_name(booking, domain)
+    reference = _booking_reference(booking)
+    link      = _approver_link(domain, reference)
+    requester = getattr(booking.user, 'first_name', None) or 'A user'
+
+    title   = f"{domain.capitalize()} Booking Cancelled"
+    message = f"{requester} cancelled their booking for {resource}."
+
+    notify_approvers(
+        role_name,
+        Notification.Category.BOOKING_CANCELLED,
+        title,
+        message,
+        link=link,
+        domain=domain,
+        reference_code=reference,
+        is_actionable=False,
+    )
+
 def notify_new_request(booking, domain, role_name):
     """
     Notify the relevant admins that a new booking requires approval.
@@ -565,6 +611,125 @@ def notify_new_request(booking, domain, role_name):
         domain=domain,
         reference_code=reference,
         is_actionable=True,
+    )
+
+
+# ==========================================
+# FACULTY APPROVAL NOTIFICATIONS
+# ==========================================
+
+def notify_faculty_new_request(booking):
+    student_name = getattr(booking.user, 'first_name', 'A student')
+    space_name = _resource_name(booking, 'spaces')
+    date_str = _format_short_date(getattr(booking, 'start_datetime', None))
+    notify(
+        booking.faculty_sponsor,
+        Notification.Category.FACULTY_APPROVAL_REQ,
+        "Faculty Approval Required",
+        f"{student_name} is requesting your approval to book {space_name} on {date_str}.",
+        link=f"/faculty-approvals?booking={_booking_reference(booking)}",
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=True,
+    )
+
+def notify_faculty_approved(booking):
+    space_name = _resource_name(booking, 'spaces')
+    faculty_name = getattr(booking.faculty_sponsor, 'first_name', 'Your faculty sponsor')
+    notify(
+        booking.user,
+        Notification.Category.FACULTY_APPROVED,
+        "Faculty Approved",
+        f"Your booking for {space_name} was approved by {faculty_name} and sent to the next approver.",
+        link=_requester_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+def notify_faculty_rejected(booking):
+    space_name = _resource_name(booking, 'spaces')
+    faculty_name = getattr(booking.faculty_sponsor, 'first_name', 'Your faculty sponsor')
+    remarks = getattr(booking, 'remarks_by_admin', '')
+    msg = f"{faculty_name} did not approve your booking for {space_name}."
+    if remarks:
+        msg += f" Remarks: {remarks}"
+    notify(
+        booking.user,
+        Notification.Category.FACULTY_REJECTED,
+        "Faculty Rejected",
+        msg,
+        link=_requester_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+def notify_faculty_details_changed(booking):
+    space_name = _resource_name(booking, 'spaces')
+    notify(
+        booking.faculty_sponsor,
+        Notification.Category.FACULTY_APPROVAL_REQ,
+        "Booking Details Changed",
+        f"The booking you approved for {space_name} has been changed. Please review and approve again.",
+        link=f"/faculty-approvals?booking={_booking_reference(booking)}",
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=True,
+    )
+
+def notify_incharge_escalated(booking, role_name):
+    student_name = getattr(booking.user, 'first_name', 'A student')
+    space_name = _resource_name(booking, 'spaces')
+    notify_approvers(
+        role_name,
+        Notification.Category.FACULTY_ESCALATED,
+        "Booking Escalated",
+        f"{student_name}'s booking for {space_name} was not approved by their faculty member within 24 hours and needs your attention.",
+        link=_approver_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=True,
+    )
+
+def notify_incharge_booking_returned(booking, role_name):
+    space_name = _resource_name(booking, 'spaces')
+    notify_approvers(
+        role_name,
+        Notification.Category.BOOKING_PENDING,
+        "Booking Returned",
+        f"A booking for {space_name} was edited and returned to faculty review.",
+        link=_approver_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+def notify_faculty_resent(booking):
+    space_name = _resource_name(booking, 'spaces')
+    notify(
+        booking.faculty_sponsor,
+        Notification.Category.FACULTY_RESENT,
+        "Faculty Resent",
+        f"The department incharge has resent a booking for {space_name} for your approval.",
+        link=f"/faculty-approvals?booking={_booking_reference(booking)}",
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=True,
+    )
+
+def notify_student_cancelled_faculty(booking):
+    student_name = getattr(booking.user, 'first_name', 'A student')
+    space_name = _resource_name(booking, 'spaces')
+    notify(
+        booking.faculty_sponsor,
+        Notification.Category.BOOKING_CANCELLED,
+        "Booking Cancelled",
+        f"{student_name} cancelled their booking for {space_name}. No action needed.",
+        link=None,
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
     )
 
 

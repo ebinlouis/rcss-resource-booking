@@ -39,6 +39,12 @@ const spaceAdminService = {
     deleteApprover: async (id) => {
         const response = await api.delete(`${PREFIX}approvers/${id}/`);
         return response.data;
+    },
+
+    // --- FACULTY ---
+    fetchFacultyList: async () => {
+        const response = await api.get(`${PREFIX}faculty-list/`);
+        return response.data;
     }
 };
 

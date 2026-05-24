@@ -459,6 +459,11 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                 <IconLightning className="w-3 h-3" /> Priority Event
                             </span>
                         )}
+                        {booking.is_student_booking && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                                Student Booking
+                            </span>
+                        )}
                         {isRecurring ? (
                             <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#4f46e5] bg-[#eff6ff] px-2 py-0.5 rounded-md border border-[#c7d2fe]">
                                 <IconCalendar className="w-3 h-3" /> Recurring ({booking.child_bookings.length} Days)
@@ -580,6 +585,21 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                             Day {i + 1} · {formatDateTime(child.start_datetime)} – {formatDateTime(child.end_datetime)}
                                         </span>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {booking.is_student_booking && (
+                            <div className="mb-6">
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty Sponsor</p>
+                                <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px]">
+                                        {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'F'}
+                                    </div>
+                                    <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
+                                        Faculty Sponsor: {booking.faculty_sponsor_name || 'Unknown'} 
+                                        {['PENDING', 'FACULTY_ESCALATED', 'APPROVED'].includes(booking.status) ? ' (Approved)' : ''}
+                                    </p>
                                 </div>
                             </div>
                         )}

@@ -49,7 +49,10 @@ const getAdminDestination = (domain, reference, category, effectiveRoles = []) =
   const hasDomainRole = config.roles.some((role) => roles.includes(role))
   if (!hasDomainRole) return null
 
-  const tab = category === 'BOOKING_PENDING' ? 'pending' : 'history'
+  let tab = 'history'
+  if (category === 'BOOKING_PENDING') tab = 'pending'
+  else if (category === 'FACULTY_ESCALATED') tab = 'escalated'
+
   return `${config.base}?tab=${tab}&booking=${encodeURIComponent(reference)}`
 }
 
@@ -69,9 +72,10 @@ export const getNotificationDestination = (notification, effectiveRoles = []) =>
   )
   if (adminDestination) return adminDestination
 
-  if (notification.category === 'BOOKING_PENDING' && reference) {
+  if ((notification.category === 'BOOKING_PENDING' || notification.category === 'FACULTY_ESCALATED') && reference) {
     const adminBase = ADMIN_PENDING_LINKS[domain] ?? ADMIN_PENDING_LINKS.spaces
-    return `${adminBase}?tab=pending&booking=${encodeURIComponent(reference)}`
+    const tab = notification.category === 'FACULTY_ESCALATED' ? 'escalated' : 'pending'
+    return `${adminBase}?tab=${tab}&booking=${encodeURIComponent(reference)}`
   }
 
   if (reference && domain !== 'spaces') {
