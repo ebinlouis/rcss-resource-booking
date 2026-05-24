@@ -12,8 +12,13 @@ from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
     refresh_queryset_lifecycle,
 )
-from apps.notifications.utils import notify_booking_status_change, notify_group_status_change, notify_new_request
-from apps.users.models import Role
+from apps.notifications.utils import (
+    notify_booking_status_change, notify_group_status_change, notify_new_request,
+    notify_faculty_new_request, notify_faculty_approved, notify_faculty_rejected,
+    notify_faculty_details_changed, notify_incharge_escalated, notify_incharge_booking_returned,
+    notify_faculty_resent, notify_student_cancelled_faculty, notify_incharge_booking_edited
+)
+from apps.users.models import Role, CustomUser
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
@@ -195,6 +200,16 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         view_param = self.request.query_params.get('view', 'mine')
         refresh_queryset_lifecycle(SpaceBooking.objects.all())
 
+        # Faculty actions need to see bookings they sponsor, not own
+        if self.action in ('faculty_approve', 'faculty_reject'):
+            return SpaceBooking.objects.filter(
+                faculty_sponsor=user
+            ).select_related('space', 'user')
+
+        # Incharge actions need to see escalated bookings
+        if self.action in ('incharge_resend',):
+            return SpaceBooking.objects.all().select_related('space', 'user')
+
         if view_param == 'general':
             return (
                 SpaceBooking.objects
@@ -212,6 +227,14 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         booking = serializer.save(user=self.request.user)
+
+        is_student = 'STUDENT' in self.request.user.get_effective_roles()
+        if is_student and booking.faculty_sponsor_id:
+            booking.status = 'AWAITING_FACULTY'
+            booking.faculty_response_deadline = timezone.now() + timedelta(hours=24)
+            booking.save(update_fields=['status', 'faculty_response_deadline'])
+            notify_faculty_new_request(booking)
+            return
 
         # Determine which admin handles this space
         category = booking.space.approval_category
@@ -245,6 +268,29 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             return
 
         extra_fields = {"updated_by": user}
+        
+        # FACULTY APPROVAL EDIT CASCADE
+        if instance.faculty_sponsor_id and instance.status not in ['CANCELLED', 'REJECTED', 'EXPIRED', 'COMPLETED']:
+            extra_fields.update({
+                "status": "AWAITING_FACULTY",
+                "resolved_by": None,
+                "resolved_at": None,
+                "remarks_by_admin": None,
+                "faculty_response_deadline": timezone.now() + timedelta(hours=24),
+            })
+            booking = serializer.save(**extra_fields)
+            sync_linked_siblings_after_space_edit(
+                booking,
+                previous_anchor=previous_anchor,
+                actor=user,
+            )
+            notify_faculty_details_changed(booking)
+            if was_approved or instance.status == 'FACULTY_ESCALATED':
+                # We intentionally don't send a notification to the incharge right now
+                # so we don't spam them. They will get notified once the faculty approves.
+                pass
+            return
+
         if was_approved:
             extra_fields.update({
                 "status":           'PENDING',
@@ -269,7 +315,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 role = Role.Name.LIBRARIAN
             else:
                 role = Role.Name.RECEPTIONIST
-            notify_new_request(
+            notify_incharge_booking_edited(
                 booking=booking,
                 domain='spaces',
                 role_name=role
@@ -279,11 +325,27 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
             raise ValidationError({"detail": "Cannot cancel a booking whose start time has already passed."})
+        status_before = instance.status
+
+        if instance.faculty_sponsor_id:
+            notify_student_cancelled_faculty(instance)
+            
         instance.status = 'CANCELLED'
         instance.resolved_at = timezone.now()
         instance.remarks_by_admin = 'Cancelled by requester.'
         instance.save(update_fields=['status', 'resolved_at', 'remarks_by_admin', 'updated_at'])
         cancel_linked_siblings_for_space(instance, reason='Linked Space booking was cancelled by requester.')
+
+        if status_before in ['PENDING', 'APPROVED', 'FACULTY_ESCALATED']:
+            category = instance.space.approval_category
+            if category == Space.ApprovalCategory.LAB:
+                role = Role.Name.LAB_INCHARGE
+            elif category == Space.ApprovalCategory.LIBRARY:
+                role = Role.Name.LIBRARIAN
+            else:
+                role = Role.Name.RECEPTIONIST
+            from apps.notifications.utils import notify_incharge_cancelled
+            notify_incharge_cancelled(instance, 'spaces', role)
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
     def review(self, request, pk=None):
@@ -300,9 +362,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
         booking.refresh_from_db()
 
-        if new_status not in ['APPROVED', 'REJECTED']:
+        if new_status not in ['APPROVED', 'REJECTED', 'PENDING']:
             return Response(
-                {"error": "Invalid status. Must be APPROVED or REJECTED."},
+                {"error": "Invalid status. Must be PENDING, APPROVED or REJECTED."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -312,44 +374,65 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if new_status == 'APPROVED' and booking.status != 'PENDING':
+        if new_status == 'APPROVED' and booking.status not in ['PENDING', 'FACULTY_ESCALATED']:
             return Response(
                 {"error": f"Cannot approve a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
+        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED', 'FACULTY_ESCALATED']:
             return Response(
                 {"error": f"Cannot reject a booking that is currently {booking.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_status == 'PENDING' and booking.status != 'FACULTY_ESCALATED':
+            return Response(
+                {"error": "Can only set PENDING from FACULTY_ESCALATED."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Apply the status change to all siblings in the group
         bookings_in_group = list(SpaceBooking.objects.filter(
             group_id=booking.group_id,
-            status__in=['PENDING', 'APPROVED'],
+            status__in=['PENDING', 'APPROVED', 'FACULTY_ESCALATED'],
         ).order_by('start_datetime'))
 
         updated_bookings = []
         for b in bookings_in_group:
-            if new_status == 'APPROVED' and b.status != 'PENDING':
+            if new_status == 'APPROVED' and b.status not in ['PENDING', 'FACULTY_ESCALATED']:
+                continue
+            if new_status == 'PENDING' and b.status != 'FACULTY_ESCALATED':
                 continue
             b.status           = new_status
             b.remarks_by_admin = remarks
-            b.resolved_by      = user
-            b.resolved_at      = timezone.now()
+            b.resolved_by      = user if new_status != 'PENDING' else None
+            b.resolved_at      = timezone.now() if new_status != 'PENDING' else None
+            if new_status == 'PENDING':
+                b.faculty_response_deadline = None
             b.save()
             updated_bookings.append(b)
 
         # Fire a single grouped notification instead of one per booking
         if updated_bookings:
-            notify_group_status_change(
-                bookings=updated_bookings,
-                new_status=new_status,
-                domain='spaces',
-                resolved_by=user,
-                remarks=remarks
-            )
+            if new_status == 'PENDING':
+                for b in updated_bookings:
+                    category = b.space.approval_category
+                    if category == Space.ApprovalCategory.LAB:
+                        role = Role.Name.LAB_INCHARGE
+                    elif category == Space.ApprovalCategory.LIBRARY:
+                        role = Role.Name.LIBRARIAN
+                    else:
+                        role = Role.Name.RECEPTIONIST
+                    notify_new_request(b, 'spaces', role)
+            else:
+                notify_group_status_change(
+                    bookings=updated_bookings,
+                    new_status=new_status,
+                    domain='spaces',
+                    resolved_by=user,
+                    remarks=remarks
+                )
 
         if new_status == 'REJECTED':
             cancel_linked_siblings_for_space(
@@ -422,6 +505,150 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    # ------------------------------------------------------------------
+    # FACULTY APPROVAL ENDPOINTS
+    # ------------------------------------------------------------------
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def faculty_pending(self, request):
+        if 'FACULTY' not in request.user.get_effective_roles():
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            
+        refresh_queryset_lifecycle(SpaceBooking.objects.filter(faculty_sponsor=request.user))
+        
+        pending = SpaceBooking.objects.filter(
+            faculty_sponsor=request.user,
+            status='AWAITING_FACULTY'
+        ).order_by('start_datetime')
+        
+        history = SpaceBooking.objects.filter(
+            faculty_sponsor=request.user,
+        ).exclude(status='AWAITING_FACULTY').order_by('-updated_at')
+        
+        return Response({
+            "pending": self.get_serializer(pending, many=True).data,
+            "history": self.get_serializer(history, many=True).data
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def faculty_approve(self, request, pk=None):
+        booking = self.get_object()
+        if booking.faculty_sponsor_id != request.user.id:
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+        if booking.status != 'AWAITING_FACULTY':
+            return Response({"error": f"Cannot approve, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # check if this is an edited booking (if updated_at is significantly later than created_at)
+        is_edited = False
+        if booking.updated_at and booking.created_at:
+            is_edited = (booking.updated_at - booking.created_at).total_seconds() > 60
+
+        booking.status = 'FACULTY_ESCALATED'
+        booking.faculty_response_deadline = None
+        booking.save(update_fields=['status', 'faculty_response_deadline', 'updated_at'])
+        
+        notify_faculty_approved(booking)
+        
+        category = booking.space.approval_category
+        if category == Space.ApprovalCategory.LAB:
+            role = Role.Name.LAB_INCHARGE
+        elif category == Space.ApprovalCategory.LIBRARY:
+            role = Role.Name.LIBRARIAN
+        else:
+            role = Role.Name.RECEPTIONIST
+            
+        if is_edited:
+            from apps.notifications.utils import notify_incharge_booking_edited
+            notify_incharge_booking_edited(booking, 'spaces', role)
+        else:
+            notify_new_request(booking, 'spaces', role)
+        
+        return Response(self.get_serializer(booking).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def faculty_reject(self, request, pk=None):
+        booking = self.get_object()
+        if booking.faculty_sponsor_id != request.user.id:
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+        if booking.status != 'AWAITING_FACULTY':
+            return Response({"error": f"Cannot reject, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        remarks = request.data.get('rejection_note', '')
+        if not remarks:
+            return Response({"error": "Rejection note required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        booking.status = 'REJECTED'
+        booking.remarks_by_admin = remarks
+        booking.resolved_by = request.user
+        booking.resolved_at = timezone.now()
+        booking.faculty_response_deadline = None
+        booking.save(update_fields=['status', 'remarks_by_admin', 'resolved_by', 'resolved_at', 'faculty_response_deadline', 'updated_at'])
+        
+        notify_faculty_rejected(booking)
+        cancel_linked_siblings_for_space(booking, reason=remarks)
+        return Response(self.get_serializer(booking).data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def incharge_escalated(self, request):
+        if not (request.user.is_staff or request.user.is_superuser or request.user.space_approver_assignments.filter(is_active=True).exists()):
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            
+        self._run_lazy_escalation()
+        
+        qs = SpaceBooking.objects.filter(status='FACULTY_ESCALATED').order_by('start_datetime')
+        if not (request.user.is_staff or request.user.is_superuser):
+            roles = set(request.user.space_approver_assignments.filter(is_active=True).values_list('role__name', flat=True))
+            categories = []
+            if Role.Name.LAB_INCHARGE in roles: categories.append(Space.ApprovalCategory.LAB)
+            if Role.Name.LIBRARIAN in roles: categories.append(Space.ApprovalCategory.LIBRARY)
+            if Role.Name.RECEPTIONIST in roles: categories.append(Space.ApprovalCategory.GENERAL)
+            qs = qs.filter(space__approval_category__in=categories)
+            
+        return Response(self.get_serializer(qs, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def incharge_resend(self, request, pk=None):
+        booking = self.get_object()
+        user = request.user
+        if not (user.is_staff or user.is_superuser or user.space_approver_assignments.filter(is_active=True).exists()):
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            
+        if booking.status != 'FACULTY_ESCALATED':
+            return Response({"error": f"Can only resend escalated bookings. Status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        booking.status = 'AWAITING_FACULTY'
+        booking.faculty_response_deadline = timezone.now() + timedelta(hours=24)
+        booking.save(update_fields=['status', 'faculty_response_deadline', 'updated_at'])
+        
+        notify_faculty_resent(booking)
+        return Response(self.get_serializer(booking).data)
+
+    def _run_lazy_escalation(self):
+        stale = SpaceBooking.objects.filter(
+            status='AWAITING_FACULTY',
+            faculty_response_deadline__lt=timezone.now()
+        )
+        stale_ids = list(stale.values_list('id', flat=True))
+        if not stale_ids:
+            return
+            
+        SpaceBooking.objects.filter(id__in=stale_ids).update(
+            status='FACULTY_ESCALATED',
+            updated_at=timezone.now()
+        )
+        
+        updated_bookings = SpaceBooking.objects.filter(id__in=stale_ids)
+        for booking in updated_bookings:
+            category = booking.space.approval_category
+            if category == Space.ApprovalCategory.LAB:
+                role = Role.Name.LAB_INCHARGE
+            elif category == Space.ApprovalCategory.LIBRARY:
+                role = Role.Name.LIBRARIAN
+            else:
+                role = Role.Name.RECEPTIONIST
+            notify_incharge_escalated(booking, role)
+
 
 
 # ==========================================
@@ -629,3 +856,27 @@ def booking_group_detail(request, event_group_id):
             ).data if media_booking else None,
         },
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def faculty_list(request):
+    department = request.user.department
+    if not department:
+        return Response([])
+
+    faculty_users = CustomUser.objects.filter(
+        department=department,
+        roles__name=Role.Name.FACULTY,
+        is_active=True
+    ).order_by('first_name')
+
+    data = [
+        {
+            "id": f.id,
+            "name": f"{f.first_name} {f.last_name}".strip() or f.email
+        }
+        for f in faculty_users
+    ]
+
+    return Response(data)

@@ -251,7 +251,7 @@ const STATUS_STYLES = {
 
 /* ================= MAIN ================= */
 
-function TodayBookings({ onEditBooking }) {
+function TodayBookings() {
   const [selectedDate, setSelectedDate]     = useState(todayKey())
   const [dbBookings, setDbBookings]         = useState([])
   const [isLoading, setIsLoading]           = useState(true)
@@ -263,7 +263,6 @@ function TodayBookings({ onEditBooking }) {
   const location  = useLocation()
 
   const isToday    = selectedDate === todayKey()
-  const isPastDate = selectedDate < todayKey()
 
   const formattedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",

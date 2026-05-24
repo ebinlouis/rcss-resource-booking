@@ -17,6 +17,11 @@ class Notification(models.Model):
         OVERRIDE_EXPIRING_SOON = 'OVERRIDE_EXPIRING_SOON', 'Override Expiring Soon'
         OVERRIDE_EXPIRED       = 'OVERRIDE_EXPIRED',       'Override Expired'
         SYSTEM                 = 'SYSTEM',                 'System'
+        FACULTY_APPROVAL_REQ   = 'FACULTY_APPROVAL_REQ',   'Faculty Approval Required'
+        FACULTY_APPROVED       = 'FACULTY_APPROVED',       'Faculty Approved'
+        FACULTY_REJECTED       = 'FACULTY_REJECTED',       'Faculty Rejected'
+        FACULTY_ESCALATED      = 'FACULTY_ESCALATED',      'Faculty Escalated'
+        FACULTY_RESENT         = 'FACULTY_RESENT',         'Faculty Resent'
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -28,6 +28,7 @@ import useWizardSubmit from "../hooks/useWizardSubmit"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 import BookingModal from "./BookingModal"
 import WizardReviewScreen from "./WizardReviewScreen"
+import { useAuth } from "../hooks/useAuth"
 
 const variants = {
   enter: (direction) => ({
@@ -788,7 +789,7 @@ const MessDraftStep = forwardRef(function MessDraftStep({ mediaInSequence, onAdd
   )
 })
 
-const MediaDraftStep = forwardRef(function MediaDraftStep(_, ref) {
+const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAddMess }, ref) {
   const session = useBookingSession()
   const linkedSpace = session.spaceFormData || {}
   const draft = session.mediaFormData || {}
@@ -1020,6 +1021,24 @@ const MediaDraftStep = forwardRef(function MediaDraftStep(_, ref) {
           Request team coverage or borrow media equipment for the linked event.
         </p>
       </div>
+
+      {!messInSequence && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-amber-900">Need Mess for the same event?</p>
+            <p className="mt-1 text-xs font-medium text-amber-800">
+              Add a Mess step after Media and review everything together.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onAddMess}
+            className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+          >
+            Add Mess
+          </button>
+        </div>
+      )}
 
       {errors.timeError && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -1307,6 +1326,7 @@ const buildSpaceError = (draft) => {
 function LinkedBookingWizard() {
   const session = useBookingSession()
   const navigate = useNavigate()
+  const { user, isLoading } = useAuth()
   const stepRef = useRef(null)
   const [activeStep, setActiveStep] = useState(null)
   const [direction, setDirection] = useState(1)
@@ -1315,13 +1335,25 @@ function LinkedBookingWizard() {
   const [spaceError, setSpaceError] = useState("")
   const { submit, submitting, errors, retry, statuses } = useWizardSubmit()
 
+  useEffect(() => {
+    if (!isLoading && !user && session.wizardActive) {
+      bookingSessionActions.clearSession()
+    }
+  }, [isLoading, user, session.wizardActive])
+
   const sequence = useMemo(
     () => (session.wizardSequence?.length ? session.wizardSequence : ["space", "review"]),
     [session.wizardSequence],
   )
 
-  const spaceDraft = session.spaceFormData || {}
+  const spaceDraft = useMemo(() => session.spaceFormData || {}, [session.spaceFormData])
   const spaceDraftReady = useMemo(() => !buildSpaceError(spaceDraft), [spaceDraft])
+
+  if (!session.wizardActive && (activeStep !== null || returnToReview !== false || spaceError !== "")) {
+    setActiveStep(null)
+    setReturnToReview(false)
+    setSpaceError("")
+  }
 
   useEffect(() => {
     if (!session.wizardActive) return
@@ -1331,13 +1363,6 @@ function LinkedBookingWizard() {
     }, 0)
     return () => window.clearTimeout(timer)
   }, [sequence, session.wizardActive, session.wizardInitialStep])
-
-  useEffect(() => {
-    if (session.wizardActive) return
-    setActiveStep(null)
-    setReturnToReview(false)
-    setSpaceError("")
-  }, [session.wizardActive])
 
   const goToStep = useCallback((step, nextDirection = 1) => {
     setDirection(nextDirection)
@@ -1451,7 +1476,7 @@ function LinkedBookingWizard() {
 
   return (
     <AnimatePresence>
-      {session.wizardActive && (
+      {session.wizardActive && user && (
         <MotionDiv
           key={session.wizardSuccess ? "wizard-success" : "linked-booking-wizard"}
           initial={{ opacity: 0 }}
@@ -1506,6 +1531,10 @@ function LinkedBookingWizard() {
                         <BookingModal
                           wizardMode={true}
                           onWizardNext={handleNext}
+                          onLinkedIntent={(service) => {
+                            addServiceToFlow(service)
+                            goToStep(service)
+                          }}
                           spaceId={spaceDraft.space}
                           spaceName={spaceDraft.spaceName || spaceDraft.location}
                           spaceCap={spaceDraft.spaceCap || spaceDraft.capacity || null}
@@ -1517,10 +1546,28 @@ function LinkedBookingWizard() {
                       <MessDraftStep
                         ref={stepRef}
                         mediaInSequence={sequence.includes("media")}
-                        onAddMedia={() => addServiceToFlow("media")}
+                        onAddMedia={async () => {
+                          const ok = await stepRef.current?.submit?.()
+                          if (ok) {
+                            addServiceToFlow("media")
+                            goToStep("media")
+                          }
+                        }}
                       />
                     )}
-                    {activeStep === "media" && <MediaDraftStep ref={stepRef} />}
+                    {activeStep === "media" && (
+                      <MediaDraftStep
+                        ref={stepRef}
+                        messInSequence={sequence.includes("mess")}
+                        onAddMess={async () => {
+                          const ok = await stepRef.current?.submit?.()
+                          if (ok) {
+                            addServiceToFlow("mess")
+                            goToStep("mess")
+                          }
+                        }}
+                      />
+                    )}
                     {activeStep === "review" && (
                       <WizardReviewScreen
                         session={session}

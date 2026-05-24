@@ -29,6 +29,29 @@ const approvalService = {
         });
         return response.data;
     },
+
+    fetchFacultyPending: async () => {
+        const response = await api.get('spaces/requests/faculty_pending/');
+        return response.data;
+    },
+
+    resolveFacultyBooking: async ({ id, action, rejectionNote = "" }) => {
+        const endpoint = action === 'approve' ? 'faculty_approve' : 'faculty_reject';
+        const response = await api.post(`spaces/requests/${id}/${endpoint}/`, {
+            rejection_note: rejectionNote
+        });
+        return response.data;
+    },
+
+    fetchInchargeEscalated: async () => {
+        const response = await api.get('spaces/requests/incharge_escalated/');
+        return response.data;
+    },
+
+    resendFacultyBooking: async (id) => {
+        const response = await api.post(`spaces/requests/${id}/incharge_resend/`);
+        return response.data;
+    },
 };
 
 export default approvalService;

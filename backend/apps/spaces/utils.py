@@ -65,7 +65,7 @@ def get_overlapping_bookings(space, start_dt, end_dt, exclude_pk=None):
 
     qs = SpaceBooking.objects.filter(
         space=space,
-        status='APPROVED',
+        status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED'],
         # Existing booking's effective start (A_start - setup) < proposed end
         start_datetime__lt=end_dt + teardown_delta,
         # Existing booking's effective end (A_end + teardown) > proposed start

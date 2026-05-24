@@ -559,7 +559,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
 
           <div className="flex justify-end px-8 py-5 border-t border-gray-100 bg-gray-50">
             <button
-              onClick={onClose}
+            onClick={() => {
+              bookingSessionActions.setMediaRequestMode(null)
+              setRequestMode(null)
+              onClose()}}
               className="px-5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Cancel
@@ -660,7 +663,11 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 {isTeamRequest ? "Media Team Request" : "Media Booking Form"}
               </h2>
               <button
-                onClick={onClose}
+              onClick={() => {
+                bookingSessionActions.setMediaRequestMode(null)
+                setRequestMode(null)
+                onClose()
+              }}
                 className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -1081,7 +1088,10 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={onClose}
+                  onClick={() => {
+                    bookingSessionActions.setMediaRequestMode(null)
+                    setRequestMode(null)
+                    onClose()}}
                   disabled={submitting}
                   className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50 font-semibold transition-colors"
                 >

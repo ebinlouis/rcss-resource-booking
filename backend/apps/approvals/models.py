@@ -10,6 +10,8 @@ class BaseBooking(models.Model):
         CANCELLED = 'CANCELLED', 'Cancelled'
         EXPIRED = 'EXPIRED', 'Expired'
         COMPLETED = 'COMPLETED', 'Completed'
+        AWAITING_FACULTY = 'AWAITING_FACULTY', 'Awaiting Faculty Approval'
+        FACULTY_ESCALATED = 'FACULTY_ESCALATED', 'Sent to Incharge (Faculty Pending)'
 
     reference_code = models.CharField(max_length=20, unique=True, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="%(class)s_requests")

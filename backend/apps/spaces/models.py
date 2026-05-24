@@ -3,6 +3,7 @@ from django.db import models
 from django.db.models import Q, F, Func
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import RangeOperators, DateTimeRangeField
+from django.conf import settings
 from apps.approvals.models import BaseBooking
 
 
@@ -242,6 +243,13 @@ class SpaceBooking(BaseBooking):
     attendee_count     = models.IntegerField()
     purpose_of_booking = models.TextField()
     is_external        = models.BooleanField(default=False)
+    faculty_sponsor    = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='sponsored_bookings',
+    )
+    faculty_response_deadline = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [

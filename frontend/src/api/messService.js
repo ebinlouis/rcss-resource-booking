@@ -47,6 +47,14 @@ const messService = {
     });
     return response.data;
   },
+
+  // NEW: Fetch suggestions for autocomplete
+  getSuggestions: async (field) => {
+    const response = await api.get(
+      `${MESS_ENDPOINT}suggestions/?field=${field}`
+    );
+    return response.data;
+  },
 };
 
 export default messService;
