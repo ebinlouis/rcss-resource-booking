@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/NotificationBell';
 
+const NAV_LINKS = [
     { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces || c?.can_manage_labs || c?.can_manage_principal_view },
     { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
     { to: '/admin/blocks',         label: 'Blocks',                end: false, capability: (c) => c?.can_manage_system },
@@ -17,6 +18,7 @@ import NotificationBell from '../../components/NotificationBell';
     { to: '/media/schedule',       label: 'Team Schedule',         end: false, capability: (c) => c?.can_manage_media },
     { to: '/admin/role-overrides', label: 'Special Access',        end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/equipment',      label: 'Equipment Management',  end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
+];
 
 const NAV_ICONS = {
     'Venue Bookings': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',

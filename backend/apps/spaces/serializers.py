@@ -110,7 +110,6 @@ class SpaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Space
         fields = [
-<<<<<<< HEAD
             "id",
             "name",
             "description",

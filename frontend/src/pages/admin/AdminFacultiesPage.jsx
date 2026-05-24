@@ -835,30 +835,47 @@ export default function AdminFacultiesPage() {
 
                                 <div>
                                     <label className="block caps-label mb-1.5">System Role</label>
-                                    <select
-                                        value={form.selected_role}
-                                        onChange={(e) => setForm({ ...form, selected_role: e.target.value })}
-                                        className={selectCls}
-                                        required
-                                        disabled={!editingUser && !faculties.some(f => f.effective_roles?.includes('HOD') && f.is_active)}
-                                    >
-                                        {roles.map((r) => {
-                                            const hasHOD = faculties.some(f => f.effective_roles?.includes('HOD') && f.is_active);
-                                            // Disable HOD option in ADD mode if HOD already exists
-                                            const isHodOptionDisabled = !editingUser && hasHOD && r.name === 'HOD';
+                                    {(() => {
+                                        const hasHOD = faculties.some(f => f.effective_roles?.includes('HOD') && f.is_active);
+                                        const isFirstHod = !editingUser && !hasHOD;
+                                        if (isFirstHod) {
+                                            // Lock the role to HOD for the first faculty — show a read-only pill
                                             return (
-                                                <option key={r.id} value={r.id} disabled={isHodOptionDisabled}>
-                                                    {r.display_name} {isHodOptionDisabled ? ' (Already Assigned)' : ''}
-                                                </option>
+                                                <>
+                                                    <div className="px-3.5 py-2.5 bg-[#f0fdf4] border border-[#d1fae5] rounded-xl text-sm font-bold text-[#15803d] flex items-center gap-2">
+                                                        <svg className="w-4 h-4 text-[#15803d] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                        </svg>
+                                                        Head of Department
+                                                    </div>
+                                                    <p className="mt-1.5 text-[11px] font-semibold text-[#15803d]">
+                                                        First faculty member is automatically assigned as HOD.
+                                                    </p>
+                                                </>
                                             );
-                                        })}
-                                    </select>
-                                    {!editingUser && !faculties.some(f => f.effective_roles?.includes('HOD') && f.is_active) && (
-                                        <p className="mt-1 text-[11px] font-semibold text-[#15803d]">
-                                            First faculty member in department is automatically assigned as HOD.
-                                        </p>
-                                    )}
+                                        }
+                                        return (
+                                            <select
+                                                value={form.selected_role}
+                                                onChange={(e) => setForm({ ...form, selected_role: e.target.value })}
+                                                className={selectCls}
+                                                required
+                                            >
+                                                <option value="">Select Role</option>
+                                                {roles.map((r) => {
+                                                    // Disable HOD option in ADD mode if HOD already exists
+                                                    const isHodOptionDisabled = !editingUser && hasHOD && r.name === 'HOD';
+                                                    return (
+                                                        <option key={r.id} value={r.id} disabled={isHodOptionDisabled}>
+                                                            {r.display_name}{isHodOptionDisabled ? ' (Already Assigned)' : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        );
+                                    })()}
                                 </div>
+
                             </div>
 
                             {/* HOD Warning / Replacement Banner */}
