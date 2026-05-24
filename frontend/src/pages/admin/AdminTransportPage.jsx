@@ -28,6 +28,7 @@ import {
     getVehicles,
 } from '../../api/fleetApi'
 import Tooltip from "../../components/Tooltip"
+import PageInfo from '../../components/PageInfo'
 
 // ==========================================
 // SHARED STYLE MAP  (mirrors Transport.jsx)
@@ -623,7 +624,10 @@ export default function AdminTransportPage() {
             {/* HEADER */}
             <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Transport Management</h1>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl font-bold tracking-tight">Transport Management</h1>
+                      <PageInfo text="Manage vehicle bookings — approve, reject, or reschedule transport requests from staff and faculty." />
+                    </div>
                     <p className="text-sm text-gray-500 mt-1">
                         Manage vehicles, transport bookings, and trip approvals.
                     </p>

@@ -1,4 +1,5 @@
 import Tooltip from '../../components/Tooltip'
+import PageInfo from '../../components/PageInfo'
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
@@ -1142,9 +1143,10 @@ const AdminDashboard = () => {
                         <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-[#6b7280] mb-1.5">
                             Rajagiri College · Admin
                         </p>
-                        <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-                            Venue Bookings
-                        </h1>
+                        <div className="flex items-center gap-2">
+            <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Venue Bookings</h1>
+            <PageInfo text="Review, approve, or reject space booking requests. Approved requests reserve the venue." />
+          </div>
                         <p className="text-[15px] text-[#374151] mt-2">
                             Review and manage venue booking requests.
                         </p>

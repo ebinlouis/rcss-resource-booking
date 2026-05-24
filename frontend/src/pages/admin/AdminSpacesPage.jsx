@@ -5,6 +5,7 @@ import spaceAdminService from "../../api/spaceAdminService"
 import SpaceFormModal from "../../components/admin/SpaceFormModal"
 import { parseSpaceLocation } from "../../utils/spaceLocation"
 import Tooltip from "../../components/Tooltip"
+import PageInfo from '../../components/PageInfo'
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -281,9 +282,10 @@ const AdminSpacesPage = () => {
         <div className="flex items-end justify-between flex-wrap gap-4 mb-7">
           <div>
             <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
-            <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">
-              Venue Management
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Venue Management</h1>
+              <PageInfo text="Manage all bookable venues — add new rooms, edit details, set capacity, and control availability." />
+            </div>
             <p className="text-[15px] text-[#374151] mt-2">
               {error
                 ? "Something went wrong loading venues"

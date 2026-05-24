@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
+import PageInfo from '../../components/PageInfo'
 import notificationService from '../../api/notificationService'
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime'
 
@@ -700,7 +701,10 @@ function AdminMediaPage() {
                 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>
                         <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Rajagiri College · Admin</p>
-                        <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
+                        <div className="flex items-center gap-2">
+                          <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
+                          <PageInfo text="Approve or reject media team booking requests. Configure how many simultaneous media bookings are allowed." />
+                        </div>
                         <p className="mt-2 text-[15px] text-[#374151]">Manage media equipment requests and event support bookings.</p>
                     </div>
                     <div className="flex items-center gap-2">

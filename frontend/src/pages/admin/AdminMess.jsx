@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import messService from "../../api/messService";
+import PageInfo from '../../components/PageInfo'
 import notificationService from "../../api/notificationService";
 import { MEALS, getEarliestTime, getRequestedMeals, formatDateRange, isMultiDay } from "../../api/messConfig";
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from "../../utils/submissionTime";
@@ -472,7 +473,10 @@ function AdminMess() {
       <div className="bg-white border-b border-gray-200 px-6 sm:px-8 pt-8 shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Mess Operations</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">Mess Operations</h1>
+              <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
+            </div>
             <p className="text-sm text-gray-500 mt-1">Manage catering requests and view kitchen schedules.</p>
           </div>
           <button

@@ -1,213 +1,327 @@
-import React, { useState, useEffect } from 'react';
-import approvalService from '../api/approvalService';
-import { useAuth } from '../hooks/useAuth';
+import { useState, useEffect } from 'react'
+import approvalService from '../api/approvalService'
+import { useAuth } from '../hooks/useAuth'
+import MainLayout from '../layouts/MainLayout'
+import { CheckCircle2, XCircle, Clock, ChevronDown, RefreshCw, User, Phone, Mail, Building2, Users, CalendarDays, FileText } from 'lucide-react'
 
-export default function FacultyApprovalPage() {
-    const { user } = useAuth();
-    const [pending, setPending] = useState([]);
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState(null);
-    const [rejectionNotes, setRejectionNotes] = useState({});
-    const [loadError, setLoadError] = useState(false);
-    const [actionErrors, setActionErrors] = useState({});
+const STATUS_META = {
+  APPROVED:          { label: 'Approved',   cls: 'bg-green-100 text-green-700' },
+  REJECTED:          { label: 'Rejected',   cls: 'bg-red-100 text-red-700' },
+  FACULTY_ESCALATED: { label: 'Escalated',  cls: 'bg-purple-100 text-purple-700' },
+  CANCELLED:         { label: 'Cancelled',  cls: 'bg-gray-100 text-gray-500' },
+}
 
-    const fetchData = async (isInitial = false) => {
-        try {
-            if (!isInitial) {
-                setLoading(true);
-                setLoadError(false);
-            }
-            const data = await approvalService.fetchFacultyPending();
-            setPending(data.pending || []);
-            setHistory(data.history || []);
-        } catch (err) {
-            console.error(err);
-            setLoadError(true);
-        } finally {
-            setLoading(false);
-        }
-    };
+const fmtDate = (s) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const fmtTime = (s) => new Date(s).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchData(true);
-        }, 0);
-        return () => clearTimeout(timer);
-    }, []);
+/* ── Detail row ─────────────────────────────── */
+function DetailRow({ icon: Icon, label, value }) {
+  if (!value) return null
+  return (
+    <div className="flex items-start gap-2.5 text-sm">
+      <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <span className="text-gray-400 text-xs uppercase tracking-wide font-semibold block leading-none mb-0.5">{label}</span>
+        <span className="text-gray-800 font-medium leading-snug">{value}</span>
+      </div>
+    </div>
+  )
+}
 
-    const handleApprove = async (id) => {
-        try {
-            setActionLoading(id);
-            setActionErrors(prev => ({...prev, [id]: null}));
-            await approvalService.resolveFacultyBooking({ id, action: 'approve' });
-            await fetchData();
-        } catch (err) {
-            console.error(err);
-            setActionErrors(prev => ({...prev, [id]: "Failed to approve booking."}));
-        } finally {
-            setActionLoading(null);
-        }
-    };
+/* ── Pending card ───────────────────────────── */
+function PendingCard({ booking, onApprove, onReject, isActing }) {
+  const [note, setNote]     = useState('')
+  const [err,  setErr]      = useState('')
+  const [open, setOpen]     = useState(true)
 
-    const handleReject = async (id) => {
-        const note = rejectionNotes[id];
-        if (!note?.trim() || note.trim().length < 10) {
-            setActionErrors(prev => ({...prev, [id]: "Rejection note must be at least 10 characters long."}));
-            return;
-        }
-        try {
-            setActionLoading(id);
-            setActionErrors(prev => ({...prev, [id]: null}));
-            await approvalService.resolveFacultyBooking({ id, action: 'reject', rejectionNote: note });
-            await fetchData();
-        } catch (err) {
-            console.error(err);
-            setActionErrors(prev => ({...prev, [id]: "Failed to reject booking."}));
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const formatDate = (dateString) => {
-        const d = new Date(dateString);
-        return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
-
-    const formatTime = (dateString) => {
-        const d = new Date(dateString);
-        return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'REJECTED': return 'bg-red-100 text-red-700';
-            case 'APPROVED': return 'bg-green-100 text-green-700';
-            case 'FACULTY_ESCALATED': return 'bg-purple-100 text-purple-700';
-            case 'CANCELLED': return 'bg-gray-100 text-gray-700';
-            default: return 'bg-gray-100 text-gray-700';
-        }
-    };
-
-    if (!user?.capabilities?.can_approve_faculty) {
-        return <div className="p-8 text-center text-red-500">Not authorized. Faculty access only.</div>;
+  const handleReject = () => {
+    if (!note.trim() || note.trim().length < 10) {
+      setErr('Please enter at least 10 characters explaining the reason.')
+      return
     }
+    setErr('')
+    onReject(booking.id, note)
+  }
 
-    if (loading) {
-        return <div className="p-8 text-center text-gray-500">Loading your approvals...</div>;
-    }
-
-    if (loadError) {
-        return <div className="p-8 text-center text-red-500 bg-red-50 rounded-xl max-w-2xl mx-auto mt-8 border border-red-100">Failed to load approvals. Please refresh the page to try again.</div>;
-    }
-
-    return (
-        <div className="max-w-6xl mx-auto p-6 space-y-8 animate-in fade-in duration-300">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Faculty Approvals</h1>
-                <p className="text-gray-500 mt-1">Review student space booking requests requiring your sponsorship.</p>
-            </div>
-
-            <div>
-                <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Pending Your Review</h2>
-                {pending.length === 0 ? (
-                    <p className="text-sm text-gray-500 bg-gray-50 p-4 rounded-xl border border-gray-100">No pending requests at the moment.</p>
-                ) : (
-                    <div className="grid gap-4">
-                        {pending.map(booking => (
-                            <div key={booking.id} className="bg-white border border-amber-200 shadow-sm rounded-xl p-5 flex flex-col md:flex-row gap-6">
-                                <div className="flex-1 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">Action Required</span>
-                                        <h3 className="font-bold text-gray-900">{booking.space_details?.name || 'Space Booking'}</h3>
-                                    </div>
-                                    <p className="text-sm text-gray-600"><strong>Purpose:</strong> {booking.purpose_of_booking}</p>
-                                    <p className="text-sm text-gray-600"><strong>Student:</strong> {booking.booked_by_name}</p>
-                                    <p className="text-sm text-gray-600"><strong>Email:</strong> {booking.booked_by_email}</p>
-                                    {booking.booked_by_phone && (
-                                        <p className="text-sm text-gray-600"><strong>Phone:</strong> {booking.booked_by_phone}</p>
-                                    )}
-                                    <p className="text-sm text-gray-600"><strong>Department:</strong> {booking.booked_by_department}</p>
-                                    <p className="text-sm text-gray-600"><strong>Date:</strong> {formatDate(booking.start_datetime)} | {formatTime(booking.start_datetime)} - {formatTime(booking.end_datetime)}</p>
-                                    <p className="text-sm text-gray-600"><strong>Attendees:</strong> {booking.attendee_count}</p>
-                                    {booking.user_notes && (
-                                        <p className="text-sm text-gray-600"><strong>Notes:</strong> {booking.user_notes}</p>
-                                    )}
-                                </div>
-                                <div className="w-full md:w-72 flex flex-col gap-2">
-                                    <button 
-                                        disabled={actionLoading === booking.id}
-                                        onClick={() => handleApprove(booking.id)}
-                                        className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50"
-                                    >
-                                        Approve Request
-                                    </button>
-                                    <textarea 
-                                        placeholder="Reason for rejection (min 10 characters)" 
-                                        className={`text-sm border rounded-xl p-3 resize-none outline-none transition ${actionErrors[booking.id] ? "border-red-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-red-50" : "border-gray-200 focus:ring-2 focus:ring-gray-300"}`}
-                                        rows={2}
-                                        value={rejectionNotes[booking.id] || ''}
-                                        onChange={(e) => {
-                                            setRejectionNotes(prev => ({...prev, [booking.id]: e.target.value}));
-                                            if (actionErrors[booking.id]) setActionErrors(prev => ({...prev, [booking.id]: null}));
-                                        }}
-                                    />
-                                    {actionErrors[booking.id] && (
-                                        <p className="text-xs text-red-500 font-medium">{actionErrors[booking.id]}</p>
-                                    )}
-                                    <button 
-                                        disabled={actionLoading === booking.id || (rejectionNotes[booking.id]?.trim().length || 0) < 10}
-                                        onClick={() => handleReject(booking.id)}
-                                        className="w-full bg-white hover:bg-red-50 text-red-600 font-semibold border border-red-200 py-2 rounded-xl transition disabled:opacity-50 disabled:bg-gray-50 disabled:text-red-400 disabled:border-gray-200"
-                                    >
-                                        Reject Request
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            <div className="pt-4">
-                <h2 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Past Approvals</h2>
-                {history.length === 0 ? (
-                    <p className="text-sm text-gray-500">No history available.</p>
-                ) : (
-                    <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-5 py-3.5 font-semibold">Space</th>
-                                    <th className="px-5 py-3.5 font-semibold">Student</th>
-                                    <th className="px-5 py-3.5 font-semibold">Date</th>
-                                    <th className="px-5 py-3.5 font-semibold">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {history.map(item => (
-                                    <tr key={item.id} className="bg-white hover:bg-gray-50 transition">
-                                        <td className="px-5 py-3 font-medium text-gray-900">{item.space_details?.name || 'Unknown Space'}</td>
-                                        <td className="px-5 py-3 text-gray-600">
-                                            {item.booked_by_name}
-                                            <div className="text-xs text-gray-500 mt-0.5">{item.booked_by_email}</div>
-                                            {item.booked_by_phone && (
-                                                <div className="text-xs text-gray-500">{item.booked_by_phone}</div>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-600">{formatDate(item.start_datetime)}</td>
-                                        <td className="px-5 py-3">
-                                            <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wide uppercase ${getStatusColor(item.status)}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+      {/* Card header */}
+      <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
+        <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-gray-900 truncate">{booking.space_details?.name || 'Space Booking'}</h3>
+          <p className="text-xs text-amber-700 font-semibold mt-0.5">Action Required</p>
         </div>
-    );
+        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
+          {fmtDate(booking.start_datetime)}
+        </span>
+        <button onClick={() => setOpen(v => !v)} className="p-1 text-gray-400 hover:text-gray-600 transition">
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="p-5 grid md:grid-cols-2 gap-6">
+          {/* Left: details */}
+          <div className="space-y-3.5">
+            <DetailRow icon={User}       label="Student"    value={booking.booked_by_name} />
+            <DetailRow icon={Mail}       label="Email"      value={booking.booked_by_email} />
+            <DetailRow icon={Phone}      label="Phone"      value={booking.booked_by_phone} />
+            <DetailRow icon={Building2}  label="Department" value={booking.booked_by_department} />
+            <DetailRow icon={Users}      label="Attendees"  value={booking.attendee_count} />
+            <DetailRow icon={CalendarDays} label="Date & Time" value={`${fmtDate(booking.start_datetime)} · ${fmtTime(booking.start_datetime)} – ${fmtTime(booking.end_datetime)}`} />
+            <DetailRow icon={FileText}   label="Purpose"    value={booking.purpose_of_booking} />
+            {booking.user_notes && (
+              <DetailRow icon={FileText} label="Notes" value={booking.user_notes} />
+            )}
+          </div>
+
+          {/* Right: actions */}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => onApprove(booking.id)}
+              disabled={isActing}
+              className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50 shadow-sm shadow-green-100"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {isActing ? 'Processing…' : 'Approve Request'}
+            </button>
+
+            <div className="relative">
+              <textarea
+                rows={3}
+                placeholder="Reason for rejection (min. 10 characters)…"
+                value={note}
+                onChange={e => { setNote(e.target.value); setErr('') }}
+                className={`w-full text-sm border rounded-xl p-3 resize-none outline-none transition ${err ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 focus:ring-2 focus:ring-gray-200'}`}
+              />
+              {err && <p className="text-xs text-red-500 font-medium mt-1">{err}</p>}
+            </div>
+
+            <button
+              onClick={handleReject}
+              disabled={isActing}
+              className="w-full flex items-center justify-center gap-2 border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-2.5 rounded-xl transition disabled:opacity-50"
+            >
+              <XCircle className="w-4 h-4" />
+              Reject Request
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── History row ────────────────────────────── */
+function HistoryRow({ item }) {
+  const meta = STATUS_META[item.status] || { label: item.status, cls: 'bg-gray-100 text-gray-600' }
+  return (
+    <tr className="hover:bg-gray-50 transition">
+      <td className="px-5 py-3.5 font-medium text-gray-900 text-sm">{item.space_details?.name || '—'}</td>
+      <td className="px-5 py-3.5 text-sm">
+        <p className="font-medium text-gray-800">{item.booked_by_name}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{item.booked_by_email}</p>
+      </td>
+      <td className="px-5 py-3.5 text-sm text-gray-600">{fmtDate(item.start_datetime)}</td>
+      <td className="px-5 py-3.5">
+        <span className={`text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${meta.cls}`}>
+          {meta.label}
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+/* ── Main page ──────────────────────────────── */
+export default function FacultyApprovalPage() {
+  const { user }                          = useAuth()
+  const [pending,  setPending]            = useState([])
+  const [history,  setHistory]            = useState([])
+  const [loading,  setLoading]            = useState(true)
+  const [actingId, setActingId]           = useState(null)
+  const [loadError, setLoadError]         = useState(false)
+  const [toast, setToast]                 = useState(null)
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const data = await approvalService.fetchFacultyPending()
+      setPending(data.pending || [])
+      setHistory(data.history || [])
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  const handleApprove = async (id) => {
+    setActingId(id)
+    try {
+      await approvalService.resolveFacultyBooking({ id, action: 'approve' })
+      showToast('Booking approved successfully.')
+      await fetchData()
+    } catch {
+      showToast('Failed to approve. Please try again.', 'error')
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  const handleReject = async (id, note) => {
+    setActingId(id)
+    try {
+      await approvalService.resolveFacultyBooking({ id, action: 'reject', rejectionNote: note })
+      showToast('Booking rejected.')
+      await fetchData()
+    } catch {
+      showToast('Failed to reject. Please try again.', 'error')
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  if (!user?.capabilities?.can_approve_faculty) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
+              <XCircle className="w-6 h-6 text-red-400" />
+            </div>
+            <p className="text-sm font-semibold text-gray-700">Access Restricted</p>
+            <p className="text-xs text-gray-400 mt-1">Faculty approval access only.</p>
+          </div>
+        </div>
+      </MainLayout>
+    )
+  }
+
+  return (
+    <MainLayout>
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+
+        {/* Toast */}
+        {toast && (
+          <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-full shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-4 duration-200 ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
+            {toast.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4 text-green-400" />}
+            {toast.msg}
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Faculty Approvals</h1>
+            <p className="text-sm text-gray-400 mt-1">Review student space booking requests requiring your sponsorship.</p>
+          </div>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 shadow-sm"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        {/* Stats bar */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Pending',  value: pending.length,  icon: Clock,         cls: 'text-amber-600 bg-amber-50'  },
+            { label: 'Approved', value: history.filter(h => h.status === 'APPROVED').length, icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
+            { label: 'Rejected', value: history.filter(h => h.status === 'REJECTED').length, icon: XCircle,      cls: 'text-red-600 bg-red-50'    },
+          ].map(({ label, value, icon: Icon, cls }) => (
+            <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cls}`}>
+                <Icon className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 leading-none">{loading ? '—' : value}</p>
+                <p className="text-xs text-gray-400 font-medium mt-0.5">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Error */}
+        {loadError && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl px-5 py-4 text-sm text-red-600 font-medium">
+            Failed to load approvals. Please refresh.
+          </div>
+        )}
+
+        {/* Pending section */}
+        {!loadError && (
+          <section>
+            <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              Pending Your Review
+              {pending.length > 0 && (
+                <span className="ml-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{pending.length}</span>
+              )}
+            </h2>
+
+            {loading ? (
+              <div className="space-y-3">
+                {[1,2].map(i => <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />)}
+              </div>
+            ) : pending.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
+                <CheckCircle2 className="w-8 h-8 text-green-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-gray-600">All caught up!</p>
+                <p className="text-xs text-gray-400 mt-1">No pending requests at the moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pending.map(b => (
+                  <PendingCard
+                    key={b.id}
+                    booking={b}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    isActing={actingId === b.id}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* History section */}
+        {!loadError && !loading && history.length > 0 && (
+          <section>
+            <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              Past Approvals
+            </h2>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {['Space', 'Student', 'Date', 'Status'].map(h => (
+                      <th key={h} className="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {history.map(item => <HistoryRow key={item.id} item={item} />)}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+      </div>
+    </MainLayout>
+  )
 }

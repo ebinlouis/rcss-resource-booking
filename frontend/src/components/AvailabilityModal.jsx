@@ -290,10 +290,29 @@ const AvailabilityModal = memo(function AvailabilityModal({
         {/* ── LEFT: CALENDAR ── */}
         <div className="w-full md:w-[68%] p-4 md:p-6 border-b md:border-b-0 md:border-r border-gray-100 overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Venue Availability</p>
-              <h2 className="text-lg font-semibold text-gray-900">{monthName} {year}</h2>
-            </div>
+<div>
+  <div className="flex items-center gap-2">
+    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
+      Venue Availability
+    </p>
+
+    <Tooltip
+      text="Green = fully available, Yellow = partially booked, Blue = fully booked, Grey = past dates (cannot be booked). Click a date to view time slots."
+      position="right"
+    >
+      <button
+        type="button"
+        className="w-5 h-5 rounded-full border border-gray-300 text-gray-500 text-xs flex items-center justify-center hover:bg-gray-100 transition"
+      >
+        i
+      </button>
+    </Tooltip>
+  </div>
+
+  <h2 className="text-lg font-semibold text-gray-900">
+    {monthName} {year}
+  </h2>
+</div>
             <div className="flex gap-1">
               <Tooltip text="View the previous month." position="top">
                 <button
@@ -569,7 +588,10 @@ onClick={() => {
     ref={tooltipRef}
     onClick={(e) => e.stopPropagation()}
     className="fixed z-[9999] w-[300px] max-w-[90vw] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden"
-    style={{ center: activeTooltip.center}}
+    style={{
+  left: activeTooltip.left,
+  top: activeTooltip.top,
+}}
   >
     {/* Header */}
     <div className="px-4 py-3 bg-green-50 border-b border-gray-100">
@@ -588,7 +610,7 @@ onClick={() => {
           )}
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xl font-bold text-gray-900 truncate">
             {activeTooltip.booking.bookedByName || "Unavailable"}
           </p>
@@ -596,6 +618,15 @@ onClick={() => {
             {activeTooltip.booking.bookedByDesignation || "Faculty"}
           </p>
         </div>
+
+        <button
+          onClick={() => setActiveTooltip(null)}
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-white/70 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
 

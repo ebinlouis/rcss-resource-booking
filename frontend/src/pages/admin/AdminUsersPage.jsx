@@ -1,4 +1,5 @@
 import Tooltip from '../../components/Tooltip'
+import PageInfo from '../../components/PageInfo'
 import { useEffect, useMemo, useState } from 'react';
 import { Search, ShieldCheck, X } from 'lucide-react';
 import adminUserService from '../../api/adminUserService';
@@ -155,29 +156,51 @@ function AdminUsersPage() {
         return () => { isMounted = false; };
     }, []);
 
-    useEffect(() => {
-        let isMounted = true;
-        const timer = setTimeout(async () => {
-            setIsLoading(true);
-            try {
-                const data = await adminUserService.getUsers(search.trim() ? { q: search.trim() } : {});
-                if (isMounted) {
-                    setUsers(normalizeList(data));
-                    setError('');
-                }
-            } catch (err) {
-                console.error('Failed to load users', err);
-                if (isMounted) setError('Could not load users.');
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
-        }, 250);
+useEffect(() => {
+    let isMounted = true;
 
-        return () => {
-            isMounted = false;
-            clearTimeout(timer);
-        };
-    }, [search]);
+    const timer = setTimeout(async () => {
+        setIsLoading(true);
+
+        try {
+            const data = await adminUserService.getUsers({});
+            const allUsers = normalizeList(data);
+
+            const query = search.trim().toLowerCase();
+
+            const filteredUsers = query
+                ? allUsers.filter((user) =>
+                      [
+                          getUserName(user),
+                          user.email,
+                          user.employee_student_id,
+                          user.phone_number,
+                          user.department_name,
+                      ]
+                          .filter(Boolean)
+                          .some((field) =>
+                              field.toLowerCase().includes(query)
+                          )
+                  )
+                : allUsers;
+
+            if (isMounted) {
+                setUsers(filteredUsers);
+                setError('');
+            }
+        } catch (err) {
+            console.error('Failed to load users', err);
+            if (isMounted) setError('Could not load users.');
+        } finally {
+            if (isMounted) setIsLoading(false);
+        }
+    }, 250);
+
+    return () => {
+        isMounted = false;
+        clearTimeout(timer);
+    };
+}, [search]);
 
     const handleSaveRoles = async (userId, roleIds) => {
         setIsSaving(true);
@@ -212,7 +235,10 @@ function AdminUsersPage() {
                     <p className="mb-1.5 text-[11.5px] font-bold uppercase tracking-[0.12em] text-green-700">
                         Rajagiri College · IT Admin
                     </p>
-                    <h1 className="text-[26px] font-bold tracking-tight text-gray-950">User Management</h1>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-[26px] font-bold tracking-tight text-gray-950">User Management</h1>
+                      <PageInfo text="View all registered users and assign or remove system roles like Admin, Faculty, Lab In-Charge, and more." />
+                    </div>
                     <p className="mt-2 text-[15px] text-gray-600">
                         Manage user roles and access for the admin portal.
                     </p>
@@ -222,7 +248,7 @@ function AdminUsersPage() {
                     <input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Search name, email, ID, or phone"
+                        placeholder="Search name, email, department or phone"
                         className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-[14.5px] font-medium text-gray-800 outline-none transition focus:border-green-300 focus:ring-2 focus:ring-green-100"
                     />
                 </div>
