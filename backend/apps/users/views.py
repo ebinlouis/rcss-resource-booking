@@ -417,6 +417,7 @@ class AdminUserViewSet(ModelViewSet):
                 | Q(last_name__icontains=query)
                 | Q(employee_student_id__icontains=query)
                 | Q(phone__icontains=query)
+                | Q(department__department_name__icontains=query)
             )
 
         if role_name:
