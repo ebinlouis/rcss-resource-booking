@@ -767,3 +767,102 @@ def notify_swap_event(swap_request, event):
     values: 'requested', 'accepted', 'declined', 'expired', 'cancelled'.
     """
     return None
+
+
+# ==========================================
+# CHAIN APPROVAL NOTIFICATIONS
+# ==========================================
+
+def notify_chain_approved_primary(booking):
+    space_name = _resource_name(booking, 'spaces')
+    
+    # Notify the requester
+    notify(
+        booking.user,
+        Notification.Category.BOOKING_APPROVED,
+        "Booking Approved",
+        f"Your booking for {space_name} was approved by the primary approver.",
+        link=_requester_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+    # Notify the fallback approver (e.g. Lab In-Charge)
+    chain = getattr(booking.space, 'approver_chain', None)
+    if chain and chain.fallback_approver:
+        notify(
+            chain.fallback_approver,
+            Notification.Category.BOOKING_APPROVED,
+            "Booking Approved",
+            f"A booking for {space_name} was approved by the primary approver.",
+            link=_approver_link('spaces', _booking_reference(booking), tab='history'),
+            domain='spaces',
+            reference_code=_booking_reference(booking),
+            is_actionable=False,
+        )
+
+def notify_chain_rejected(booking):
+    space_name = _resource_name(booking, 'spaces')
+    remarks = getattr(booking, 'remarks_by_admin', '')
+    msg = f"Your booking for {space_name} was rejected."
+    if remarks:
+        msg += f" Remarks: {remarks}"
+    notify(
+        booking.user,
+        Notification.Category.BOOKING_REJECTED,
+        "Booking Rejected",
+        msg,
+        link=_requester_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+def notify_chain_escalated(booking):
+    student_name = getattr(booking.user, 'first_name', 'A student')
+    space_name = _resource_name(booking, 'spaces')
+    chain = getattr(booking.space, 'approver_chain', None)
+    if not chain or not chain.fallback_approver:
+        return
+    notify(
+        chain.fallback_approver,
+        Notification.Category.BOOKING_PENDING,
+        "Booking Escalated",
+        f"{student_name}'s booking for {space_name} was escalated to you as the fallback approver.",
+        link=_approver_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=True,
+    )
+
+def notify_chain_approved_fallback(booking):
+    space_name = _resource_name(booking, 'spaces')
+    notify(
+        booking.user,
+        Notification.Category.BOOKING_APPROVED,
+        "Booking Approved",
+        f"Your booking for {space_name} was approved by the fallback approver.",
+        link=_requester_link('spaces', _booking_reference(booking)),
+        domain='spaces',
+        reference_code=_booking_reference(booking),
+        is_actionable=False,
+    )
+
+def notify_chain_cancelled(booking):
+    student_name = getattr(booking.user, 'first_name', 'A student')
+    space_name = _resource_name(booking, 'spaces')
+    chain = getattr(booking.space, 'approver_chain', None)
+    if chain:
+        for approver in [chain.primary_approver, chain.fallback_approver]:
+            if approver:
+                notify(
+                    approver,
+                    Notification.Category.BOOKING_CANCELLED,
+                    "Booking Cancelled",
+                    f"{student_name} cancelled their booking for {space_name}. No action needed.",
+                    link=None,
+                    domain='spaces',
+                    reference_code=_booking_reference(booking),
+                    is_actionable=False,
+                )

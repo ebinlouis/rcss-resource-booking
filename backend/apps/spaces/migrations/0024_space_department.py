@@ -7,8 +7,8 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('spaces', '0019_spacebooking_faculty_response_deadline_and_more'),
-        ('users', '0005_roleoverride_updated_at_alter_roleoverride_reason_and_more'),
+        ("spaces", "0023_delete_spacesystembooking"),
+        ("users", "0005_roleoverride_updated_at_alter_roleoverride_reason_and_more"),
     ]
 
     operations = [

@@ -101,7 +101,6 @@ function App() {
                   <ProtectedRoute requiredCapability="can_manage_system" />
                 }
               >
-                <Route path="/admin/spaces" element={<AdminSpacesPage />} />
                 <Route path="/admin/blocks" element={<BlocksManagement />} />
                 <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route
@@ -124,6 +123,14 @@ function App() {
                   path="/admin/role-overrides"
                   element={<RoleOverridesPage />}
                 />
+              </Route>
+
+              <Route
+                element={
+                  <ProtectedRoute requiredCapabilities={["can_manage_system", "can_manage_spaces"]} />
+                }
+              >
+                <Route path="/admin/spaces" element={<AdminSpacesPage />} />
               </Route>
             </Route>
           </Route>

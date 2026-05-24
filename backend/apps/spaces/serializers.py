@@ -57,15 +57,67 @@ class SpaceSerializer(serializers.ModelSerializer):
     # uploads) cannot send nested JSON arrays directly.
     equipment_data = serializers.CharField(write_only=True, required=False)
 
+    approver_chain = serializers.SerializerMethodField()
+    chain_primary_approver   = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    chain_fallback_approver  = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    chain_escalation_hours   = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    chain_requires_reason    = serializers.BooleanField(write_only=True, required=False, allow_null=True)
+    chain_earliest_start     = serializers.TimeField(write_only=True, required=False, allow_null=True)
+    chain_latest_end         = serializers.TimeField(write_only=True, required=False, allow_null=True)
+
+    
+    can_manage_timetable = serializers.SerializerMethodField()
+
+    def get_can_manage_timetable(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        user = request.user
+        if user.is_superuser:
+            return True
+        if hasattr(obj, 'approver_chain'):
+            chain = obj.approver_chain
+            if user.id in [chain.primary_approver_id, chain.fallback_approver_id]:
+                return True
+        from .models import SpaceApprover
+        if SpaceApprover.objects.filter(user=user, space=obj, scope_type='SPACE').exists():
+            return True
+        if obj.block_id and SpaceApprover.objects.filter(user=user, block_id=obj.block_id, scope_type='BLOCK').exists():
+            return True
+        return False
+
+    def get_approver_chain(self, obj):
+        try:
+            chain = obj.approver_chain
+        except Exception:
+            return None
+        
+        def user_repr(user):
+            if not user:
+                return None
+            name = f"{user.first_name} {user.last_name}".strip() or user.email
+            return {"id": user.id, "name": name}
+        
+        return {
+            "primary_approver": user_repr(chain.primary_approver),
+            "fallback_approver": user_repr(chain.fallback_approver),
+            "escalation_hours": chain.escalation_hours,
+            "requires_reason": chain.requires_reason,
+            "earliest_start": chain.earliest_start.strftime("%H:%M") if chain.earliest_start else None,
+            "latest_end": chain.latest_end.strftime("%H:%M") if chain.latest_end else None,
+        }
+
     class Meta:
         model = Space
         fields = [
+<<<<<<< HEAD
             "id",
             "name",
             "description",
             "space_type",
             "approval_category",
             "approval_workflow_type",
+            "department",
             "capacity_hard",
             "location",
             "image_1",
@@ -75,10 +127,75 @@ class SpaceSerializer(serializers.ModelSerializer):
             "teardown_buffer_minutes",
             "built_in_equipment",
             "equipment_data",
+            "can_manage_timetable",
+            "approver_chain",
+            "chain_primary_approver",
+            "chain_fallback_approver",
+            "chain_escalation_hours",
+            "chain_requires_reason",
+            "chain_earliest_start",
+            "chain_latest_end",
         ]
+
+    def validate(self, data):
+        if data.get('approval_workflow_type') == 'HOD_FALLBACK':
+            if not data.get('chain_primary_approver'):
+                raise serializers.ValidationError({
+                    "chain_primary_approver": "A primary approver is required for HOD Fallback workflow."
+                })
+            if not data.get('chain_fallback_approver'):
+                raise serializers.ValidationError({
+                    "chain_fallback_approver": "A fallback approver is required for HOD Fallback workflow."
+                })
+        return data
+
+    def _handle_chain(self, space, validated_data):
+        workflow = validated_data.get(
+            'approval_workflow_type',
+            getattr(space, 'approval_workflow_type', None)
+        )
+        
+        if workflow != 'HOD_FALLBACK':
+            # If workflow changed away from HOD_FALLBACK, delete the chain row
+            from .models import SpaceApproverChain
+            SpaceApproverChain.objects.filter(space=space).delete()
+            return
+        
+        primary_id   = validated_data.pop('chain_primary_approver', None)
+        fallback_id  = validated_data.pop('chain_fallback_approver', None)
+        escalation   = validated_data.pop('chain_escalation_hours', 24)
+        req_reason   = validated_data.pop('chain_requires_reason', True)
+        earliest     = validated_data.pop('chain_earliest_start', None)
+        latest       = validated_data.pop('chain_latest_end', None)
+        
+        if not primary_id or not fallback_id:
+            raise serializers.ValidationError({
+                "chain_primary_approver": "Primary and fallback approvers are required for HOD Fallback workflow."
+            })
+        
+        from .models import SpaceApproverChain
+        SpaceApproverChain.objects.update_or_create(
+            space=space,
+            defaults={
+                'primary_approver_id':  primary_id,
+                'fallback_approver_id': fallback_id,
+                'escalation_hours':     escalation or 24,
+                'requires_reason':      req_reason if req_reason is not None else True,
+                'earliest_start':       earliest,
+                'latest_end':           latest,
+            }
+        )
 
     def create(self, validated_data):
         equipment_raw = validated_data.pop("equipment_data", None)
+        chain_data = {
+            "chain_primary_approver": validated_data.pop("chain_primary_approver", None),
+            "chain_fallback_approver": validated_data.pop("chain_fallback_approver", None),
+            "chain_escalation_hours": validated_data.pop("chain_escalation_hours", None),
+            "chain_requires_reason": validated_data.pop("chain_requires_reason", None),
+            "chain_earliest_start": validated_data.pop("chain_earliest_start", None),
+            "chain_latest_end": validated_data.pop("chain_latest_end", None),
+        }
         space = Space.objects.create(**validated_data)
         if equipment_raw:
             for item in json.loads(equipment_raw):
@@ -87,10 +204,19 @@ class SpaceSerializer(serializers.ModelSerializer):
                     equipment_id=item["equipment"],
                     quantity=item["quantity"],
                 )
+        self._handle_chain(space, {**validated_data, **chain_data})
         return space
 
     def update(self, instance, validated_data):
         equipment_raw = validated_data.pop("equipment_data", None)
+        chain_data = {
+            "chain_primary_approver": validated_data.pop("chain_primary_approver", None),
+            "chain_fallback_approver": validated_data.pop("chain_fallback_approver", None),
+            "chain_escalation_hours": validated_data.pop("chain_escalation_hours", None),
+            "chain_requires_reason": validated_data.pop("chain_requires_reason", None),
+            "chain_earliest_start": validated_data.pop("chain_earliest_start", None),
+            "chain_latest_end": validated_data.pop("chain_latest_end", None),
+        }
         instance = super().update(instance, validated_data)
         if equipment_raw:
             instance.built_in_equipment.all().delete()
@@ -100,6 +226,7 @@ class SpaceSerializer(serializers.ModelSerializer):
                     equipment_id=item["equipment"],
                     quantity=item["quantity"],
                 )
+        self._handle_chain(instance, {**validated_data, **chain_data})
         return instance
 
 
@@ -211,8 +338,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         return user
 
     def get_purpose_of_booking(self, obj):
+        if not obj.purpose_of_booking:
+            return "Occupied"
         user = self._user()
-
         if user is None:
             return "Occupied"
 
@@ -458,7 +586,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
             min_expected = space.capacity_hard * 0.30
 
-            if attendees < min_expected and not notes.strip():
+            is_hod_fallback_space = (
+                getattr(space, "approval_workflow_type", "")
+                == Space.ApprovalWorkflowType.HOD_FALLBACK
+            )
+            if not is_hod_fallback_space and attendees < min_expected and not notes.strip():
                 raise serializers.ValidationError(
                     {
                         "user_notes": (

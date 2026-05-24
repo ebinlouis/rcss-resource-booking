@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import api from "../api/axios"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 import { useAuth } from "./useAuth"
@@ -67,6 +67,7 @@ export function useBookingForm({
         notes: initialData.user_notes || "",
         isExternal: initialData.is_external || false,
         bookingType: initialData.booking_type || "SINGLE",
+        aiBookingSize: "SINGLE",
         faculty_sponsor: initialData.faculty_sponsor || "",
       }
     }
@@ -84,6 +85,7 @@ export function useBookingForm({
         notes: "",
         isExternal: false,
         bookingType: "SINGLE",
+        aiBookingSize: "SINGLE",
         faculty_sponsor: "",
       }
     }
@@ -102,6 +104,7 @@ export function useBookingForm({
       notes: sessionDraft?.notes || "",
       isExternal: sessionDraft?.isExternal || false,
       bookingType: sessionDraft?.bookingType || "SINGLE",
+      aiBookingSize: sessionDraft?.aiBookingSize || "SINGLE",
       faculty_sponsor: sessionDraft?.faculty_sponsor || "",
     }
   })
@@ -112,12 +115,43 @@ export function useBookingForm({
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const set = useCallback((key, val) => {
+    setForm((p) => {
+      const next = { ...p, [key]: val }
+      if (key === "start_date" && next.end_date && next.end_date < val) {
+        next.end_date = val
+      }
+      return next
+    })
+    setErrors((p) => {
+      if (p[key]) return { ...p, [key]: null }
+      return p
+    })
+  }, [])
+
+  const toggleReq = (id) => {
+    setForm((p) => ({
+      ...p,
+      requirements: p.requirements.includes(id)
+        ? p.requirements.filter((r) => r !== id)
+        : [...p.requirements, id],
+    }))
+  }
+
+  const switchHall = (space) => {
+    setActiveSpaceId(space.id)
+    setActiveSpaceName(space.name)
+    setActiveSpaceCap(space.capacity_hard)
+    setSuggestedHalls([])
+  }
+
   const [isAvailable, setIsAvailable] = useState(null)
   const [availabilityMsg, setAvailabilityMsg] = useState("")
   const [availabilityConflicts, setAvailabilityConflicts] = useState([])
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
 
   const [suggestedHalls, setSuggestedHalls] = useState([])
+  const [seenSpaceIds, setSeenSpaceIds] = useState([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
   const debounceTimer = useRef(null)
   const availabilityTimer = useRef(null)
@@ -127,7 +161,9 @@ export function useBookingForm({
     Number.isFinite(attendeeCount) &&
     activeSpaceCap !== null &&
     attendeeCount > activeSpaceCap
+  const isAiLab = activeSpaceName?.toLowerCase().includes("ai lab")
   const isLowOccupancy =
+    !isAiLab &&
     Number.isFinite(attendeeCount) &&
     attendeeCount > 0 &&
     activeSpaceCap !== null &&
@@ -137,17 +173,19 @@ export function useBookingForm({
   const isMultiDay =
     form.start_date && form.end_date && form.start_date !== form.end_date
 
+  // Auto-set attendees to 1 for AI Lab single bookings
+  useEffect(() => {
+    if (isAiLab && form.aiBookingSize === 'SINGLE' && !form.attendees) {
+      setTimeout(() => set('attendees', 1), 0)
+    }
+  }, [isAiLab, form.aiBookingSize, form.attendees, set])
+
   useEffect(() => {
     const fetchDynamicData = async () => {
       try {
-        const [deptRes, eqRes] = await Promise.all([
-          api.get("/auth/departments/"),
-          api.get("/spaces/inventory/?for_space=true"),
-        ])
+        const deptRes = await api.get("/auth/departments/")
         const depts = deptRes.data.results || deptRes.data || []
-        const equips = eqRes.data.results || eqRes.data || []
         setDynamicDepartments(depts)
-        setDynamicEquipment(equips.filter((eq) => eq.is_active !== false))
       } catch (err) {
         console.error("Failed loading dynamic data:", err)
       }
@@ -156,17 +194,33 @@ export function useBookingForm({
   }, [])
 
   useEffect(() => {
-    if (activeSpaceCap !== null) return
-    const fetchCap = async () => {
+    if (!activeSpaceId) return
+    const fetchSpaceData = async () => {
       try {
         const res = await api.get(`/spaces/catalog/${activeSpaceId}/`)
         setActiveSpaceCap(res.data.capacity_hard ?? null)
+        if (res.data.built_in_equipment) {
+            const equips = res.data.built_in_equipment.map(eq => ({
+                id: eq.equipment,
+                name: eq.equipment_name,
+                is_active: true
+            }))
+            setDynamicEquipment(equips)
+        } else {
+            setDynamicEquipment([])
+        }
       } catch {
         // Non-fatal — capacity will remain null
       }
     }
-    fetchCap()
-  }, [activeSpaceId, activeSpaceCap])
+    fetchSpaceData()
+  }, [activeSpaceId])
+
+  useEffect(() => {
+    if (initialSpaceId !== activeSpaceId) {
+      setTimeout(() => setSeenSpaceIds([]), 0)
+    }
+  }, [initialSpaceId, activeSpaceId])
 
   useEffect(() => {
     clearTimeout(availabilityTimer.current)
@@ -263,6 +317,10 @@ export function useBookingForm({
       return
     }
 
+    setTimeout(() => {
+      setIsAvailable(null)
+    }, 0)
+
     availabilityTimer.current = setTimeout(async () => {
       setIsCheckingAvailability(true)
       try {
@@ -299,64 +357,48 @@ export function useBookingForm({
   useEffect(() => {
     clearTimeout(debounceTimer.current)
 
-    if (!isLowOccupancy) {
+    const isUnavailable = isAvailable === false
+    
+    if (!isLowOccupancy && !isUnavailable && !exceedsCapacity) {
       debounceTimer.current = setTimeout(() => {
         setSuggestedHalls((prev) => (prev.length > 0 ? [] : prev))
       }, 0)
       return
     }
 
+    let updatedSeen = seenSpaceIds;
+    if (isUnavailable || exceedsCapacity) {
+      if (!seenSpaceIds.includes(activeSpaceId)) {
+        updatedSeen = [...seenSpaceIds, activeSpaceId];
+        setTimeout(() => setSeenSpaceIds(updatedSeen), 0);
+        return;
+      }
+    }
+
     debounceTimer.current = setTimeout(async () => {
       setIsFetchingSuggestions(true)
       try {
-        const res = await api.get(
-          `/spaces/catalog/?min_capacity=${attendeeCount}&for_suggestion=true`
-        )
-        const all = res.data.results ?? res.data ?? []
-        const better = all.filter(
-          (s) =>
-            s.id !== activeSpaceId &&
-            attendeeCount / s.capacity_hard >= LOW_OCCUPANCY_THRESHOLD
-        )
-        setSuggestedHalls(better.slice(0, 3))
+        const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0 ? attendeeCount : activeSpaceCap
+        const queryParams = new URLSearchParams({
+          space_id: activeSpaceId,
+          attendee_count: countToUse,
+          date: form.start_date,
+          start_time: form.start_time,
+          end_time: form.end_time,
+          exclude_ids: updatedSeen.join(',')
+        })
+        const res = await api.get(`/spaces/catalog/suggestions/?${queryParams.toString()}`)
+        const suggestions = res.data.results ?? res.data ?? []
+        setSuggestedHalls(suggestions.slice(0, 3))
       } catch {
         setSuggestedHalls([])
       } finally {
         setIsFetchingSuggestions(false)
       }
-    }, 300)
+    }, 500)
 
     return () => clearTimeout(debounceTimer.current)
-  }, [isLowOccupancy, attendeeCount, activeSpaceId])
-
-  const set = (key, val) => {
-    setForm((p) => {
-      const next = { ...p, [key]: val }
-      if (key === "start_date" && next.end_date && next.end_date < val) {
-        next.end_date = val
-      }
-      return next
-    })
-    if (errors[key]) {
-      setErrors((p) => ({ ...p, [key]: null }))
-    }
-  }
-
-  const toggleReq = (id) => {
-    setForm((p) => ({
-      ...p,
-      requirements: p.requirements.includes(id)
-        ? p.requirements.filter((r) => r !== id)
-        : [...p.requirements, id],
-    }))
-  }
-
-  const switchHall = (space) => {
-    setActiveSpaceId(space.id)
-    setActiveSpaceName(space.name)
-    setActiveSpaceCap(space.capacity_hard)
-    setSuggestedHalls([])
-  }
+  }, [isLowOccupancy, isAvailable, exceedsCapacity, activeSpaceId, attendeeCount, form.start_date, form.start_time, form.end_time, activeSpaceCap, seenSpaceIds])
 
   const notesRequired = isLowOccupancy
   const linkedEndDate = form.end_date || form.start_date
@@ -401,12 +443,31 @@ export function useBookingForm({
       notes: form.notes,
       isExternal: form.isExternal,
       bookingType: form.bookingType,
+      aiBookingSize: form.aiBookingSize,
       faculty_sponsor: form.faculty_sponsor,
       location: activeSpaceName,
     })
   }, [activeSpaceId, activeSpaceName, bookingSession.eventGroupId, form, isEdit, isStandalone])
 
   const continueLinkedBooking = (target) => {
+    const selectedEquipment = dynamicEquipment
+      .filter((item) => form.requirements.includes(item.id))
+      .map((item) => item.name)
+
+    const payload = {
+      space: activeSpaceId,
+      start_datetime: linkedStartIso,
+      end_datetime: linkedEndIso,
+      booking_type: isMultiDay ? form.bookingType : 'SINGLE',
+      attendee_count: Number(form.attendees),
+      purpose_of_booking_input: form.purpose,
+      department: Number(form.department),
+      user_notes: form.notes.trim() || "",
+      equipment_requests: form.requirements.map((id) => ({ equipment: Number(id), quantity: 1 })),
+      is_external: form.isExternal,
+      faculty_sponsor: isAiLab ? null : (form.faculty_sponsor || null),
+    }
+
     bookingSessionActions.setSpaceFormData({
       event_group_id: bookingSession.eventGroupId,
       space: activeSpaceId,
@@ -424,7 +485,10 @@ export function useBookingForm({
       notes: form.notes,
       isExternal: form.isExternal,
       bookingType: form.bookingType,
+      aiBookingSize: form.aiBookingSize,
       faculty_sponsor: form.faculty_sponsor,
+      equipmentSummary: selectedEquipment.length ? selectedEquipment.join(", ") : "None selected",
+      payload,
     })
 
     if (onLinkedIntent) {
@@ -465,14 +529,17 @@ export function useBookingForm({
     if (notesRequired && !form.notes.trim())
       e.notes = "Please explain why this venue is needed for a small group."
       
-    if (isStudent && !form.faculty_sponsor) {
+    if (isStudent && !isAiLab && !form.faculty_sponsor) {
         e.faculty_sponsor = "Faculty sponsor is required for students";
     }
     return e
   }
 
   const handleSubmit = async () => {
-    if (isAvailable !== true || exceedsCapacity) return
+    if (isAvailable !== true || exceedsCapacity) {
+      console.warn('[BookingForm] Submit blocked:', { isAvailable, exceedsCapacity, form })
+      return
+    }
 
     const e = validate()
     if (Object.keys(e).length) {
@@ -499,7 +566,7 @@ export function useBookingForm({
         user_notes: form.notes.trim() || "",
         equipment_requests: form.requirements.map((id) => ({ equipment: id, quantity: 1 })),
         is_external: form.isExternal,
-        faculty_sponsor: form.faculty_sponsor || null,
+        faculty_sponsor: isAiLab ? null : (form.faculty_sponsor || null),
       }
 
       if (isEdit) {
@@ -520,7 +587,7 @@ export function useBookingForm({
           start_datetime,
           end_datetime,
           purpose: form.purpose,
-          faculty_sponsor: form.faculty_sponsor || null,
+          faculty_sponsor: isAiLab ? null : (form.faculty_sponsor || null),
         })
         bookingSessionActions.markComplete("space")
       }
@@ -563,6 +630,6 @@ export function useBookingForm({
     suggestedHalls, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedEndDate, linkedStartIso,
     linkedEndIso, hasLinkedBookings, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, sessionDraft, isStudent,
+    handleSubmit, isEdit, sessionDraft, isStudent, isAiLab,
   }
 }

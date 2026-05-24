@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.db.models import Q, F, Func
 from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.fields import RangeOperators, DateTimeRangeField
+from django.contrib.postgres.fields import RangeOperators, DateTimeRangeField, ArrayField
 from django.conf import settings
 from apps.approvals.models import BaseBooking
 
@@ -75,6 +75,14 @@ class Space(models.Model):
         blank=True,
         related_name="spaces",
         help_text="Campus block this space belongs to. Scopes RECEPTIONIST assignments.",
+    )
+    department = models.ForeignKey(
+        "users.Department",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="spaces",
+        help_text="Assigned department for HOD-routed approval workflows.",
     )
     capacity_hard = models.IntegerField()
     location = models.CharField(max_length=100)
@@ -324,3 +332,85 @@ class EquipmentRequest(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.equipment.name} for {self.space_booking.reference_code}"
+
+
+# ==========================================
+# 5. SPACE APPROVER CHAIN & SYSTEMS
+# ==========================================
+
+class SpaceApproverChain(models.Model):
+    space = models.OneToOneField(Space, on_delete=models.CASCADE, related_name='approver_chain')
+    primary_approver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='primary_chains')
+    fallback_approver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='fallback_chains')
+    escalation_hours = models.PositiveIntegerField(
+        default=24,
+        help_text="Hours before booking escalates to fallback approver."
+    )
+    requires_reason = models.BooleanField(
+        default=True,
+        help_text="If true, booking purpose is mandatory."
+    )
+    earliest_start = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Earliest allowed booking start time. Leave blank for no restriction."
+    )
+    latest_end = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Latest allowed booking end time. Leave blank for no restriction."
+    )
+
+    def __str__(self):
+        return f"Chain for {self.space.name}"
+
+
+
+# ==========================================
+# 6. TIMETABLE BATCHES & BLOCKS
+# ==========================================
+
+class TimetableUploadBatch(models.Model):
+    space = models.ForeignKey(Space, on_delete=models.CASCADE, related_name='timetable_batches')
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    upload_label = models.CharField(max_length=200, default='')
+    row_count = models.IntegerField(default=0)
+    skipped_count = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"Batch for {self.space.name} ({self.upload_label})"
+
+
+class SpaceTimetableBlock(models.Model):
+    batch = models.ForeignKey(TimetableUploadBatch, on_delete=models.CASCADE, related_name='blocks')
+    space = models.ForeignKey(Space, on_delete=models.CASCADE, related_name='timetable_blocks')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    label = models.CharField(max_length=200, default='')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['space', 'date', 'start_time', 'end_time'])
+        ]
+
+    def __str__(self):
+        return f"{self.space.name} {self.date} {self.start_time}-{self.end_time}"
+
+
+# ==========================================
+# 7. CATEGORY AFFINITY
+# ==========================================
+
+class SpaceCategoryAffinity(models.Model):
+    from_category = models.CharField(max_length=50)
+    allowed_categories = ArrayField(models.CharField(max_length=50), default=list, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['from_category'], name='unique_from_category_affinity')
+        ]
+
+    def __str__(self):
+        return f"{self.from_category} -> {', '.join(self.allowed_categories)}"

@@ -42,8 +42,9 @@ const spaceAdminService = {
     },
 
     // --- FACULTY ---
-    fetchFacultyList: async () => {
-        const response = await api.get(`${PREFIX}faculty-list/`);
+    fetchFacultyList: async (departmentId) => {
+        const url = departmentId ? `${PREFIX}faculty-list/?department=${departmentId}` : `${PREFIX}faculty-list/`;
+        const response = await api.get(url);
         return response.data;
     }
 };

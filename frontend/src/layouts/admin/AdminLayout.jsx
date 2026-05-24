@@ -4,21 +4,19 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/NotificationBell';
 
-const NAV_LINKS = [
-    { to: '/admin', label: 'Venue Bookings', end: true, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/spaces', label: 'Venue Management', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/blocks', label: 'Blocks', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/users', label: 'Users', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/approvers', label: 'Venue Managers', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/departments', label: 'Departments', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/faculties', label: 'Faculties', end: false, capability: (c) => c?.is_hod && !c?.can_manage_system },
-    { to: '/admin/transport', label: 'Transport Management', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/mess', label: 'Mess', end: false, capability: (c) => c?.can_manage_mess },
-    { to: '/admin/media', label: 'Media Management', end: false, capability: (c) => c?.can_manage_media },
-    { to: '/media/schedule', label: 'Team Schedule', end: false, capability: (c) => c?.can_manage_media },
-    { to: '/admin/role-overrides', label: 'Special Access', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/equipment', label: 'Equipment Management', end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
-];
+    { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces || c?.can_manage_labs || c?.can_manage_principal_view },
+    { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
+    { to: '/admin/blocks',         label: 'Blocks',                end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/users',          label: 'Users',                 end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/departments',    label: 'Departments & Faculties', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/faculties',      label: 'Faculties',             end: false, capability: (c) => c?.is_hod && !c?.can_manage_system },
+    { to: '/admin/transport',      label: 'Transport Management',  end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/mess',           label: 'Mess',                  end: false, capability: (c) => c?.can_manage_mess },
+    { to: '/admin/media',          label: 'Media Management',      end: false, capability: (c) => c?.can_manage_media },
+    { to: '/media/schedule',       label: 'Team Schedule',         end: false, capability: (c) => c?.can_manage_media },
+    { to: '/admin/role-overrides', label: 'Special Access',        end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/equipment',      label: 'Equipment Management',  end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
 
 const NAV_ICONS = {
     'Venue Bookings': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -189,12 +187,14 @@ const AdminLayout = () => {
     const handleLogout = () => { logout(); navigate('/'); };
 
     const capabilities = {
-        can_manage_system: user?.capabilities?.can_manage_system,
-        can_manage_spaces: user?.capabilities?.can_manage_spaces,
-        can_manage_equipment: user?.capabilities?.can_manage_equipment,
-        can_manage_mess: user?.capabilities?.can_manage_mess,
-        can_manage_media: user?.capabilities?.can_manage_media,
-        is_hod: user?.effective_roles?.includes('HOD'),
+        can_manage_system:         user?.capabilities?.can_manage_system,
+        can_manage_spaces:         user?.capabilities?.can_manage_spaces,
+        can_manage_labs:           user?.capabilities?.can_manage_labs,
+        can_manage_equipment:      user?.capabilities?.can_manage_equipment,
+        can_manage_mess:           user?.capabilities?.can_manage_mess,
+        can_manage_media:          user?.capabilities?.can_manage_media,
+        can_manage_principal_view: user?.capabilities?.can_manage_principal_view,
+        is_hod:                    user?.effective_roles?.includes('HOD'),
     };
 
     const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));

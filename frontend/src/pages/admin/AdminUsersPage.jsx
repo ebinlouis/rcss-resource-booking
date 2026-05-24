@@ -163,7 +163,7 @@ useEffect(() => {
         setIsLoading(true);
 
         try {
-            const data = await adminUserService.getUsers({});
+            const data = await adminUserService.getUsers(search.trim() ? { q: search.trim() } : {});
             const allUsers = normalizeList(data);
 
             const query = search.trim().toLowerCase();
@@ -174,7 +174,7 @@ useEffect(() => {
                           getUserName(user),
                           user.email,
                           user.employee_student_id,
-                          user.phone_number,
+                          user.phone,
                           user.department_name,
                       ]
                           .filter(Boolean)
