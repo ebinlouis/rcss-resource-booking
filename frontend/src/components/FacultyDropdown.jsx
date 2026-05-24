@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import spaceAdminService from '../api/spaceAdminService';
 
-export default function FacultyDropdown({ value, onChange, disabled, error }) {
+export default function FacultyDropdown({ value, onChange, disabled, error, departmentId }) {
     const [facultyList, setFacultyList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(false);
@@ -9,7 +9,13 @@ export default function FacultyDropdown({ value, onChange, disabled, error }) {
     useEffect(() => {
         const fetchList = async () => {
             try {
-                const list = await spaceAdminService.fetchFacultyList();
+                if (!departmentId) {
+                    setFacultyList([]);
+                    setLoading(false);
+                    return;
+                }
+                setLoading(true);
+                const list = await spaceAdminService.fetchFacultyList(departmentId);
                 setFacultyList(list);
             } catch (err) {
                 console.error("Failed to load faculty list", err);
@@ -19,12 +25,12 @@ export default function FacultyDropdown({ value, onChange, disabled, error }) {
             }
         };
         fetchList();
-    }, []);
+    }, [departmentId]);
 
     return (
         <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-600">
-                Faculty Sponsor <span className="text-red-400 ml-0.5">*</span>
+                Please select faculty <span className="text-red-400 ml-0.5">*</span>
             </label>
             <div className="relative">
                 <select
@@ -33,7 +39,7 @@ export default function FacultyDropdown({ value, onChange, disabled, error }) {
                     disabled={disabled || loading}
                     className={`w-full border rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-white outline-none transition focus:ring-2 focus:ring-green-700 focus:border-transparent placeholder:text-gray-400 disabled:cursor-not-allowed disabled:opacity-50 ${error ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`}
                 >
-                    <option value="">{loading ? "Loading faculty list..." : "Select a faculty member"}</option>
+                    <option value="">{loading ? "Loading faculty list..." : (!departmentId ? "Select a department first" : "Select a faculty member")}</option>
                     {facultyList.map(f => (
                         <option key={f.id} value={f.id}>{f.name}</option>
                     ))}

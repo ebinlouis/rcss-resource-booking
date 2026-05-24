@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom"
 import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
 import SpaceFormModal from "../../components/admin/SpaceFormModal"
+import TimetableManagerModal from "../../components/admin/TimetableManagerModal"
 import { parseSpaceLocation } from "../../utils/spaceLocation"
 import Tooltip from "../../components/Tooltip"
+import { useAuth } from "../../hooks/useAuth"
 import PageInfo from '../../components/PageInfo'
 
 // ─────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", str
 // Space Card
 // ─────────────────────────────────────────────────────────────
 
-function SpaceCard({ space, blocks, onEdit }) {
+function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable }) {
   const { blockName, locationDetails } = parseSpaceLocation(space.location, blocks)
   const typeMeta = SPACE_TYPE_META[space.space_type] ?? {
     label: space.space_type,
@@ -156,17 +158,29 @@ function SpaceCard({ space, blocks, onEdit }) {
           </p>
         )}
 
-        <div className="mt-auto pt-1">
+        <div className="mt-auto pt-1 flex gap-2">
           <button
             onClick={() => onEdit(space)}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#d1fae5]
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#d1fae5]
               text-[13px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
           >
             <Icon className="w-3.5 h-3.5">
               <path d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" />
             </Icon>
-            Edit Venue
+            Edit
           </button>
+          {canManageTimetable && (
+            <button
+              onClick={() => onManageTimetable(space)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-indigo-200
+                text-[13px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
+            >
+              <Icon className="w-3.5 h-3.5">
+                <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </Icon>
+              Timetable
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -179,6 +193,8 @@ function SpaceCard({ space, blocks, onEdit }) {
 
 const AdminSpacesPage = () => {
   const navigate = useNavigate()
+  const { can_manage_system } = useAuth()
+  
   const [spaces, setSpaces]           = useState([])
   const [blocks, setBlocks]           = useState([])
   const [isLoading, setIsLoading]     = useState(true)
@@ -187,6 +203,9 @@ const AdminSpacesPage = () => {
 
   const [modalOpen, setModalOpen]     = useState(false)
   const [editTarget, setEditTarget]   = useState(null)
+  
+  const [timetableModalOpen, setTimetableModalOpen] = useState(false)
+  const [timetableTarget, setTimetableTarget] = useState(null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType]   = useState("ALL")
@@ -198,7 +217,7 @@ const AdminSpacesPage = () => {
     let isMounted = true
 
     Promise.all([
-      api.get("/spaces/catalog/"),
+      api.get("/spaces/catalog/?manage=true"),
       spaceAdminService.getBlocks(),
     ])
       .then(([spacesRes, blocksData]) => {
@@ -235,6 +254,11 @@ const AdminSpacesPage = () => {
   const openEdit = useCallback((space) => { 
     setEditTarget(space)
     setModalOpen(true) 
+  }, [])
+  
+  const openTimetable = useCallback((space) => {
+    setTimetableTarget(space)
+    setTimetableModalOpen(true)
   }, [])
 
   const handleModalClose = () => {
@@ -275,6 +299,16 @@ const AdminSpacesPage = () => {
           onSaved={handleModalClose} // Reuse the handler so it triggers loading
         />
       )}
+      
+      {timetableModalOpen && timetableTarget && (
+        <TimetableManagerModal
+          space={timetableTarget}
+          onClose={() => {
+            setTimetableModalOpen(false)
+            setTimetableTarget(null)
+          }}
+        />
+      )}
 
       <div className="max-w-[1200px] mx-auto">
 
@@ -296,18 +330,20 @@ const AdminSpacesPage = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Tooltip text="Add Blocks (e.g. Main Block, Science Block)" position="top">
-              <button
-                type="button"
-                onClick={() => navigate("/admin/blocks")}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
-              >
-                <Icon className="w-4 h-4">
-                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
-                </Icon>
-                Manage Blocks
-              </button>
-            </Tooltip>
+            {can_manage_system && (
+              <Tooltip text="Add Blocks (e.g. Main Block, Science Block)" position="top">
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/blocks")}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
+                >
+                  <Icon className="w-4 h-4">
+                    <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
+                  </Icon>
+                  Manage Blocks
+                </button>
+              </Tooltip>
+            )}
             <Tooltip text="Reload this page" position="top">
 
             <button
@@ -325,13 +361,15 @@ const AdminSpacesPage = () => {
               Refresh
             </button>
             </Tooltip>
-            <button
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
-            >
-              <Icon strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></Icon>
-              Add New Venue
-            </button>
+            {can_manage_system && (
+              <button
+                onClick={openCreate}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
+              >
+                <Icon strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></Icon>
+                Add New Venue
+              </button>
+            )}
           </div>
         </div>
 
@@ -450,7 +488,14 @@ const AdminSpacesPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((space) => (
-              <SpaceCard key={space.id} space={space} blocks={blocks} onEdit={openEdit} />
+              <SpaceCard 
+                key={space.id} 
+                space={space} 
+                blocks={blocks} 
+                onEdit={openEdit}
+                onManageTimetable={openTimetable}
+                canManageTimetable={can_manage_system || space.can_manage_timetable} 
+              />
             ))}
           </div>
         )}

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 import LinkedBookingOptions from "./LinkedBookingOptions"
 import { useBookingForm } from "../hooks/useBookingForm"
 import FacultyDropdown from "./FacultyDropdown"
+import SpaceSuggestions from "./booking/SpaceSuggestions"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 const LOW_OCCUPANCY_THRESHOLD = 0.3
@@ -102,13 +103,20 @@ function BookingModal({
     suggestedHalls, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedStartIso,
     linkedEndIso, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, isStudent
+    handleSubmit, isEdit, isStudent, isAiLab
   } = useBookingForm({
     initialSpaceId, initialSpaceName, initialSpaceCap, initialData,
     prefillDate, prefillStart, prefillEnd, isStandalone, onClose, onLinkedIntent
   });
 
   const bookingSession = useBookingSession();
+
+  const handleClose = () => {
+    if (isStandalone) {
+      bookingSessionActions.clearSession()
+    }
+    onClose()
+  }
 
   // ─────────────────────────────────────────────────────────────
   // Success State
@@ -333,6 +341,15 @@ function BookingModal({
             <p className="text-sm font-bold text-green-800">Time slot is available!</p>
           </div>
         ) : null}
+
+        {isFetchingSuggestions && (
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Finding better-fit venues based on your requirements…</p>
+        )}
+        {!isFetchingSuggestions && suggestedHalls.length > 0 && (
+          <div className="mt-2 mb-4">
+            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} />
+          </div>
+        )}
       </div>
 
       {/* ── STEP 2: EVENT DETAILS ── */}
@@ -392,11 +409,12 @@ function BookingModal({
           </Field>
         </div>
 
-        {isStudent && (
+        {isStudent && !isAiLab && (
           <FacultyDropdown
             value={form.faculty_sponsor}
             onChange={(val) => set("faculty_sponsor", val)}
             error={errors.faculty_sponsor}
+            departmentId={form.department}
           />
         )}
 
@@ -418,20 +436,75 @@ function BookingModal({
           </div>
         )}
 
-        <Field label="Expected attendees" required error={errors.attendees}>
-          <input
-            type="number"
-            min="1"
-            max={activeSpaceCap || undefined}
-            className={inputCls(errors.attendees)}
-            placeholder="e.g. 45"
-            value={form.attendees}
-            onChange={(e) => set("attendees", e.target.value)}
-          />
-        </Field>
+        {activeSpaceName?.toLowerCase().includes("ai lab") ? (
+          <div className="space-y-4">
+            <div className="flex gap-6 mt-1 mb-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="aiBookingSize"
+                  value="SINGLE"
+                  checked={form.aiBookingSize === 'SINGLE'}
+                  onChange={() => {
+                    set('aiBookingSize', 'SINGLE');
+                    set('attendees', 1);
+                  }}
+                  className="w-4 h-4 text-green-600 focus:ring-green-600"
+                />
+                <span className="text-sm font-semibold text-gray-900">Single Booking</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="aiBookingSize"
+                  value="GROUP"
+                  checked={form.aiBookingSize === 'GROUP'}
+                  onChange={() => {
+                    set('aiBookingSize', 'GROUP');
+                    if (String(form.attendees) === "1") {
+                      set('attendees', "");
+                    }
+                  }}
+                  className="w-4 h-4 text-green-600 focus:ring-green-600"
+                />
+                <span className="text-sm font-semibold text-gray-900">Group Booking</span>
+              </label>
+            </div>
+            
+            {form.aiBookingSize === 'GROUP' && (
+              <div className="grid grid-cols-1 gap-4">
+                <Field label="Expected attendees" required error={errors.attendees}>
+                  <input
+                    type="number"
+                    min="1"
+                    max={activeSpaceCap || undefined}
+                    className={inputCls(errors.attendees)}
+                    placeholder="e.g. 10"
+                    value={form.attendees}
+                    onChange={(e) => set("attendees", e.target.value)}
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            <Field label="Expected attendees" required error={errors.attendees}>
+              <input
+                type="number"
+                min="1"
+                max={activeSpaceCap || undefined}
+                className={inputCls(errors.attendees)}
+                placeholder="e.g. 45"
+                value={form.attendees}
+                onChange={(e) => set("attendees", e.target.value)}
+              />
+            </Field>
+          </div>
+        )}
 
         {isLowOccupancy && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 mb-2">
             <div className="flex items-start gap-3">
               <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -442,31 +515,6 @@ function BookingModal({
                   {attendeeCount} attendees fills only {Math.round((attendeeCount / activeSpaceCap) * 100)}% of this venue.
                   Consider a smaller venue, or explain below why this venue is needed.
                 </p>
-                {isFetchingSuggestions && (
-                  <p className="text-xs text-amber-600 mt-2 animate-pulse">Finding better-fit venues…</p>
-                )}
-                {!isFetchingSuggestions && suggestedHalls.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Better fits</p>
-                    {suggestedHalls.map((hall) => (
-                      <div key={hall.id} className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{hall.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {hall.capacity_hard} seats · {Math.round((attendeeCount / hall.capacity_hard) * 100)}% fill · {hall.location}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => switchHall(hall)}
-                          className="shrink-0 px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-800 text-white text-xs font-semibold transition"
-                        >
-                          Switch
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
                 {!isFetchingSuggestions && suggestedHalls.length === 0 && Number.isFinite(attendeeCount) && (
                   <p className="text-xs text-amber-600 mt-2">No smaller venues available — please explain in Notes below.</p>
                 )}
@@ -730,7 +778,7 @@ function BookingModal({
               </h2>
             </div>
 <button
-  onClick={onClose}
+  onClick={handleClose}
   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
 >
   ✕
@@ -772,7 +820,7 @@ function BookingModal({
             </div>
             <div className="flex gap-2">
 <button
-  onClick={onClose}
+  onClick={handleClose}
   className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
 >
   Cancel

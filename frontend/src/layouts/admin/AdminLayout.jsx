@@ -5,8 +5,8 @@ import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/NotificationBell';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces || c?.can_manage_labs || c?.can_manage_principal_view },
+    { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
     { to: '/admin/blocks',         label: 'Blocks',          end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/users',          label: 'Users',           end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
@@ -193,11 +193,13 @@ const AdminLayout = () => {
     const handleLogout = () => { logout(); navigate('/'); };
 
     const capabilities = {
-        can_manage_system:    user?.capabilities?.can_manage_system,
-        can_manage_spaces:    user?.capabilities?.can_manage_spaces,
-        can_manage_equipment: user?.capabilities?.can_manage_equipment,
-        can_manage_mess:      user?.capabilities?.can_manage_mess,
-        can_manage_media:     user?.capabilities?.can_manage_media,
+        can_manage_system:         user?.capabilities?.can_manage_system,
+        can_manage_spaces:         user?.capabilities?.can_manage_spaces,
+        can_manage_labs:           user?.capabilities?.can_manage_labs,
+        can_manage_equipment:      user?.capabilities?.can_manage_equipment,
+        can_manage_mess:           user?.capabilities?.can_manage_mess,
+        can_manage_media:          user?.capabilities?.can_manage_media,
+        can_manage_principal_view: user?.capabilities?.can_manage_principal_view,
     };
 
     const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));

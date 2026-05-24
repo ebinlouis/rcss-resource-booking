@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-const ProtectedRoute = ({ requiredCapability }) => {
+const ProtectedRoute = ({ requiredCapability, requiredCapabilities }) => {
     const authContext = useAuth();
     const { user, isLoading } = authContext;
 
@@ -22,11 +22,11 @@ const ProtectedRoute = ({ requiredCapability }) => {
         return <Navigate to="/login" replace />;
     }
 
-    if (requiredCapability) {
+    if (requiredCapability || requiredCapabilities) {
+        const caps = requiredCapabilities || [requiredCapability];
         const hasClearance =
             user.is_superuser ||
-            user.capabilities?.[requiredCapability] ||
-            authContext[requiredCapability];
+            caps.some(cap => user.capabilities?.[cap] || authContext[cap]);
 
         if (!hasClearance) {
             return <Navigate to="/dashboard" replace />;
