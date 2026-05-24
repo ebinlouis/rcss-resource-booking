@@ -160,7 +160,13 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     def _user(self):
         req = self._request()
-        return req.user if req else None
+        if not req:
+            return None
+        user = req.user
+        # AnonymousUser has no pk — treat as unauthenticated
+        if not user or not user.is_authenticated:
+            return None
+        return user
 
     def get_purpose_of_booking(self, obj):
         user = self._user()

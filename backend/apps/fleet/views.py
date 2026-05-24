@@ -5,7 +5,7 @@ Mirrors the SpaceViewSet / SpaceBookingViewSet pattern exactly.
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils import timezone
 
@@ -50,14 +50,22 @@ class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_permissions(self):
+        # Vehicle catalog is publicly viewable
+        if self.action in ('list', 'retrieve'):
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         """
         Regular users see only active vehicles.
         Admins can pass ?all=true to see deactivated ones too.
         """
         user = self.request.user
-        is_admin = user.is_superuser or user.is_staff or (
-            user.role and user.role.name == 'IT_ADMIN'
+        is_admin = user.is_authenticated and (
+            user.is_superuser or user.is_staff or (
+                getattr(user, 'role', None) and user.role.name == 'IT_ADMIN'
+            )
         )
         if is_admin and self.request.query_params.get('all') == 'true':
             return Vehicle.objects.all().order_by('name')

@@ -6,7 +6,7 @@ from django.db.models import Sum
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
@@ -124,6 +124,12 @@ class MediaSettingsView(APIView):
 class MediaBookingViewSet(viewsets.ModelViewSet):
     serializer_class   = MediaBookingSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Public read access for equipment/team availability schedule
+        if self.action == 'daily_availability':
+            return [AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         user       = self.request.user

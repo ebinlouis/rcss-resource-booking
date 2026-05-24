@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
 
 from apps.approvals.lifecycle import (
@@ -53,6 +53,12 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 class SpaceViewSet(viewsets.ModelViewSet):
     serializer_class   = SpaceSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_permissions(self):
+        # Venue catalog is publicly browsable — no login required
+        if self.action in ('list', 'retrieve'):
+            return [AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         qs = Space.objects.filter(is_active=True)
@@ -176,6 +182,13 @@ class SpaceViewSet(viewsets.ModelViewSet):
 class SpaceBookingViewSet(viewsets.ModelViewSet):
     serializer_class   = SpaceBookingSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrAdminOrReadOnly]
+
+    def get_permissions(self):
+        # Public read-only access for the general campus schedule (no login required)
+        view_param = self.request.query_params.get('view', 'mine')
+        if self.action == 'list' and view_param == 'general':
+            return [AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         user       = self.request.user
