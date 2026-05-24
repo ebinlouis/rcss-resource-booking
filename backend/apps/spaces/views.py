@@ -214,7 +214,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             return (
                 SpaceBooking.objects
                 .select_related('space', 'user')
-                .exclude(status='REJECTED')
+                .exclude(status__in=['REJECTED', 'CANCELLED'])
                 .order_by('start_datetime')
             )
 
