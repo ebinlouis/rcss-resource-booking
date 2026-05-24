@@ -141,6 +141,8 @@ def _build_user_response(user, request=None):
         'can_manage_media':          Role.Name.MEDIA_INCHARGE in effective_roles,
         'can_manage_fleet':          Role.Name.FLEET_MANAGER in effective_roles,
         'can_manage_principal_view': Role.Name.PRINCIPAL in effective_roles,
+        'can_approve_faculty':       Role.Name.FACULTY in effective_roles,
+        'is_student':                Role.Name.STUDENT in effective_roles,
     }
 
     # Superuser override — gets full capabilities
@@ -155,6 +157,8 @@ def _build_user_response(user, request=None):
             'can_manage_media':          False,
             'can_manage_fleet':          True,
             'can_manage_principal_view': True,
+            'can_approve_faculty':       True,
+            'is_student':                False,
         }
 
     profile_image_url = None

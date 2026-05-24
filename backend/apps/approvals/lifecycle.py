@@ -7,6 +7,8 @@ PENDING = 'PENDING'
 APPROVED = 'APPROVED'
 EXPIRED = 'EXPIRED'
 COMPLETED = 'COMPLETED'
+AWAITING_FACULTY = 'AWAITING_FACULTY'
+FACULTY_ESCALATED = 'FACULTY_ESCALATED'
 
 MESS_MEAL_TIME_FIELDS = (
     'breakfast_time',
@@ -104,7 +106,7 @@ def is_past_completion_deadline(booking, now=None):
 
 def can_user_modify_booking(booking, now=None):
     return (
-        getattr(booking, 'status', None) in {PENDING, APPROVED}
+        getattr(booking, 'status', None) in {PENDING, APPROVED, AWAITING_FACULTY, FACULTY_ESCALATED}
         and not is_past_approval_deadline(booking, now)
     )
 
@@ -123,7 +125,7 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
 
     if current_status == APPROVED and is_past_completion_deadline(booking, now):
         next_status = COMPLETED
-    elif current_status == PENDING and is_past_approval_deadline(booking, now):
+    elif current_status in {PENDING, AWAITING_FACULTY, FACULTY_ESCALATED} and is_past_approval_deadline(booking, now):
         next_status = EXPIRED
         booking.resolved_at = now
         update_fields.append('resolved_at')
@@ -154,7 +156,7 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
 
 def refresh_queryset_lifecycle(queryset):
     changed = 0
-    for booking in queryset.filter(status__in=[PENDING, APPROVED]):
+    for booking in queryset.filter(status__in=[PENDING, APPROVED, AWAITING_FACULTY, FACULTY_ESCALATED]):
         if refresh_booking_lifecycle(booking):
             changed += 1
     return changed

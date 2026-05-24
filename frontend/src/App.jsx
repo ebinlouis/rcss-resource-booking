@@ -15,6 +15,7 @@ import MyMediaBookingsPage from "./pages/MyMediaBookingsPage";
 import MyBookingsPage from "./pages/MyBookingsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import Profile from "./pages/Profile";
+import FacultyApprovalPage from "./pages/FacultyApprovalPage";
 
 // Admin Pages
 import AdminLayout from "./layouts/admin/AdminLayout";
@@ -58,6 +59,7 @@ function App() {
             <Route path="/bookings/:referenceCode" element={<MyBookingsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/faculty-approvals" element={<FacultyApprovalPage />} />
           </Route>
 
           {/* ========================================== */}

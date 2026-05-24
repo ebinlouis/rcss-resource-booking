@@ -104,6 +104,8 @@ class CustomUserSerializer(serializers.ModelSerializer):
                 "can_manage_media":          False,
                 "can_manage_fleet":          True,
                 "can_manage_principal_view": True,
+                "can_approve_faculty":       True,
+                "is_student":                False,
             }
 
         roles = obj.get_effective_roles()
@@ -169,6 +171,10 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
             # Principal only — separate view: see all approved, cancel + rebook
             "can_manage_principal_view": Role.Name.PRINCIPAL in roles,
+
+            # Faculty only — for faculty approval workflow
+            "can_approve_faculty": Role.Name.FACULTY in roles,
+            "is_student": Role.Name.STUDENT in roles,
         }
 
 

@@ -118,6 +118,24 @@ const getBookingStatusMeta = (booking) => {
         icon: <AlertCircle className="w-5 h-5 text-slate-500" />
       }
 
+    case "AWAITING_FACULTY":
+      return {
+        title: "Awaiting Faculty Sponsorship",
+        description: "This request is waiting for your faculty sponsor to approve it.",
+        bg: "bg-blue-50",
+        border: "border-blue-100",
+        icon: <Clock3 className="w-5 h-5 text-blue-600" />
+      }
+
+    case "FACULTY_ESCALATED":
+      return {
+        title: "Faculty Escalated",
+        description: "Your faculty sponsor has approved this request and escalated it to the administrator.",
+        bg: "bg-purple-50",
+        border: "border-purple-100",
+        icon: <AlertCircle className="w-5 h-5 text-purple-600" />
+      }
+
     default:
       return {
         title: "Status Unknown",
@@ -710,6 +728,18 @@ const confirmCancelBooking = async () => {
           "bg-yellow-50 text-yellow-700 border-yellow-200",
         icon: <Clock3 className="w-3.5 h-3.5" />,
         label: "Pending Review",
+      },
+
+      AWAITING_FACULTY: {
+        classes: "bg-blue-50 text-blue-700 border-blue-200",
+        icon: <Clock3 className="w-3.5 h-3.5" />,
+        label: "Awaiting Faculty",
+      },
+
+      FACULTY_ESCALATED: {
+        classes: "bg-purple-50 text-purple-700 border-purple-200",
+        icon: <Clock3 className="w-3.5 h-3.5" />,
+        label: "Escalated",
       },
     }
 

@@ -151,9 +151,13 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     is_hod      = Role.Name.HOD in effective_roles
     user_dept   = getattr(user, 'department', None)
 
+    statuses = [requested_status]
+    if requested_status == 'PENDING':
+        statuses.append('FACULTY_ESCALATED')
+
     base_qs = (
         SpaceBooking.objects
-        .filter(status=requested_status)
+        .filter(status__in=statuses)
         .select_related('user', 'user__department', 'space', 'space__block')
         .prefetch_related('requested_equipment__equipment')
         .order_by('group_id', 'start_datetime')
@@ -412,6 +416,8 @@ class UnifiedApprovalQueueView(APIView):
                     "block":             getattr(item.space.block, 'name', None),
                     "capacity_hard":     getattr(item.space, 'capacity_hard', None),
                 },
+                faculty_sponsor_name = f"{item.faculty_sponsor.first_name} {item.faculty_sponsor.last_name}".strip() or item.faculty_sponsor.email if getattr(item, 'faculty_sponsor', None) else None,
+                is_student_booking   = bool(getattr(item, 'faculty_sponsor_id', None)),
             )
 
         elif domain == 'fleet':
@@ -526,13 +532,13 @@ class AdminResolveBookingAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if new_status == 'APPROVED' and booking.status != 'PENDING':
+        if new_status == 'APPROVED' and booking.status not in ['PENDING', 'FACULTY_ESCALATED']:
             return Response(
                 {"error": f"Booking is already {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED']:
+        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'FACULTY_ESCALATED', 'APPROVED']:
             return Response(
                 {"error": f"Cannot reject a booking that is currently {booking.status}."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -604,11 +610,11 @@ class AdminResolveBookingAPIView(APIView):
         siblings = (
             SpaceBooking.objects
             .filter(group_id=booking.group_id)
-            .filter(status__in=['PENDING', 'APPROVED'])
+            .filter(status__in=['PENDING', 'FACULTY_ESCALATED', 'APPROVED'])
         )
         resolved_at = timezone.now()
         for sibling in siblings:
-            if new_status == 'APPROVED' and sibling.status != 'PENDING':
+            if new_status == 'APPROVED' and sibling.status not in ['PENDING', 'FACULTY_ESCALATED']:
                 continue
             sibling.status      = new_status
             sibling.resolved_by = resolved_by

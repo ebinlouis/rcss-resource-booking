@@ -111,10 +111,13 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     can_modify = serializers.SerializerMethodField()
 
     booked_by_name        = serializers.SerializerMethodField()
+    booked_by_email       = serializers.SerializerMethodField()
     booked_by_designation = serializers.SerializerMethodField()
     booked_by_department  = serializers.SerializerMethodField()
     booked_by_phone       = serializers.SerializerMethodField()
     booked_by_photo       = serializers.SerializerMethodField()
+
+    faculty_sponsor_name  = serializers.SerializerMethodField()
 
     class Meta:
         model = SpaceBooking
@@ -134,6 +137,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'attendee_count',
             'purpose_of_booking',
             'booked_by_name',
+            'booked_by_email',
             'booked_by_designation',
             'booked_by_department',
             'booked_by_phone',
@@ -146,6 +150,9 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'updated_at',
             'can_modify',
             'remarks_by_admin',
+            'faculty_sponsor',
+            'faculty_sponsor_name',
+            'faculty_response_deadline',
         ]
         read_only_fields = [
             'reference_code',
@@ -153,6 +160,8 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'user',
+            'faculty_sponsor',
+            'faculty_response_deadline',
         ]
 
     def _request(self):
@@ -174,7 +183,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if obj.user_id == user.pk:
             return obj.purpose_of_booking
 
-        if user.groups.filter(name='Faculty').exists():
+        if 'FACULTY' in user.get_effective_roles():
             return obj.purpose_of_booking
 
         return "Occupied"
@@ -194,8 +203,12 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if not user:
             return None
 
-        full_name = f"{user.first_name} {user.last_name}".strip()
+        parts = [user.first_name, user.last_name]
+        full_name = " ".join(p for p in parts if p)  # filters out None and empty
         return full_name or user.email
+
+    def get_booked_by_email(self, obj):
+        return obj.user.email if obj.user else None
 
     def get_booked_by_designation(self, obj):
         user = obj.user
@@ -247,7 +260,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             name=Role.Name.IT_ADMIN
         ).exists()
 
-        if requester.is_staff or requester.is_superuser or is_it_admin:
+        is_faculty = requester.roles.filter(
+            name=Role.Name.FACULTY
+        ).exists()
+
+        if requester.is_staff or requester.is_superuser or is_it_admin or is_faculty:
             return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
 
         return None
@@ -260,7 +277,16 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.user.profile_image.url)
         return obj.user.profile_image.url
 
+    def get_faculty_sponsor_name(self, obj):
+        if obj.faculty_sponsor:
+            return f"{obj.faculty_sponsor.first_name} {obj.faculty_sponsor.last_name}".strip() or obj.faculty_sponsor.email
+        return None
+
     def create(self, validated_data):
+        request = self._request()
+        if request and request.data.get('faculty_sponsor'):
+            validated_data['faculty_sponsor_id'] = request.data.get('faculty_sponsor')
+
         equipment_data = validated_data.pop('requested_equipment', [])
         booking_type = validated_data.get(
             'booking_type',
