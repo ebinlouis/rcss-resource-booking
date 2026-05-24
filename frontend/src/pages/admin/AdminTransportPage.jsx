@@ -17,7 +17,7 @@
  *  - fleetApi.js         (api function calls, error shape)
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
     getPendingBookings,
@@ -29,6 +29,8 @@ import {
 } from '../../api/fleetApi'
 import Tooltip from "../../components/Tooltip"
 import PageInfo from '../../components/PageInfo'
+import TransportDateNavigator from '../../components/transport/TransportDateNavigator'
+import TransportFilters from '../../components/transport/TransportFilters'
 
 // ==========================================
 // SHARED STYLE MAP  (mirrors Transport.jsx)
@@ -484,6 +486,20 @@ export default function AdminTransportPage() {
     // Vehicles needed by RescheduleModal
     const [vehicles, setVehicles] = useState([])
     const [lastApproved, setLastApproved] = useState(null)
+
+    // ── Filter state ──────────────────────────────────────────────────────────
+    const [selectedDate,  setSelectedDate]  = useState(null)   // 'YYYY-MM-DD' or null
+    const [searchQuery,   setSearchQuery]   = useState('')
+    const [vehicleFilter, setVehicleFilter] = useState('')
+
+    // Reset filters whenever tab changes so stale results don't persist
+    const handleTabChange = (key) => {
+        setActiveTab(key)
+        setBookings([])
+        setSelectedDate(null)
+        setSearchQuery('')
+        setVehicleFilter('')
+    }
     
 
     // ------------------------------------------------------------------
@@ -597,6 +613,65 @@ export default function AdminTransportPage() {
     }
 
     // ------------------------------------------------------------------
+    // DERIVED VEHICLES  (unique names from loaded bookings)
+    // ------------------------------------------------------------------
+    const uniqueVehicles = useMemo(() => {
+        const seen = new Set()
+        const list = []
+        bookings.forEach(b => {
+            const name = b.vehicle_details?.name
+            const reg  = b.vehicle_details?.registration_number ?? ''
+            if (name && !seen.has(name)) {
+                seen.add(name)
+                list.push({ name, reg })
+            }
+        })
+        return list.sort((a, b) => a.name.localeCompare(b.name))
+    }, [bookings])
+
+    // ------------------------------------------------------------------
+    // FILTERED BOOKINGS
+    // Pending bookings are NEVER hidden by date — only non-pending tabs
+    // apply the date filter so no unresolved request disappears.
+    // ------------------------------------------------------------------
+    const filteredBookings = useMemo(() => {
+        let list = bookings
+
+        // Date filter — skip for Pending tab so no request is hidden
+        if (selectedDate && activeTab !== 'pending') {
+            list = list.filter(b => {
+                const start = b.start_datetime ? b.start_datetime.slice(0, 10) : null
+                const end   = b.end_datetime   ? b.end_datetime.slice(0, 10)   : null
+                return start === selectedDate || end === selectedDate ||
+                    (start && end && start <= selectedDate && end >= selectedDate)
+            })
+        }
+
+        // Text search
+        const q = searchQuery.trim().toLowerCase()
+        if (q) {
+            list = list.filter(b => {
+                const vName = (b.vehicle_details?.name ?? '').toLowerCase()
+                const ref   = (b.reference_code ?? '').toLowerCase()
+                const email = (b.user_email ?? '').toLowerCase()
+                const dest  = (b.destination ?? '').toLowerCase()
+                const pick  = (b.pickup_location ?? '').toLowerCase()
+                return vName.includes(q) || ref.includes(q) || email.includes(q) ||
+                       dest.includes(q) || pick.includes(q)
+            })
+        }
+
+        // Vehicle filter
+        if (vehicleFilter) {
+            list = list.filter(b => (b.vehicle_details?.name ?? '') === vehicleFilter)
+        }
+
+        return list
+    }, [bookings, selectedDate, searchQuery, vehicleFilter, activeTab])
+
+    const hasActiveFilters = selectedDate !== null || searchQuery.trim() !== '' || vehicleFilter !== ''
+
+    // ------------------------------------------------------------------
     // RENDER
     // ------------------------------------------------------------------
     return (
@@ -652,7 +727,7 @@ export default function AdminTransportPage() {
                 {TABS.map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => { setActiveTab(tab.key); setBookings([]); }}
+                        onClick={() => handleTabChange(tab.key)}
                         className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg transition border-b-2 -mb-px ${
                             activeTab === tab.key
                                 ? 'border-green-700 text-green-700 bg-green-50/50'
@@ -669,6 +744,27 @@ export default function AdminTransportPage() {
                 ))}
             </div>
 
+            {/* DATE NAVIGATOR — below tabs, above booking cards */}
+            <div className="mb-4">
+                <TransportDateNavigator
+                    selectedDate={selectedDate}
+                    onDateChange={setSelectedDate}
+                />
+            </div>
+
+            {/* FILTER TOOLBAR */}
+            <div className="mb-5">
+                <TransportFilters
+                    searchQuery={searchQuery}
+                    vehicleFilter={vehicleFilter}
+                    vehicles={uniqueVehicles}
+                    onSearch={setSearchQuery}
+                    onVehicle={setVehicleFilter}
+                    resultCount={filteredBookings.length}
+                    totalCount={bookings.length}
+                />
+            </div>
+
             {/* CONTENT CARD */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px] flex flex-col">
 
@@ -676,10 +772,18 @@ export default function AdminTransportPage() {
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                         {currentTab?.label}
+                        {selectedDate && activeTab !== 'pending' && (
+                            <span className="ml-2 normal-case font-medium text-green-700">
+                                · {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                            </span>
+                        )}
                     </h2>
                     {!isLoading && !error && (
                         <span className="text-[10px] text-gray-400 font-medium">
-                            {bookings.length} record{bookings.length !== 1 ? 's' : ''}
+                            {hasActiveFilters
+                                ? `${filteredBookings.length} of ${bookings.length} record${bookings.length !== 1 ? 's' : ''}`
+                                : `${bookings.length} record${bookings.length !== 1 ? 's' : ''}`
+                            }
                         </span>
                     )}
                 </div>
@@ -694,10 +798,7 @@ export default function AdminTransportPage() {
                             </svg>
                         </div>
                         <p className="text-sm font-medium text-gray-900">{error}</p>
-                        <button
-                            onClick={refresh}
-                            className="mt-3 text-xs font-semibold text-green-700 hover:underline"
-                        >
+                        <button onClick={refresh} className="mt-3 text-xs font-semibold text-green-700 hover:underline">
                             Try again
                         </button>
                     </div>
@@ -707,9 +808,28 @@ export default function AdminTransportPage() {
                     </div>
                 ) : bookings.length === 0 ? (
                     <EmptyState message={emptyMessages[activeTab]} />
+                ) : filteredBookings.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                        <div className="w-12 h-12 bg-[#f0fdf4] rounded-full flex items-center justify-center mb-4">
+                            <svg className="w-6 h-6 text-[#15803d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {selectedDate && !searchQuery && !vehicleFilter
+                                ? `No transport requests found for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.`
+                                : 'No bookings match your filters.'}
+                        </p>
+                        <button
+                            onClick={() => { setSelectedDate(null); setSearchQuery(''); setVehicleFilter('') }}
+                            className="mt-3 text-xs font-semibold text-green-700 hover:underline"
+                        >
+                            Clear all filters
+                        </button>
+                    </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
-                        {bookings.map(booking => (
+                        {filteredBookings.map(booking => (
                             <BookingRow
                                 key={booking.id}
                                 booking={booking}
