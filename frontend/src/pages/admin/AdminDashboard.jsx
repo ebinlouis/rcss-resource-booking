@@ -56,7 +56,7 @@ const bookingOverlapsDate = (booking, dateKey) => {
 
     // A booking overlaps if start <= targetEnd AND end >= target
     const start = booking.start_datetime ? new Date(booking.start_datetime) : null;
-    const end   = booking.end_datetime   ? new Date(booking.end_datetime)   : null;
+    const end = booking.end_datetime ? new Date(booking.end_datetime) : null;
 
     if (start && end) {
         return start <= targetEnd && end >= target;
@@ -88,8 +88,8 @@ const isToday = (isoString) => {
     const d = new Date(isoString);
     const now = new Date();
     return (
-        d.getDate()     === now.getDate()   &&
-        d.getMonth()    === now.getMonth()  &&
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
         d.getFullYear() === now.getFullYear()
     );
 };
@@ -157,19 +157,19 @@ const bookingMatchesReference = (booking, reference) => {
 
 const IconBuilding = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01"/>
+        <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" />
     </svg>
 );
 
 const IconCheck = ({ className = 'w-[18px] h-[18px]' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M5 13l4 4L19 7"/>
+        <path d="M5 13l4 4L19 7" />
     </svg>
 );
 
 const IconX = ({ className = 'w-[18px] h-[18px]' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M18 6L6 18M6 6l12 12"/>
+        <path d="M18 6L6 18M6 6l12 12" />
     </svg>
 );
 
@@ -179,31 +179,31 @@ const IconRefresh = ({ spinning, className = 'w-[18px] h-[18px]' }) => (
         style={spinning ? { animation: 'spin 0.7s linear infinite' } : {}}
         viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"
     >
-        <path d="M1 4v6h6M23 20v-6h-6"/>
-        <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
+        <path d="M1 4v6h6M23 20v-6h-6" />
+        <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" />
     </svg>
 );
 
 const IconUsers = ({ className = 'w-[15px] h-[15px]' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
     </svg>
 );
 
 const IconAlert = ({ className = 'w-6 h-6' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
 );
 
 const IconBox = ({ className = 'w-3 h-3' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-        <line x1="12" y1="22.08" x2="12" y2="12"/>
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
     </svg>
 );
 
@@ -212,7 +212,7 @@ const IconChevron = ({ className = 'w-4 h-4', expanded }) => (
         className={`${className} transition-transform duration-300 ease-in-out ${expanded ? 'rotate-180' : ''}`}
         viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"
     >
-        <path d="M6 9l6 6 6-6"/>
+        <path d="M6 9l6 6 6-6" />
     </svg>
 );
 
@@ -224,9 +224,9 @@ const IconLightning = ({ className = 'w-3 h-3' }) => (
 
 const IconCalendar = ({ className = 'w-4 h-4' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
     </svg>
 );
 
@@ -243,11 +243,10 @@ function FilterPills({ label, options, value, onChange }) {
                     <button
                         key={opt.value}
                         onClick={() => onChange(opt.value)}
-                        className={`px-3 py-1 rounded-lg text-[12.5px] font-semibold transition-all ${
-                            value === opt.value
+                        className={`px-3 py-1 rounded-lg text-[12.5px] font-semibold transition-all ${value === opt.value
                                 ? 'bg-[#15803d] text-white shadow-sm'
                                 : 'bg-white border border-[#e2e8f0] text-[#4b5563] hover:border-[#a7f3d0] hover:bg-[#f0fdf4]'
-                        }`}
+                            }`}
                     >
                         {opt.label}
                         {opt.count !== undefined && (
@@ -300,13 +299,13 @@ const ApproveModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => 
                         Cancel
                     </button>
                     <Tooltip text="Confirm approval. The venue will be reserved and the requester notified." position="top">
-                      <button
-                        onClick={() => onConfirm()}
-                        disabled={isLoading}
-                        className="px-6 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition disabled:opacity-40 flex items-center gap-2"
-                      >
-                        {isLoading ? 'Approving...' : 'Yes, Approve'}
-                      </button>
+                        <button
+                            onClick={() => onConfirm()}
+                            disabled={isLoading}
+                            className="px-6 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition disabled:opacity-40 flex items-center gap-2"
+                        >
+                            {isLoading ? 'Approving...' : 'Yes, Approve'}
+                        </button>
                     </Tooltip>
                 </div>
             </div>
@@ -318,7 +317,7 @@ const RejectModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => {
     const [remarks, setRemarks] = useState('');
 
     const isCancellation = booking?.status === 'APPROVED';
-    const title      = isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?';
+    const title = isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?';
     const buttonText = isCancellation ? 'Revoke & Cancel' : 'Reject Booking';
 
     return (
@@ -418,16 +417,16 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
         return () => window.clearTimeout(timer);
     }, [isHighlighted]);
 
-    const hasEquipment    = booking.equipment_requests?.length > 0;
-    const hasNotes        = booking.user_notes?.trim().length > 0;
-    const isExternal      = booking.is_external;
-    const capacity        = booking.space_details?.capacity_hard;
-    const attendees       = booking.attendee_count;
+    const hasEquipment = booking.equipment_requests?.length > 0;
+    const hasNotes = booking.user_notes?.trim().length > 0;
+    const isExternal = booking.is_external;
+    const capacity = booking.space_details?.capacity_hard;
+    const attendees = booking.attendee_count;
     const isUnderutilized = capacity && attendees && (attendees / capacity < 0.30);
-    const isExpired       = new Date(booking.end_datetime) < new Date();
+    const isExpired = new Date(booking.end_datetime) < new Date();
 
-    const startDate  = booking.start_datetime ? new Date(booking.start_datetime) : null;
-    const endDate    = booking.end_datetime   ? new Date(booking.end_datetime)   : null;
+    const startDate = booking.start_datetime ? new Date(booking.start_datetime) : null;
+    const endDate = booking.end_datetime ? new Date(booking.end_datetime) : null;
     const isMultiDay = startDate && endDate && startDate.toDateString() !== endDate.toDateString();
 
     // A group is "recurring" when there are multiple distinct DB rows sharing
@@ -598,7 +597,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                         {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'F'}
                                     </div>
                                     <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
-                                        Faculty Sponsor: {booking.faculty_sponsor_name || 'Unknown'} 
+                                        Faculty Sponsor: {booking.faculty_sponsor_name || 'Unknown'}
                                         {['PENDING', 'FACULTY_ESCALATED', 'APPROVED'].includes(booking.status) ? ' (Approved)' : ''}
                                     </p>
                                 </div>
@@ -658,22 +657,22 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                             {isPendingTab ? (
                                 <>
                                     <Tooltip text="Reject this request. You'll be asked to provide a reason which will be shared with the requester." position="top">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
-                                        disabled={isActing}
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
-                                      >
-                                        <IconX /> Reject
-                                      </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                            disabled={isActing}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
+                                        >
+                                            <IconX /> Reject
+                                        </button>
                                     </Tooltip>
                                     <Tooltip text="Approve this booking request. The requester will be notified and the venue will be reserved." position="top">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
-                                        disabled={isActing}
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
-                                      >
-                                        {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
-                                      </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                            disabled={isActing}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
+                                        >
+                                            {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
+                                        </button>
                                     </Tooltip>
                                 </>
                             ) : isExpired ? (
@@ -682,34 +681,34 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                 </span>
                             ) : booking.status === 'APPROVED' ? (
                                 <Tooltip text="Revoke this approval and cancel the booking. The requester will be notified and the venue will be freed up." position="top">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
-                                    disabled={isActing}
-                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
-                                  >
-                                    <IconX /> Revoke & Cancel Booking
-                                  </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                        disabled={isActing}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
+                                    >
+                                        <IconX /> Revoke & Cancel Booking
+                                    </button>
                                 </Tooltip>
-) : booking.status === 'APPROVED' ? (
-    <Tooltip
-      text="Revoke this approval and cancel the booking. The requester will be notified and the venue will be freed up."
-      position="top"
-    >
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRejectClick(booking);
-        }}
-        disabled={isActing}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
-      >
-        <IconX />
-        Revoke & Cancel Booking
-      </button>
-    </Tooltip>
-) : ['REJECTED', 'CANCELLED'].includes(booking.status) ? (<span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
-                                    Rejected / Cancelled
-                                </span>
+                            ) : booking.status === 'APPROVED' ? (
+                                <Tooltip
+                                    text="Revoke this approval and cancel the booking. The requester will be notified and the venue will be freed up."
+                                    position="top"
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRejectClick(booking);
+                                        }}
+                                        disabled={isActing}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
+                                    >
+                                        <IconX />
+                                        Revoke & Cancel Booking
+                                    </button>
+                                </Tooltip>
+                            ) : ['REJECTED', 'CANCELLED'].includes(booking.status) ? (<span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
+                                Rejected / Cancelled
+                            </span>
                             ) : null}
                         </div>
                     </div>
@@ -784,7 +783,7 @@ const AdminDashboard = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const can_manage_media = user?.capabilities?.can_manage_media;
-    const currentUserId    = user?.id;
+    const currentUserId = user?.id;
     const requestedTab = searchParams.get('tab');
     const highlightedReference = searchParams.get('booking') || '';
 
@@ -804,11 +803,11 @@ const AdminDashboard = () => {
     const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [], cancelled: [] });
 
     // ── UI state ──────────────────────────────────────────────────────────────
-    const [isLoading,     setIsLoading]     = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
-    const [actionError,   setActionError]   = useState(null);
-    const [error,         setError]         = useState(null);
-    const [rejectTarget,  setRejectTarget]  = useState(null);
+    const [actionError, setActionError] = useState(null);
+    const [error, setError] = useState(null);
+    const [rejectTarget, setRejectTarget] = useState(null);
     const [approveTarget, setApproveTarget] = useState(null);
     const [successTarget, setSuccessTarget] = useState(null);
 
@@ -817,9 +816,9 @@ const AdminDashboard = () => {
     const [timingFilter, setTimingFilter] = useState('all');
 
     // ── Unified filter toolbar state ──────────────────────────────────────────
-    const [searchQuery, setSearchQuery]   = useState('');
-    const [venueFilter, setVenueFilter]   = useState('all');
-    const [venues,      setVenues]        = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [venueFilter, setVenueFilter] = useState('all');
+    const [venues, setVenues] = useState([]);
 
     // Fetch venues once on mount
     useEffect(() => {
@@ -828,7 +827,7 @@ const AdminDashboard = () => {
                 const list = Array.isArray(r.data) ? r.data : (r.data.results ?? []);
                 setVenues(list);
             })
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     // Reset filters when switching tabs
@@ -854,7 +853,7 @@ const AdminDashboard = () => {
         return raw.approved
             .filter(b => b.start_datetime && new Date(b.start_datetime) > now)
             .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [raw.approved]);
 
     const resolvedByMe = useMemo(() => {
@@ -882,17 +881,17 @@ const AdminDashboard = () => {
         }
 
         return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilter, timingFilter]);
 
     // ── What renders in the queue panel ───────────────────────────────────────
     const listForTab = useMemo(() => {
         switch (activeTab) {
-            case 'pending':      return [...raw.pending].sort(compareSubmissionTimeDesc);
-            case 'upcoming':     return upcoming;
-            case 'history':      return applyFilters(history);
+            case 'pending': return [...raw.pending].sort(compareSubmissionTimeDesc);
+            case 'upcoming': return upcoming;
+            case 'history': return applyFilters(history);
             case 'resolvedByMe': return applyFilters(resolvedByMe);
-            default:             return [];
+            default: return [];
         }
     }, [activeTab, raw.pending, upcoming, history, resolvedByMe, applyFilters]);
 
@@ -964,14 +963,14 @@ const AdminDashboard = () => {
         setError(null);
         try {
             const [pendingData, approvedData, rejectedData, cancelledData] = await Promise.all([
-                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'PENDING'  }).catch(() => ({ queue: [] })),
+                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'PENDING' }).catch(() => ({ queue: [] })),
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'APPROVED' }).catch(() => ({ queue: [] })),
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'REJECTED' }).catch(() => ({ queue: [] })),
                 approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'CANCELLED' }).catch(() => ({ queue: [] })),
             ]);
 
             setRaw({
-                pending:  groupBookings(pendingData.queue),
+                pending: groupBookings(pendingData.queue),
                 approved: groupBookings(approvedData.queue),
                 rejected: groupBookings(rejectedData.queue),
                 cancelled: groupBookings(cancelledData.queue),
@@ -1014,9 +1013,9 @@ const AdminDashboard = () => {
             // so a single request is both correct and sufficient.
             const representativeId = parentBooking.child_bookings?.[0]?.id ?? parentBooking.id;
             await approvalService.resolveBooking({
-                module:  parentBooking.domain || 'spaces',
-                id:      representativeId,
-                status:  'APPROVED',
+                module: parentBooking.domain || 'spaces',
+                id: representativeId,
+                status: 'APPROVED',
                 remarks: '',
             });
             await notificationService.markBookingRead(parentBooking.reference_code, parentBooking.domain || 'spaces').catch(() => null);
@@ -1044,9 +1043,9 @@ const AdminDashboard = () => {
             // Same single-call pattern — backend resolves the whole group.
             const representativeId = parentBooking.child_bookings?.[0]?.id ?? parentBooking.id;
             await approvalService.resolveBooking({
-                module:  parentBooking.domain || 'spaces',
-                id:      representativeId,
-                status:  'REJECTED',
+                module: parentBooking.domain || 'spaces',
+                id: representativeId,
+                status: 'REJECTED',
                 remarks,
             });
             await notificationService.markBookingRead(parentBooking.reference_code, parentBooking.domain || 'spaces').catch(() => null);
@@ -1066,23 +1065,23 @@ const AdminDashboard = () => {
 
     // Clear action error when modals close
     const handleApproveClose = () => { setApproveTarget(null); setActionError(null); };
-    const handleRejectClose  = () => { setRejectTarget(null);  setActionError(null); };
+    const handleRejectClose = () => { setRejectTarget(null); setActionError(null); };
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const todayCount = useMemo(() =>
         raw.approved.filter(b => b.start_datetime && isToday(b.start_datetime)).length,
-    [raw.approved]);
+        [raw.approved]);
 
     const totalPeople = useMemo(() =>
         [...raw.approved, ...raw.pending].reduce((s, b) => s + (b.attendee_count || 0), 0),
-    [raw.approved, raw.pending]);
+        [raw.approved, raw.pending]);
 
     // ── Tabs config ───────────────────────────────────────────────────────────
     const tabs = [
-        { id: 'pending',      label: 'Pending',        count: raw.pending.length  },
-        { id: 'upcoming',     label: 'Upcoming',       count: upcoming.length      },
-        { id: 'history',      label: 'History',        count: history.length       },
-        { id: 'resolvedByMe', label: 'Resolved by Me', count: resolvedByMe.length  },
+        { id: 'pending', label: 'Pending', count: raw.pending.length },
+        { id: 'upcoming', label: 'Upcoming', count: upcoming.length },
+        { id: 'history', label: 'History', count: history.length },
+        { id: 'resolvedByMe', label: 'Resolved by Me', count: resolvedByMe.length },
     ];
 
     const showFilters = activeTab === 'history' || activeTab === 'resolvedByMe';
@@ -1091,17 +1090,17 @@ const AdminDashboard = () => {
     const baseList = activeTab === 'history' ? history : resolvedByMe;
 
     const statusOptions = [
-        { value: 'all',      label: 'All',      count: baseList.length },
+        { value: 'all', label: 'All', count: baseList.length },
         { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
         { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
         { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
     ];
 
     const timingOptions = [
-        { value: 'all',      label: 'All time' },
-        { value: 'today',    label: 'Today',    count: baseList.filter(b => isToday(b.start_datetime)).length },
+        { value: 'all', label: 'All time' },
+        { value: 'today', label: 'Today', count: baseList.filter(b => isToday(b.start_datetime)).length },
         { value: 'upcoming', label: 'Upcoming', count: baseList.filter(b => b.start_datetime && new Date(b.start_datetime) > now).length },
-        { value: 'past',     label: 'Past',     count: baseList.filter(b => b.end_datetime && new Date(b.end_datetime) < now).length },
+        { value: 'past', label: 'Past', count: baseList.filter(b => b.end_datetime && new Date(b.end_datetime) < now).length },
     ];
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -1144,31 +1143,31 @@ const AdminDashboard = () => {
                             Rajagiri College · Admin
                         </p>
                         <div className="flex items-center gap-2">
-            <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Venue Bookings</h1>
-            <PageInfo text="Review, approve, or reject space booking requests. Approved requests reserve the venue." />
-          </div>
+                            <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Venue Bookings</h1>
+                            <PageInfo text="Review, approve, or reject space booking requests. Approved requests reserve the venue." />
+                        </div>
                         <p className="text-[15px] text-[#374151] mt-2">
                             Review and manage venue booking requests.
                         </p>
                     </div>
                     <Tooltip text="Reload the booking queue to see the latest requests." position="top">
-                      <button
-                        onClick={() => fetchQueue({ showLoading: true })}
-                        disabled={isLoading}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] font-semibold text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
-                      >
-                        <IconRefresh spinning={isLoading} />
-                        Refresh
-                      </button>
+                        <button
+                            onClick={() => fetchQueue({ showLoading: true })}
+                            disabled={isLoading}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] font-semibold text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
+                        >
+                            <IconRefresh spinning={isLoading} />
+                            Refresh
+                        </button>
                     </Tooltip>
                 </div>
 
                 {/* Stat strip */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
                     {[
-                        { value: raw.pending.length, label: 'Waiting for review'    },
-                        { value: todayCount,          label: 'Happening today'       },
-                        { value: totalPeople,         label: 'Total people attending' },
+                        { value: raw.pending.length, label: 'Waiting for review' },
+                        { value: todayCount, label: 'Happening today' },
+                        { value: totalPeople, label: 'Total people attending' },
                     ].map(({ value, label }) => (
                         <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-6 py-5">
                             <p className="text-[32px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
@@ -1183,11 +1182,10 @@ const AdminDashboard = () => {
                         <button
                             key={tab.id}
                             onClick={() => handleTabChange(tab.id)}
-                            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[13.5px] font-bold transition-all ${
-                                activeTab === tab.id
+                            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[13.5px] font-bold transition-all ${activeTab === tab.id
                                     ? 'bg-white text-[#0f172a] shadow-sm ring-1 ring-black/5'
                                     : 'text-[#4a6b58] hover:bg-white/60'
-                            }`}
+                                }`}
                         >
                             {tab.label}
                             <span className="rounded-full bg-[#f6fbf8] px-2 py-0.5 text-[12px] text-[#0f172a]">
@@ -1205,7 +1203,7 @@ const AdminDashboard = () => {
 
                         {/* Search */}
                         <div className="relative flex-1 min-w-[180px]">
-                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
                             <input
                                 type="text"
                                 value={searchQuery}
@@ -1215,14 +1213,14 @@ const AdminDashboard = () => {
                             />
                             {searchQuery && (
                                 <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#374151] transition">
-                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                 </button>
                             )}
                         </div>
 
                         {/* Venue dropdown */}
                         <div className="relative min-w-[160px]">
-                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01"/></svg>
+                            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" /></svg>
                             <select
                                 value={venueFilter}
                                 onChange={e => setVenueFilter(e.target.value)}
@@ -1233,23 +1231,23 @@ const AdminDashboard = () => {
                                     <option key={v.id} value={v.name}>{v.name}</option>
                                 ))}
                             </select>
-                            <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+                            <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><path d="M6 9l6 6 6-6" /></svg>
                         </div>
 
                         {/* Date filter — opt-in; empty = show all */}
                         {dateFilter ? (
                             <div className="flex items-center gap-1.5 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2.5">
-                                <svg className="w-4 h-4 text-[#15803d] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <svg className="w-4 h-4 text-[#15803d] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                                 <span className="text-[13px] font-semibold text-[#15803d] whitespace-nowrap">
                                     {formatCalDate(dateFilter, { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </span>
                                 <button onClick={() => setDateFilter('')} className="ml-1 text-[#15803d] hover:text-[#166534] transition" aria-label="Clear date filter">
-                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                 </button>
                             </div>
                         ) : (
                             <div className="relative">
-                                <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                                 <input
                                     type="date"
                                     value=""

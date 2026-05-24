@@ -5,7 +5,15 @@ from rest_framework import serializers
 
 from apps.approvals.lifecycle import can_user_modify_booking
 from apps.users.models import Role
-from .models import Block, Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest, SpaceApprover
+from .models import (
+    Block,
+    Space,
+    SpaceBooking,
+    Equipment,
+    SpaceEquipment,
+    EquipmentRequest,
+    SpaceApprover,
+)
 from .utils import get_overlapping_bookings, build_conflict_report
 
 
@@ -13,27 +21,34 @@ from .utils import get_overlapping_bookings, build_conflict_report
 # 1. EQUIPMENT SERIALIZERS
 # ==========================================
 
+
 class EquipmentSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = Equipment
+        model = Equipment
         fields = [
-            'id', 'name', 'category', 'description',
-            'total_owned', 'is_portable', 'is_active',
-            'is_standard_media_kit',
+            "id",
+            "name",
+            "category",
+            "description",
+            "total_owned",
+            "is_portable",
+            "is_active",
+            "is_standard_media_kit",
         ]
 
 
 class SpaceEquipmentSerializer(serializers.ModelSerializer):
-    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    equipment_name = serializers.CharField(source="equipment.name", read_only=True)
 
     class Meta:
-        model  = SpaceEquipment
-        fields = ['id', 'equipment', 'equipment_name', 'quantity']
+        model = SpaceEquipment
+        fields = ["id", "equipment", "equipment_name", "quantity"]
 
 
 # ==========================================
 # 2. SPACE SERIALIZER
 # ==========================================
+
 
 class SpaceSerializer(serializers.ModelSerializer):
     built_in_equipment = SpaceEquipmentSerializer(many=True, read_only=True)
@@ -93,15 +108,32 @@ class SpaceSerializer(serializers.ModelSerializer):
         }
 
     class Meta:
-        model  = Space
+        model = Space
         fields = [
-            'id', 'name', 'description', 'space_type', 'approval_category',
-            'approval_workflow_type', 'capacity_hard',
-            'location', 'image_1', 'is_active', 'is_special_purpose',
-            'setup_buffer_minutes', 'teardown_buffer_minutes',
-            'built_in_equipment', 'equipment_data', 'can_manage_timetable',
-            'approver_chain', 'chain_primary_approver', 'chain_fallback_approver',
-            'chain_escalation_hours', 'chain_requires_reason', 'chain_earliest_start', 'chain_latest_end',
+            "id",
+            "name",
+            "description",
+            "space_type",
+            "approval_category",
+            "approval_workflow_type",
+            "department",
+            "capacity_hard",
+            "location",
+            "image_1",
+            "is_active",
+            "is_special_purpose",
+            "setup_buffer_minutes",
+            "teardown_buffer_minutes",
+            "built_in_equipment",
+            "equipment_data",
+            "can_manage_timetable",
+            "approver_chain",
+            "chain_primary_approver",
+            "chain_fallback_approver",
+            "chain_escalation_hours",
+            "chain_requires_reason",
+            "chain_earliest_start",
+            "chain_latest_end",
         ]
 
     def validate(self, data):
@@ -154,44 +186,44 @@ class SpaceSerializer(serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
-        equipment_raw = validated_data.pop('equipment_data', None)
+        equipment_raw = validated_data.pop("equipment_data", None)
         chain_data = {
-            'chain_primary_approver': validated_data.pop('chain_primary_approver', None),
-            'chain_fallback_approver': validated_data.pop('chain_fallback_approver', None),
-            'chain_escalation_hours': validated_data.pop('chain_escalation_hours', None),
-            'chain_requires_reason': validated_data.pop('chain_requires_reason', None),
-            'chain_earliest_start': validated_data.pop('chain_earliest_start', None),
-            'chain_latest_end': validated_data.pop('chain_latest_end', None),
+            "chain_primary_approver": validated_data.pop("chain_primary_approver", None),
+            "chain_fallback_approver": validated_data.pop("chain_fallback_approver", None),
+            "chain_escalation_hours": validated_data.pop("chain_escalation_hours", None),
+            "chain_requires_reason": validated_data.pop("chain_requires_reason", None),
+            "chain_earliest_start": validated_data.pop("chain_earliest_start", None),
+            "chain_latest_end": validated_data.pop("chain_latest_end", None),
         }
         space = Space.objects.create(**validated_data)
         if equipment_raw:
             for item in json.loads(equipment_raw):
                 SpaceEquipment.objects.create(
-                    space        = space,
-                    equipment_id = item['equipment'],
-                    quantity     = item['quantity'],
+                    space=space,
+                    equipment_id=item["equipment"],
+                    quantity=item["quantity"],
                 )
         self._handle_chain(space, {**validated_data, **chain_data})
         return space
 
     def update(self, instance, validated_data):
-        equipment_raw = validated_data.pop('equipment_data', None)
+        equipment_raw = validated_data.pop("equipment_data", None)
         chain_data = {
-            'chain_primary_approver': validated_data.pop('chain_primary_approver', None),
-            'chain_fallback_approver': validated_data.pop('chain_fallback_approver', None),
-            'chain_escalation_hours': validated_data.pop('chain_escalation_hours', None),
-            'chain_requires_reason': validated_data.pop('chain_requires_reason', None),
-            'chain_earliest_start': validated_data.pop('chain_earliest_start', None),
-            'chain_latest_end': validated_data.pop('chain_latest_end', None),
+            "chain_primary_approver": validated_data.pop("chain_primary_approver", None),
+            "chain_fallback_approver": validated_data.pop("chain_fallback_approver", None),
+            "chain_escalation_hours": validated_data.pop("chain_escalation_hours", None),
+            "chain_requires_reason": validated_data.pop("chain_requires_reason", None),
+            "chain_earliest_start": validated_data.pop("chain_earliest_start", None),
+            "chain_latest_end": validated_data.pop("chain_latest_end", None),
         }
         instance = super().update(instance, validated_data)
         if equipment_raw:
             instance.built_in_equipment.all().delete()
             for item in json.loads(equipment_raw):
                 SpaceEquipment.objects.create(
-                    space        = instance,
-                    equipment_id = item['equipment'],
-                    quantity     = item['quantity'],
+                    space=instance,
+                    equipment_id=item["equipment"],
+                    quantity=item["quantity"],
                 )
         self._handle_chain(instance, {**validated_data, **chain_data})
         return instance
@@ -201,20 +233,28 @@ class SpaceSerializer(serializers.ModelSerializer):
 # 3. BOOKING SERIALIZER
 # ==========================================
 
+
 class EquipmentRequestSerializer(serializers.ModelSerializer):
-    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    equipment_name = serializers.CharField(source="equipment.name", read_only=True)
 
     class Meta:
-        model            = EquipmentRequest
-        fields           = ['id', 'equipment', 'equipment_name', 'quantity', 'is_delivered', 'is_returned']
-        read_only_fields = ['is_delivered', 'is_returned']
+        model = EquipmentRequest
+        fields = [
+            "id",
+            "equipment",
+            "equipment_name",
+            "quantity",
+            "is_delivered",
+            "is_returned",
+        ]
+        read_only_fields = ["is_delivered", "is_returned"]
 
 
 class SpaceBookingSerializer(serializers.ModelSerializer):
-    space_details = SpaceSerializer(source='space', read_only=True)
+    space_details = SpaceSerializer(source="space", read_only=True)
 
     equipment_requests = EquipmentRequestSerializer(
-        source='requested_equipment',
+        source="requested_equipment",
         many=True,
         required=False,
     )
@@ -224,67 +264,67 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     purpose_of_booking_input = serializers.CharField(
         write_only=True,
         required=True,
-        source='purpose_of_booking',
+        source="purpose_of_booking",
     )
 
     can_modify = serializers.SerializerMethodField()
 
-    booked_by_name        = serializers.SerializerMethodField()
-    booked_by_email       = serializers.SerializerMethodField()
+    booked_by_name = serializers.SerializerMethodField()
+    booked_by_email = serializers.SerializerMethodField()
     booked_by_designation = serializers.SerializerMethodField()
-    booked_by_department  = serializers.SerializerMethodField()
-    booked_by_phone       = serializers.SerializerMethodField()
-    booked_by_photo       = serializers.SerializerMethodField()
+    booked_by_department = serializers.SerializerMethodField()
+    booked_by_phone = serializers.SerializerMethodField()
+    booked_by_photo = serializers.SerializerMethodField()
 
-    faculty_sponsor_name  = serializers.SerializerMethodField()
+    faculty_sponsor_name = serializers.SerializerMethodField()
 
     class Meta:
         model = SpaceBooking
         fields = [
-            'id',
-            'reference_code',
-            'group_id',
-            'event_group_id',
-            'booking_type',
-            'user',
-            'department',
-            'status',
-            'space',
-            'space_details',
-            'start_datetime',
-            'end_datetime',
-            'attendee_count',
-            'purpose_of_booking',
-            'booked_by_name',
-            'booked_by_email',
-            'booked_by_designation',
-            'booked_by_department',
-            'booked_by_phone',
-            'booked_by_photo',
-            'purpose_of_booking_input',
-            'user_notes',
-            'equipment_requests',
-            'is_external',
-            'created_at',
-            'updated_at',
-            'can_modify',
-            'remarks_by_admin',
-            'faculty_sponsor',
-            'faculty_sponsor_name',
-            'faculty_response_deadline',
+            "id",
+            "reference_code",
+            "group_id",
+            "event_group_id",
+            "booking_type",
+            "user",
+            "department",
+            "status",
+            "space",
+            "space_details",
+            "start_datetime",
+            "end_datetime",
+            "attendee_count",
+            "purpose_of_booking",
+            "booked_by_name",
+            "booked_by_email",
+            "booked_by_designation",
+            "booked_by_department",
+            "booked_by_phone",
+            "booked_by_photo",
+            "purpose_of_booking_input",
+            "user_notes",
+            "equipment_requests",
+            "is_external",
+            "created_at",
+            "updated_at",
+            "can_modify",
+            "remarks_by_admin",
+            "faculty_sponsor",
+            "faculty_sponsor_name",
+            "faculty_response_deadline",
         ]
         read_only_fields = [
-            'reference_code',
-            'group_id',
-            'created_at',
-            'updated_at',
-            'user',
-            'faculty_sponsor',
-            'faculty_response_deadline',
+            "reference_code",
+            "group_id",
+            "created_at",
+            "updated_at",
+            "user",
+            "faculty_sponsor",
+            "faculty_response_deadline",
         ]
 
     def _request(self):
-        return self.context.get('request')
+        return self.context.get("request")
 
     def _user(self):
         req = self._request()
@@ -299,7 +339,20 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     def get_purpose_of_booking(self, obj):
         if not obj.purpose_of_booking:
             return "Occupied"
-        return obj.purpose_of_booking
+        user = self._user()
+        if user is None:
+            return "Occupied"
+
+        if user.is_staff or user.is_superuser:
+            return obj.purpose_of_booking
+
+        if obj.user_id == user.pk:
+            return obj.purpose_of_booking
+
+        if "FACULTY" in user.get_effective_roles():
+            return obj.purpose_of_booking
+
+        return "Occupied"
 
     def get_can_modify(self, obj):
         user = self._user()
@@ -332,24 +385,32 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return user.designation
 
         ROLE_LABELS = {
-            'IT_ADMIN':         'IT Administrator',
-            'PRINCIPAL':        'Principal',
-            'HOD':              'Head of Department',
-            'RECEPTIONIST':     'Receptionist',
-            'LAB_INCHARGE':     'Lab In-Charge',
-            'LIBRARIAN':        'Librarian',
-            'MESS_MANAGER':     'Mess Manager',
-            'MEDIA_INCHARGE':   'Media In-Charge',
-            'FLEET_MANAGER':    'Fleet Manager',
-            'FACULTY':          'Faculty',
-            'STAFF':            'Staff',
-            'STUDENT':          'Student',
+            "IT_ADMIN": "IT Administrator",
+            "PRINCIPAL": "Principal",
+            "HOD": "Head of Department",
+            "RECEPTIONIST": "Receptionist",
+            "LAB_INCHARGE": "Lab In-Charge",
+            "LIBRARIAN": "Librarian",
+            "MESS_MANAGER": "Mess Manager",
+            "MEDIA_INCHARGE": "Media In-Charge",
+            "FLEET_MANAGER": "Fleet Manager",
+            "FACULTY": "Faculty",
+            "STAFF": "Staff",
+            "STUDENT": "Student",
         }
         priority = [
-            'IT_ADMIN', 'PRINCIPAL', 'HOD', 'RECEPTIONIST',
-            'LAB_INCHARGE', 'LIBRARIAN', 'MESS_MANAGER',
-            'MEDIA_INCHARGE', 'FLEET_MANAGER',
-            'FACULTY', 'STAFF', 'STUDENT',
+            "IT_ADMIN",
+            "PRINCIPAL",
+            "HOD",
+            "RECEPTIONIST",
+            "LAB_INCHARGE",
+            "LIBRARIAN",
+            "MESS_MANAGER",
+            "MEDIA_INCHARGE",
+            "FLEET_MANAGER",
+            "FACULTY",
+            "STAFF",
+            "STUDENT",
         ]
         effective_roles = user.get_effective_roles()
         for role in priority:
@@ -369,16 +430,14 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if requester is None:
             return None
 
-        is_it_admin = requester.roles.filter(
-            name=Role.Name.IT_ADMIN
-        ).exists()
+        is_it_admin = requester.roles.filter(name=Role.Name.IT_ADMIN).exists()
 
-        is_faculty = requester.roles.filter(
-            name=Role.Name.FACULTY
-        ).exists()
+        is_faculty = requester.roles.filter(name=Role.Name.FACULTY).exists()
 
         if requester.is_staff or requester.is_superuser or is_it_admin or is_faculty:
-            return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
+            return getattr(obj.user, "phone_number", None) or getattr(
+                obj.user, "phone", None
+            )
 
         return None
 
@@ -392,25 +451,27 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     def get_faculty_sponsor_name(self, obj):
         if obj.faculty_sponsor:
-            return f"{obj.faculty_sponsor.first_name} {obj.faculty_sponsor.last_name}".strip() or obj.faculty_sponsor.email
+            return (
+                f"{obj.faculty_sponsor.first_name} {obj.faculty_sponsor.last_name}".strip()
+                or obj.faculty_sponsor.email
+            )
         return None
 
     def create(self, validated_data):
         request = self._request()
-        if request and request.data.get('faculty_sponsor'):
-            validated_data['faculty_sponsor_id'] = request.data.get('faculty_sponsor')
+        if request and request.data.get("faculty_sponsor"):
+            validated_data["faculty_sponsor_id"] = request.data.get("faculty_sponsor")
 
-        equipment_data = validated_data.pop('requested_equipment', [])
+        equipment_data = validated_data.pop("requested_equipment", [])
         booking_type = validated_data.get(
-            'booking_type',
-            SpaceBooking.BookingType.SINGLE_CONTINUOUS
+            "booking_type", SpaceBooking.BookingType.SINGLE_CONTINUOUS
         )
 
         if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
-            start = validated_data.pop('start_datetime')
-            end = validated_data.pop('end_datetime')
+            start = validated_data.pop("start_datetime")
+            end = validated_data.pop("end_datetime")
             group_id = uuid.uuid4()
-            validated_data['group_id'] = group_id
+            validated_data["group_id"] = group_id
 
             days_diff = (end.date() - start.date()).days
             first_booking = None
@@ -418,64 +479,54 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             for i in range(days_diff + 1):
                 slot_start = start + timedelta(days=i)
                 slot_end = start.replace(
-                    hour=end.hour,
-                    minute=end.minute,
-                    second=end.second
+                    hour=end.hour, minute=end.minute, second=end.second
                 ) + timedelta(days=i)
 
                 booking = SpaceBooking.objects.create(
-                    start_datetime=slot_start,
-                    end_datetime=slot_end,
-                    **validated_data
+                    start_datetime=slot_start, end_datetime=slot_end, **validated_data
                 )
 
                 if not first_booking:
                     first_booking = booking
 
                 for eq_data in equipment_data:
-                    EquipmentRequest.objects.create(
-                        space_booking=booking,
-                        **eq_data
-                    )
+                    EquipmentRequest.objects.create(space_booking=booking, **eq_data)
 
             return first_booking
 
         booking = super().create(validated_data)
 
         for eq_data in equipment_data:
-            EquipmentRequest.objects.create(
-                space_booking=booking,
-                **eq_data
-            )
+            EquipmentRequest.objects.create(space_booking=booking, **eq_data)
 
         return booking
 
     def update(self, instance, validated_data):
-        equipment_data = validated_data.pop('requested_equipment', None)
+        equipment_data = validated_data.pop("requested_equipment", None)
 
-        new_type  = validated_data.get('booking_type', instance.booking_type)
-        new_start = validated_data.get('start_datetime', instance.start_datetime)
-        new_end   = validated_data.get('end_datetime', instance.end_datetime)
+        new_type = validated_data.get("booking_type", instance.booking_type)
+        new_start = validated_data.get("start_datetime", instance.start_datetime)
+        new_end = validated_data.get("end_datetime", instance.end_datetime)
 
-        SpaceBooking.objects.filter(
-            group_id=instance.group_id
-        ).exclude(pk=instance.pk).delete()
+        SpaceBooking.objects.filter(group_id=instance.group_id).exclude(
+            pk=instance.pk
+        ).delete()
 
         if new_type == SpaceBooking.BookingType.RECURRING_DAILY:
             days_diff = (new_end.date() - new_start.date()).days
 
-            validated_data['end_datetime'] = new_start.replace(
+            validated_data["end_datetime"] = new_start.replace(
                 hour=new_end.hour,
                 minute=new_end.minute,
                 second=new_end.second,
-                microsecond=0
+                microsecond=0,
             )
 
             instance = super().update(instance, validated_data)
 
             for i in range(1, days_diff + 1):
                 slot_start = new_start + timedelta(days=i)
-                slot_end   = instance.end_datetime + timedelta(days=i)
+                slot_end = instance.end_datetime + timedelta(days=i)
 
                 new_booking = SpaceBooking.objects.create(
                     group_id=instance.group_id,
@@ -494,10 +545,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
                 if equipment_data:
                     for eq in equipment_data:
-                        EquipmentRequest.objects.create(
-                            space_booking=new_booking,
-                            **eq
-                        )
+                        EquipmentRequest.objects.create(space_booking=new_booking, **eq)
 
         else:
             instance = super().update(instance, validated_data)
@@ -506,74 +554,73 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             instance.requested_equipment.all().delete()
 
             for eq_data in equipment_data:
-                EquipmentRequest.objects.create(
-                    space_booking=instance,
-                    **eq_data
-                )
+                EquipmentRequest.objects.create(space_booking=instance, **eq_data)
 
         return instance
 
     def validate(self, data):
         if self.instance and not can_user_modify_booking(self.instance):
-            raise serializers.ValidationError({
-                "non_field_errors": [
-                    "Cannot modify a booking whose start time has already passed."
-                ]
-            })
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": [
+                        "Cannot modify a booking whose start time has already passed."
+                    ]
+                }
+            )
 
-        space        = data.get('space')
-        attendees    = data.get('attendee_count')
-        start        = data.get('start_datetime')
-        end          = data.get('end_datetime')
-        notes        = data.get('user_notes', '')
+        space = data.get("space")
+        attendees = data.get("attendee_count")
+        start = data.get("start_datetime")
+        end = data.get("end_datetime")
+        notes = data.get("user_notes", "")
         booking_type = data.get(
-            'booking_type',
-            SpaceBooking.BookingType.SINGLE_CONTINUOUS
+            "booking_type", SpaceBooking.BookingType.SINGLE_CONTINUOUS
         )
 
         if space and attendees:
             if attendees > space.capacity_hard:
-                raise serializers.ValidationError({
-                    "attendee_count": f"Max capacity is {space.capacity_hard}."
-                })
+                raise serializers.ValidationError(
+                    {"attendee_count": f"Max capacity is {space.capacity_hard}."}
+                )
 
             min_expected = space.capacity_hard * 0.30
 
-            is_hod_fallback_space = getattr(space, 'approval_workflow_type', '') == Space.ApprovalWorkflowType.HOD_FALLBACK
+            is_hod_fallback_space = (
+                getattr(space, "approval_workflow_type", "")
+                == Space.ApprovalWorkflowType.HOD_FALLBACK
+            )
             if not is_hod_fallback_space and attendees < min_expected and not notes.strip():
-                raise serializers.ValidationError({
-                    "user_notes": (
-                        f"This space seats {space.capacity_hard}. "
-                        f"For a group of {attendees}, provide justification."
-                    )
-                })
+                raise serializers.ValidationError(
+                    {
+                        "user_notes": (
+                            f"This space seats {space.capacity_hard}. "
+                            f"For a group of {attendees}, provide justification."
+                        )
+                    }
+                )
 
         if space and start and end:
             exclude_pk = self.instance.pk if self.instance else None
 
             if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
                 if start.time() >= end.time():
-                    raise serializers.ValidationError({
-                        "start_datetime":
-                        "For recurring bookings, start must be before end."
-                    })
+                    raise serializers.ValidationError(
+                        {
+                            "start_datetime": "For recurring bookings, start must be before end."
+                        }
+                    )
 
-                conflicts  = []
-                days_diff  = (end.date() - start.date()).days
+                conflicts = []
+                days_diff = (end.date() - start.date()).days
 
                 for i in range(days_diff + 1):
                     slot_start = start + timedelta(days=i)
-                    slot_end   = start.replace(
-                        hour=end.hour,
-                        minute=end.minute,
-                        second=end.second
+                    slot_end = start.replace(
+                        hour=end.hour, minute=end.minute, second=end.second
                     ) + timedelta(days=i)
 
                     overlapping = get_overlapping_bookings(
-                        space,
-                        slot_start,
-                        slot_end,
-                        exclude_pk=exclude_pk
+                        space, slot_start, slot_end, exclude_pk=exclude_pk
                     )
 
                     if overlapping.exists():
@@ -583,45 +630,33 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
                 if conflicts:
                     conflict_summary = "; ".join(
-                        f"{c['date']} {c['start']}–{c['end']}"
-                        for c in conflicts
+                        f"{c['date']} {c['start']}–{c['end']}" for c in conflicts
                     )
 
-                    raise serializers.ValidationError({
-                        "non_field_errors": [
-                            f"Booking conflicts: {conflict_summary}"
-                        ]
-                    })
+                    raise serializers.ValidationError(
+                        {"non_field_errors": [f"Booking conflicts: {conflict_summary}"]}
+                    )
 
             else:
                 if start >= end:
-                    raise serializers.ValidationError({
-                        "start_datetime": "Must be before end time."
-                    })
+                    raise serializers.ValidationError(
+                        {"start_datetime": "Must be before end time."}
+                    )
 
                 overlapping = get_overlapping_bookings(
-                    space,
-                    start,
-                    end,
-                    exclude_pk=exclude_pk
+                    space, start, end, exclude_pk=exclude_pk
                 )
 
                 if overlapping.exists():
-                    conflicts = build_conflict_report(
-                        overlapping,
-                        self._user()
-                    )
+                    conflicts = build_conflict_report(overlapping, self._user())
 
                     conflict_summary = "; ".join(
-                        f"{c['date']} {c['start']}–{c['end']}"
-                        for c in conflicts
+                        f"{c['date']} {c['start']}–{c['end']}" for c in conflicts
                     )
 
-                    raise serializers.ValidationError({
-                        "non_field_errors": [
-                            f"Booking conflicts: {conflict_summary}"
-                        ]
-                    })
+                    raise serializers.ValidationError(
+                        {"non_field_errors": [f"Booking conflicts: {conflict_summary}"]}
+                    )
 
         return data
 
@@ -630,19 +665,20 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 # 4. BLOCK SERIALIZER
 # ==========================================
 
+
 class BlockSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = Block
+        model = Block
         fields = [
-            'id',
-            'name',
-            'code',
-            'description',
-            'is_active',
-            'created_at',
-            'updated_at',
+            "id",
+            "name",
+            "code",
+            "description",
+            "is_active",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 # ==========================================
@@ -661,26 +697,31 @@ SCOPED_APPROVER_ROLES = {
 
 class SpaceApproverSerializer(serializers.ModelSerializer):
     # Read-only display fields — keeps the write surface clean (FK ids only)
-    user_email   = serializers.EmailField(source='user.email',           read_only=True)
-    user_name    = serializers.CharField(source='user.first_name',       read_only=True)
-    role_display = serializers.CharField(source='role.get_name_display', read_only=True)
-    block_name   = serializers.CharField(source='block.name',            read_only=True)
-    space_name   = serializers.CharField(source='space.name',            read_only=True)
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_name = serializers.CharField(source="user.first_name", read_only=True)
+    role_display = serializers.CharField(source="role.get_name_display", read_only=True)
+    block_name = serializers.CharField(source="block.name", read_only=True)
+    space_name = serializers.CharField(source="space.name", read_only=True)
 
     class Meta:
-        model  = SpaceApprover
+        model = SpaceApprover
         fields = [
-            'id',
-            'user',        'user_email',   'user_name',
-            'role',        'role_display',
-            'scope_type',
-            'block',       'block_name',
-            'space',       'space_name',
-            'is_active',
-            'created_at',
-            'updated_at',
+            "id",
+            "user",
+            "user_email",
+            "user_name",
+            "role",
+            "role_display",
+            "scope_type",
+            "block",
+            "block_name",
+            "space",
+            "space_name",
+            "is_active",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ["id", "created_at", "updated_at"]
 
     # ------------------------------------------------------------------
     # Field-level validation
@@ -703,9 +744,9 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
     # ------------------------------------------------------------------
 
     def validate(self, data):
-        scope_type = data.get('scope_type')
-        block      = data.get('block')
-        space      = data.get('space')
+        scope_type = data.get("scope_type")
+        block = data.get("block")
+        space = data.get("space")
 
         # ── Scope consistency ─────────────────────────────────────────
         if scope_type == SpaceApprover.ScopeType.BLOCK:
@@ -763,10 +804,9 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
         role = instance.role
 
         remaining_assignments = (
-            SpaceApprover.objects
-            .filter(user=user, role=role, is_active=True)
+            SpaceApprover.objects.filter(user=user, role=role, is_active=True)
             .exclude(pk=instance.pk)
             .count()
         )
-        data['is_last_assignment_for_role'] = (remaining_assignments == 0)
+        data["is_last_assignment_for_role"] = remaining_assignments == 0
         return data

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
 const inputCls =
     'w-full border border-[#e2e8f0] rounded-xl px-3.5 py-2.5 text-sm text-[#0f172a] bg-white outline-none transition focus:ring-2 focus:ring-[#15803d] focus:border-transparent placeholder:text-[#94a3b8] hover:border-[#94a3b8]';
 
 export default function AdminDepartmentsPage() {
+    const navigate = useNavigate();
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [listError, setListError] = useState(null);
@@ -17,6 +19,9 @@ export default function AdminDepartmentsPage() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState(null);
+
+    const [openMenuDeptId, setOpenMenuDeptId] = useState(null);
+    const menuRef = useRef(null);
 
     const refreshRef = useRef(null);
 
@@ -95,6 +100,32 @@ export default function AdminDepartmentsPage() {
         setDeleteError(null);
     };
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setOpenMenuDeptId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeDeleteModal();
+                setOpenMenuDeptId(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -102,13 +133,17 @@ export default function AdminDepartmentsPage() {
         try {
             if (editingId) {
                 await api.patch(`/auth/departments/${editingId}/`, form);
+                setIsModalOpen(false);
+                setEditingId(null);
+                setForm({ department_name: '', department_code: '' });
+                refreshRef.current?.({ silent: true });
             } else {
-                await api.post('/auth/departments/', form);
+                const res = await api.post('/auth/departments/', form);
+                setIsModalOpen(false);
+                setEditingId(null);
+                setForm({ department_name: '', department_code: '' });
+                navigate(`/admin/departments/${res.data.id}/faculties?onboard=true`);
             }
-            setIsModalOpen(false);
-            setEditingId(null);
-            setForm({ department_name: '', department_code: '' });
-            refreshRef.current?.({ silent: true });
         } catch (err) {
             setFormError(
                 err.response?.data?.department_name?.[0] ||
@@ -184,50 +219,115 @@ export default function AdminDepartmentsPage() {
                                 <tr className="bg-[#f6fbf8] border-b border-[#e8f5ee]">
                                     <th className="caps-label px-6 py-4">Department Name</th>
                                     <th className="caps-label px-6 py-4">Department Code</th>
+                                    <th className="caps-label px-6 py-4">Faculties</th>
                                     <th className="caps-label px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#e8f5ee]">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan="3" className="text-center py-10 text-[#94a3b8] text-[13.5px]">
+                                        <td colSpan="4" className="text-center py-10 text-[#94a3b8] text-[13.5px]">
                                             Loading departments...
                                         </td>
                                     </tr>
                                 ) : departments.length === 0 ? (
                                     <tr>
-                                        <td colSpan="3" className="text-center py-10 text-[#94a3b8] text-[13.5px]">
+                                        <td colSpan="4" className="text-center py-10 text-[#94a3b8] text-[13.5px]">
                                             No departments found. Click &quot;Add Department&quot; to create one.
                                         </td>
                                     </tr>
                                 ) : (
                                     departments.map((dept) => (
-                                        <tr key={dept.id} className="hover:bg-[#f0fdf4]/50 transition">
+                                        <tr 
+                                            key={dept.id} 
+                                            className="hover:bg-[#f0fdf4]/50 transition cursor-pointer"
+                                            onClick={() => navigate(`/admin/departments/${dept.id}/faculties`)}
+                                        >
                                             <td className="px-6 py-4 text-[14px] font-semibold text-[#0f172a]">
-                                                {dept.department_name}
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-[#0f172a]">{dept.department_name}</span>
+                                                    {(dept.faculty_count ?? 0) === 0 && (
+                                                        <span className="mt-1 self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 uppercase tracking-wide">
+                                                            ⚠️ Needs HOD Setup
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#f0fdf4] rounded-lg text-[11px] font-bold text-[#14532d] tracking-wide border border-[#d1fae5] font-mono uppercase">
                                                     {dept.department_code}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-end gap-3 flex-wrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openEditModal(dept)}
-                                                        className="text-[13px] font-semibold text-[#15803d] hover:text-[#166534] transition"
+                                            <td className="px-6 py-4 text-[14px] font-semibold text-[#374151]">
+                                                {(dept.faculty_count ?? 0) === 0 ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[11px] font-bold uppercase tracking-wide">
+                                                        ⚠️ No faculties assigned
+                                                    </span>
+                                                ) : (
+                                                    dept.faculty_count
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right relative" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenMenuDeptId(openMenuDeptId === dept.id ? null : dept.id)}
+                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                    </svg>
+                                                </button>
+                                                
+                                                {openMenuDeptId === dept.id && (
+                                                    <div 
+                                                        ref={menuRef}
+                                                        className="absolute right-6 top-12 w-48 bg-white border border-slate-100 rounded-xl shadow-lg z-30 py-1.5 overflow-hidden text-left"
                                                     >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openDeleteModal(dept)}
-                                                        className="text-[13px] font-semibold text-red-600 hover:text-red-700 transition"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setOpenMenuDeptId(null);
+                                                                navigate(`/admin/departments/${dept.id}/faculties`);
+                                                            }}
+                                                            className="w-full px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-[#f0fdf4] hover:text-[#15803d] flex items-center gap-2 transition"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                                            </svg>
+                                                            Manage Department
+                                                        </button>
+                                                        
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setOpenMenuDeptId(null);
+                                                                openEditModal(dept);
+                                                            }}
+                                                            className="w-full px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-[#f0fdf4] hover:text-[#15803d] flex items-center gap-2 transition"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                            Edit Department
+                                                        </button>
+                                                        
+                                                        <div className="border-t border-slate-100 my-1"></div>
+                                                        
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setOpenMenuDeptId(null);
+                                                                openDeleteModal(dept);
+                                                            }}
+                                                            className="w-full px-4 py-2 text-[13px] font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
+                                                        >
+                                                            <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                            Delete Department
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     ))
@@ -334,7 +434,7 @@ export default function AdminDepartmentsPage() {
                     >
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
-                                Delete Department
+                                Delete Department?
                             </h3>
                             <button
                                 type="button"
@@ -348,11 +448,7 @@ export default function AdminDepartmentsPage() {
                         </div>
 
                         <p className="text-[14px] text-[#374151] leading-relaxed">
-                            Are you sure you want to delete{' '}
-                            <span className="font-semibold text-[#0f172a]">
-                                {deleteTarget.department_name}
-                            </span>
-                            ?
+                            Are you sure you want to delete the department <span className="font-semibold text-[#0f172a]">{deleteTarget.department_name}</span>?
                         </p>
                         <p className="text-[13px] text-[#94a3b8] mt-2">
                             This action cannot be undone.
@@ -377,7 +473,7 @@ export default function AdminDepartmentsPage() {
                                 disabled={isDeleting}
                                 className="px-4 py-2.5 text-[13px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition disabled:opacity-50"
                             >
-                                {isDeleting ? 'Deleting...' : 'Delete Department'}
+                                {isDeleting ? 'Deleting...' : 'Delete'}
                             </button>
                         </div>
                     </div>

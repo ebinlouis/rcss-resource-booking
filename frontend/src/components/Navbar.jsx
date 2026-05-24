@@ -57,6 +57,12 @@ const getRoleLabel = (effectiveRoles = []) => {
 function HeaderAvatar({ user }) {
   const initial = user?.name ? user.name[0].toUpperCase() : "U"
 
+  const getProfileImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return `http://localhost:8000${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
   return (
     <div
       className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm overflow-hidden"
@@ -64,7 +70,7 @@ function HeaderAvatar({ user }) {
     >
       {user?.profile_image ? (
         <img
-          src={user.profile_image}
+          src={getProfileImageUrl(user.profile_image)}
           alt={`${user?.name || "User"} profile`}
           className="w-full h-full object-cover"
         />

@@ -79,6 +79,15 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             part for part in [user.first_name, getattr(user, 'middle_name', None), user.last_name]
             if part
         ).strip()
+        request = self.context.get('request')
+        profile_image_url = None
+        if user.profile_image:
+            profile_image_url = user.profile_image.url
+            if request:
+                profile_image_url = request.build_absolute_uri(profile_image_url)
+            else:
+                profile_image_url = f"http://localhost:8000{profile_image_url}"
+
         return {
             'id': user.id,
             'name': full_name or str(user),
@@ -87,6 +96,7 @@ class MediaBookingSerializer(serializers.ModelSerializer):
             'phone': user.phone,
             'email': user.email,
             'employee_student_id': user.employee_student_id,
+            'profile_image': profile_image_url,
         }
 
     def validate(self, data):

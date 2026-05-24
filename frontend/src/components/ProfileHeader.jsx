@@ -13,14 +13,23 @@ const ProfileHeader = ({ user, onEdit }) => {
     .toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U';
   const roles = user.effective_roles || (user.effective_role ? [user.effective_role] : []);
 
+  const getProfileImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return `http://localhost:8000${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-5">
         {/* Avatar */}
-        <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-sm shrink-0 bg-green-700">
+        <div 
+          className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold shadow-sm shrink-0"
+          style={user.profile_image ? {} : { background: 'linear-gradient(135deg, #166534 0%, #22c55e 100%)' }}
+        >
           {user.profile_image ? (
             <img
-              src={user.profile_image}
+              src={getProfileImageUrl(user.profile_image)}
               alt={`${fullName} profile`}
               className="w-full h-full object-cover"
             />
@@ -37,11 +46,6 @@ const ProfileHeader = ({ user, onEdit }) => {
           <p className="text-sm text-gray-500 truncate">{user.email}</p>
           {user.department_name && (
             <p className="text-sm text-gray-500 truncate mt-0.5">{user.department_name}</p>
-          )}
-          {user.employee_student_id && (
-            <p className="text-xs font-mono text-gray-400 mt-1">
-              ID: {user.employee_student_id}
-            </p>
           )}
         </div>
 

@@ -208,3 +208,9 @@ class IsEquipmentManagerOrReadOnly(HasRoleOrReadOnly):
         Role.Name.LAB_INCHARGE,
         Role.Name.MEDIA_INCHARGE,
     ]
+
+
+class IsITAdminOrHOD(HasRole):
+    """Allows IT Admin or Head of Department to manage resources/faculty."""
+    required_roles = [Role.Name.IT_ADMIN, Role.Name.HOD]
+

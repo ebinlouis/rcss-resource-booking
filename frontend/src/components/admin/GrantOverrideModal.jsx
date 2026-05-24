@@ -178,7 +178,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                             <div className="flex items-center justify-between w-full border border-green-200 bg-green-50 rounded-lg px-3 py-2">
                                 <div>
                                     <p className="text-sm font-semibold text-green-900">{selectedUser.first_name}</p>
-                                    <p className="text-[10px] text-green-700">{selectedUser.email} • {selectedUser.employee_student_id}</p>
+                                    <p className="text-[10px] text-green-700">{selectedUser.email}</p>
                                 </div>
                                 <button type="button" onClick={() => { setSelectedUser(null); setSearchTerm(''); }} className="p-1.5 hover:bg-green-100 rounded-md text-green-700 transition">✕</button>
                             </div>
@@ -195,7 +195,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                                         {searchResults.map(user => (
                                             <button key={user.id} type="button" onClick={() => { setSelectedUser(user); setSearchResults([]); }} className="w-full text-left px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
                                                 <p className="text-sm font-medium text-gray-900">{user.first_name}</p>
-                                                <p className="text-[10px] text-gray-500">{user.email} • {user.employee_student_id}</p>
+                                                <p className="text-[10px] text-gray-500">{user.email}</p>
                                             </button>
                                         ))}
                                     </div>

@@ -63,7 +63,7 @@ def forwards_migrate_single_day_bookings(apps, schema_editor):
     # Bulk-insert for efficiency; safe because PKs are auto-assigned
     DailyMessMenu.objects.bulk_create(daily_menus_to_create, batch_size=200)
 
-    print(f"\n  [0005] Migrated {len(daily_menus_to_create)} booking(s) → DailyMessMenu rows.")
+    print(f"\n  [0005] Migrated {len(daily_menus_to_create)} booking(s) -> DailyMessMenu rows.")
 
 
 def backwards_delete_migrated_rows(apps, schema_editor):

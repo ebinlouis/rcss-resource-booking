@@ -8,9 +8,14 @@ from .models import RoleOverride, CustomUser, Department, Role
 # ==========================================
 
 class DepartmentSerializer(serializers.ModelSerializer):
+    faculty_count = serializers.SerializerMethodField()
+
     class Meta:
         model  = Department
-        fields = ['id', 'department_name', 'department_code']
+        fields = ['id', 'department_name', 'department_code', 'faculty_count']
+
+    def get_faculty_count(self, obj):
+        return obj.customuser_set.filter(roles__name__in=['FACULTY', 'HOD']).distinct().count()
 
 
 # ==========================================
@@ -73,6 +78,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             'first_name', 'last_name',
             'is_superuser', 'department_code',
             'effective_roles', 'capabilities',
+            'profile_image',
         ]
 
     def get_effective_roles(self, obj):
@@ -218,20 +224,13 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'is_active',
             'is_superuser',
             'date_joined',
+            'profile_image',
         ]
         read_only_fields = [
             'id',
-            'email',
-            'employee_student_id',
-            'first_name',
-            'last_name',
-            'phone',
-            'designation',
-            'department',
             'department_name',
             'role_details',
             'effective_roles',
-            'is_active',
             'is_superuser',
             'date_joined',
         ]

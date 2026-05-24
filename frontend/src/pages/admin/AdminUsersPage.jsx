@@ -52,7 +52,7 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
                     <div>
                         <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-green-700">User Badge Management</p>
                         <h2 className="mt-1 text-[20px] font-bold text-gray-950">{getUserName(user)}</h2>
-                        <p className="mt-1 text-[14px] text-gray-500">{user.email} · {user.employee_student_id}</p>
+                        <p className="mt-1 text-[14px] text-gray-500">{user.email}</p>
                     </div>
                     <Tooltip text="Close without saving." position="left">
                       <button
@@ -295,7 +295,6 @@ useEffect(() => {
                                     <td className="px-6 py-4">
                                         <p className="text-[15px] font-bold text-gray-950">{getUserName(user)}</p>
                                         <p className="mt-0.5 text-[13px] font-medium text-gray-500">{user.email}</p>
-                                        <p className="mt-0.5 text-[12.5px] text-gray-400">{user.employee_student_id}</p>
                                     </td>
                                     <td className="px-6 py-4 text-[14px] font-semibold text-gray-700">
                                         {user.department_name || 'Unassigned'}
