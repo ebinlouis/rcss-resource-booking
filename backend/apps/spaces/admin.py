@@ -1,7 +1,7 @@
 # apps/spaces/admin.py
 
 from django.contrib import admin
-from .models import Block, Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest, SpaceApprover
+from .models import Block, Space, SpaceBooking, Equipment, SpaceEquipment, EquipmentRequest, SpaceApprover, SpaceApproverChain, TimetableUploadBatch, SpaceTimetableBlock, SpaceCategoryAffinity
 
 
 # ==========================================
@@ -146,3 +146,38 @@ class EquipmentRequestAdmin(admin.ModelAdmin):
     list_filter   = ('is_delivered', 'is_returned')
     search_fields = ('space_booking__reference_code', 'equipment__name')
     list_editable = ('is_delivered', 'is_returned')
+
+
+# ==========================================
+# CHAIN APPROVERS
+# ==========================================
+
+@admin.register(SpaceApproverChain)
+class SpaceApproverChainAdmin(admin.ModelAdmin):
+    list_display = ('space', 'primary_approver', 'fallback_approver')
+    autocomplete_fields = ['space', 'primary_approver', 'fallback_approver']
+
+
+
+# ==========================================
+# TIMETABLE UPLOADS
+# ==========================================
+
+class SpaceTimetableBlockInline(admin.TabularInline):
+    model = SpaceTimetableBlock
+    extra = 0
+    fields = ('space', 'date', 'start_time', 'end_time', 'label')
+    autocomplete_fields = ['space']
+
+@admin.register(TimetableUploadBatch)
+class TimetableUploadBatchAdmin(admin.ModelAdmin):
+    list_display = ('space', 'uploaded_by', 'uploaded_at', 'upload_label', 'row_count', 'skipped_count')
+    list_filter = ('space', 'uploaded_at')
+    search_fields = ('space__name', 'upload_label')
+    autocomplete_fields = ['space', 'uploaded_by']
+    inlines = [SpaceTimetableBlockInline]
+
+
+@admin.register(SpaceCategoryAffinity)
+class SpaceCategoryAffinityAdmin(admin.ModelAdmin):
+    list_display = ('from_category', 'allowed_categories')

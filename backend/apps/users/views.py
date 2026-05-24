@@ -122,7 +122,7 @@ def _build_user_response(user, request=None):
     }
     SPACE_MANAGEMENT_ROLES = {
         Role.Name.RECEPTIONIST, Role.Name.LAB_INCHARGE,
-        Role.Name.LIBRARIAN, Role.Name.HOD, Role.Name.IT_ADMIN,
+        Role.Name.LIBRARIAN, Role.Name.IT_ADMIN,
     }
     LAB_MANAGEMENT_ROLES = {
         Role.Name.LAB_INCHARGE, Role.Name.HOD, Role.Name.IT_ADMIN,
@@ -131,10 +131,17 @@ def _build_user_response(user, request=None):
         Role.Name.LAB_INCHARGE, Role.Name.MEDIA_INCHARGE, Role.Name.IT_ADMIN,
     }
 
+    can_manage_spaces_base = bool(effective_roles & SPACE_MANAGEMENT_ROLES)
+    if not can_manage_spaces_base:
+        can_manage_spaces_base = (
+            user.fallback_chains.exists() or
+            user.space_approver_assignments.filter(is_active=True).exists()
+        )
+
     capabilities = {
-        'can_access_admin_portal':   bool(effective_roles & ADMIN_PORTAL_ROLES),
+        'can_access_admin_portal':   bool(effective_roles & ADMIN_PORTAL_ROLES) or can_manage_spaces_base,
         'can_manage_system':         Role.Name.IT_ADMIN in effective_roles,
-        'can_manage_spaces':         bool(effective_roles & SPACE_MANAGEMENT_ROLES),
+        'can_manage_spaces':         can_manage_spaces_base,
         'can_manage_labs':           bool(effective_roles & LAB_MANAGEMENT_ROLES),
         'can_manage_equipment':      bool(effective_roles & EQUIPMENT_MANAGEMENT_ROLES),
         'can_manage_mess':           Role.Name.MESS_MANAGER in effective_roles,
@@ -142,6 +149,7 @@ def _build_user_response(user, request=None):
         'can_manage_fleet':          Role.Name.FLEET_MANAGER in effective_roles,
         'can_manage_principal_view': Role.Name.PRINCIPAL in effective_roles,
         'can_approve_faculty':       Role.Name.FACULTY in effective_roles,
+        'can_manage_timetables':     Role.Name.LAB_INCHARGE in effective_roles,
         'is_student':                Role.Name.STUDENT in effective_roles,
     }
 
@@ -158,6 +166,7 @@ def _build_user_response(user, request=None):
             'can_manage_fleet':          True,
             'can_manage_principal_view': True,
             'can_approve_faculty':       True,
+            'can_manage_timetables':     True,
             'is_student':                False,
         }
 
@@ -478,6 +487,6 @@ class UserSearchView(APIView):
             Q(email__icontains=query)
             | Q(first_name__icontains=query)
             | Q(employee_student_id__icontains=query)
-        ).values('id', 'email', 'first_name', 'employee_student_id')[:10]
+        ).values('id', 'email', 'first_name', 'last_name', 'employee_student_id')[:10]
 
         return Response(list(users))

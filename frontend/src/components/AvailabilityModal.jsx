@@ -161,6 +161,34 @@ async function loadBookings(spaceId) {
     }
   })
 
+  let timetableBlocks = []
+  try {
+    const ttRes = await api.get(`/spaces/catalog/${spaceId}/timetable/`)
+    timetableBlocks = ttRes.data?.blocks || ttRes.data || []
+  } catch (err) {
+    console.error("Failed to fetch timetable blocks:", err)
+  }
+
+  timetableBlocks.forEach(b => {
+    const cursor = b.date
+    if (!grouped[cursor]) grouped[cursor] = []
+    
+    grouped[cursor].push({
+      start: b.start_time,
+      end: b.end_time,
+      title: b.label || "Class Timetable",
+      status: "APPROVED",
+      isMultiDay: false,
+      isContinue: false,
+      bookedByName: "Timetable",
+      bookedByDesignation: "Scheduled Class",
+      bookedByDepartment: "Admin",
+      bookedByPhone: "",
+      bookedByPhoto: "",
+      purpose: b.label || "Class Timetable",
+    })
+  })
+
   return grouped
 }
 
@@ -436,7 +464,7 @@ const AvailabilityModal = memo(function AvailabilityModal({
             ) : (
               timeline.map((block, idx) => {
                 if (block.type === "booked") {
-                  const isPending = block.status === "PENDING"
+                  const isPending = ["PENDING", "AWAITING_FACULTY", "FACULTY_ESCALATED"].includes(block.status)
                   const timeLabel = block.isMultiDay ? null : `${block.start} – ${block.end}`
                   const titleLabel = block.isMultiDay
                     ? block.isContinue ? "Multi-day booking (continues)" : "Multi-day booking"

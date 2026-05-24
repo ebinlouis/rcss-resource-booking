@@ -20,7 +20,7 @@ from apps.notifications.utils import (
 )
 from apps.users.models import Role, CustomUser
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
-from .permissions import IsOwnerOrAdminOrReadOnly
+from .permissions import IsOwnerOrAdminOrReadOnly, IsAdminOrSpaceManagerOrReadOnly
 from .models import Block, Space, SpaceBooking, Equipment, SpaceApprover
 from .serializers import (
     BlockSerializer,
@@ -57,11 +57,30 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 
 class SpaceViewSet(viewsets.ModelViewSet):
     serializer_class   = SpaceSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsAdminOrSpaceManagerOrReadOnly]
+
+    def _is_timetable_manager(self, request, space):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        if hasattr(space, 'approver_chain'):
+            chain = space.approver_chain
+            if user.id in [chain.primary_approver_id, chain.fallback_approver_id]:
+                return True
+        from .models import SpaceApprover
+        if SpaceApprover.objects.filter(user=user, space=space, scope_type='SPACE').exists():
+            return True
+        if space.block_id and SpaceApprover.objects.filter(user=user, block_id=space.block_id, scope_type='BLOCK').exists():
+            return True
+        return False
 
     def get_permissions(self):
         # Venue catalog is publicly browsable — no login required
         if self.action in ('list', 'retrieve'):
+            return [AllowAny()]
+        if self.action == 'timetable' and self.request.method == 'GET':
             return [AllowAny()]
         return super().get_permissions()
 
@@ -77,6 +96,21 @@ class SpaceViewSet(viewsets.ModelViewSet):
 
         if self.request.query_params.get('for_suggestion') == 'true':
             qs = qs.filter(is_special_purpose=False)
+
+        if self.request.query_params.get('manage') == 'true':
+            user = self.request.user
+            if user.is_authenticated and not user.has_role(Role.Name.IT_ADMIN):
+                assignments = user.space_approver_assignments.filter(is_active=True)
+                space_ids = set()
+                for a in assignments:
+                    if a.scope_type == 'SPACE' and a.space_id:
+                        space_ids.add(a.space_id)
+                    elif a.scope_type == 'BLOCK' and a.block_id:
+                        space_ids.update(Space.objects.filter(block_id=a.block_id).values_list('id', flat=True))
+                
+                space_ids.update(Space.objects.filter(approver_chain__fallback_approver=user).values_list('id', flat=True))
+                
+                qs = qs.filter(id__in=space_ids)
 
         return qs
 
@@ -107,8 +141,13 @@ class SpaceViewSet(viewsets.ModelViewSet):
         from django.utils import timezone as tz
         if tz.is_naive(start_dt):
             start_dt = tz.make_aware(start_dt)
+        else:
+            start_dt = tz.localtime(start_dt)
+            
         if tz.is_naive(end_dt):
             end_dt = tz.make_aware(end_dt)
+        else:
+            end_dt = tz.localtime(end_dt)
 
         exclude_pk = request.data.get('exclude_booking_id')
         if exclude_pk:
@@ -146,6 +185,22 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 if overlapping.exists():
                     conflicts.extend(build_conflict_report(overlapping, request.user))
 
+                from .models import SpaceTimetableBlock
+                overlaps_tt = SpaceTimetableBlock.objects.filter(
+                    space=space,
+                    date=slot_start.date(),
+                    start_time__lt=slot_end.time(),
+                    end_time__gt=slot_start.time()
+                )
+                for block in overlaps_tt:
+                    conflicts.append({
+                        "date": block.date.strftime("%Y-%m-%d"),
+                        "start": block.start_time.strftime("%H:%M"),
+                        "end": block.end_time.strftime("%H:%M"),
+                        "label": block.label or "Class Timetable",
+                        "reference_code": "TIMETABLE"
+                    })
+
         else:
             if start_dt >= end_dt:
                 return Response(
@@ -156,6 +211,29 @@ class SpaceViewSet(viewsets.ModelViewSet):
             overlapping = get_overlapping_bookings(space, start_dt, end_dt, exclude_pk=exclude_pk)
             if overlapping.exists():
                 conflicts.extend(build_conflict_report(overlapping, request.user))
+
+            from .models import SpaceTimetableBlock
+            from datetime import timedelta, time
+            days_diff = (end_dt.date() - start_dt.date()).days
+            for i in range(days_diff + 1):
+                current_date = start_dt.date() + timedelta(days=i)
+                slot_start_time = start_dt.time() if i == 0 else time(0, 0)
+                slot_end_time = end_dt.time() if i == days_diff else time(23, 59, 59)
+
+                overlaps_tt = SpaceTimetableBlock.objects.filter(
+                    space=space,
+                    date=current_date,
+                    start_time__lt=slot_end_time,
+                    end_time__gt=slot_start_time
+                )
+                for block in overlaps_tt:
+                    conflicts.append({
+                        "date": block.date.strftime("%Y-%m-%d"),
+                        "start": block.start_time.strftime("%H:%M"),
+                        "end": block.end_time.strftime("%H:%M"),
+                        "label": block.label or "Class Timetable",
+                        "reference_code": "TIMETABLE"
+                    })
 
         unique_conflicts = []
         seen = set()
@@ -179,14 +257,443 @@ class SpaceViewSet(viewsets.ModelViewSet):
             "message":   f"{count} conflict{'s' if count != 1 else ''} found across your selected range.",
         }, status=status.HTTP_200_OK)
 
+    # ==========================================
+    # SPACE CONFIG & TIMETABLE
+    # ==========================================
+
+    @action(detail=True, methods=['get', 'put'], permission_classes=[IsITAdmin])
+    def approver_config(self, request, pk=None):
+        from .models import SpaceApproverChain
+        space = self.get_object()
+        
+        if request.method == 'GET':
+            try:
+                chain = space.approver_chain
+                
+                def get_name(user):
+                    if not user: return None
+                    return f"{user.first_name} {user.last_name}".strip() or user.email
+                
+                return Response({
+                    'primary_approver': chain.primary_approver_id,
+                    'primary_approver_name': get_name(chain.primary_approver),
+                    'fallback_approver': chain.fallback_approver_id,
+                    'fallback_approver_name': get_name(chain.fallback_approver),
+                    'escalation_hours': chain.escalation_hours,
+                    'requires_reason': chain.requires_reason,
+                    'earliest_start': chain.earliest_start,
+                    'latest_end': chain.latest_end,
+                })
+            except SpaceApproverChain.DoesNotExist:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+                
+        elif request.method == 'PUT':
+            from apps.users.models import CustomUser
+            primary_id = request.data.get('primary_approver')
+            fallback_id = request.data.get('fallback_approver')
+                
+            escalation_hours = int(request.data.get('escalation_hours', 24))
+            requires_reason = bool(request.data.get('requires_reason', True))
+            earliest_start = request.data.get('earliest_start') or None
+            latest_end = request.data.get('latest_end') or None
+            
+            if not primary_id or not fallback_id:
+                return Response({"error": "Primary and fallback approvers are required"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            SpaceApproverChain.objects.update_or_create(
+                space=space,
+                defaults={
+                    'primary_approver_id': primary_id,
+                    'fallback_approver_id': fallback_id,
+                    'escalation_hours': escalation_hours,
+                    'requires_reason': requires_reason,
+                    'earliest_start': earliest_start,
+                    'latest_end': latest_end,
+                }
+            )
+            return Response({"status": "updated"})
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def suggestions(self, request):
+        space_id = request.query_params.get('space_id')
+        attendee_count = request.query_params.get('attendee_count')
+        date_str = request.query_params.get('date')
+        start_time_str = request.query_params.get('start_time')
+        end_time_str = request.query_params.get('end_time')
+
+        if not all([space_id, attendee_count, date_str, start_time_str, end_time_str]):
+            return Response([])
+
+        try:
+            attendee_count = int(attendee_count)
+            from datetime import datetime
+            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            start_time = datetime.strptime(start_time_str, '%H:%M').time()
+            end_time = datetime.strptime(end_time_str, '%H:%M').time()
+        except ValueError:
+            return Response([])
+
+        from .models import Space, SpaceCategoryAffinity, SpaceTimetableBlock
+        try:
+            requested_space = Space.objects.get(id=space_id)
+        except Space.DoesNotExist:
+            return Response([])
+
+        affinity = SpaceCategoryAffinity.objects.filter(from_category=requested_space.space_type).first()
+        if not affinity or not affinity.allowed_categories:
+            return Response([])
+
+        min_capacity = attendee_count
+        max_capacity = int(attendee_count * 1.5)
+
+        exclude_ids_raw = request.query_params.get('exclude_ids', '')
+        exclude_ids = [
+            int(i) for i in exclude_ids_raw.split(',')
+            if i.strip().isdigit()
+        ]
+        if requested_space.id not in exclude_ids:
+            exclude_ids.append(requested_space.id)
+
+        candidate_spaces = Space.objects.filter(
+            is_active=True,
+            is_special_purpose=False,
+            space_type__in=affinity.allowed_categories,
+            capacity_hard__gte=min_capacity,
+            capacity_hard__lte=max_capacity
+        ).exclude(id__in=exclude_ids)
+
+        available_spaces = []
+        for space in candidate_spaces:
+            # Check for bookings
+            from .utils import get_overlapping_bookings
+            from django.utils import timezone as tz
+            import datetime as dt
+            
+            slot_start = tz.make_aware(dt.datetime.combine(date, start_time))
+            slot_end   = tz.make_aware(dt.datetime.combine(date, end_time))
+            
+            overlaps = get_overlapping_bookings(space, slot_start, slot_end)
+            if overlaps.filter(
+                status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED']
+            ).exists():
+                continue
+
+            # Check for timetable
+            timetable_conflicts = SpaceTimetableBlock.objects.filter(
+                space=space,
+                date=date,
+                start_time__lt=end_time,
+                end_time__gt=start_time
+            ).exists()
+            if timetable_conflicts:
+                continue
+
+            available_spaces.append(space)
+
+        available_spaces.sort(key=lambda s: abs(s.capacity_hard - attendee_count))
+        available_spaces = available_spaces[:5]
+
+        from .serializers import SpaceSerializer
+        return Response(SpaceSerializer(available_spaces, many=True, context={'request': request}).data)
+
+    @action(detail=True, methods=['get', 'post'])
+    def timetable(self, request, pk=None):
+        space = self.get_object()
+        
+        if request.method == 'GET':
+            from .models import SpaceTimetableBlock, TimetableUploadBatch
+            
+            batches_qs = TimetableUploadBatch.objects.filter(space=space).order_by('-uploaded_at')
+            batches_data = []
+            for b in batches_qs:
+                batches_data.append({
+                    'id': b.id,
+                    'label': b.upload_label,
+                    'created_at': b.uploaded_at.isoformat(),
+                    'row_count': b.row_count,
+                    'skipped_count': b.skipped_count
+                })
+
+            blocks = SpaceTimetableBlock.objects.filter(space=space).order_by('-date', 'start_time')
+            blocks_data = []
+            for b in blocks:
+                blocks_data.append({
+                    'id': b.id,
+                    'batch_id': b.batch_id,
+                    'date': b.date.strftime('%Y-%m-%d'),
+                    'start_time': b.start_time.strftime('%H:%M'),
+                    'end_time': b.end_time.strftime('%H:%M'),
+                    'label': b.label
+                })
+            return Response({'batches': batches_data, 'blocks': blocks_data})
+            
+        elif request.method == 'POST':
+            if not self._is_timetable_manager(request, space):
+                return Response({"detail": "Not authorized. Must be the assigned space approver."}, status=status.HTTP_403_FORBIDDEN)
+                
+            from .models import TimetableUploadBatch, SpaceTimetableBlock
+            import csv
+            import io
+            from datetime import datetime
+            
+            if 'file' not in request.FILES:
+                return Response({"error": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+                
+            file = request.FILES['file']
+            upload_label = request.data.get('label', file.name)
+            
+            try:
+                decoded_file = file.read().decode('utf-8-sig')
+                io_string = io.StringIO(decoded_file)
+                reader = csv.DictReader(io_string)
+                if reader.fieldnames:
+                    reader.fieldnames = [field.strip() for field in reader.fieldnames if field]
+                
+                batch = TimetableUploadBatch.objects.create(
+                    space=space,
+                    uploaded_by=request.user,
+                    upload_label=upload_label
+                )
+                
+                blocks = []
+                row_count = 0
+                skipped_count = 0
+                conflict_details = []
+                
+                from .utils import get_overlapping_bookings
+                from django.utils import timezone
+
+                for row in reader:
+                    try:
+                        date = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
+                        start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
+                        end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
+                        label = row['label'].strip()
+                        
+                        start_dt = timezone.make_aware(datetime.combine(date, start_time))
+                        end_dt = timezone.make_aware(datetime.combine(date, end_time))
+                        
+                        overlaps = get_overlapping_bookings(space, start_dt, end_dt)
+                        
+                        # Also check existing timetable blocks for the same day/time
+                        tt_overlaps = SpaceTimetableBlock.objects.filter(
+                            space=space,
+                            date=date,
+                            start_time__lt=end_time,
+                            end_time__gt=start_time
+                        )
+
+                        if overlaps.exists() or tt_overlaps.exists():
+                            skipped_count += 1
+                            conflict_details.append(f"{date} {start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} ({label})")
+                            continue
+
+                        blocks.append(SpaceTimetableBlock(
+                            batch=batch,
+                            space=space,
+                            date=date,
+                            start_time=start_time,
+                            end_time=end_time,
+                            label=label
+                        ))
+                        row_count += 1
+                    except Exception:
+                        skipped_count += 1
+                        
+                if row_count == 0:
+                    batch.delete()
+                    res_data = {
+                        "batch_id": None,
+                        "row_count": 0,
+                        "skipped_count": skipped_count
+                    }
+                    if conflict_details:
+                        res_data["message"] = f"Upload failed. All {skipped_count} blocks were skipped due to conflicts or errors."
+                        res_data["conflicts"] = conflict_details
+                    return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+
+                SpaceTimetableBlock.objects.bulk_create(blocks)
+                batch.row_count = row_count
+                batch.skipped_count = skipped_count
+                batch.save(update_fields=['row_count', 'skipped_count'])
+                
+                res_data = {
+                    "batch_id": batch.id,
+                    "row_count": row_count,
+                    "skipped_count": skipped_count
+                }
+                if conflict_details:
+                    res_data["message"] = f"Uploaded {row_count} blocks. Skipped {skipped_count} due to conflicts or errors."
+                    res_data["conflicts"] = conflict_details
+
+                return Response(res_data)
+            except Exception as e:
+                return Response({"error": f"Error parsing CSV: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'timetable/blocks/(?P<block_id>\d+)', permission_classes=[IsAuthenticated])
+    def timetable_block_detail(self, request, pk=None, block_id=None):
+        space = self.get_object()
+        
+        if not self._is_timetable_manager(request, space):
+            return Response({"detail": "Not authorized. Must be the assigned space approver."}, status=status.HTTP_403_FORBIDDEN)
+                
+        from .models import SpaceTimetableBlock
+        try:
+            block = SpaceTimetableBlock.objects.get(id=block_id, space=space)
+        except SpaceTimetableBlock.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+            
+        if request.method == 'DELETE':
+            block.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        elif request.method == 'PATCH':
+            from datetime import datetime
+            new_date = datetime.strptime(request.data['date'], '%Y-%m-%d').date() if 'date' in request.data else block.date
+            new_start = datetime.strptime(request.data['start_time'], '%H:%M').time() if 'start_time' in request.data else block.start_time
+            new_end = datetime.strptime(request.data['end_time'], '%H:%M').time() if 'end_time' in request.data else block.end_time
+
+            force = request.query_params.get('force', 'false').lower() == 'true'
+
+            if not force:
+                from .utils import get_overlapping_bookings
+                from django.utils import timezone
+                start_dt = timezone.make_aware(datetime.combine(new_date, new_start))
+                end_dt = timezone.make_aware(datetime.combine(new_date, new_end))
+                
+                overlaps = get_overlapping_bookings(space, start_dt, end_dt)
+                tt_overlaps = SpaceTimetableBlock.objects.filter(
+                    space=space,
+                    date=new_date,
+                    start_time__lt=new_end,
+                    end_time__gt=new_start
+                ).exclude(id=block.id)
+
+                if overlaps.exists() or tt_overlaps.exists():
+                    return Response({
+                        "error": "conflict_warning", 
+                        "message": "This block overlaps with an existing booking or timetable block."
+                    }, status=status.HTTP_409_CONFLICT)
+
+            block.date = new_date
+            block.start_time = new_start
+            block.end_time = new_end
+            if 'label' in request.data:
+                block.label = request.data['label']
+            block.save()
+            return Response({"status": "updated"})
+
+    @action(detail=True, methods=['delete'], url_path=r'timetable/blocks', permission_classes=[IsAuthenticated])
+    def timetable_blocks(self, request, pk=None):
+        space = self.get_object()
+        
+        if not self._is_timetable_manager(request, space):
+            return Response({"detail": "Not authorized. Must be the assigned space approver."}, status=status.HTTP_403_FORBIDDEN)
+                
+        date_str = request.query_params.get('date')
+        if not date_str:
+            return Response({"error": "date query parameter required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from .models import SpaceTimetableBlock
+        deleted, _ = SpaceTimetableBlock.objects.filter(space=space, date=date_str).delete()
+        return Response({"deleted": deleted}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'timetable/(?P<batch_id>\d+)', permission_classes=[IsAuthenticated])
+    def timetable_batch_detail(self, request, pk=None, batch_id=None):
+        space = self.get_object()
+        
+        if not self._is_timetable_manager(request, space):
+            return Response({"detail": "Not authorized. Must be the assigned space approver."}, status=status.HTTP_403_FORBIDDEN)
+                
+        from .models import TimetableUploadBatch
+        try:
+            batch = TimetableUploadBatch.objects.get(id=batch_id, space=space)
+        except TimetableUploadBatch.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+            
+        if request.method == 'DELETE':
+            batch.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        elif request.method == 'PATCH':
+            if 'upload_label' in request.data:
+                batch.upload_label = request.data['upload_label']
+                batch.save(update_fields=['upload_label'])
+            
+            if 'file' not in request.FILES:
+                return Response({"status": "updated"})
+                
+            # Re-upload handling
+            import csv
+            import io
+            from datetime import datetime
+            from .models import SpaceTimetableBlock
+            
+            file = request.FILES['file']
+            try:
+                decoded_file = file.read().decode('utf-8-sig')
+                io_string = io.StringIO(decoded_file)
+                reader = csv.DictReader(io_string)
+                if reader.fieldnames:
+                    reader.fieldnames = [field.strip() for field in reader.fieldnames if field]
+                
+                SpaceTimetableBlock.objects.filter(batch=batch).delete()
+                
+                blocks = []
+                row_count = 0
+                skipped_count = 0
+                for row in reader:
+                    try:
+                        date = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
+                        start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
+                        end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
+                        label = row['label'].strip()
+                        
+                        blocks.append(SpaceTimetableBlock(
+                            batch=batch,
+                            space=space,
+                            date=date,
+                            start_time=start_time,
+                            end_time=end_time,
+                            label=label
+                        ))
+                        row_count += 1
+                    except Exception:
+                        skipped_count += 1
+                        
+                SpaceTimetableBlock.objects.bulk_create(blocks)
+                batch.row_count = row_count
+                batch.skipped_count = skipped_count
+                if 'label' in request.data:
+                    batch.upload_label = request.data['label']
+                batch.save()
+                
+                return Response({
+                    "batch_id": batch.id,
+                    "row_count": row_count,
+                    "skipped_count": skipped_count
+                })
+            except Exception as e:
+                return Response({"error": f"Error parsing CSV: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 # ==========================================
 # BOOKING SUBMISSIONS
 # ==========================================
 
+from django.db import transaction
+
 class SpaceBookingViewSet(viewsets.ModelViewSet):
     serializer_class   = SpaceBookingSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrAdminOrReadOnly]
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        """
+        Wraps the entire creation process (validation + saving) 
+        in a single transaction so select_for_update() can hold its lock.
+        """
+        return super().create(request, *args, **kwargs)
 
     def get_permissions(self):
         # Public read-only access for the general campus schedule (no login required)
@@ -225,18 +732,136 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             .order_by('-updated_at')
         )
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        view_param = self.request.query_params.get('view', 'mine')
+
+        if view_param == 'general':
+            from apps.spaces.models import SpaceTimetableBlock
+            from datetime import datetime
+            from django.utils import timezone
+            
+            blocks = SpaceTimetableBlock.objects.select_related('space', 'batch').all()
+            timetable_data = []
+            for b in blocks:
+                start_dt = timezone.make_aware(datetime.combine(b.date, b.start_time))
+                end_dt = timezone.make_aware(datetime.combine(b.date, b.end_time))
+                
+                label = getattr(b, 'label', '')
+                if not label and getattr(b, 'batch', None):
+                    label = getattr(b.batch, 'upload_label', '')
+                
+                timetable_data.append({
+                    "id": f"tt_{b.id}",
+                    "start_datetime": start_dt.isoformat(),
+                    "end_datetime": end_dt.isoformat(),
+                    "purpose_of_booking": label or "Class Timetable",
+                    "status": "APPROVED",
+                    "booking_type": "SINGLE",
+                    "is_timetable": True,
+                    "can_modify": False,
+                    "space_details": {
+                        "id": b.space.id,
+                        "name": b.space.name,
+                        "capacity_hard": getattr(b.space, 'capacity_hard', 0),
+                    }
+                })
+            
+            if isinstance(response.data, dict) and 'results' in response.data:
+                response.data['results'].extend(timetable_data)
+            elif isinstance(response.data, list):
+                response.data.extend(timetable_data)
+
+        return response
+
     def perform_create(self, serializer):
+        from apps.spaces.models import SpaceTimetableBlock
+        from rest_framework.exceptions import ValidationError
+        from datetime import timedelta, time
+
+        space = serializer.validated_data.get('space')
+        start_dt = serializer.validated_data.get('start_datetime')
+        end_dt = serializer.validated_data.get('end_datetime')
+        b_type = serializer.validated_data.get('booking_type', SpaceBooking.BookingType.SINGLE_CONTINUOUS)
+
+        if space and start_dt and end_dt:
+            days_diff = (end_dt.date() - start_dt.date()).days
+            conflicts = []
+            for i in range(days_diff + 1):
+                current_date = start_dt.date() + timedelta(days=i)
+                if b_type == SpaceBooking.BookingType.RECURRING_DAILY:
+                    slot_start_time = start_dt.time()
+                    slot_end_time = end_dt.time()
+                else:
+                    slot_start_time = start_dt.time() if i == 0 else time(0, 0)
+                    slot_end_time = end_dt.time() if i == days_diff else time(23, 59, 59)
+
+                overlaps = SpaceTimetableBlock.objects.filter(
+                    space=space,
+                    date=current_date,
+                    start_time__lt=slot_end_time,
+                    end_time__gt=slot_start_time
+                )
+                for block in overlaps:
+                    conflicts.append(f"{block.date} {block.start_time.strftime('%H:%M')}-{block.end_time.strftime('%H:%M')} ({block.label})")
+
+            if conflicts:
+                raise ValidationError({"non_field_errors": f"Conflicts with class timetable: {', '.join(conflicts)}"})
+
         booking = serializer.save(user=self.request.user)
 
+        # ── Faculty sponsor workflow (skip for HOD_FALLBACK spaces like AI Lab) ──
         is_student = 'STUDENT' in self.request.user.get_effective_roles()
-        if is_student and booking.faculty_sponsor_id:
+        uses_hod_fallback = getattr(booking.space, 'approval_workflow_type', '') == Space.ApprovalWorkflowType.HOD_FALLBACK
+
+        if is_student and booking.faculty_sponsor_id and not uses_hod_fallback:
             booking.status = 'AWAITING_FACULTY'
             booking.faculty_response_deadline = timezone.now() + timedelta(hours=24)
             booking.save(update_fields=['status', 'faculty_response_deadline'])
             notify_faculty_new_request(booking)
             return
 
-        # Determine which admin handles this space
+        # For HOD_FALLBACK spaces, clear any faculty_sponsor that may have
+        # slipped through so the booking stays in the normal PENDING flow.
+        if uses_hod_fallback and booking.faculty_sponsor_id:
+            booking.faculty_sponsor = None
+            booking.save(update_fields=['faculty_sponsor'])
+
+        # ── Approver-chain notification (specific primary/fallback user) ──
+        chain = getattr(booking.space, 'approver_chain', None)
+        if chain:
+            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
+            from apps.notifications.models import Notification
+            if chain.primary_approver:
+                notify(
+                    chain.primary_approver,
+                    Notification.Category.BOOKING_PENDING,
+                    "New Booking Request",
+                    f"{self.request.user.first_name} requested {_resource_name(booking, 'spaces')}. It requires your approval.",
+                    link=_approver_link('spaces', _booking_reference(booking)),
+                    domain='spaces',
+                    reference_code=_booking_reference(booking),
+                    is_actionable=True,
+                )
+            elif chain.fallback_approver:
+                notify(
+                    chain.fallback_approver,
+                    Notification.Category.BOOKING_PENDING,
+                    "New Booking Request",
+                    f"{self.request.user.first_name} requested {_resource_name(booking, 'spaces')}. It requires your approval.",
+                    link=_approver_link('spaces', _booking_reference(booking)),
+                    domain='spaces',
+                    reference_code=_booking_reference(booking),
+                    is_actionable=True,
+                )
+            return
+
+        # ── HOD_FALLBACK without a chain: notify the HOD role directly ──
+        if uses_hod_fallback:
+            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD)
+            return
+
+        # ── Standard role-based notification ──
         category = booking.space.approval_category
         if category == Space.ApprovalCategory.LAB:
             role = Role.Name.LAB_INCHARGE
@@ -245,7 +870,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             role = Role.Name.RECEPTIONIST
 
-        # Fire the notification to the correct space admin
         notify_new_request(
             booking=booking,
             domain='spaces',
@@ -269,8 +893,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         extra_fields = {"updated_by": user}
         
-        # FACULTY APPROVAL EDIT CASCADE
-        if instance.faculty_sponsor_id and instance.status not in ['CANCELLED', 'REJECTED', 'EXPIRED', 'COMPLETED']:
+        # FACULTY APPROVAL EDIT CASCADE (skip for HOD_FALLBACK spaces like AI Lab)
+        uses_hod_fallback = getattr(instance.space, 'approval_workflow_type', '') == Space.ApprovalWorkflowType.HOD_FALLBACK
+        if not uses_hod_fallback and instance.faculty_sponsor_id and instance.status not in ['CANCELLED', 'REJECTED', 'EXPIRED', 'COMPLETED']:
             extra_fields.update({
                 "status": "AWAITING_FACULTY",
                 "resolved_by": None,
@@ -417,6 +1042,10 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if updated_bookings:
             if new_status == 'PENDING':
                 for b in updated_bookings:
+                    chain = getattr(b.space, 'approver_chain', None)
+                    if chain:
+                        continue # Chain approvals are handled via notify_new_request manually if needed, but 'PENDING' transition for chain spaces usually shouldn't happen via this bulk review method from ESCALATED.
+                    
                     category = b.space.approval_category
                     if category == Space.ApprovalCategory.LAB:
                         role = Role.Name.LAB_INCHARGE
@@ -426,13 +1055,29 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                         role = Role.Name.RECEPTIONIST
                     notify_new_request(b, 'spaces', role)
             else:
-                notify_group_status_change(
-                    bookings=updated_bookings,
-                    new_status=new_status,
-                    domain='spaces',
-                    resolved_by=user,
-                    remarks=remarks
-                )
+                for b in updated_bookings:
+                    chain = getattr(b.space, 'approver_chain', None)
+                    if chain:
+                        from apps.notifications.utils import (
+                            notify_chain_approved_primary,
+                            notify_chain_approved_fallback,
+                            notify_chain_rejected
+                        )
+                        if new_status == 'APPROVED':
+                            if user == chain.primary_approver:
+                                notify_chain_approved_primary(b)
+                            else:
+                                notify_chain_approved_fallback(b)
+                        elif new_status == 'REJECTED':
+                            notify_chain_rejected(b)
+                    else:
+                        notify_group_status_change(
+                            bookings=[b],
+                            new_status=new_status,
+                            domain='spaces',
+                            resolved_by=user,
+                            remarks=remarks
+                        )
 
         if new_status == 'REJECTED':
             cancel_linked_siblings_for_space(
@@ -550,6 +1195,36 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         
         notify_faculty_approved(booking)
         
+        chain = getattr(booking.space, 'approver_chain', None)
+        if chain:
+            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
+            from apps.notifications.models import Notification
+            booking.status = 'PENDING'
+            booking.save(update_fields=['status'])
+            if chain.primary_approver:
+                notify(
+                    chain.primary_approver,
+                    Notification.Category.BOOKING_PENDING,
+                    "New Booking Request",
+                    f"A faculty-approved booking for {_resource_name(booking, 'spaces')} requires your approval.",
+                    link=_approver_link('spaces', _booking_reference(booking)),
+                    domain='spaces',
+                    reference_code=_booking_reference(booking),
+                    is_actionable=True,
+                )
+            elif chain.fallback_approver:
+                notify(
+                    chain.fallback_approver,
+                    Notification.Category.BOOKING_PENDING,
+                    "New Booking Request",
+                    f"A faculty-approved booking for {_resource_name(booking, 'spaces')} requires your approval.",
+                    link=_approver_link('spaces', _booking_reference(booking)),
+                    domain='spaces',
+                    reference_code=_booking_reference(booking),
+                    is_actionable=True,
+                )
+            return
+
         category = booking.space.approval_category
         if category == Space.ApprovalCategory.LAB:
             role = Role.Name.LAB_INCHARGE
@@ -657,7 +1332,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
 class BlockViewSet(viewsets.ModelViewSet):
     serializer_class   = BlockSerializer
-    permission_classes = [IsITAdmin]
+    permission_classes = [IsAdminOrReadOnly]
 
     def get_queryset(self):
         qs = Block.objects.all().order_by('name')
@@ -861,7 +1536,17 @@ def booking_group_detail(request, event_group_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def faculty_list(request):
-    department = request.user.department
+    dept_id = request.query_params.get('department')
+    
+    if dept_id:
+        try:
+            dept_id = int(dept_id)
+            department = dept_id
+        except ValueError:
+            department = None
+    else:
+        department = request.user.department
+
     if not department:
         return Response([])
 

@@ -124,10 +124,6 @@ function EquipmentRow({ row, index, allEquipment, onChange, onRemove, usedIds })
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// Buffer Minutes Input — shared UI for setup/teardown
-// ─────────────────────────────────────────────────────────────
-
 function BufferInput({ value, onChange, placeholder = "0" }) {
   return (
     <div className="relative flex items-center">
@@ -149,6 +145,90 @@ function BufferInput({ value, onChange, placeholder = "0" }) {
       </span>
     </div>
   )
+}
+
+function UserSearchCombobox({ displayValue, onSelect, placeholder, error }) {
+    const [query, setQuery]           = useState(displayValue || "")
+    const [results, setResults]       = useState([])
+    const [isOpen, setIsOpen]         = useState(false)
+    const [isLoading, setIsLoading]   = useState(false)
+    const debounceRef                 = useRef(null)
+
+    useEffect(() => {
+        // eslint-disable-next-line
+        setQuery(displayValue || "")
+    }, [displayValue])
+
+    const search = (q) => {
+        setQuery(q)
+        clearTimeout(debounceRef.current)
+        if (!q.trim()) { setResults([]); setIsOpen(false); return }
+        debounceRef.current = setTimeout(async () => {
+            setIsLoading(true)
+            try {
+                const res = await api.get(`/auth/users/search/?q=${encodeURIComponent(q)}`)
+                setResults(res.data?.results ?? res.data ?? [])
+                setIsOpen(true)
+            } catch {
+                setResults([])
+            } finally {
+                setIsLoading(false)
+            }
+        }, 300)
+    }
+
+    const select = (user) => {
+        onSelect(user)
+        setQuery(user.full_name || user.name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim())
+        setIsOpen(false)
+        setResults([])
+    }
+
+    return (
+        <div className="relative">
+            <input
+                className={inputCls(error)}
+                value={query}
+                onChange={(e) => search(e.target.value)}
+                placeholder={placeholder}
+                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                autoComplete="off"
+            />
+            {isLoading && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#94a3b8]">
+                    Searching…
+                </span>
+            )}
+            {isOpen && results.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-[#e2e8f0] rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {results.map((user) => {
+                        const name = user.full_name || user.name ||
+                            `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email
+                        return (
+                            <button
+                                key={user.id}
+                                type="button"
+                                onClick={() => select(user)}
+                                className="w-full text-left px-4 py-2.5 text-[13px] text-[#0f172a]
+                                    hover:bg-[#f0fdf4] transition flex flex-col"
+                            >
+                                <span className="font-semibold">{name}</span>
+                                {user.email && (
+                                    <span className="text-[11px] text-[#94a3b8]">{user.email}</span>
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+            {isOpen && !isLoading && results.length === 0 && query.trim() && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-[#e2e8f0]
+                    rounded-xl shadow-lg px-4 py-3 text-[13px] text-[#94a3b8]">
+                    No users found
+                </div>
+            )}
+        </div>
+    )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -178,8 +258,21 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       is_special_purpose: initialData?.is_special_purpose ?? false,
       setup_buffer_minutes: initialData?.setup_buffer_minutes ?? 0,
       teardown_buffer_minutes: initialData?.teardown_buffer_minutes ?? 0,
+      chain_primary_approver:  initialData?.approver_chain?.primary_approver?.id   ?? null,
+      chain_fallback_approver: initialData?.approver_chain?.fallback_approver?.id   ?? null,
+      chain_escalation_hours:  initialData?.approver_chain?.escalation_hours        ?? 24,
+      chain_requires_reason:   initialData?.approver_chain?.requires_reason         ?? true,
+      chain_earliest_start:    initialData?.approver_chain?.earliest_start          ?? "",
+      chain_latest_end:        initialData?.approver_chain?.latest_end              ?? "",
     }
   })
+
+  const [primaryApproverDisplay, setPrimaryApproverDisplay]   = useState(
+      initialData?.approver_chain?.primary_approver?.name ?? ""
+  )
+  const [fallbackApproverDisplay, setFallbackApproverDisplay] = useState(
+      initialData?.approver_chain?.fallback_approver?.name ?? ""
+  )
 
   // Image state
   const [imageFile, setImageFile] = useState(null)
@@ -208,7 +301,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       try {
         const res = await api.get("/spaces/inventory/")
         const items = res.data.results ?? res.data ?? []
-        setAllEquipment(items.filter((eq) => eq.is_active !== false))
+        setAllEquipment(items.filter((eq) => eq.is_active !== false && !eq.is_standard_media_kit))
       } catch {
         // Non-fatal
       }
@@ -296,6 +389,14 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
         break
       }
     }
+    if (form.approval_workflow_type === "HOD_FALLBACK") {
+        if (!form.chain_primary_approver)
+            e.chain_primary_approver = "Select a primary approver"
+        if (!form.chain_fallback_approver)
+            e.chain_fallback_approver = "Select a fallback approver"
+        if (form.chain_escalation_hours < 1)
+            e.chain_escalation_hours = "Must be at least 1 hour"
+    }
     return e
   }
 
@@ -328,6 +429,15 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       fd.append("is_special_purpose", form.is_special_purpose)
       fd.append("setup_buffer_minutes", Number(form.setup_buffer_minutes))
       fd.append("teardown_buffer_minutes", Number(form.teardown_buffer_minutes))
+
+      if (form.approval_workflow_type === "HOD_FALLBACK") {
+          fd.append("chain_primary_approver",  form.chain_primary_approver)
+          fd.append("chain_fallback_approver", form.chain_fallback_approver)
+          fd.append("chain_escalation_hours",  form.chain_escalation_hours)
+          fd.append("chain_requires_reason",   form.chain_requires_reason)
+          if (form.chain_earliest_start) fd.append("chain_earliest_start", form.chain_earliest_start)
+          if (form.chain_latest_end)     fd.append("chain_latest_end",     form.chain_latest_end)
+      }
 
       if (imageFile) fd.append("image_1", imageFile)
 
@@ -478,6 +588,24 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   </div>
                 )}
               </div>
+            )}
+
+            {form.approval_workflow_type === "HOD_FALLBACK" && primaryApproverDisplay && (
+                <div className="mt-3 bg-white/10 rounded-xl px-4 py-3 border border-white/10 space-y-1.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#86efac]/60">
+                        Approver Chain
+                    </p>
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-white font-semibold">
+                            {primaryApproverDisplay}
+                        </span>
+                        {fallbackApproverDisplay && (
+                            <span className="text-[11px] text-[#86efac]/70">
+                                ↳ {fallbackApproverDisplay} (fallback)
+                            </span>
+                        )}
+                    </div>
+                </div>
             )}
 
             {/* Flags */}
@@ -660,10 +788,113 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </div>
 
             {form.approval_workflow_type === "HOD_FALLBACK" && (
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                <p className="text-[12.5px] font-semibold leading-relaxed text-blue-800">
-                  This space uses HOD-first approval. The assigned Lab In-Charge is treated as a fallback approver after the configured waiting window, ready for the upcoming notification flow.
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 space-y-4">
+                <p className="text-[12px] font-semibold text-blue-800">
+                  Configure who approves student bookings for this space.
+                  The primary approver (e.g. HOD) acts first. If they don't respond within
+                  the escalation window, the fallback approver (e.g. Lab In-Charge) is notified.
                 </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Primary Approver" required error={errors.chain_primary_approver}>
+                    <UserSearchCombobox
+                      value={form.chain_primary_approver}
+                      displayValue={primaryApproverDisplay}
+                      onSelect={(user) => {
+                        set("chain_primary_approver", user.id)
+                        setPrimaryApproverDisplay(
+                          user.full_name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email
+                        )
+                        if (errors.chain_primary_approver)
+                          setErrors((p) => ({ ...p, chain_primary_approver: null }))
+                      }}
+                      placeholder="Search by name…"
+                      error={errors.chain_primary_approver}
+                    />
+                  </Field>
+
+                  <Field label="Fallback Approver" required error={errors.chain_fallback_approver}>
+                    <UserSearchCombobox
+                      value={form.chain_fallback_approver}
+                      displayValue={fallbackApproverDisplay}
+                      onSelect={(user) => {
+                        set("chain_fallback_approver", user.id)
+                        setFallbackApproverDisplay(
+                          user.full_name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email
+                        )
+                        if (errors.chain_fallback_approver)
+                          setErrors((p) => ({ ...p, chain_fallback_approver: null }))
+                      }}
+                      placeholder="Search by name…"
+                      error={errors.chain_fallback_approver}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <Field
+                    label="Escalation Window"
+                    hint="Hours before fallback approver is notified."
+                    error={errors.chain_escalation_hours}
+                  >
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min="1"
+                        max="168"
+                        className={`${inputCls(errors.chain_escalation_hours)} pr-12`}
+                        value={form.chain_escalation_hours}
+                        onChange={(e) => set("chain_escalation_hours", Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                      />
+                      <span className="absolute right-3.5 text-[11.5px] font-semibold text-[#94a3b8] pointer-events-none">
+                        hrs
+                      </span>
+                    </div>
+                  </Field>
+
+                  <Field label="Booking Opens At" hint="Earliest allowed start time. Leave blank for no restriction.">
+                    <input
+                      type="time"
+                      className={inputCls(false)}
+                      value={form.chain_earliest_start}
+                      onChange={(e) => set("chain_earliest_start", e.target.value)}
+                      style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                    />
+                  </Field>
+
+                  <Field label="Booking Closes At" hint="Latest allowed end time. Leave blank for no restriction.">
+                    <input
+                      type="time"
+                      className={inputCls(false)}
+                      value={form.chain_latest_end}
+                      onChange={(e) => set("chain_latest_end", e.target.value)}
+                      style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                    />
+                  </Field>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-blue-200 bg-white">
+                  <div>
+                    <span className="text-[13.5px] font-semibold text-[#0f172a]">Require booking reason</span>
+                    <p className="text-[12px] text-[#6b7280] mt-0.5">
+                      If on, students must fill in a purpose before submitting.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.chain_requires_reason}
+                    onClick={() => set("chain_requires_reason", !form.chain_requires_reason)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors
+                      focus:outline-none focus:ring-2 focus:ring-[#15803d] focus:ring-offset-2
+                      ${form.chain_requires_reason ? "bg-blue-600" : "bg-[#e2e8f0]"}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm
+                      transition-transform ${form.chain_requires_reason ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </button>
+                </div>
               </div>
             )}
 

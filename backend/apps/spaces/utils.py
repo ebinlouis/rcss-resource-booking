@@ -114,19 +114,8 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
     )
 
     for booking in overlapping_qs:
-        # ── Role-gated purpose ──────────────────────────────────────────────
-        if is_staff:
-            label = booking.purpose_of_booking
-            ref   = booking.reference_code
-        elif is_faculty:
-            label = booking.purpose_of_booking
-            ref   = None
-        elif requesting_user and booking.user_id == requesting_user.pk:
-            label = booking.purpose_of_booking
-            ref   = booking.reference_code
-        else:
-            label = "Occupied"
-            ref   = None
+        label = booking.purpose_of_booking or "Occupied"
+        ref = booking.reference_code if (is_staff or (requesting_user and booking.user_id == requesting_user.pk)) else None
 
         # Convert to local-aware strings for the frontend
         start_local = booking.start_datetime.astimezone()
@@ -144,3 +133,4 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
         conflicts.append(entry)
 
     return conflicts
+

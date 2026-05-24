@@ -128,7 +128,6 @@ class CustomUserSerializer(serializers.ModelSerializer):
             Role.Name.RECEPTIONIST,
             Role.Name.LAB_INCHARGE,
             Role.Name.LIBRARIAN,
-            Role.Name.HOD,
             Role.Name.IT_ADMIN,
         }
 
@@ -144,15 +143,22 @@ class CustomUserSerializer(serializers.ModelSerializer):
             Role.Name.IT_ADMIN,
         }
 
+        can_manage_spaces = bool(roles & SPACE_MANAGEMENT_ROLES)
+        if not can_manage_spaces:
+            can_manage_spaces = (
+                obj.fallback_chains.exists() or
+                obj.space_approver_assignments.filter(is_active=True).exists()
+            )
+
         return {
             # Who sees the admin portal at all
-            "can_access_admin_portal": bool(roles & ADMIN_PORTAL_ROLES),
+            "can_access_admin_portal": bool(roles & ADMIN_PORTAL_ROLES) or can_manage_spaces,
 
             # IT_ADMIN only — user management, role grants, system config
             "can_manage_system": Role.Name.IT_ADMIN in roles,
 
-            # Receptionist, Lab In-charge, Librarian, IT_ADMIN
-            "can_manage_spaces": bool(roles & SPACE_MANAGEMENT_ROLES),
+            # Receptionist, Lab In-charge, Librarian, IT_ADMIN + direct approvers
+            "can_manage_spaces": can_manage_spaces,
 
             # Lab In-charge, HOD, IT_ADMIN
             "can_manage_labs": bool(roles & LAB_MANAGEMENT_ROLES),
