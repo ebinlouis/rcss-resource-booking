@@ -20,7 +20,7 @@ from apps.media.models import MediaBooking
 
 from .models import RoleOverride, Department, CustomUser, Role
 from .serializers import AdminUserSerializer, RoleOverrideSerializer, DepartmentSerializer
-from .permissions import IsITAdmin
+from .permissions import IsITAdmin, IsITAdminOrHOD
 
 
 # ==========================================
@@ -40,6 +40,9 @@ class DepartmentViewSet(ModelViewSet):
         if self.request.query_params.get('active') == 'true':
             queryset = queryset.filter(is_active=True)
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(is_active=False)
 
 
 # ==========================================
@@ -396,16 +399,33 @@ class RoleOverrideViewSet(ModelViewSet):
 
 class AdminUserViewSet(ModelViewSet):
     serializer_class = AdminUserSerializer
-    permission_classes = [IsAuthenticated, IsITAdmin]
-    http_method_names = ['get', 'patch', 'head', 'options', 'post']
+    permission_classes = [IsAuthenticated, IsITAdminOrHOD]
+    http_method_names = ['get', 'patch', 'head', 'options', 'post', 'delete']
 
     def get_queryset(self):
+        user = self.request.user
+        effective_roles = user.get_effective_roles()
+
         queryset = (
             CustomUser.objects
             .select_related('department')
             .prefetch_related('roles')
             .order_by('first_name', 'last_name', 'email')
         )
+
+        if Role.Name.IT_ADMIN in effective_roles or user.is_superuser:
+            dept_id = self.request.query_params.get('department')
+            if dept_id:
+                queryset = queryset.filter(department_id=dept_id)
+        elif Role.Name.HOD in effective_roles:
+            if user.department_id:
+                queryset = queryset.filter(department_id=user.department_id)
+                # Filter to only faculty and HOD roles
+                queryset = queryset.filter(roles__name__in=[Role.Name.FACULTY, Role.Name.HOD])
+            else:
+                queryset = queryset.none()
+        else:
+            queryset = queryset.none()
 
         query = self.request.query_params.get('q', '').strip()
         role_name = self.request.query_params.get('role', '').strip().upper()
@@ -423,6 +443,115 @@ class AdminUserViewSet(ModelViewSet):
             queryset = queryset.filter(roles__name=role_name)
 
         return queryset.distinct()
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        password = self.request.data.get('password') or "Rajagiri@123"
+        user.set_password(password)
+        
+        # Override department for HOD / non-IT-Admin
+        if not self.request.user.is_superuser and not self.request.user.has_role(Role.Name.IT_ADMIN):
+            user.department = self.request.user.department
+
+        # Manage roles and department activation
+        if user.department:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            
+            hod_role = Role.objects.filter(name=Role.Name.HOD).first()
+            fac_role = Role.objects.filter(name=Role.Name.FACULTY).first()
+            staff_role = Role.objects.filter(name=Role.Name.STAFF).first()
+            
+            # Check if there is an active HOD in this department
+            hod_exists = User.objects.filter(
+                department=user.department,
+                roles=hod_role,
+                is_active=True
+            ).exclude(id=user.id).exists()
+            
+            if not hod_exists:
+                # FIRST FACULTY RULE: auto assign hod, faculty, staff roles silently
+                if hod_role:
+                    user.roles.add(hod_role)
+                if fac_role:
+                    user.roles.add(fac_role)
+                if staff_role:
+                    user.roles.add(staff_role)
+                
+                # Activate the department
+                user.department.is_active = True
+                user.department.save()
+            else:
+                # If there's an existing HOD and the new user is explicitly marked as HOD, demote other HODs
+                user_has_hod = user.roles.filter(name=Role.Name.HOD).exists()
+                if user_has_hod:
+                    other_hods = User.objects.filter(
+                        department=user.department,
+                        roles=hod_role,
+                        is_active=True
+                    ).exclude(id=user.id)
+                    for oh in other_hods:
+                        oh.roles.remove(hod_role)
+                        oh.save()
+        else:
+            # Assign default role if none and no department
+            if not user.roles.exists():
+                faculty_role = Role.objects.filter(name=Role.Name.FACULTY).first()
+                if faculty_role:
+                    user.roles.add(faculty_role)
+        
+        user.save()
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        # Override department for HOD / non-IT-Admin
+        if not self.request.user.is_superuser and not self.request.user.has_role(Role.Name.IT_ADMIN):
+            user.department = self.request.user.department
+            user.save()
+
+        # Manage roles and department activation
+        if user.department:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            hod_role = Role.objects.filter(name=Role.Name.HOD).first()
+            
+            user_has_hod = user.roles.filter(name=Role.Name.HOD).exists()
+            if user_has_hod:
+                # HOD REPLACEMENT LOGIC: Demote other HODs in this department
+                other_hods = User.objects.filter(
+                    department=user.department,
+                    roles=hod_role,
+                    is_active=True
+                ).exclude(id=user.id)
+                for oh in other_hods:
+                    oh.roles.remove(hod_role)
+                    oh.save()
+                
+                # Ensure department is active
+                if not user.department.is_active:
+                    user.department.is_active = True
+                    user.department.save()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception:
+            instance.is_active = False
+            instance.save()
+            return Response(
+                {'message': 'User could not be deleted, so they have been deactivated instead.'},
+                status=status.HTTP_200_OK
+            )
+
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        user = self.get_object()
+        new_password = request.data.get('password') or "Rajagiri@123"
+        user.set_password(new_password)
+        user.save()
+        return Response({'message': 'Password successfully reset.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='set-roles')
     def set_roles(self, request, pk=None):
@@ -450,7 +579,7 @@ class AdminUserViewSet(ModelViewSet):
 
 class RoleListView(APIView):
     """Returns all available roles. Used by IT Admin when assigning roles."""
-    permission_classes = [IsAuthenticated, IsITAdmin]
+    permission_classes = [IsAuthenticated, IsITAdminOrHOD]
 
     def get(self, request):
         roles = Role.objects.all().order_by('name')

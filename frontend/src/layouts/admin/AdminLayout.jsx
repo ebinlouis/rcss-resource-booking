@@ -5,32 +5,34 @@ import { useAuth } from '../../hooks/useAuth';
 import NotificationBell from '../../components/NotificationBell';
 
 const NAV_LINKS = [
-    { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/blocks',         label: 'Blocks',          end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/users',          label: 'Users',           end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/departments',    label: 'Departments & Faculties', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/transport',      label: 'Transport Management', end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/mess',           label: 'Mess',            end: false, capability: (c) => c?.can_manage_mess },
-    { to: '/admin/media',          label: 'Media Management',     end: false, capability: (c) => c?.can_manage_media },
-    { to: '/media/schedule',       label: 'Team Schedule',   end: false, capability: (c) => c?.can_manage_media },
-    { to: '/admin/role-overrides', label: 'Special Access',       end: false, capability: (c) => c?.can_manage_system },
-    { to: '/admin/equipment',      label: 'Equipment Management', end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
+    { to: '/admin', label: 'Venue Bookings', end: true, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
+    { to: '/admin/spaces', label: 'Venue Management', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/blocks', label: 'Blocks', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/users', label: 'Users', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/approvers', label: 'Venue Managers', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/departments', label: 'Departments', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/faculties', label: 'Faculties', end: false, capability: (c) => c?.is_hod && !c?.can_manage_system },
+    { to: '/admin/transport', label: 'Transport Management', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/mess', label: 'Mess', end: false, capability: (c) => c?.can_manage_mess },
+    { to: '/admin/media', label: 'Media Management', end: false, capability: (c) => c?.can_manage_media },
+    { to: '/media/schedule', label: 'Team Schedule', end: false, capability: (c) => c?.can_manage_media },
+    { to: '/admin/role-overrides', label: 'Special Access', end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/equipment', label: 'Equipment Management', end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
 ];
 
 const NAV_ICONS = {
-    'Venue Bookings':   'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    'Venue Bookings': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     'Venue Management': 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-    'Blocks':          'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
-    'Users':           'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
-    'Venue Managers':   'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-    'Departments & Faculties': 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+    'Blocks': 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+    'Users': 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
+    'Faculties': 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
+    'Venue Managers': 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    'Departments ': 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     'Transport Management': 'M8 17a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM5 7h14l1 6H4L5 7zm2-3h10',
-    'Mess':            'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+    'Mess': 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
     'Media Management': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
-    'Team Schedule':   'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-    'Special Access':  'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+    'Team Schedule': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+    'Special Access': 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
     'Equipment Management': 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
 };
 
@@ -48,15 +50,15 @@ const ROLE_PRIORITY = [
 ];
 
 const ROLE_DISPLAY_MAP = {
-    'IT_ADMIN':         { title: 'IT Admin',           subtitle: 'System Operations'   },
-    'PRINCIPAL':        { title: 'Principal',          subtitle: 'Institution Head'    },
-    'HOD':              { title: 'Head of Department', subtitle: 'Department Head'     },
-    'RECEPTIONIST':     { title: 'Receptionist',       subtitle: 'Venue Bookings'       },
-    'LAB_INCHARGE':     { title: 'Lab In-Charge',      subtitle: 'Lab Management'      },
-    'LIBRARIAN':        { title: 'Librarian',          subtitle: 'Library Rooms'       },
-    'MESS_MANAGER':     { title: 'Mess Manager',       subtitle: 'Mess Operations'     },
-    'MEDIA_INCHARGE':   { title: 'Media In-Charge',    subtitle: 'Media Management'    },
-    'FLEET_MANAGER':    { title: 'Fleet Manager',      subtitle: 'Fleet Operations'    },
+    'IT_ADMIN': { title: 'IT Admin', subtitle: 'System Operations' },
+    'PRINCIPAL': { title: 'Principal', subtitle: 'Institution Head' },
+    'HOD': { title: 'Head of Department', subtitle: 'Department Head' },
+    'RECEPTIONIST': { title: 'Receptionist', subtitle: 'Venue Bookings' },
+    'LAB_INCHARGE': { title: 'Lab In-Charge', subtitle: 'Lab Management' },
+    'LIBRARIAN': { title: 'Librarian', subtitle: 'Library Rooms' },
+    'MESS_MANAGER': { title: 'Mess Manager', subtitle: 'Mess Operations' },
+    'MEDIA_INCHARGE': { title: 'Media In-Charge', subtitle: 'Media Management' },
+    'FLEET_MANAGER': { title: 'Fleet Manager', subtitle: 'Fleet Operations' },
 };
 
 const getRoleDisplay = (effectiveRoles = []) => {
@@ -76,9 +78,8 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
     <>
         {/* Logo / Brand */}
         <div
-            className={`border-b border-[#e8f5ee] transition-all duration-300 flex items-center ${
-                collapsed ? 'justify-center px-3 h-16' : 'px-5 h-16'
-            }`}
+            className={`border-b border-[#e8f5ee] transition-all duration-300 flex items-center ${collapsed ? 'justify-center px-3 h-16' : 'px-5 h-16'
+                }`}
         >
             {collapsed ? (
                 <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" />
@@ -108,21 +109,18 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
                     onClick={onCloseMobile}
                     title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                        `group flex items-center rounded-xl transition-all duration-150 ${
-                            collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-[10px]'
-                        } text-[15px] font-medium ${
-                            isActive
-                                ? 'bg-[#dcfce7] text-[#15803d] font-semibold'
-                                : 'text-[#4a6b58] hover:bg-[#f0fdf4] hover:text-[#166634]'
+                        `group flex items-center rounded-xl transition-all duration-150 ${collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-[10px]'
+                        } text-[15px] font-medium ${isActive
+                            ? 'bg-[#dcfce7] text-[#15803d] font-semibold'
+                            : 'text-[#4a6b58] hover:bg-[#f0fdf4] hover:text-[#166634]'
                         }`
                     }
                 >
                     {({ isActive }) => (
                         <>
                             <span
-                                className={`shrink-0 transition-colors duration-150 ${
-                                    isActive ? 'text-[#16a34a]' : 'text-[#86a898] group-hover:text-[#22c55e]'
-                                }`}
+                                className={`shrink-0 transition-colors duration-150 ${isActive ? 'text-[#16a34a]' : 'text-[#86a898] group-hover:text-[#22c55e]'
+                                    }`}
                             >
                                 <Icon
                                     path={NAV_ICONS[label] ?? NAV_ICONS['Venue Management']}
@@ -142,30 +140,28 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
         {/* User Footer */}
         <div className={`pb-4 border-t border-[#e8f5ee] pt-3 transition-all duration-300 ${collapsed ? 'px-2' : 'px-3'}`}>
             <Tooltip text="Go back to the main user-facing portal to browse venues and manage your own bookings." position="right">
-              <button
-                onClick={() => onNavigate('/dashboard')}
-                title={collapsed ? 'User Portal' : undefined}
-                className={`w-full flex items-center transition-all duration-150 font-medium mb-1 rounded-xl hover:bg-[#f0fdf4] text-[#4a6b58] ${
-                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
-                }`}
-              >
-                <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[19px] h-[19px] text-[#86a898] shrink-0" />
-                {!collapsed && 'User Portal'}
-              </button>
+                <button
+                    onClick={() => onNavigate('/dashboard')}
+                    title={collapsed ? 'User Portal' : undefined}
+                    className={`w-full flex items-center transition-all duration-150 font-medium mb-1 rounded-xl hover:bg-[#f0fdf4] text-[#4a6b58] ${collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
+                        }`}
+                >
+                    <Icon path="M10 19l-7-7m0 0l7-7m-7 7h18" className="w-[19px] h-[19px] text-[#86a898] shrink-0" />
+                    {!collapsed && 'User Portal'}
+                </button>
             </Tooltip>
             <Tooltip text="Log out of your admin session." position="right">
-              <button
-                onClick={onLogout}
-                title={collapsed ? 'Sign out' : undefined}
-                className={`w-full flex items-center transition-all duration-150 font-medium rounded-xl hover:bg-[#fff1f2] text-[#dc2626] ${
-                    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
-                }`}
-              >
-                <Icon
-                    path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    className="w-[19px] h-[19px] shrink-0"
-                />
-                {!collapsed && 'Sign out'}
+                <button
+                    onClick={onLogout}
+                    title={collapsed ? 'Sign out' : undefined}
+                    className={`w-full flex items-center transition-all duration-150 font-medium rounded-xl hover:bg-[#fff1f2] text-[#dc2626] ${collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-2.5 px-3 py-[10px] text-[14.5px]'
+                        }`}
+                >
+                    <Icon
+                        path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        className="w-[19px] h-[19px] shrink-0"
+                    />
+                    {!collapsed && 'Sign out'}
                 </button>
             </Tooltip>
         </div>
@@ -175,8 +171,8 @@ const SidebarContent = ({ roleTitle, roleSubtitle, visibleLinks, collapsed, onCl
 const AdminLayout = () => {
     const { logout, user, effectiveRoles } = useAuth();
     const navigate = useNavigate();
-    const [profileOpen,      setProfileOpen]      = useState(false);
-    const [mobileOpen,       setMobileOpen]       = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const profileRef = useRef(null);
 
@@ -193,11 +189,12 @@ const AdminLayout = () => {
     const handleLogout = () => { logout(); navigate('/'); };
 
     const capabilities = {
-        can_manage_system:    user?.capabilities?.can_manage_system,
-        can_manage_spaces:    user?.capabilities?.can_manage_spaces,
+        can_manage_system: user?.capabilities?.can_manage_system,
+        can_manage_spaces: user?.capabilities?.can_manage_spaces,
         can_manage_equipment: user?.capabilities?.can_manage_equipment,
-        can_manage_mess:      user?.capabilities?.can_manage_mess,
-        can_manage_media:     user?.capabilities?.can_manage_media,
+        can_manage_mess: user?.capabilities?.can_manage_mess,
+        can_manage_media: user?.capabilities?.can_manage_media,
+        is_hod: user?.effective_roles?.includes('HOD'),
     };
 
     const visibleLinks = NAV_LINKS.filter(({ capability }) => capability(capabilities));
@@ -208,10 +205,10 @@ const AdminLayout = () => {
         roleTitle,
         roleSubtitle,
         visibleLinks,
-        collapsed:     sidebarCollapsed,
+        collapsed: sidebarCollapsed,
         onCloseMobile: () => setMobileOpen(false),
-        onNavigate:    navigate,
-        onLogout:      handleLogout,
+        onNavigate: navigate,
+        onLogout: handleLogout,
     };
 
     return (
@@ -222,9 +219,8 @@ const AdminLayout = () => {
             {/* ── Desktop Sidebar ── */}
             <aside
                 className={`shrink-0 bg-white border-r border-[#e8f5ee] hidden md:flex flex-col z-20
-                    transition-all duration-300 overflow-hidden ${
-                    sidebarCollapsed ? 'w-[64px]' : 'w-[230px]'
-                }`}
+                    transition-all duration-300 overflow-hidden ${sidebarCollapsed ? 'w-[64px]' : 'w-[230px]'
+                    }`}
             >
                 <SidebarContent {...sidebarProps} />
             </aside>
@@ -283,7 +279,7 @@ const AdminLayout = () => {
                                 style={user?.profile_image ? {} : { background: 'linear-gradient(135deg, #166534 0%, #22c55e 100%)' }}
                             >
                                 {user?.profile_image
-                                    ? <img src={user.profile_image} alt={user.name} className="w-full h-full object-cover" />
+                                    ? <img src={user.profile_image.startsWith('http') ? user.profile_image : `http://localhost:8000${user.profile_image.startsWith('/') ? '' : '/'}${user.profile_image}`} alt={user.name} className="w-full h-full object-cover" />
                                     : initial
                                 }
                             </button>

@@ -191,10 +191,13 @@ const ProfileForm = ({ user, onUpdate, onClose, onSuccess }) => {
 
             <div className="flex flex-col sm:flex-row gap-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
               <div className="relative w-24 h-24 shrink-0">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-green-700 text-white flex items-center justify-center text-2xl font-bold shadow-sm">
+                <div 
+                  className="w-24 h-24 rounded-full overflow-hidden text-white flex items-center justify-center text-2xl font-bold shadow-sm"
+                  style={previewUrl ? {} : { background: 'linear-gradient(135deg, #166534 0%, #22c55e 100%)' }}
+                >
                   {previewUrl ? (
                     <img
-                      src={previewUrl}
+                      src={previewUrl.startsWith('blob:') || previewUrl.startsWith('http') ? previewUrl : `http://localhost:8000${previewUrl.startsWith('/') ? '' : '/'}${previewUrl}`}
                       alt="Profile preview"
                       className="w-full h-full object-cover"
                     />

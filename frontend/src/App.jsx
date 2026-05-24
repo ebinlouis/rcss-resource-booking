@@ -30,6 +30,7 @@ import AdminMediaPage from "./pages/admin/AdminMediaPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import BlocksManagement from "./pages/admin/BlocksManagement";
 import SpaceApproversManagement from "./pages/admin/SpaceApproversManagement";
+import AdminFacultiesPage from "./pages/admin/AdminFacultiesPage";
 
 function App() {
   return (
@@ -68,6 +69,7 @@ function App() {
           >
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/faculties" element={<AdminFacultiesPage />} />
 
               <Route
                 element={
@@ -109,6 +111,10 @@ function App() {
                 <Route
                   path="/admin/departments"
                   element={<AdminDepartmentsPage />}
+                />
+                <Route
+                  path="/admin/departments/:id/faculties"
+                  element={<AdminFacultiesPage />}
                 />
                 <Route
                   path="/admin/transport"

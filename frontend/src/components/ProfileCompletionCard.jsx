@@ -5,7 +5,6 @@ const REQUIRED_FIELDS = [
   { key: 'first_name', label: 'First Name' },
   { key: 'phone', label: 'Phone Number' },
   { key: 'department', label: 'Department' },
-  { key: 'employee_student_id', label: 'Employee / Student ID' },
 ];
 
 const ProfileCompletionCard = ({ user }) => {

@@ -1,6 +1,6 @@
 import concurrent.futures
 from django.test import TransactionTestCase
-from django.db import IntegrityError
+from django.db import IntegrityError, DatabaseError
 from apps.users.models import CustomUser, Department
 from apps.spaces.models import Space, SpaceBooking
 
@@ -59,7 +59,7 @@ class DoubleBookingConcurrencyTest(TransactionTestCase):
                 try:
                     future.result() # If it saves successfully, count goes up
                     success_count += 1
-                except IntegrityError:
+                except DatabaseError:
                     # PostgreSQL slams the door on the second thread!
                     error_caught = True
 
@@ -74,4 +74,4 @@ class DoubleBookingConcurrencyTest(TransactionTestCase):
         # 3. Double check the database table actually only has 1 record
         self.assertEqual(SpaceBooking.objects.count(), 1)
         
-        print("\n✅ DATABASE LOCK VERIFIED! PostgreSQL successfully blocked the overlapping APPROVED booking.")
+        print("\n[OK] DATABASE LOCK VERIFIED! PostgreSQL successfully blocked the overlapping APPROVED booking.")
