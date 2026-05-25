@@ -498,10 +498,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
 
         {/* LEFT PANEL */}
         <div
-          className="hidden md:flex md:w-[30%] flex-col justify-between p-7 shrink-0"
+          className="hidden md:flex md:w-[30%] flex-col min-h-0 p-7 shrink-0"
           style={{ background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)" }}
         >
-          <div>
+          <div className="shrink-0">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
               {editData ? "Edit Booking" : "New Booking"}
             </p>
@@ -513,11 +513,11 @@ function MessBookingForm({ onClose, onSave, editData }) {
 
           {/* Day navigator summary */}
           {totalDays > 0 && (
-            <div className="space-y-2 mt-6">
+            <div className="space-y-2 mt-6 flex-1 overflow-y-auto min-h-0 pb-4 pr-1 dark-scrollbar">
               <p className="text-[10px] text-green-300 uppercase font-semibold mb-2">
                 {totalDays} Day{totalDays > 1 ? "s" : ""} Selected
               </p>
-              {dailyMenus.slice(0, 6).map((m, i) => {
+              {dailyMenus.map((m, i) => {
                 const hasMeal = MEALS.some((meal) => m[meal.timeKey])
                 return (
                   <button
@@ -535,13 +535,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
                   </button>
                 )
               })}
-              {totalDays > 6 && (
-                <p className="text-[10px] text-green-300/60 text-center">+{totalDays - 6} more days</p>
-              )}
             </div>
           )}
 
-          <div className="space-y-2 mt-auto pt-6">
+          <div className="space-y-2 mt-auto pt-6 shrink-0">
             <div className="bg-white/10 rounded-xl p-4">
               <p className="text-[10px] text-green-300 uppercase font-semibold">SLA</p>
               <p className="text-white text-sm font-semibold mt-1">Strict 24h notice required</p>
@@ -560,7 +557,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="flex-1 flex flex-col min-h-0 bg-white">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white">
 
           {/* HEADER */}
           <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
@@ -582,7 +579,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
           <form
             id="mess-booking-form"
             onSubmit={handleSubmit}
-            className="flex-1 overflow-y-auto px-7 py-5 space-y-5"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-7 py-5 space-y-5"
           >
 
             {error && (
@@ -700,8 +697,8 @@ function MessBookingForm({ onClose, onSave, editData }) {
 
                 {/* Day tabs — scrollable for many days */}
                 {totalDays > 1 && (
-                  <div className="relative">
-                    <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+                  <div className="relative w-full min-w-0">
+                    <div className="flex gap-1 overflow-x-auto pb-2 horizontal-scrollbar">
                       {dailyMenus.map((m, i) => {
                         const hasMeal   = MEALS.some((meal) => m[meal.timeKey])
                         const isActive  = safeDayIndex === i

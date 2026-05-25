@@ -10,6 +10,8 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
 }
 
 :root {
@@ -42,6 +44,7 @@ h1, h2, h3, h4 {
 /* Custom Scrollbar for the "Aesthetic" look */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -54,6 +57,44 @@ h1, h2, h3, h4 {
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Scrollbar for dark panels */
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.dark-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Horizontal generic scrollbar */
+.horizontal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+.horizontal-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.horizontal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
 }
 
