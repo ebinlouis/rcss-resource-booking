@@ -321,11 +321,11 @@ const AvailabilityModal = memo(function AvailabilityModal({
 <div>
   <div className="flex items-center gap-2">
     <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
-      Venue Availability
+      Availability Calendar
     </p>
 
     <Tooltip
-      text="Green = fully available, Yellow = partially booked, Blue = fully booked, Grey = past dates (cannot be booked). Click a date to view time slots."
+      text="Green = fully available, Yellow = partially booked, Blue = fully booked, Grey = past dates. Click a date to view time slots."
       position="right"
     >
       <button
@@ -445,19 +445,19 @@ const AvailabilityModal = memo(function AvailabilityModal({
           </div>
 
           <div className="text-xs text-gray-400 mb-3">
-            College hours: {DAY_START} – {DAY_END}
+            Booking hours: {DAY_START} – {DAY_END}
           </div>
 
           <div className="border-t border-gray-100 mb-3" />
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {isLoading ? (
-              <p className="text-sm text-center text-gray-400 mt-10 animate-pulse">Syncing calendar...</p>
+              <p className="text-sm text-center text-gray-400 mt-10 animate-pulse">Checking availability...</p>
             ) : timeline.length === 0 ? (
               <div className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-green-800">Fully Available</p>
+                  <p className="text-sm font-semibold text-green-800">Available All Day</p>
                   <p className="text-xs text-green-600">{DAY_START} – {DAY_END}</p>
                 </div>
               </div>
@@ -550,7 +550,7 @@ onClick={(e) => {
             : "bg-blue-100 text-blue-700"
         }`}
       >
-        {isPending ? "Pending Approval" : "Booked"}
+        {isPending ? "Awaiting Approval" : "Booked"}
       </span>
     </div>
   </div>
@@ -578,7 +578,7 @@ onClick={(e) => {
                     <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                       <p className="text-sm font-semibold text-green-700">{block.start} – {block.end}</p>
                       <span className="w-fit text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Available</span>
-                      <p className="text-[11px] text-gray-400 break-words leading-tight">Tap to book</p>
+                      <p className="text-[11px] text-gray-400 break-words leading-tight">Select to book</p>
                     </div>
                   </div>
                 )
@@ -587,7 +587,7 @@ onClick={(e) => {
           </div>
 
 <Tooltip
-  text="Open the booking form for this venue and create a new request."
+  text="Start a new booking for this venue."
   position="top"
 >
   <button
@@ -606,7 +606,7 @@ onClick={() => {
 }}
     className="mt-4 mb-2 w-full bg-green-700 hover:bg-green-800 text-white py-3 px-4 rounded-xl text-sm font-medium transition flex items-center justify-center"
   >
-    Open booking form
+    Book This Venue
   </button>
 </Tooltip></div>
       </div>
@@ -687,7 +687,7 @@ onClick={() => {
             }
             className="text-green-700 font-semibold hover:underline text-left"
           >
-            Sign in to view
+            Sign in to view contact details
           </button>
         )}
       </div>

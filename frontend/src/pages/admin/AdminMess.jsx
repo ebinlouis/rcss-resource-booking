@@ -72,11 +72,11 @@ function AccessDenied() {
       </div>
       <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
       <p className="text-sm text-gray-500 max-w-sm leading-relaxed">
-        You don't have permission to view this page. Mess Operations is only
-        accessible to users with the <span className="font-semibold text-gray-700">Mess</span> role.
+        You don't have permission to view this page. This section is available only for authorised
+         <span className="font-semibold text-gray-700">Mess Staff</span>
       </p>
       <p className="text-xs text-gray-400 mt-4">
-        Contact your IT administrator if you believe this is a mistake.
+        Please contact the administrator if you believe this is incorrect.
       </p>
     </div>
   );
@@ -147,7 +147,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
           </span>
           <span className="flex items-center gap-1.5">
             <Users size={15} className="text-gray-400" />
-            {multiDay ? `${totalPax} total pax (${dayCount} days)` : `${totalPax} Pax`}
+            {multiDay ? `${totalPax} attendees total (${dayCount} days)` : `${totalPax} Pax`}
           </span>
         </div>
 
@@ -156,7 +156,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
             ? meals.map((m) => (
                 <span key={m} className="px-2.5 py-1 bg-white border border-gray-200 text-gray-600 text-[10px] rounded-md uppercase font-bold tracking-wider shadow-sm">{m}</span>
               ))
-            : <span className="text-xs text-gray-400 italic">No specific meals requested</span>
+            : <span className="text-xs text-gray-400 italic">No meal preferences provided</span>
           }
         </div>
       </div>
@@ -196,7 +196,7 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-            {dayMenu.total_persons} pax
+            {dayMenu.total_persons} attendees
           </span>
           {open ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
         </div>
@@ -224,7 +224,7 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
 
           {/* Meals */}
           {activeMeals.length === 0 ? (
-            <p className="text-xs text-gray-400 italic text-center py-2">No meals configured for this day.</p>
+            <p className="text-xs text-gray-400 italic text-center py-2">No meals selected for this day.</p>
           ) : (
             <div className="space-y-2">
               {activeMeals.map(({ id, label, timeKey, menuKey }) => (
@@ -282,7 +282,7 @@ function AdminMess() {
         if (isMounted.current)
           setBookings(Array.isArray(data) ? data : data.results || []);
       } catch (err) {
-        console.error("Failed to fetch mess bookings:", err);
+        console.error("Failed to fetch food bookings:", err);
       } finally {
         if (isMounted.current) setIsLoading(false);
       }
@@ -449,8 +449,8 @@ function AdminMess() {
 
   const TABS = [
     { id: "pending",  label: "Needs Approval",        count: pendingBookings.length,  icon: Clock3  },
-    { id: "dispatch", label: "Daily Kitchen Schedule", count: dispatchBookings.length, icon: ChefHat },
-    { id: "history",  label: "All Records",            count: null,                    icon: History },
+    { id: "dispatch", label: "Kitchen Schedule", count: dispatchBookings.length, icon: ChefHat },
+    { id: "history",  label: "Booking History",            count: null,                    icon: History },
   ];
 
   // For the side panel: figure out if this is multi-day and grab daily_menus
@@ -474,7 +474,7 @@ function AdminMess() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">Mess Operations</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Food Management</h1>
               <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
             </div>
             <p className="text-sm text-gray-500 mt-1">Manage catering requests and view kitchen schedules.</p>
@@ -484,7 +484,7 @@ function AdminMess() {
             disabled={isLoading}
             className="text-sm font-medium text-emerald-600 hover:text-emerald-700 transition disabled:opacity-50"
           >
-            {isLoading ? "Refreshing..." : "Refresh Data"}
+            {isLoading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
@@ -521,12 +521,12 @@ function AdminMess() {
         {activeTab === "pending" && (
           <div className="space-y-4 max-w-5xl">
             {isLoading ? (
-              <p className="text-sm text-gray-400">Loading pending requests...</p>
+              <p className="text-sm text-gray-400">Loading pending bookings...</p>
             ) : pendingBookings.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
                 <CheckCircle2 size={40} className="text-emerald-100 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-gray-900">All Caught Up!</h3>
-                <p className="text-sm text-gray-500 mt-1">There are no catering requests waiting for your approval.</p>
+                <p className="text-sm text-gray-500 mt-1">No bookings awaiting review.</p>
               </div>
             ) : pendingBookings.map((b) => (
               <BookingCard
@@ -548,8 +548,8 @@ function AdminMess() {
                   <ChefHat size={20} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900">Prep Totals</h2>
-                  <p className="text-xs text-gray-500">Meals needed for selected day across all events.</p>
+                  <h2 className="text-sm font-bold text-gray-900">Daily Meal Summary</h2>
+                  <p className="text-xs text-gray-500">Meals required for the selected date.</p>
                 </div>
               </div>
               <input
@@ -562,9 +562,9 @@ function AdminMess() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               {[
-                { label: "Total Plates Needed", value: totalPrep.total,  border: "border-gray-100",    textColor: "text-gray-400",    iconColor: "text-gray-400"    },
-                { label: "Veg Plates",           value: totalPrep.veg,    border: "border-emerald-100", textColor: "text-emerald-600", iconColor: "text-emerald-600" },
-                { label: "Non-Veg Plates",       value: totalPrep.nonveg, border: "border-red-100",     textColor: "text-red-600",     iconColor: "text-red-600"     },
+                { label: "Total Meals", value: totalPrep.total,  border: "border-gray-100",    textColor: "text-gray-400",    iconColor: "text-gray-400"    },
+                { label: "Veg Meals",           value: totalPrep.veg,    border: "border-emerald-100", textColor: "text-emerald-600", iconColor: "text-emerald-600" },
+                { label: "Non-Veg Meals",       value: totalPrep.nonveg, border: "border-red-100",     textColor: "text-red-600",     iconColor: "text-red-600"     },
               ].map(({ label, value, border, textColor, iconColor }) => (
                 <div key={label} className={`bg-white p-5 rounded-2xl border ${border} shadow-sm relative overflow-hidden`}>
                   <div className="absolute top-0 right-0 p-3 opacity-10"><UtensilsCrossed size={40} className={iconColor} /></div>
@@ -574,7 +574,7 @@ function AdminMess() {
               ))}
             </div>
 
-            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Event Delivery Timeline</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Delivery Schedule</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
               {dispatchBookings.length === 0 ? (
                 <p className="text-sm text-gray-400 p-6 text-center">No catering events are scheduled for this date.</p>
@@ -612,7 +612,7 @@ function AdminMess() {
                       <p className="text-xs font-medium text-gray-600 mt-1">@ {b.delivery_location}</p>
                       {dayMenu && (
                         <p className="text-xs text-gray-500 mt-0.5">
-                          <span className="text-emerald-600 font-semibold">{dayMenu.total_persons}</span> pax
+                          <span className="text-emerald-600 font-semibold">{dayMenu.total_persons}</span> attendees
                           {" · "}
                           <span className="text-emerald-600">{dayMenu.veg_persons} veg</span>
                           {" / "}
@@ -644,7 +644,7 @@ function AdminMess() {
               <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
                 <History size={40} className="text-gray-200 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-gray-900">No Records Found</h3>
-                <p className="text-sm text-gray-500 mt-1">There is no past booking history in the system yet.</p>
+                <p className="text-sm text-gray-500 mt-1">No previous bookings found.</p>
               </div>
             ) : historyBookings.map((b) => (
               <BookingCard

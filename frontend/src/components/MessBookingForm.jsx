@@ -98,7 +98,7 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
           className="w-full flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-sm font-semibold rounded-xl px-4 py-3 transition-all"
         >
           <Copy size={15} />
-          Apply Day 1 menu &amp; headcount to all {totalDays} days
+          Use Day 1 menu plan &amp; headcount to all {totalDays} days
         </button>
       )}
 
@@ -169,10 +169,10 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
               </p>
             </div>
             {remaining > 0 && !exceeds && (
-              <p className="text-xs text-orange-500 mt-1.5">Allocate all remaining attendees.</p>
+              <p className="text-xs text-orange-500 mt-1.5">Please assign meal preference for everyone.</p>
             )}
             {exceeds && (
-              <p className="text-xs text-red-500 mt-1.5">Veg + Non-Veg exceeds total.</p>
+              <p className="text-xs text-red-500 mt-1.5">Vegetarian + Non-Vegetarian count cannot exceed total attendees.</p>
             )}
           </div>
         )}
@@ -181,7 +181,7 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
       {/* Meals */}
       <SectionLabel>Meals Required</SectionLabel>
       <p className="text-xs text-gray-500 -mt-2">
-        Toggle the meals needed for this day and fill in time and menu.
+        Select the meals required for this day and add timing/menu details.
       </p>
 
       <div className="space-y-3">
@@ -338,10 +338,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
     const deadline = new Date(dt.getTime() - 24 * 60 * 60 * 1000)
     const diff     = deadline.getTime() - now   // `now` from state, not Date.now()
 
-    if (diff <= 0) return { expired: true, message: "Booking closed. 24h notice required." }
+    if (diff <= 0) return { expired: true, message: "This meal cannot be booked now. Food bookings require at least 24 hours' notice." }
     const h = Math.floor(diff / 3600000)
     const m = Math.floor((diff % 3600000) / 60000)
-    return { expired: false, message: `Booking closes in ${h}h ${m}m for selected meal.` }
+    return { expired: false, message: `Please submit within ${h}h ${m}m to meet the 24-hour notice requirement.` }
   }, [eventForm.start_date, dailyMenus, now])
 
   // ── Apply Day 1 to all ────────────────────────────────────────────────────
@@ -507,7 +507,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
             </p>
             <h2 className="text-2xl font-bold text-white">Mess Request</h2>
             <p className="text-sm text-green-200/75 mt-3">
-              Submit your catering requirements for single or multi-day events.
+              Request meals for your event or programme.
             </p>
           </div>
 
@@ -540,18 +540,8 @@ function MessBookingForm({ onClose, onSave, editData }) {
 
           <div className="space-y-2 mt-auto pt-6 shrink-0">
             <div className="bg-white/10 rounded-xl p-4">
-              <p className="text-[10px] text-green-300 uppercase font-semibold">SLA</p>
-              <p className="text-white text-sm font-semibold mt-1">Strict 24h notice required</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-white/10 rounded-xl p-3">
-                <p className="text-[9px] text-green-300 uppercase font-semibold">Approval</p>
-                <p className="text-white text-xs font-semibold mt-1">Admin review</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-3">
-                <p className="text-[9px] text-green-300 uppercase font-semibold">Policy</p>
-                <p className="text-white text-xs font-semibold mt-1">Per headcount</p>
-              </div>
+              <p className="text-[10px] text-green-300 uppercase font-semibold">Booking Notice</p>
+              <p className="text-white text-sm font-semibold mt-1">Please book at least 24 hours in advance</p>
             </div>
           </div>
         </div>
@@ -562,8 +552,8 @@ function MessBookingForm({ onClose, onSave, editData }) {
           {/* HEADER */}
           <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
             <div>
-              <p className="text-xs font-semibold text-green-700 uppercase">Request Details</p>
-              <h2 className="text-xl font-bold text-gray-900 mt-1">Mess Booking Form</h2>
+              <p className="text-xs font-semibold text-green-700 uppercase">Booking Details</p>
+              <h2 className="text-xl font-bold text-gray-900 mt-1">Food Booking Form</h2>
             </div>
             <button
               type="button"
@@ -593,7 +583,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
               <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <p className="font-semibold">This Mess request is linked to your Space booking.</p>
+                    <p className="font-semibold">This food booking is linked to your venue booking.</p>
                     <p className="text-xs text-green-700 mt-0.5">You can add Media for the same date, time, and room.</p>
                   </div>
                   <button
@@ -604,7 +594,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                     }}
                     className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white hover:bg-green-800"
                   >
-                    Add Media
+                    Add Media Support
                   </button>
                 </div>
               </div>
@@ -649,11 +639,11 @@ function MessBookingForm({ onClose, onSave, editData }) {
             </div>
 
             {/* LOCATION + PURPOSE */}
-            <Field label="Delivery Location" required>
+            <Field label="FoodDelivery Location" required>
               <input
                 required
                 className={inputCls}
-                placeholder="E.g., Main Auditorium, KE Block"
+                placeholder="E.g., Main Auditorium, Carmel Block"
                 value={eventForm.delivery_location}
                 onChange={(e) =>
                   setEventForm((prev) => ({ ...prev, delivery_location: e.target.value }))
@@ -661,10 +651,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
               />
             </Field>
 
-            <Field label="Purpose of Programme" required>
+            <Field label="Event Purpose" required>
               <AutoSuggestInput
                 value={eventForm.purpose_of_programme}
-                placeholder="E.g., Tech Symposium Guest Catering"
+                placeholder="e.g. Seminar lunch, workshop refreshments, etc."
                 suggestionsFetcher={() =>
                   messService.getSuggestions("purpose_of_programme")
                 }
@@ -681,7 +671,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
             {datesReady && dailyMenus.length > 0 && (
               <>
                 <SectionLabel>
-                  Daily Menus
+                  Daily Meal Plan
                   {totalDays > 1 && <span className="ml-2 text-green-600 normal-case font-normal">({totalDays} days)</span>}
                 </SectionLabel>
 
@@ -773,7 +763,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
             {/* Prompt when dates not yet filled */}
             {!datesReady && (
               <div className="border border-dashed border-gray-200 rounded-2xl p-8 text-center text-sm text-gray-400">
-                Select a start and end date above to configure daily menus.
+                Choose your event dates to plan meals.
               </div>
             )}
 
@@ -782,7 +772,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
           {/* FOOTER */}
           <div className="flex justify-between items-center px-7 py-4 border-t bg-gray-50 shrink-0">
             <p className="text-xs text-gray-400">
-              Submitting sends the request for admin approval.
+              Your booking will be reviewed after submission.
             </p>
             <div className="flex gap-2">
               <button
@@ -806,10 +796,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
                 {isSubmitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing...
+                    Submitting...
                   </>
                 ) : (
-                  editData ? "Save Changes" : "Submit Request"
+                  editData ? "Save Changes" : "Submit Booking"
                 )}
               </button>
             </div>

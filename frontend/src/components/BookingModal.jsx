@@ -143,17 +143,17 @@ function BookingModal({
             </svg>
           </div>
           <h2 className="text-xl font-semibold text-gray-900">
-            {isEdit ? "Update Successful" : "Request Submitted"}
+            {isEdit ? "Update Successful" : "Booking Submitted"}
           </h2>
           <p className="text-sm text-gray-500 leading-relaxed">
             Your booking for{" "}
             <span className="font-semibold text-gray-700">{activeSpaceName}</span> has been{" "}
             {isEdit
-              ? "updated and sent back for admin approval."
-              : "sent for admin approval."}
+              ? "updated and sent for review."
+              : "submitted for review."}
             {form.isExternal && (
               <span className="block mt-1 text-xs text-amber-600 font-medium">
-                Flagged as an external event.
+                Marked as an external event.
               </span>
             )}
           </p>
@@ -250,8 +250,8 @@ function BookingModal({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Daily Recurring (e.g. 5-day Seminar)</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Blocks the venue *only* between the selected times each day.</span>
+                  <span className="text-sm font-semibold text-gray-900">Full-Time Booking (e.g. Hackathon)</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Reserves the venue only during the selected hours each day.</span>
                 </div>
               </label>
             </div>
@@ -343,7 +343,7 @@ function BookingModal({
         ) : null}
 
         {isFetchingSuggestions && (
-          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Finding better-fit venues based on your requirements…</p>
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
         )}
         {!isFetchingSuggestions && suggestedHalls.length > 0 && (
           <div className="mt-2 mb-4">
@@ -366,7 +366,8 @@ function BookingModal({
           <div className="flex flex-col pr-4">
             <span className="text-sm font-semibold text-gray-700">External Event</span>
             <span className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-              Enable if organised by an external party. External events are grouped for priority admin review.
+              Turn this on if the event involves external guests or organisations.
+These bookings may need additional review.
             </span>
           </div>
           <button
@@ -387,7 +388,7 @@ function BookingModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Purpose" required error={errors.purpose}>
+          <Field label="Event Purpose" required error={errors.purpose}>
             <input
               className={inputCls(errors.purpose)}
               value={form.purpose}
@@ -572,7 +573,7 @@ function BookingModal({
             className={`${inputCls(errors.notes)} resize-none`}
             placeholder={
               notesRequired
-                ? "Required: explain why this venue is needed for a small group…"
+                ? "Please explain why this venue is needed for a smaller group."
                 : "Mention setup, technical support, seating changes…"
             }
             value={form.notes}
@@ -604,7 +605,7 @@ function BookingModal({
           <p className="text-xs font-bold uppercase tracking-wide text-green-700">Space</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-950">Book a venue</h2>
           <p className="mt-2 text-sm text-gray-500">
-            Choose your venue, schedule, and event details. Linked services will use this slot.
+            Choose your venue, schedule, and event details. You can add related services using the same booking time.
           </p>
         </div>
 
@@ -621,7 +622,7 @@ function BookingModal({
             </svg>
             <p className="text-xs text-amber-800 leading-relaxed">
               This booking is currently approved. Saving changes will move it back to{" "}
-              <span className="font-semibold">Pending Review</span> and notify the admin.
+              <span className="font-semibold">Pending Review</span> and notify the team.
             </p>
           </div>
         )}
@@ -650,7 +651,7 @@ function BookingModal({
         >
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
-              {isEdit ? "Editing Request" : "New Booking"}
+              {isEdit ? "Editing Booking" : "New Booking"}
             </p>
             <h2 className="text-2xl font-bold text-white leading-tight">{activeSpaceName}</h2>
 
@@ -666,7 +667,7 @@ function BookingModal({
             <p className="text-sm text-green-200/75 mt-3 leading-relaxed">
               {isEdit
                 ? "Editing this booking will send it back to the admin for re-approval."
-                : "Request a venue, choose your time, and add any details needed for approval."}
+                : "Book a venue, choose your time, and add any details needed for approval."}
             </p>
 
             {activeSpaceCap !== null && (
@@ -725,7 +726,7 @@ function BookingModal({
                     )}
                   </div>
                 ) : (
-                  <p className="text-white/50 text-sm">Pick a time to begin</p>
+                  <p className="text-white/50 text-sm">Choose a date and time</p>
                 )
               ) : (
                 <>
@@ -742,7 +743,7 @@ function BookingModal({
                       )}
                     </>
                   ) : (
-                    <p className="text-white/50 text-sm">Pick a time to begin</p>
+                    <p className="text-white/50 text-sm">Choose a date and time</p>
                   )}
                   <div className="mt-4 flex gap-[2px]">
                     {Array.from({ length: 20 }).map((_, i) => {
@@ -772,9 +773,9 @@ function BookingModal({
           {/* HEADER */}
           <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
             <div>
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-0.5">Booking Form</p>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-0.5">Venue Booking</p>
               <h2 className="text-xl font-bold text-gray-900">
-                {isEdit ? "Edit your booking" : "Secure this venue"}
+                {isEdit ? "Edit your booking" : "Book this venue"}
               </h2>
             </div>
 <button
@@ -813,8 +814,8 @@ function BookingModal({
                   {isAvailable !== true
                     ? "Please select an available time slot to continue."
                     : isEdit && initialData?.status === "APPROVED"
-                    ? "Saving will reset this booking to pending."
-                    : "Submitting this sends the request for admin approval."}
+                    ? "Saving changes will send this booking for review again."
+                    : "Your booking will be reviewed after submission."}
                 </p>
               )}
             </div>
@@ -830,7 +831,7 @@ function BookingModal({
   text={
     isEdit
       ? "Save your changes. The booking will be re-reviewed if it was already approved."
-      : "Submit your booking request. An admin will review and approve it."
+      : "Submit your booking request. Your booking will be reviewed before confirmation."
   }
   position="top"
 >
@@ -839,7 +840,7 @@ function BookingModal({
     disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
     className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
   >
-    {isSubmitting ? "Saving..." : isEdit ? "Update Request" : "Send Request"}
+    {isSubmitting ? "Saving..." : isEdit ? "Update Booking" : "Send Booking Request"}
   </button>
 </Tooltip></div>
           </div>
