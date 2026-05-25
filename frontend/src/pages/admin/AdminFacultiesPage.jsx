@@ -390,11 +390,11 @@ export default function AdminFacultiesPage() {
                         <h1 className="text-2xl font-bold text-[#0f172a] tracking-tight flex flex-wrap items-center gap-2">
                             <span>{deptInfo?.department_name || 'Loading details...'}</span>
                             {!activeHOD && !loading && (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full select-none">
-                                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    Setup Required
+                                <span 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full select-none cursor-help"
+                                    title="This department is not configured yet. Please add a Head of Department using the button above."
+                                >
+                                    No faculty members found
                                 </span>
                             )}
                         </h1>
@@ -526,31 +526,7 @@ export default function AdminFacultiesPage() {
                             )}
                         </div>
                     </div>
-                ) : (
-                    <div className="bg-white border border-amber-200 rounded-2xl p-8 mb-8 text-center max-w-xl mx-auto shadow-sm">
-                        <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3 text-amber-500 text-xl font-bold">
-                            ⚠️
-                        </div>
-                        <h4 className="text-[16.5px] font-bold text-slate-800 mb-1">
-                            No faculty members found
-                        </h4>
-                        <p className="text-[13.5px] text-slate-500 mb-5 leading-relaxed">
-                            This department is not configured yet.
-                        </p>
-                        {!isHOD && (
-                            <button
-                                type="button"
-                                onClick={openAddModal}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
-                            >
-                                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M12 4v16m8-8H4" />
-                                </svg>
-                                Setup Head of Department
-                            </button>
-                        )}
-                    </div>
-                )}
+                ) : null}
 
                 {/* Search Bar */}
                 <div className="mb-6 max-w-md relative">
