@@ -149,6 +149,17 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         user = self.request.user
         is_admin = self._is_admin(user)
         view_param = self.request.query_params.get('view', '')
+        now = timezone.now()
+
+        FleetBooking.objects.filter(
+            status='PENDING',
+            end_datetime__lt=now
+        ).update(status='EXPIRED')
+
+        FleetBooking.objects.filter(
+            status='APPROVED',
+            end_datetime__lt=now
+        ).update(status='COMPLETED')
 
         if is_admin and view_param == 'general':
             # All bookings across all users
@@ -213,6 +224,43 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
             user=user,
             department=user.department,
         )
+        
+    def partial_update(self, request, *args, **kwargs):
+            booking = self.get_object()
+            
+           
+
+            # Prevent editing past bookings
+            if booking.end_datetime <= timezone.now():
+                return Response(
+                    {"error": "Past bookings cannot be modified."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Remember original status before update
+            original_status = booking.status
+
+            serializer = self.get_serializer(
+                booking,
+                data=request.data,
+                partial=True,
+            )
+
+            serializer.is_valid(raise_exception=True)
+
+            updated_booking = serializer.save()
+
+            # If an APPROVED booking was edited,
+            # send it back for approval
+            if original_status == "APPROVED":
+                updated_booking.status = "PENDING"
+                updated_booking.resolved_by = None
+                updated_booking.resolved_at = None
+                updated_booking.save()
+
+            return Response(
+                self.get_serializer(updated_booking).data
+            )
 
     # ------------------------------------------------------------------
     # REVIEW ACTION — approve / reject (admin only)
@@ -284,6 +332,12 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         Allows the booking owner to cancel a PENDING booking.
         """
         booking = self.get_object()
+        
+        if booking.end_datetime <= timezone.now():
+            return Response(
+                {"error": "Past bookings cannot be cancelled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if booking.user != request.user:
             return Response(
@@ -291,9 +345,9 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if booking.status != 'PENDING':
+        if booking.status not in ['PENDING', 'APPROVED']:
             return Response(
-                {"error": f"Only PENDING bookings can be cancelled. This booking is {booking.status}."},
+                {"error": f"Cannot cancel a {booking.status} booking."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

@@ -337,12 +337,22 @@ function Transport() {
                 STATUS_STYLES[booking.status]?.card ??
                 STATUS_STYLES.PENDING.card
 
+              const isPastBooking =
+                new Date(booking.end_datetime) <= new Date()
+
               const canEdit =
-                booking.status === "PENDING" ||
-                booking.can_modify
+                !isPastBooking &&
+                (
+                  booking.status === "PENDING" ||
+                  booking.status === "APPROVED"
+                )
 
               const canCancel =
-                booking.status === "PENDING"
+                !isPastBooking &&
+                (
+                  booking.status === "PENDING" ||
+                  booking.status === "APPROVED"
+                )
 
               return (
                 <div
