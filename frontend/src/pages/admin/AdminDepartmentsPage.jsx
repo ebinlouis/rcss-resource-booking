@@ -213,7 +213,7 @@ export default function AdminDepartmentsPage() {
                         <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{listError}</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-2xl border border-[#e8f5ee] overflow-hidden overflow-x-auto">
+                    <div className="bg-white rounded-2xl border border-[#e8f5ee]">
                         <table className="w-full min-w-[480px] text-left border-collapse">
                             <thead>
                                 <tr className="bg-[#f6fbf8] border-b border-[#e8f5ee]">
@@ -246,11 +246,6 @@ export default function AdminDepartmentsPage() {
                                             <td className="px-6 py-4 text-[14px] font-semibold text-[#0f172a]">
                                                 <div className="flex flex-col">
                                                     <span className="font-semibold text-[#0f172a]">{dept.department_name}</span>
-                                                    {(dept.faculty_count ?? 0) === 0 && (
-                                                        <span className="mt-1 self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 uppercase tracking-wide">
-                                                            ⚠️ Needs HOD Setup
-                                                        </span>
-                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -260,8 +255,8 @@ export default function AdminDepartmentsPage() {
                                             </td>
                                             <td className="px-6 py-4 text-[14px] font-semibold text-[#374151]">
                                                 {(dept.faculty_count ?? 0) === 0 ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[11px] font-bold uppercase tracking-wide">
-                                                        ⚠️ No faculties assigned
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wide">
+                                                        No faculties assigned
                                                     </span>
                                                 ) : (
                                                     dept.faculty_count

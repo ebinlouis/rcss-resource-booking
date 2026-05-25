@@ -757,22 +757,24 @@ const MessDraftStep = forwardRef(function MessDraftStep({ mediaInSequence, onAdd
       </div>
 
       {dailyMenus.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {dailyMenus.map((menu, index) => (
-            <button
-              key={menu.date}
-              type="button"
-              onClick={() => setActiveDay(index)}
-              className={`shrink-0 rounded-lg border px-4 py-2 text-left text-xs font-bold transition ${
-                safeDayIndex === index
-                  ? "border-green-600 bg-green-600 text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              Day {index + 1}
-              <span className="ml-2 font-medium opacity-80">{formatTabLabel(menu.date)}</span>
-            </button>
-          ))}
+        <div className="w-full min-w-0">
+          <div className="flex gap-2 overflow-x-auto pb-2 horizontal-scrollbar">
+            {dailyMenus.map((menu, index) => (
+              <button
+                key={menu.date}
+                type="button"
+                onClick={() => setActiveDay(index)}
+                className={`shrink-0 rounded-lg border px-4 py-2 text-left text-xs font-bold transition ${
+                  safeDayIndex === index
+                    ? "border-green-600 bg-green-600 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Day {index + 1}
+                <span className="ml-2 font-medium opacity-80">{formatTabLabel(menu.date)}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
