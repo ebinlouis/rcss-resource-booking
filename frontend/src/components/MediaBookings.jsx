@@ -72,7 +72,7 @@ function CancelConfirmModal({ booking, onConfirm, onClose, deleting }) {
             disabled={deleting}
             className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold disabled:opacity-60"
           >
-            {deleting ? "Deleting..." : "Yes, cancel it"}
+            {deleting ? "Cancelling..." : "Yes, cancel it"}
           </button>
         </div>
       </div>
@@ -97,8 +97,8 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
       setConfirmDelete(null)
       onRefresh?.()
     } catch (err) {
-      console.error("Delete failed:", err)
-      setDeleteError("Could not delete booking. Please try again.")
+      console.error("Cancel failed:", err)
+      setDeleteError("Could not cancel booking. Please try again.")
     } finally {
       setDeleting(false)
     }
@@ -127,7 +127,7 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
         {/* Empty State */}
         {bookings.length === 0 ? (
           <div className="text-center py-10 text-gray-400 border border-dashed border-gray-200 rounded-xl">
-            No bookings found for this date
+            No media bookings for this date
           </div>
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
@@ -173,7 +173,7 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                       </div>
                       {hasBuffer && (
                         <div className="text-[10px] font-medium text-gray-400 uppercase mt-1" title="Core Event Time">
-                          Event: {eventIsMultiDay 
+                          Actual Event Time: {eventIsMultiDay 
                             ? `${formatDate(eStart)} ${formatTime(eStart)} – ${formatDate(eEnd)} ${formatTime(eEnd)}`
                             : `${formatTime(eStart)} – ${formatTime(eEnd)}`
                           }
@@ -199,7 +199,7 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                           {/* Hardware Badge */}
                           {eqCount > 0 && (
                             <span className="bg-black/10 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide">
-                              {eqCount} HARDWARE ITEM{eqCount !== 1 ? 'S' : ''}
+                              {eqCount} Equipment Items{eqCount !== 1 ? 'S' : ''}
                             </span>
                           )}
                           
@@ -233,7 +233,7 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
                           <button
                             onClick={() => setConfirmDelete(b)}
                             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete Booking"
+                            title="Cancel Booking"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

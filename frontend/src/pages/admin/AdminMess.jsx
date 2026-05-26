@@ -72,11 +72,11 @@ function AccessDenied() {
       </div>
       <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
       <p className="text-sm text-gray-500 max-w-sm leading-relaxed">
-        You don't have permission to view this page. Mess Operations is only
-        accessible to users with the <span className="font-semibold text-gray-700">Mess</span> role.
+        You don't have permission to view this page. This section is available only for authorised
+         <span className="font-semibold text-gray-700">Mess Staff</span>
       </p>
       <p className="text-xs text-gray-400 mt-4">
-        Contact your IT administrator if you believe this is a mistake.
+        Please contact the administrator if you believe this is incorrect.
       </p>
     </div>
   );
@@ -84,7 +84,7 @@ function AccessDenied() {
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, onSelect, isHighlighted }) {
+function BookingCard({ booking, onSelect, isHighlighted, isFlush }) {
   const meals       = getRequestedMeals(booking);
   const statusLower = booking.status?.toLowerCase();
   const multiDay    = isMultiDay(booking);
@@ -92,11 +92,15 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
   const dateLabel   = formatDateRange(booking.start_date, booking.end_date);
   const dayCount    = booking.daily_menus?.length ?? 1;
 
+  const containerClasses = isFlush
+    ? `px-7 py-5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "ring-2 ring-emerald-300 ring-inset bg-emerald-50/70" : "bg-white"}`
+    : `bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`;
+
   return (
     <div
       data-booking-reference={booking.reference_code || ""}
       onClick={() => onSelect(booking)}
-      className={`bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`}
+      className={containerClasses}
     >
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
@@ -147,7 +151,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
           </span>
           <span className="flex items-center gap-1.5">
             <Users size={15} className="text-gray-400" />
-            {multiDay ? `${totalPax} total pax (${dayCount} days)` : `${totalPax} Pax`}
+            {multiDay ? `${totalPax} attendees total (${dayCount} days)` : `${totalPax} Pax`}
           </span>
         </div>
 
@@ -156,7 +160,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
             ? meals.map((m) => (
                 <span key={m} className="px-2.5 py-1 bg-white border border-gray-200 text-gray-600 text-[10px] rounded-md uppercase font-bold tracking-wider shadow-sm">{m}</span>
               ))
-            : <span className="text-xs text-gray-400 italic">No specific meals requested</span>
+            : <span className="text-xs text-gray-400 italic">No meal preferences provided</span>
           }
         </div>
       </div>
@@ -196,7 +200,7 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-            {dayMenu.total_persons} pax
+            {dayMenu.total_persons} attendees
           </span>
           {open ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
         </div>
@@ -224,7 +228,7 @@ function DayMenuDetail({ dayMenu, dayIndex, totalDays, defaultOpen }) {
 
           {/* Meals */}
           {activeMeals.length === 0 ? (
-            <p className="text-xs text-gray-400 italic text-center py-2">No meals configured for this day.</p>
+            <p className="text-xs text-gray-400 italic text-center py-2">No meals selected for this day.</p>
           ) : (
             <div className="space-y-2">
               {activeMeals.map(({ id, label, timeKey, menuKey }) => (
@@ -269,6 +273,7 @@ function AdminMess() {
   const [showRejectInput,  setShowRejectInput]  = useState(false);
   const [rejectRemark,     setRejectRemark]     = useState("");
   const [remarkError,      setRemarkError]      = useState("");
+  const [historyFilter,    setHistoryFilter]    = useState("ALL");
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -282,7 +287,7 @@ function AdminMess() {
         if (isMounted.current)
           setBookings(Array.isArray(data) ? data : data.results || []);
       } catch (err) {
-        console.error("Failed to fetch mess bookings:", err);
+        console.error("Failed to fetch food bookings:", err);
       } finally {
         if (isMounted.current) setIsLoading(false);
       }
@@ -318,9 +323,15 @@ function AdminMess() {
     .filter((b) => b.status?.toLowerCase() === "pending")
     .sort(compareSubmissionTimeDesc);
 
-  const historyBookings = [...bookings].sort(
-    (a, b) => new Date(b.created_at) - new Date(a.created_at)
-  );
+  const historyBookings = bookings
+    .filter((b) => {
+      const s = b.status?.toUpperCase() || "";
+      if (historyFilter !== "ALL") {
+        return s === historyFilter;
+      }
+      return s !== "PENDING";
+    })
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   // Multi-day aware: a booking appears on a dispatch day if that date falls
   // anywhere within start_date…end_date, not just if booking_date matches.
@@ -416,11 +427,11 @@ function AdminMess() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === selectedBooking.id
-            ? { ...b, status: "rejected", rejection_remark: trimmed }
+            ? { ...b, status: "REJECTED", rejection_remark: trimmed, remarks_by_admin: trimmed }
             : b
         )
       );
-      showToast("Booking rejected.");
+      showToast(selectedBooking.status?.toLowerCase() === "approved" ? "Booking cancelled." : "Booking rejected.");
       closePanel();
     } catch (err) {
       setRemarkError(
@@ -449,8 +460,8 @@ function AdminMess() {
 
   const TABS = [
     { id: "pending",  label: "Needs Approval",        count: pendingBookings.length,  icon: Clock3  },
-    { id: "dispatch", label: "Daily Kitchen Schedule", count: dispatchBookings.length, icon: ChefHat },
-    { id: "history",  label: "All Records",            count: null,                    icon: History },
+    { id: "dispatch", label: "Kitchen Schedule", count: dispatchBookings.length, icon: ChefHat },
+    { id: "history",  label: "Booking History",            count: null,                    icon: History },
   ];
 
   // For the side panel: figure out if this is multi-day and grab daily_menus
@@ -474,7 +485,7 @@ function AdminMess() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">Mess Operations</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Food Management</h1>
               <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
             </div>
             <p className="text-sm text-gray-500 mt-1">Manage catering requests and view kitchen schedules.</p>
@@ -484,7 +495,7 @@ function AdminMess() {
             disabled={isLoading}
             className="text-sm font-medium text-emerald-600 hover:text-emerald-700 transition disabled:opacity-50"
           >
-            {isLoading ? "Refreshing..." : "Refresh Data"}
+            {isLoading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
@@ -521,12 +532,12 @@ function AdminMess() {
         {activeTab === "pending" && (
           <div className="space-y-4 max-w-5xl">
             {isLoading ? (
-              <p className="text-sm text-gray-400">Loading pending requests...</p>
+              <p className="text-sm text-gray-400">Loading pending bookings...</p>
             ) : pendingBookings.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
                 <CheckCircle2 size={40} className="text-emerald-100 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-gray-900">All Caught Up!</h3>
-                <p className="text-sm text-gray-500 mt-1">There are no catering requests waiting for your approval.</p>
+                <p className="text-sm text-gray-500 mt-1">No bookings awaiting review.</p>
               </div>
             ) : pendingBookings.map((b) => (
               <BookingCard
@@ -548,8 +559,8 @@ function AdminMess() {
                   <ChefHat size={20} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900">Prep Totals</h2>
-                  <p className="text-xs text-gray-500">Meals needed for selected day across all events.</p>
+                  <h2 className="text-sm font-bold text-gray-900">Daily Meal Summary</h2>
+                  <p className="text-xs text-gray-500">Meals required for the selected date.</p>
                 </div>
               </div>
               <input
@@ -562,9 +573,9 @@ function AdminMess() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               {[
-                { label: "Total Plates Needed", value: totalPrep.total,  border: "border-gray-100",    textColor: "text-gray-400",    iconColor: "text-gray-400"    },
-                { label: "Veg Plates",           value: totalPrep.veg,    border: "border-emerald-100", textColor: "text-emerald-600", iconColor: "text-emerald-600" },
-                { label: "Non-Veg Plates",       value: totalPrep.nonveg, border: "border-red-100",     textColor: "text-red-600",     iconColor: "text-red-600"     },
+                { label: "Total Meals", value: totalPrep.total,  border: "border-gray-100",    textColor: "text-gray-400",    iconColor: "text-gray-400"    },
+                { label: "Veg Meals",           value: totalPrep.veg,    border: "border-emerald-100", textColor: "text-emerald-600", iconColor: "text-emerald-600" },
+                { label: "Non-Veg Meals",       value: totalPrep.nonveg, border: "border-red-100",     textColor: "text-red-600",     iconColor: "text-red-600"     },
               ].map(({ label, value, border, textColor, iconColor }) => (
                 <div key={label} className={`bg-white p-5 rounded-2xl border ${border} shadow-sm relative overflow-hidden`}>
                   <div className="absolute top-0 right-0 p-3 opacity-10"><UtensilsCrossed size={40} className={iconColor} /></div>
@@ -574,7 +585,7 @@ function AdminMess() {
               ))}
             </div>
 
-            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Event Delivery Timeline</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Delivery Schedule</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
               {dispatchBookings.length === 0 ? (
                 <p className="text-sm text-gray-400 p-6 text-center">No catering events are scheduled for this date.</p>
@@ -612,7 +623,7 @@ function AdminMess() {
                       <p className="text-xs font-medium text-gray-600 mt-1">@ {b.delivery_location}</p>
                       {dayMenu && (
                         <p className="text-xs text-gray-500 mt-0.5">
-                          <span className="text-emerald-600 font-semibold">{dayMenu.total_persons}</span> pax
+                          <span className="text-emerald-600 font-semibold">{dayMenu.total_persons}</span> attendees
                           {" · "}
                           <span className="text-emerald-600">{dayMenu.veg_persons} veg</span>
                           {" / "}
@@ -637,23 +648,52 @@ function AdminMess() {
 
         {/* ── History tab ── */}
         {activeTab === "history" && (
-          <div className="space-y-4 max-w-5xl">
-            {isLoading ? (
-              <p className="text-sm text-gray-400">Loading all records...</p>
-            ) : historyBookings.length === 0 ? (
-              <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
-                <History size={40} className="text-gray-200 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-900">No Records Found</h3>
-                <p className="text-sm text-gray-500 mt-1">There is no past booking history in the system yet.</p>
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-5xl">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-3 border-b border-gray-200 bg-gray-50/50">
+              <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
+                Booking History
+              </span>
+              <div className="flex gap-2">
+                {[
+                  { id: 'ALL', label: 'All Records' },
+                  { id: 'APPROVED', label: 'Approved' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                  { id: 'REJECTED', label: 'Rejected' },
+                  { id: 'CANCELLED', label: 'Cancelled' },
+                ].map(tab => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setHistoryFilter(tab.id)}
+                    className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-lg transition-colors ${historyFilter === tab.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-            ) : historyBookings.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                onSelect={openPanel}
-                isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
-              />
-            ))}
+            </div>
+            <div className="flex flex-col">
+              {isLoading ? (
+                <div className="py-20 text-center">
+                   <p className="text-[14px] text-gray-500 font-medium">Loading all records…</p>
+                </div>
+              ) : historyBookings.length === 0 ? (
+                <div className="py-20 text-center px-8">
+                  <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                    <History size={24} className="text-gray-400" />
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-gray-900">No Records Found</h3>
+                  <p className="text-[13.5px] text-gray-500 mt-1.5">No previous bookings found for this filter.</p>
+                </div>
+              ) : historyBookings.map((b) => (
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onSelect={openPanel}
+                  isFlush
+                  isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -806,19 +846,19 @@ function AdminMess() {
               )}
             </div>
 
-            {/* Action footer — only for pending bookings */}
-            {selectedBooking.status?.toLowerCase() === "pending" && (
+            {/* Action footer — for pending or approved bookings */}
+            {["pending", "approved"].includes(selectedBooking.status?.toLowerCase()) && (
               <div className="border-t border-gray-100 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {showRejectInput && (
                   <div className="px-6 pt-4 pb-2">
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Rejection Reason <span className="text-red-500">*</span>
+                      {selectedBooking.status?.toLowerCase() === "approved" ? "Cancellation Reason" : "Rejection Reason"} <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       rows={3}
                       value={rejectRemark}
                       onChange={(e) => { setRejectRemark(e.target.value); if (remarkError) setRemarkError(""); }}
-                      placeholder="Provide a clear reason so the requester can act on it..."
+                      placeholder={selectedBooking.status?.toLowerCase() === "approved" ? "Provide a reason for cancelling this approved booking..." : "Provide a clear reason so the requester can act on it..."}
                       className={`w-full text-sm border rounded-xl px-3 py-2.5 resize-none outline-none transition focus:ring-2 ${
                         remarkError
                           ? "border-red-300 focus:ring-red-200 bg-red-50"
@@ -839,28 +879,35 @@ function AdminMess() {
                     <>
                       <button onClick={handleRejectClick} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50">
-                        Cancel
+                        Back
                       </button>
                       <button onClick={handleConfirmReject} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50">
                         {actionLoading
                           ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><XCircle size={18} /> Confirm Rejection</>}
+                          : <><XCircle size={18} /> {selectedBooking.status?.toLowerCase() === "approved" ? "Confirm Cancellation" : "Confirm Rejection"}</>}
                       </button>
                     </>
                   ) : (
-                    <>
+                    selectedBooking.status?.toLowerCase() === "approved" ? (
                       <button onClick={handleRejectClick} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
-                        <XCircle size={18} /> Reject
+                        className="col-span-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
+                        <XCircle size={18} /> Cancel Approved Booking
                       </button>
-                      <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
-                        {actionLoading
-                          ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><CheckCircle2 size={18} /> Approve</>}
-                      </button>
-                    </>
+                    ) : (
+                      <>
+                        <button onClick={handleRejectClick} disabled={actionLoading}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
+                          <XCircle size={18} /> Reject
+                        </button>
+                        <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
+                          {actionLoading
+                            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            : <><CheckCircle2 size={18} /> Approve</>}
+                        </button>
+                      </>
+                    )
                   )}
                 </div>
               </div>
