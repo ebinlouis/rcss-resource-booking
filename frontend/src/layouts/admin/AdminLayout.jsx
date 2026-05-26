@@ -7,7 +7,7 @@ import NotificationBell from '../../components/NotificationBell';
 const NAV_LINKS = [
     { to: '/admin',                label: 'Venue Bookings',        end: true,  capability: (c) => c?.can_manage_system || c?.can_manage_spaces || c?.can_manage_labs || c?.can_manage_principal_view },
     { to: '/admin/spaces',         label: 'Venue Management',      end: false, capability: (c) => c?.can_manage_system || c?.can_manage_spaces },
-    { to: '/admin/blocks',         label: 'Blocks',                end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/blocks',         label: 'Manage Blocks',                end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/users',          label: 'Users',                 end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/departments',    label: 'Departments & Faculties', end: false, capability: (c) => c?.can_manage_system },
@@ -16,14 +16,14 @@ const NAV_LINKS = [
     { to: '/admin/mess',           label: 'Mess',                  end: false, capability: (c) => c?.can_manage_mess },
     { to: '/admin/media',          label: 'Media Management',      end: false, capability: (c) => c?.can_manage_media },
     { to: '/media/schedule',       label: 'Team Schedule',         end: false, capability: (c) => c?.can_manage_media },
-    { to: '/admin/role-overrides', label: 'Special Access',        end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/role-overrides', label: 'Temporary Access',        end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/equipment',      label: 'Equipment Management',  end: false, capability: (c) => c?.can_manage_system || c?.can_manage_equipment || c?.can_manage_media },
 ];
 
 const NAV_ICONS = {
     'Venue Bookings': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     'Venue Management': 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-    'Blocks': 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+    'Manage Blocks': 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
     'Users': 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
     'Faculties': 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M12 12a4 4 0 100-8 4 4 0 000 8z',
     'Venue Managers': 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
@@ -32,7 +32,7 @@ const NAV_ICONS = {
     'Mess': 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
     'Media Management': 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
     'Team Schedule': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-    'Special Access': 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+    'Temporary Access': 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
     'Equipment Management': 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
 };
 

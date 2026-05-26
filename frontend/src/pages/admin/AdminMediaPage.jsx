@@ -126,7 +126,7 @@ function TeamSettingsModal({ currentMax, onSave, onClose }) {
                         </div>
                         <div>
                             <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Team Settings</p>
-                            <p className="text-[13px] text-[#6b7280]">Adjust media team capacity</p>
+                            <p className="text-[13px] text-[#6b7280]">Set team availability</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="rounded-lg p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#374151]">
@@ -136,9 +136,9 @@ function TeamSettingsModal({ currentMax, onSave, onClose }) {
 
                 <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-4 mb-5">
                     <p className="text-[13px] font-medium leading-relaxed text-[#374151]">
-                        <span className="font-bold text-[#0f172a]">Max Concurrent Events</span> controls how many
-                        team-coverage bookings can be approved to overlap at the same time. Reducing this value
-                        will not affect already-approved bookings.
+                        <span className="font-bold text-[#0f172a]">Maximum events at the same time</span> 
+                        Choose how many events your media team can handle at the same time.
+Already approved events will not be affected.
                     </p>
                 </div>
 
@@ -178,7 +178,7 @@ function TeamSettingsModal({ currentMax, onSave, onClose }) {
                         disabled={!isValid || loading}
                         className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#166534] disabled:opacity-40"
                     >
-                        {loading ? 'Saving…' : 'Save Changes'}
+                        {loading ? 'Saving…' : 'Save'}
                     </button>
                 </div>
             </div>
@@ -197,7 +197,7 @@ function ApproveModal({ booking, onConfirm, onCancel, isLoading }) {
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
                     <Check className="h-6 w-6 text-[#15803d]" />
                 </div>
-                <p className="text-center text-[18px] font-bold tracking-tight text-[#0f172a]">Approve Booking?</p>
+                <p className="text-center text-[18px] font-bold tracking-tight text-[#0f172a]">Approve this request?</p>
                 <p className="mt-2 text-center text-[14.5px] leading-relaxed text-[#4b5563]">
                     Are you sure you want to approve this media request for{' '}
                     <span className="font-semibold text-[#0f172a]">{booking.user_details?.name || `User #${booking.user}`}</span>?
@@ -207,8 +207,8 @@ function ApproveModal({ booking, onConfirm, onCancel, isLoading }) {
                         <p className="flex items-start gap-2 text-[13.5px] font-medium leading-relaxed text-purple-800">
                             <Users className="mt-0.5 h-4 w-4 shrink-0 text-purple-600" />
                             <span>
-                                <strong className="font-bold">Media Team Coverage:</strong> Approving this will reserve team
-                                capacity and automatically allocate the Standard Gear Kit.
+                                <strong className="font-bold">This event requires media team support.</strong> Approving it will reserve the team and required equipment. 
+                                Make sure to check the event schedule and team availability before confirming.
                             </span>
                         </p>
                     </div>
@@ -262,7 +262,7 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
                         disabled={isLoading || !remarks.trim()}
                         className="inline-flex items-center gap-2 rounded-xl bg-[#dc2626] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#b91c1c] disabled:opacity-40"
                     >
-                        {isLoading ? 'Processing…' : isCancellation ? 'Revoke & Cancel' : 'Reject Booking'}
+                        {isLoading ? 'Processing…' : isCancellation ? 'Cancel Booking' : 'Reject Request'}
                     </button>
                 </div>
             </div>
@@ -281,7 +281,7 @@ function SuccessModal({ booking, onClose }) {
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
                     <Check className="h-6 w-6 text-[#15803d]" />
                 </div>
-                <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Booking approved!</p>
+                <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Request approved</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-[#6b6b6b]">
                     <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved.
                 </p>
@@ -317,7 +317,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     const user         = booking.user_details ?? {}
     const requesterName = user.name || `User #${booking.user}`
     const dept         = user.department || user.department_code || 'Department not provided'
-    const spaceName    = booking.space_details?.name || 'Any suitable space'
+    const spaceName    = booking.space_details?.name || 'Any suitable venue'
     const location     = booking.space_details?.location || 'Location not specified'
 
     const toggle = () => { if (!window.getSelection().toString()) setIsExpanded((v) => !v) }
@@ -345,12 +345,12 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                     <EventTypeBadge isExternal={booking.is_external_event} />
                     {booking.is_team_request && (
                         <span className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-purple-700">
-                            <Users className="h-3 w-3" /> Media Team Request
+                            <Users className="h-3 w-3" /> Media Support
                         </span>
                     )}
                     {!booking.is_team_request && hasEquipment && (
                         <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-blue-700">
-                            <Package className="h-3 w-3" /> Equipment Request
+                            <Package className="h-3 w-3" /> Equipment Needed
                         </span>
                     )}
                 </div>
@@ -358,7 +358,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                 {/* Info grid */}
                 <div className="grid gap-6 md:grid-cols-[1.5fr_1.35fr_2.15fr]">
                     <div>
-                        <FieldLabel>Space / Location</FieldLabel>
+                        <FieldLabel>Venue </FieldLabel>
                         <div className="flex items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d1fae5] bg-[#f0fdf4] text-[#15803d]">
                                 <Building2 className="h-5 w-5" />
@@ -371,7 +371,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                     </div>
 
                     <div>
-                        <FieldLabel>From / To</FieldLabel>
+                        <FieldLabel>Event Schedule</FieldLabel>
                         <div className="space-y-2.5">
                             {/* UPDATED: Map over the new Datetimes */}
                             {[['bg-[#22c55e]', booking.setup_start_datetime], ['bg-[#dc2626]', booking.teardown_end_datetime]].map(([dot, time], i) => (
@@ -386,7 +386,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                     </div>
 
                     <div>
-                        <FieldLabel>Requested By</FieldLabel>
+                        <FieldLabel>Requested by</FieldLabel>
                         <div className="flex items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d1fae5] bg-[#f0fdf4] text-[15px] font-bold text-[#15803d]">
                                 {requesterName.charAt(0).toUpperCase()}
@@ -421,12 +421,12 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                             Event: {formatTime(booking.event_start_datetime)} – {formatTime(booking.event_end_datetime)}
                                         </p>
                                         <p className="rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#4b5563]">
-                                            {hasBuffer ? 'Buffer included' : 'No extra buffer'}
+                                            {hasBuffer ? 'Extra setup time included' : 'No extra setup time'}
                                         </p>
                                     </div>
                                     {hasBuffer && (
                                         <p className="mt-3 text-[13.5px] font-medium text-[#6b7280]">
-                                            Setup starts at {formatTime(booking.setup_start_datetime)} and teardown ends at {formatTime(booking.teardown_end_datetime)}.
+                                            Preparation starts at {formatTime(booking.setup_start_datetime)} and wrap-up ends at {formatTime(booking.teardown_end_datetime)}.
                                         </p>
                                     )}
                                 </div>
@@ -461,7 +461,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                 )}
                                 {hasNotes && (
                                     <div>
-                                        <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#f59e0b] inline-block">Notes from Requester</p>
+                                        <p className="text-[13px] font-bold text-[#0f172a] mb-3 pb-1.5 border-b-2 border-[#f59e0b] inline-block">Additional Notes</p>
                                         <div className="mt-2 bg-[#fffbeb] rounded-xl px-4 py-3.5 border border-[#fef3c7]">
                                             <p className="text-[14.5px] text-[#374151] leading-relaxed">{booking.user_notes}</p>
                                         </div>
@@ -490,7 +490,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                             </>
                         ) : booking.status === 'APPROVED' ? (
                             <button onClick={(e) => { e.stopPropagation(); onRejectClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all disabled:opacity-40">
-                                <X className="h-4 w-4" /> Revoke & Cancel Booking
+                                <X className="h-4 w-4" /> Cancel Booking
                             </button>
                         ) : booking.status === 'CANCELLED' ? (
                             <span className="rounded-xl bg-gray-100 px-5 py-2 text-[13px] font-bold uppercase tracking-wider text-gray-500">
@@ -508,9 +508,9 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
 
 const TABS = [
     { id: 'pending',  label: 'Pending Requests', key: 'pending'  },
-    { id: 'active',   label: 'Active Bookings',  key: 'active'   },
+    { id: 'active',   label: 'Active Requests',  key: 'active'   },
     { id: 'history',  label: 'History',          key: 'history'  },
-    { id: 'resolved', label: 'Resolved by Me',   key: 'resolved' },
+    { id: 'resolved', label: 'Handled by Me',   key: 'resolved' },
 ]
 
 async function loadAdminMediaData() {
@@ -674,8 +674,8 @@ function AdminMediaPage() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
                     <X className="h-7 w-7" />
                 </div>
-                <p className="text-[18px] font-bold text-[#0f172a]">Access Denied</p>
-                <p className="max-w-sm text-[14px] text-[#6b7280]">You don't have permission to access the Media admin panel.</p>
+                <p className="text-[18px] font-bold text-[#0f172a]">Access Restricted</p>
+                <p className="max-w-sm text-[14px] text-[#6b7280]">You don’t have access to this page.</p>
             </div>
         )
     }
@@ -705,7 +705,7 @@ function AdminMediaPage() {
                           <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
                           <PageInfo text="Approve or reject media team booking requests. Configure how many simultaneous media bookings are allowed." />
                         </div>
-                        <p className="mt-2 text-[15px] text-[#374151]">Manage media equipment requests and event support bookings.</p>
+                        <p className="mt-2 text-[15px] text-[#374151]">Review media support and equipment requests for events.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -713,7 +713,7 @@ function AdminMediaPage() {
                             className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4]"
                         >
                             <Settings className="h-[17px] w-[17px]" />
-                            Team Settings
+                            Team Availability
                             {maxConcurrent !== null && (
                                 <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-[12px] font-bold text-[#15803d]">
                                     {maxConcurrent}
@@ -730,9 +730,9 @@ function AdminMediaPage() {
                 <div className="mb-6 grid gap-3 md:grid-cols-3">
                     {[
                         { value: data.pending.length, label: 'Waiting for review'       },
-                        { value: data.active.length,  label: 'Approved active bookings' },
+                        { value: data.active.length,  label: 'Ongoing approved requests' },
                         // UPDATED: Use the new event_start_datetime for the "Today" check
-                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Approved for today' },
+                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Scheduled for today' },
                     ].map(({ value, label }) => (
                         <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
                             <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>
@@ -774,7 +774,7 @@ function AdminMediaPage() {
                                 <Check className="h-6 w-6" />
                             </div>
                             <p className="text-[16px] font-semibold text-[#0f172a]">No requests found</p>
-                            <p className="mt-1.5 text-[14px] text-[#6b7280]">There are no {activeTab.replace('_', ' ')} media requests right now.</p>
+                            <p className="mt-1.5 text-[14px] text-[#6b7280]">There are no {activeTab.replace('_', ' ')} requests in this section right now.</p>
                         </div>
                     ) : (
                         list.map((booking) => (

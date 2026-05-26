@@ -181,7 +181,7 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
       {/* Meals */}
       <SectionLabel>Meals Required</SectionLabel>
       <p className="text-xs text-gray-500 -mt-2">
-        Select the meals required for this day and add timing/menu details.
+        Select the meals needed for this day and add the time and menu.
       </p>
 
       <div className="space-y-3">
@@ -371,7 +371,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
     if (eventForm.end_date < eventForm.start_date) return "End date must be on or after start date."
     if (!eventForm.delivery_location?.trim())    return "Please provide a delivery location."
 
-    if (dailyMenus.length === 0) return "Date range produced no days."
+    if (dailyMenus.length === 0) return "Please select valid event dates."
 
     for (let i = 0; i < dailyMenus.length; i++) {
       const m     = dailyMenus[i]
@@ -381,7 +381,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       const veg    = parseInt(m.veg_persons    || 0)
       const nonveg = parseInt(m.nonveg_persons || 0)
 
-      if (total <= 0)             return `${label}: Total persons must be greater than zero.`
+      if (total <= 0)             return `${label}: Total number of people must be more than 0.`
       if (veg + nonveg !== total) return `${label}: Veg (${veg}) + Non-Veg (${nonveg}) must equal Total (${total}).`
 
       const mealTimes = MEALS.map((meal) => m[meal.timeKey]).filter(Boolean)
@@ -406,7 +406,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       const earliest = new Date(Math.min(...allDateTimes))
       const deadline = new Date(now + 24 * 60 * 60 * 1000)
       if (earliest < deadline)
-        return "SLA Violation: Mess bookings require strictly 24 hours notice before the first meal."
+        return "Booking too late: Mess bookings require strictly 24 hours notice before the first meal."
     }
 
     return null
@@ -475,7 +475,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
         const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey]
         setError(`${firstKey === "non_field_errors" ? "Error" : firstKey}: ${msg}`)
       } else {
-        setError("Failed to submit request.")
+        setError("Could not send request. Please try again.")
       }
     } finally {
       if (isMounted.current) setIsSubmitting(false)
@@ -505,9 +505,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
               {editData ? "Edit Booking" : "New Booking"}
             </p>
-            <h2 className="text-2xl font-bold text-white">Mess Request</h2>
+            <h2 className="text-2xl font-bold text-white">Food Request</h2>
             <p className="text-sm text-green-200/75 mt-3">
-              Request meals for your event or programme.
+              Request meals for your event.
             </p>
           </div>
 
@@ -584,7 +584,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <p className="font-semibold">This food booking is linked to your venue booking.</p>
-                    <p className="text-xs text-green-700 mt-0.5">You can add Media for the same date, time, and room.</p>
+                    <p className="text-xs text-green-700 mt-0.5">You can also request media support for the same event.</p>
                   </div>
                   <button
                     type="button"
@@ -639,7 +639,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
             </div>
 
             {/* LOCATION + PURPOSE */}
-            <Field label="FoodDelivery Location" required>
+            <Field label="Food Delivery Location" required>
               <input
                 required
                 className={inputCls}
@@ -723,7 +723,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                         onClick={() => setActiveDay((p) => p - 1)}
                         className="flex items-center gap-1 text-xs text-gray-500 hover:text-green-700 disabled:opacity-30 transition-all"
                       >
-                        <ChevronLeft size={14} /> Prev Day
+                        <ChevronLeft size={14} /> Previous
                       </button>
                       <button
                         type="button"
@@ -731,7 +731,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                         onClick={() => setActiveDay((p) => p + 1)}
                         className="flex items-center gap-1 text-xs text-gray-500 hover:text-green-700 disabled:opacity-30 transition-all"
                       >
-                        Next Day <ChevronRight size={14} />
+                        Next <ChevronRight size={14} />
                       </button>
                     </div>
                   </div>

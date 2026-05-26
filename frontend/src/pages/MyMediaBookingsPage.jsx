@@ -139,7 +139,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                 <div>
-                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Start</span>
+                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Starts</span>
                   {/* UPDATED: Pass the new datetime fields */}
                   <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.setup_start_datetime || booking.event_start_datetime)}</span>
                 </div>
@@ -147,7 +147,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
                 <div>
-                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">End</span>
+                  <span className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Ends</span>
                   {/* UPDATED: Pass the new datetime fields */}
                   <span className="text-[15px] font-semibold text-gray-900">{formatDateTime(booking.teardown_end_datetime || booking.event_end_datetime)}</span>
                 </div>
@@ -162,33 +162,33 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-semibold text-gray-900 leading-tight">
                   {isExpired && booking.status === "APPROVED"
-                    ? "Schedule Completed" 
+                    ? "Event Completed" 
                     : booking.status === "PENDING" 
-                      ? "Awaiting Admin Review" 
+                      ? "Waiting for approval" 
                       : booking.status === "APPROVED" 
                         ? "Equipment/Services Confirmed"
                         : booking.status === "COMPLETED"
-                          ? "Schedule Completed"
+                          ? "Event Completed"
                           : booking.status === "EXPIRED"
                             ? "Approval Window Expired"
                         : booking.status === "REJECTED"
-                          ? "Declined / Cancelled by Admin"
+                          ? "Cancelled by Admin"
                           : "Request Cancelled"}
                 </p>
                 <p className="text-[13px] text-gray-500 mt-1 leading-relaxed">
                    {isExpired && booking.status === "APPROVED"
                     ? "This media request has already taken place." 
                     : booking.status === "PENDING" 
-                      ? "You will be notified once the media team processes this." 
+                      ? "You'll be notified once your request is reviewed." 
                       : booking.status === "APPROVED" 
                         ? "Your media request is confirmed. You may edit or cancel if needed."
                         : booking.status === "COMPLETED"
                           ? "This media request has already taken place."
                           : booking.status === "EXPIRED"
-                            ? "This request was not approved before setup was due to begin."
+                            ? "This request was not approved in time."
                         : booking.status === "REJECTED"
                           ? "Please check the feedback notes below."
-                          : "This request has been withdrawn."}
+                          : "This request has been cancelled."}
                 </p>
               </div>
             </div>
@@ -267,7 +267,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
             {booking.status === "REJECTED" && booking.remarks_by_admin && (
               <div className="mb-6">
                  <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-red-500 inline-block">
-                   Administrator Feedback
+                   Admin Feedback
                  </p>
                  <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3.5">
                    <p className="text-[14.5px] text-red-900 leading-relaxed italic">
@@ -282,7 +282,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               {/* NO ACTIONS STATUS */}
               {!showEditCancel && booking.status !== "REJECTED" && (
                 <p className="text-[11.5px] font-bold text-gray-400 uppercase tracking-widest mt-2 mr-auto">
-                  {isExpired && booking.status === "APPROVED" ? "Event Completed" : "No Further Actions"}
+                  {isExpired && booking.status === "APPROVED" ? "Event Completed" : "No Actions Available"}
                 </p>
               )}
 
@@ -294,7 +294,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-[14.5px] font-medium text-gray-700 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150 disabled:opacity-40"
                 >
                   <Trash2 className="w-4 h-4" /> 
-                  {isActionLoading ? "Processing..." : "Cancel Request"}
+                  {isActionLoading ? "Please wait..." : "Cancel Request"}
                 </button>
               )}
 
@@ -351,7 +351,7 @@ const MyMediaBookingsPage = () => {
   const [filter, setFilter] = useState("ALL")
 
   const FILTER_TABS = [
-    { id: 'ALL', label: 'All Requests' },
+    { id: 'ALL', label: 'All' },
     { id: 'PENDING', label: 'Pending' },
     { id: 'APPROVED', label: 'Approved' },
     { id: 'COMPLETED', label: 'Completed' },
@@ -519,14 +519,14 @@ const MyMediaBookingsPage = () => {
       <div className="max-w-[1400px] mx-auto w-full">
 
         <button onClick={() => navigate('/media')} className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 mb-5 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back to Media Hub
+            <ArrowLeft className="w-4 h-4" /> Back to Media Support
         </button>
 
         {/* Page header */}
         <div className="flex items-end justify-between flex-wrap gap-4 mb-7">
           <div>
             <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-1.5">
-              Personal Workspace
+              My Space
             </p>
             <h1 className="text-[26px] font-bold text-gray-900 tracking-tight leading-none">
               My Media Requests
@@ -585,7 +585,7 @@ const MyMediaBookingsPage = () => {
           {/* Panel header & Filters */}
           <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-3 border-b border-gray-200 bg-gray-50/50">
             <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
-              Media History
+              Request History
             </span>
             <div className="flex gap-2">
                 {FILTER_TABS.map(tab => (
@@ -624,7 +624,7 @@ const MyMediaBookingsPage = () => {
                  {searchTerm || filter !== "ALL" ? "No matching requests found" : "No requests yet"}
               </p>
               <p className="text-[13.5px] text-gray-500 mt-1.5">
-                 {searchTerm || filter !== "ALL" ? "Try adjusting your search terms or filters." : "When you request equipment, it will appear here."}
+                 {searchTerm || filter !== "ALL" ? "Try changing your search terms or filters." : "When you request equipment, it will appear here."}
               </p>
             </div>
           ) : (

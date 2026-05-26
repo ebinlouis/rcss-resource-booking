@@ -311,7 +311,7 @@ useEffect(() => {
                                           <button
                                             type="button"
                                             onClick={() => setSelectedUser(user)}
-                                            className="rounded-xl bg-gray-950 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-black"
+                                            className="rounded-xl bg-[#15803d] px-4 py-2 text-[13px] font-bold text-white transition hover:bg-[#166534]"
                                           >
                                             Edit Roles
                                           </button>

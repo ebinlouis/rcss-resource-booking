@@ -59,10 +59,10 @@ function LinkedBookingOptions({
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-amber-900">
-            You can also book Mess or Media for this event.
+            You can also book Food or Media for this event.
           </p>
           <p className="mt-1 text-xs text-amber-800">
-            Finish the linked request, return here, and submit the Space request last.
+            Finish the linked request, return here, and submit the venue request last.
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">

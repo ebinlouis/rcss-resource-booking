@@ -61,7 +61,7 @@ const getBookingStatusMeta = (booking) => {
   if (booking.status === "EXPIRED") {
     return {
       title: "Approval Window Expired",
-      description: "This request was not approved before the booking started.",
+      description: "This request was not approved before the event began.",
       bg: "bg-orange-50",
       border: "border-orange-100",
       icon: <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -81,9 +81,9 @@ const getBookingStatusMeta = (booking) => {
   switch (booking.status) {
     case "PENDING":
       return {
-        title: "Awaiting Admin Review",
+        title: "Waiting for Approval",
         description:
-          "Your request is currently under review. You will be notified once processed.",
+          "Your request is being reviewed. You'll be notified once approved or declined.",
         bg: "bg-yellow-50",
         border: "border-yellow-100",
         icon: <Clock3 className="w-5 h-5 text-yellow-600" />
@@ -101,9 +101,9 @@ const getBookingStatusMeta = (booking) => {
 
     case "REJECTED":
       return {
-        title: "Booking Declined",
+        title: "Booking Not Approved",
         description:
-          "This request was declined by the administrator. Review feedback below.",
+          "This request was not approved. Review feedback below.",
         bg: "bg-red-50",
         border: "border-red-100",
         icon: <XCircle className="w-5 h-5 text-red-600" />
@@ -112,7 +112,7 @@ const getBookingStatusMeta = (booking) => {
     case "CANCELLED":
       return {
         title: "Booking Cancelled",
-        description: "This booking request has been withdrawn.",
+        description: "This booking was cancelled.",
         bg: "bg-slate-50",
         border: "border-slate-200",
         icon: <AlertCircle className="w-5 h-5 text-slate-500" />
@@ -120,8 +120,8 @@ const getBookingStatusMeta = (booking) => {
 
     case "AWAITING_FACULTY":
       return {
-        title: "Awaiting Faculty Sponsorship",
-        description: "This request is waiting for your faculty sponsor to approve it.",
+        title: "Waiting for Faculty Approval",
+        description: "This booking was not approved. See admin comments below",
         bg: "bg-blue-50",
         border: "border-blue-100",
         icon: <Clock3 className="w-5 h-5 text-blue-600" />
@@ -129,8 +129,8 @@ const getBookingStatusMeta = (booking) => {
 
     case "FACULTY_ESCALATED":
       return {
-        title: "Faculty Escalated",
-        description: "Your faculty sponsor has approved this request and escalated it to the administrator.",
+        title: "Sent for Final Approval",
+        description: "Faculty has approved this request and sent it for final approval.",
         bg: "bg-purple-50",
         border: "border-purple-100",
         icon: <AlertCircle className="w-5 h-5 text-purple-600" />
@@ -138,7 +138,7 @@ const getBookingStatusMeta = (booking) => {
 
     default:
       return {
-        title: "Status Unknown",
+        title: "Status Unavailable",
         description: "Booking status information unavailable.",
         bg: "bg-slate-50",
         border: "border-slate-200",
@@ -272,7 +272,7 @@ const BookingCard = ({
 
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 mb-1">
-                    From
+                    Starts
                   </p>
 
                   <p className="text-[15px] font-semibold text-gray-900">
@@ -287,7 +287,7 @@ const BookingCard = ({
 
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 mb-1">
-                    To
+                    Ends
                   </p>
 
                   <p className="text-[15px] font-semibold text-gray-900">
@@ -394,7 +394,7 @@ const BookingCard = ({
       {booking.status === "REJECTED" && booking.remarks_by_admin && (
         <div className="mb-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-2">
-            Administrator Feedback
+            Admin Feedback
           </p>
 
           <div className="rounded-xl border border-red-100 bg-red-50 p-2.5 md:p-3">
@@ -770,7 +770,7 @@ const confirmCancelBooking = async () => {
               </h1>
 
               <p className="text-[13px] md:text-[15px] text-gray-600 mt-2 md:mt-3 max-w-2xl">
-                Review, track, and manage all your workspace reservations from one place.
+                View and manage all your venue bookings in one place.
               </p>
             </div>
 
@@ -920,7 +920,7 @@ rounded-xl md:rounded-2xl
                 </h3>
 
                 <p className="text-[14px] text-gray-500">
-                  Fetching your reservation history...
+                  Getting your booking history...
                 </p>
               </div>
             ) : error ? (
@@ -973,7 +973,7 @@ rounded-xl md:rounded-2xl
                 <p className="text-[14px] text-gray-500 max-w-md mx-auto leading-relaxed mb-6">
                   {searchTerm
                     ? "Try changing your search keywords or removing filters to see more booking records."
-                    : "Once you reserve a workspace, your bookings will appear here for tracking and management."}
+                    : "Your bookings will appear here once you make one."}
                 </p>
 
                 {searchTerm && (
@@ -1051,8 +1051,7 @@ rounded-xl md:rounded-2xl
         </h3>
 
         <p className="text-[14px] text-gray-500 leading-relaxed">
-          This will permanently cancel your booking request and free the reserved
-          venue for others.
+          This will cancel your booking and make the venue available for others.
         </p>
       </div>
 
@@ -1095,7 +1094,7 @@ rounded-xl md:rounded-2xl
             disabled:opacity-50
           "
         >
-          {isActionLoading ? "Cancelling..." : "Cancel Request"}
+          {isActionLoading ? "Cancelling booking..." : "Cancel Request"}
         </button>
       </div>
     </div>

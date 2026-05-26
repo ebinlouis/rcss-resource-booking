@@ -108,7 +108,7 @@ function RecentRequestCard({ booking }) {
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-gray-900">
-            {booking.event_name || "Media Request"}
+            {booking.event_name || "Media Support Request"}
           </p>
 
           <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -231,11 +231,11 @@ function TeamFluidView({ teamData }) {
         <Clapperboard className="mx-auto mb-3 h-8 w-8 text-green-300" />
 
         <p className="text-sm font-bold text-green-800">
-          Media team is fully available
+          Media team is available all day
         </p>
 
         <p className="mt-1 text-sm text-green-600">
-          No bookings are scheduled for this day. The team can support up to{" "}
+          No bookings are scheduled for this day. The team can handle up to{" "}
           {max_capacity} simultaneous events.
         </p>
       </div>
@@ -253,9 +253,9 @@ function TeamFluidView({ teamData }) {
           </p>
 
           <p className="mt-1 text-sm text-gray-500">
-            The media team can support{" "}
+            The media team can handle{" "}
             <span className="font-semibold text-gray-700">
-              {max_capacity} concurrent events
+              {max_capacity} events at the same time
             </span>
             .
           </p>
@@ -263,7 +263,7 @@ function TeamFluidView({ teamData }) {
 
         {fully_booked_periods?.length === 0 && (
           <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-            Capacity Available
+            Slots Available
           </span>
         )}
       </div>
@@ -273,11 +273,11 @@ function TeamFluidView({ teamData }) {
         <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
           <p className="mb-2 flex items-center gap-2 text-sm font-bold text-red-800">
             <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
-            Fully Booked Time Windows
+            Fully Booked Times
           </p>
 
           <p className="mb-3 text-sm text-red-600">
-            The media team has reached its capacity limit during these periods.
+            The media team is fully booked during these times.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -296,7 +296,7 @@ function TeamFluidView({ teamData }) {
       {/* Commitments */}
       <div>
         <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">
-          Scheduled Commitments
+          Scheduled Events
         </p>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -319,7 +319,7 @@ function TeamFluidView({ teamData }) {
                 </div>
 
                 <p className="mt-3 text-xs text-gray-400">
-                  Includes setup and teardown time
+                  Includes preparation and wrap-up time
                 </p>
               </div>
             )
@@ -500,7 +500,7 @@ function Media() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
           >
             <Plus className="h-4 w-4" />
-            Book Media
+            Book Media Support
           </button>
         </div>
 
@@ -671,7 +671,7 @@ function Media() {
                   </p>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Try searching with a different keyword.
+                    Try searching with a different search word.
                   </p>
                 </div>
               ) : (
@@ -688,11 +688,11 @@ function Media() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
-                  My Bookings
+                  My Requests
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Track your recent bookings
+                  View your recent requests
                 </p>
               </div>
 
@@ -702,7 +702,7 @@ function Media() {
             {!user ? (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center space-y-3">
                 <Clapperboard className="mx-auto h-6 w-6 text-gray-300" />
-                <p className="text-sm font-semibold text-gray-700">Sign in to see your bookings</p>
+                <p className="text-sm font-semibold text-gray-700">Sign in to see your requests</p>
                 <button
                   onClick={() => navigate("/login", { state: { from: location.pathname } })}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-xs font-semibold hover:bg-green-800 transition"
@@ -722,8 +722,8 @@ function Media() {
             ) : recentBookings.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center">
                 <Clapperboard className="mx-auto mb-3 h-6 w-6 text-gray-300" />
-                <p className="text-sm font-semibold text-gray-700">No media bookings yet</p>
-                <p className="mt-1 text-sm text-gray-500">Your booking requests will appear here.</p>
+                <p className="text-sm font-semibold text-gray-700">No media requests yet</p>
+                <p className="mt-1 text-sm text-gray-500">Your request will appear here.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -749,7 +749,7 @@ function Media() {
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
                 >
                   <RefreshCcw className={`h-4 w-4 ${myLoading ? "animate-spin" : ""}`} />
-                  Refresh Bookings
+                  Refresh Requests
                 </button>
               </>
             )}

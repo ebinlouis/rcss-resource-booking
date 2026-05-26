@@ -340,8 +340,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if not obj.purpose_of_booking:
             return "Occupied"
         user = self._user()
+
+        # Unauthenticated users viewing the public general schedule
+        # can see the purpose — it helps them plan around existing bookings.
         if user is None:
-            return "Occupied"
+            return obj.purpose_of_booking
 
         if user.is_staff or user.is_superuser:
             return obj.purpose_of_booking

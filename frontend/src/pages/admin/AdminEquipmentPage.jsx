@@ -155,7 +155,7 @@ const AdminEquipmentPage = () => {
             setFormError(
                 err.response?.data?.detail ||
                 Object.values(err.response?.data ?? {})[0]?.[0] ||
-                'An error occurred. Please try again.'
+                'Something went wrong. Please try again.'
             );
         } finally {
             setIsSubmitting(false);
@@ -164,7 +164,7 @@ const AdminEquipmentPage = () => {
 
     // ── Deactivate ────────────────────────────────────────────────────────────
     const handleDeactivate = async (id) => {
-        if (!window.confirm('Deactivate this item? It will be hidden from space assignments.')) return;
+        if (!window.confirm('Deactivate this item? It will be hidden from venue assignments.')) return;
         try {
             await api.patch(`${ENDPOINT}${id}/`, { is_active: false });
             setRefreshCount((c) => c + 1);
@@ -196,9 +196,9 @@ const AdminEquipmentPage = () => {
             {/* Header */}
             <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Equipment Management</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Equipment List</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        Track and manage available equipment and inventory.
+                        View and manage all available equipment.
                     </p>
                 </div>
                 <button
@@ -212,9 +212,9 @@ const AdminEquipmentPage = () => {
             {/* Stat pills */}
             <div className="grid grid-cols-3 gap-4 mb-8">
                 {[
-                    { label: 'Active Items',  value: totalActive     },
-                    { label: 'Portable Gear', value: totalPortable   },
-                    { label: 'Categories',    value: totalCategories },
+                    { label: 'Available Items',  value: totalActive     },
+                    { label: 'Movable Items', value: totalPortable   },
+                    { label: 'Types',    value: totalCategories },
                 ].map(({ label, value }) => (
                     <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                         <p className="text-2xl font-bold text-gray-900">
@@ -235,7 +235,7 @@ const AdminEquipmentPage = () => {
                     </svg>
                     <input
                         type="text"
-                        placeholder="Search by name or description…"
+                        placeholder="Search item name or details…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -246,7 +246,7 @@ const AdminEquipmentPage = () => {
                     onChange={(e) => setFilterCategory(e.target.value)}
                     className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                 >
-                    <option value="ALL">All Categories</option>
+                    <option value="ALL">All Types</option>
                     {EQUIPMENT_CATEGORIES.map((c) => (
                         <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
@@ -260,11 +260,11 @@ const AdminEquipmentPage = () => {
                         <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
                             <tr>
                                 <th className="px-6 py-4">Name</th>
-                                <th className="px-6 py-4">Category</th>
+                                <th className="px-6 py-4">Type</th>
                                 <th className="px-6 py-4">Description</th>
-                                <th className="px-6 py-4">Qty</th>
-                                <th className="px-6 py-4">Portable</th>
-                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Quantity</th>
+                                <th className="px-6 py-4">Movable</th>
+                                <th className="px-6 py-4">Availability</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -279,7 +279,7 @@ const AdminEquipmentPage = () => {
                                 <tr>
                                     <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         {search || filterCategory !== 'ALL'
-                                            ? 'No equipment matches your filters.'
+                                            ? 'No equipment matches your search.'
                                             : 'No equipment found. Click "+ Add Equipment" to get started.'}
                                     </td>
                                 </tr>
@@ -294,7 +294,7 @@ const AdminEquipmentPage = () => {
                                             {/* Subtle badge if it's part of the standard media kit */}
                                             {item.is_standard_media_kit && (
                                                 <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-white uppercase">
-                                                    Media Kit
+                                                    Media Team Set
                                                 </span>
                                             )}
                                         </td>
@@ -423,7 +423,7 @@ const AdminEquipmentPage = () => {
                                 <Toggle
                                     checked={formData.is_portable}
                                     onChange={() => patchForm({ is_portable: !formData.is_portable })}
-                                    label="Portable"
+                                    label="Movable"
                                     sublabel="Can be moved between venues"
                                 />
                                 <Toggle
@@ -436,8 +436,8 @@ const AdminEquipmentPage = () => {
                                     <Toggle
                                         checked={formData.is_standard_media_kit}
                                         onChange={() => patchForm({ is_standard_media_kit: !formData.is_standard_media_kit })}
-                                        label="Include in Media Team Kit"
-                                        sublabel="Auto-assigns 1 unit to every media team request"
+                                        label="Include in Media Team Set"
+                                        sublabel="Automatically included for media team bookings"
                                     />
                                 </div>
                             </div>
@@ -461,7 +461,7 @@ const AdminEquipmentPage = () => {
                                     disabled={isSubmitting}
                                     className="px-6 py-2 text-sm font-bold text-white bg-green-700 hover:bg-green-800 rounded-lg transition shadow-sm disabled:opacity-50"
                                 >
-                                    {isSubmitting ? 'Saving…' : editingItem ? 'Update Equipment' : 'Add Equipment'}
+                                    {isSubmitting ? 'Saving changes…' : editingItem ? 'Update Equipment' : 'Add Equipment'}
                                 </button>
                             </div>
                         </form>

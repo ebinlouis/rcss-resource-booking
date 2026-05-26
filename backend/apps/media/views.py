@@ -428,7 +428,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid type. Expected equipment or team."}, status=status.HTTP_400_BAD_REQUEST)
 
         approved = MediaBooking.objects.filter(
-            status='APPROVED',
+            status__in=['APPROVED', 'COMPLETED'],
             setup_start_datetime__lt=day_end,
             teardown_end_datetime__gt=day_start,
         ).prefetch_related('equipment_requests')
@@ -484,7 +484,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
         day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
         bookings  = MediaBooking.objects.filter(
-            status='APPROVED', is_team_request=True,
+            status__in=['APPROVED', 'COMPLETED'], is_team_request=True,
             setup_start_datetime__lt=day_end,
             teardown_end_datetime__gt=day_start,
         ).select_related('space', 'user', 'department').prefetch_related(

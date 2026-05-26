@@ -136,7 +136,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
         setup_start_datetime: toDatetimeLocal(linkedSpace?.start_date, linkedSpace?.start_time),
         teardown_end_datetime: toDatetimeLocal(linkedSpace?.end_date || linkedSpace?.start_date, linkedSpace?.end_time),
         is_team_request: true,
-        requested_services: "Media team coverage",
+        requested_services: "Event media support",
       };
     }
     return INITIAL_FORM;
@@ -390,7 +390,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       is_team_request:       isTeamRequest,
       is_external_event:     formData.is_external_event,
       requested_services:    isTeamRequest
-        ? "Media team coverage"
+        ? "Event media support"
         : formData.requested_services,
       user_notes: formData.user_notes,
     }
@@ -523,7 +523,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 setFormData((prev) => ({
                   ...prev,
                   is_team_request:    true,
-                  requested_services: "Media team coverage",
+                  requested_services: "Event media support",
                 }))
               }}
               className="text-left rounded-2xl border border-gray-200 bg-white p-5 hover:border-green-200 hover:bg-green-50 transition group"
@@ -533,7 +533,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </div>
               <h3 className="text-lg font-bold text-gray-900">Media Team Support</h3>
               <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-                Request media coverage for your event. Equipment and staff will be arranged after review.
+                Request media support for your event. Equipment and staff will be arranged after review.
               </p>
             </button>
 
@@ -684,7 +684,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                     setFormData((prev) => ({
                       ...prev,
                       is_team_request:    newMode === "team",
-                      requested_services: newMode === "team" ? "Media team coverage" : "",
+                      requested_services: newMode === "team" ? "Event media support" : "",
                     }))
                     if (newMode === "team") setEquipmentRequests([])
                   }}
@@ -759,7 +759,7 @@ Your request will still be reviewed.
                     onChange={(e) => setNeedsBuffer(e.target.checked)}
                   />
                   <span className="text-sm font-medium text-gray-700 select-none">
-                    Add extra prep &amp; pack-up time (for media team support)
+                    Add setup and wrap-up time for the media team
                   </span>
                 </label>
               </div>

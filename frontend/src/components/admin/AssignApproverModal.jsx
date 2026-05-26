@@ -337,7 +337,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                 (scopeType === 'BLOCK' && !selectedBlockId) || 
                                 (scopeType === 'SPACE' && !selectedSpaceId)
                             }
-                            className="px-4 py-2 text-sm font-semibold text-white bg-gray-900 hover:bg-black rounded-lg transition disabled:opacity-50 shadow-sm"
+                            className="px-4 py-2 text-sm font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-lg transition disabled:opacity-50 shadow-sm"
                         >
                             {isSubmitting ? 'Assigning...' : 'Assign Access'}
                         </button>

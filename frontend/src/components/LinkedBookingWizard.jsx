@@ -1295,7 +1295,7 @@ function SuccessScreen({ onDone }) {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700">
           <CheckCircle2 className="h-9 w-9" />
         </div>
-        <h1 className="mt-6 text-2xl font-bold text-gray-950">Linked booking submitted</h1>
+        <h1 className="mt-6 text-2xl font-bold text-gray-950">Your requests have been submitted successfully</h1>
         <button
           type="button"
           onClick={onDone}

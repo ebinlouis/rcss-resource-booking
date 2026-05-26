@@ -62,7 +62,7 @@ const RoleOverridesPage = () => {
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-lg transition shadow-sm"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />

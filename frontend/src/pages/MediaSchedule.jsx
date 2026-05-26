@@ -194,7 +194,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
           </span>
           {hasBuffer && !multiDay && (
             <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Setup {formatTime(booking.setup_start_datetime)}
+              Preparation starts{formatTime(booking.setup_start_datetime)}
             </span>
           )}
           {multiDay && (
@@ -243,7 +243,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
           <div className="grid grid-cols-2 gap-2 text-[12.5px]">
             {booking.setup_start_datetime && (
               <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Setup starts</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Preparation starts</p>
                 <p className="font-semibold text-gray-700">{formatFullDateTime(booking.setup_start_datetime)}</p>
               </div>
             )}
@@ -261,7 +261,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
             )}
             {booking.teardown_end_datetime && (
               <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Teardown ends</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Pack-up ends</p>
                 <p className="font-semibold text-gray-700">{formatFullDateTime(booking.teardown_end_datetime)}</p>
               </div>
             )}
@@ -271,7 +271,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
           {booking.user_details?.name && (
             <div className="flex items-center gap-2 text-[12.5px] text-gray-600">
               <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-              <span>Booked by <span className="font-semibold text-gray-800">{booking.user_details.name}</span></span>
+              <span>Requested by <span className="font-semibold text-gray-800">{booking.user_details.name}</span></span>
             </div>
           )}
 
@@ -279,7 +279,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
           {booking.equipment_requests?.length > 0 && (
             <div>
               <p className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-1.5 flex items-center gap-1">
-                <Package className="h-3 w-3" /> Gear ({gearCount} item{gearCount !== 1 ? "s" : ""})
+                <Package className="h-3 w-3" /> Equipment ({gearCount} item{gearCount !== 1 ? "s" : ""})
               </p>
               <div className="space-y-1">
                 {booking.equipment_requests.map((req) => (
@@ -292,12 +292,12 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
             </div>
           )}
 
-          {/* Services */}
+          {/* Support Requested */}
           {booking.requested_services && (
             <div className="flex items-start gap-2 text-[12.5px]">
               <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Services</p>
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Support Requested</p>
                 <p className="text-gray-700">{booking.requested_services}</p>
               </div>
             </div>
@@ -322,12 +322,12 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
 // ── Loadout panel ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS = {
-  AV:         "Audio / Visual",
+  AV:         "Audio / Video",
   LIGHTING:   "Lighting",
   FURNITURE:  "Furniture",
-  COMPUTING:  "Computing",
-  NETWORKING: "Networking",
-  OTHER:      "Other",
+  COMPUTING:  "Computers",
+  NETWORKING: "Network Equipment",
+  OTHER:      "Other Equipment",
 }
 
 function LoadoutPanel({ booking, canEdit, onEditClick }) {
@@ -357,7 +357,7 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
         <Clapperboard className="h-10 w-10 text-gray-200 mb-4" />
         <p className="text-[15px] font-semibold text-gray-500">Select an event</p>
         <p className="mt-1 text-[13px] text-gray-400">
-          Choose an event from the timeline to see its gear loadout.
+          Choose an event to view assigned equipment.
         </p>
       </div>
     )
@@ -368,7 +368,7 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
       {/* Panel header */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700 mb-0.5">Gear Loadout</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700 mb-0.5">Equipment List</p>
           <p className="text-[15px] font-bold text-gray-900 truncate">{booking.event_name}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-gray-500">
             <span className="flex items-center gap-1">
@@ -399,7 +399,7 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
             className="shrink-0 flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
           >
             <Pencil className="h-3.5 w-3.5" />
-            Edit Loadout
+            Update List
           </button>
         )}
       </div>
@@ -409,10 +409,10 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
         {requests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center rounded-xl border border-dashed border-gray-200 bg-gray-50">
             <Package className="h-8 w-8 text-gray-200 mb-3" />
-            <p className="text-[14px] font-semibold text-gray-500">No gear allocated</p>
+            <p className="text-[14px] font-semibold text-gray-500">No equipment assigned</p>
             {canEdit && (
               <p className="mt-1 text-[13px] text-gray-400">
-                Use <span className="font-bold text-emerald-700">Edit Loadout</span> to add equipment.
+                Use <span className="font-bold text-emerald-700">Update List</span> to add equipment.
               </p>
             )}
           </div>
@@ -448,7 +448,7 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
 
         {booking.requested_services && (
           <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1">Services</p>
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1">Support Requested</p>
             <p className="text-[13.5px] text-gray-700">{booking.requested_services}</p>
           </div>
         )}
@@ -576,7 +576,7 @@ function MediaSchedule() {
       signal:    controller.signal,
       onStart:   () => { setLoading(true); setError("") },
       onSuccess: applyData,
-      onError:   () => setError("Could not load the run sheet. Please check your connection."),
+      onError:   () => setError("Could not load the event schedule. Please check your connection."),
       onDone:    () => setLoading(false),
     })
     return () => controller.abort()
@@ -589,7 +589,7 @@ function MediaSchedule() {
       signal:    controller.signal,
       onStart:   () => { setLoading(true); setError("") },
       onSuccess: applyData,
-      onError:   () => setError("Could not load the run sheet. Please check your connection."),
+      onError:   () => setError("Could not load the event schedule. Please check your connection."),
       onDone:    () => setLoading(false),
     })
     return () => controller.abort()
@@ -619,10 +619,10 @@ function MediaSchedule() {
               Media Team
             </p>
             <h1 className="text-[28px] font-bold leading-none tracking-tight text-gray-900">
-              Team Schedule
+              Media Team Schedule
             </h1>
             <p className="mt-2 text-[15px] text-gray-600">
-              Daily agenda for all approved team-request events.
+              View the media team schedule for approved event requests.
             </p>
           </div>
 
@@ -658,7 +658,7 @@ function MediaSchedule() {
           {!loading && (
             <span className="ml-2 text-[12px] font-normal text-gray-400">
               {bookings.length === 0
-                ? "No events scheduled"
+                ? "No media team events scheduled"
                 : `${bookings.length} event${bookings.length !== 1 ? "s" : ""} scheduled`}
             </span>
           )}
@@ -680,7 +680,7 @@ function MediaSchedule() {
             <div className="border-b border-gray-100 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Clapperboard className="h-5 w-5 text-emerald-700" />
-                <h2 className="text-[16px] font-bold text-gray-900">Timeline</h2>
+                <h2 className="text-[16px] font-bold text-gray-900">Today's Events</h2>
               </div>
             </div>
 
@@ -692,9 +692,9 @@ function MediaSchedule() {
               ) : bookings.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-gray-200 bg-gray-50">
                   <Clapperboard className="h-8 w-8 text-gray-200 mb-3" />
-                  <p className="text-[14.5px] font-semibold text-gray-500">No team events today</p>
+                  <p className="text-[14.5px] font-semibold text-gray-500">No media team events today</p>
                   <p className="mt-1 text-[13px] text-gray-400">
-                    Approved team-request bookings will appear here.
+                    Approved media team requests will appear here.
                   </p>
                 </div>
               ) : (

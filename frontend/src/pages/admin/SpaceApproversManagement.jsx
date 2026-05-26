@@ -75,7 +75,7 @@ const SpaceApproversManagement = () => {
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm"
+                    className="bg-[#15803d] hover:bg-[#166534] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm"
                 >
                     + Assign Approver
                 </button>

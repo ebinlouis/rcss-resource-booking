@@ -66,7 +66,7 @@ const isEditable = (status) => {
 const MealTimePills = ({ booking }) => {
   const meals = getRequestedMeals(booking)
   if (meals.length === 0)
-    return <span className="text-slate-500 text-sm italic">No meals</span>
+    return <span className="text-slate-500 text-sm italic">No meals requested</span>
 
   const firstMenu = booking.daily_menus?.[0] ?? {}
 
@@ -155,7 +155,7 @@ function Mess() {
         const data = await messService.getMyBookings()
         if (isMounted) { setBookings(data); setIsLoading(false) }
       } catch (err) {
-        console.error("Failed to fetch mess bookings:", err)
+        console.error("Failed to fetch food bookings:", err)
         if (isMounted) setIsLoading(false)
       }
     }
@@ -243,7 +243,7 @@ function Mess() {
 
   const handleSave = () => {
     closeForm()
-    showToast(editMode ? "Booking updated successfully!" : "Booking submitted! Awaiting admin approval.")
+    showToast(editMode ? "Booking updated successfully!" : "Booking submitted! Waiting for approval.")
     setSelectedDate("")
     setRefreshTrigger((prev) => prev + 1)
     if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
@@ -288,15 +288,15 @@ function Mess() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Mess Bookings</h1>
-            <p className="text-base text-slate-600 mt-0.5">Manage your food and catering requests</p>
+            <h1 className="text-2xl font-bold text-slate-900">Food Bookings</h1>
+            <p className="text-base text-slate-600 mt-0.5">Manage your food requests</p>
           </div>
           <button
             onClick={handleNewBooking}
             className="inline-flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl shadow-sm text-base font-semibold transition-colors"
           >
             <span className="text-lg leading-none">+</span>
-            New Booking
+            Book Meal
           </button>
         </div>
 
@@ -352,18 +352,18 @@ function Mess() {
 
           {/* Table header */}
           <div className="hidden md:grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
-            <span className="col-span-2 caps-label">Start Date</span>
-            <span className="col-span-2 caps-label">End Date</span>
+            <span className="col-span-2 caps-label">From Date</span>
+            <span className="col-span-2 caps-label">To Date</span>
             <span className="col-span-3 caps-label">Event</span>
             <span className="col-span-2 caps-label">Meals · Day 1</span>
-            <span className="col-span-1 caps-label">Duration</span>
+            <span className="col-span-1 caps-label">Number of Days</span>
             <span className="col-span-1 caps-label">Status</span>
             <span className="col-span-1 caps-label text-right">·</span>
           </div>
 
           {!user && (
             <div className="py-16 text-center space-y-3">
-              <p className="text-base text-slate-500">Sign in to view your mess bookings</p>
+              <p className="text-base text-slate-500">Sign in to view your food bookings</p>
               <button
                 onClick={() => navigate("/login", { state: { from: location.pathname } })}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition"
@@ -559,7 +559,7 @@ function Mess() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <p className="caps-label mb-1">Date Range</p>
+                      <p className="caps-label mb-1">Event Dates</p>
                       <p className="text-base font-medium text-slate-800 flex items-center gap-1.5">
                         <CalendarDays size={14} className="text-emerald-600 shrink-0" />
                         {formatDateRange(b.start_date, b.end_date)}
@@ -571,7 +571,7 @@ function Mess() {
                       </p>
                     </div>
                     <div>
-                      <p className="caps-label mb-1">First Delivery</p>
+                      <p className="caps-label mb-1">First Meal Time</p>
                       <p className="text-base font-semibold text-emerald-600 flex items-center gap-1.5">
                         <Clock3 size={14} className="shrink-0" />{getEarliestTime(b)}
                       </p>
@@ -639,7 +639,7 @@ function Mess() {
                 {/* Menu */}
                 <section>
                   <p className="caps-label mb-3">
-                    {menus.length > 1 ? `Day ${detailDay + 1} Menu` : "Catering Menu"}
+                    {menus.length > 1 ? `Day ${detailDay + 1} Menu` : "Food Menu"}
                   </p>
                   <div className="space-y-2.5">
                     {MEALS.filter((m) => dayMenu[m.timeKey]).map(({ id, label, menuKey, timeKey }) => {
@@ -654,7 +654,7 @@ function Mess() {
                                 <span className="text-sm font-semibold tabular-nums">{time}</span>
                               </div>
                             ) : (
-                              <span className="text-sm text-slate-500 italic">No time set</span>
+                              <span className="text-sm text-slate-500 italic">Time not set</span>
                             )}
                           </div>
                           <p className="text-base text-slate-800 px-4 py-3 leading-relaxed">{dayMenu[menuKey]}</p>
@@ -717,7 +717,7 @@ function Mess() {
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-1">Cancel Booking?</h2>
             <p className="text-base text-slate-600 leading-relaxed mb-4">
-              You're about to cancel the catering request for:
+              You're about to cancel this food request for:
             </p>
             <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200 mb-4">
               <p className="text-base font-semibold text-slate-800">{selectedBookingToDelete.purpose_of_programme}</p>

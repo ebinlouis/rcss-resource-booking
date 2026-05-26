@@ -112,7 +112,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
     mediaService
       .getSpaces()
       .then((data) => setSpaces(data))
-      .catch((err) => console.error("Could not load spaces:", err))
+      .catch((err) => console.error("Could not load venue:", err))
   }, [])
 
   const {
@@ -283,8 +283,8 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       : endDt
 
     if (startDt && endDt && startDt >= endDt) {
-      e.event_end_datetime = "Must be after start time"
-      e.timeError = "Chronology error: Event End must be after Event Start."
+      e.event_end_datetime = "End time must be after start time"
+      e.timeError = "End time must be after start time"
     }
 
     if (needsBuffer) {
@@ -303,7 +303,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
           return
         }
         if (!req.quantity || req.quantity < 1) {
-          e[`qty_${idx}`] = "Min 1"
+          e[`qty_${idx}`] = "Minimum 1"
           return
         }
 
@@ -315,7 +315,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
           e[`qty_${idx}`] = `Only ${inventoryItem.currently_available} available`
           e.timeError =
             e.timeError ||
-            `Not enough stock: only ${inventoryItem.currently_available} "${inventoryItem.name}" available for this time slot.`
+            `Not enough items available: only ${inventoryItem.currently_available} "${inventoryItem.name}" available for this time slot.`
         }
       })
     }
@@ -405,20 +405,20 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
           >
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
-                Booking Preview
+                Booking Summary
               </p>
               <h2 className="text-2xl font-bold text-white">
                 {formData.event_name || "Media Booking"}
               </h2>
               <p className="text-sm text-green-200/80 mt-3 leading-relaxed">
-                Edit and save the booking details directly from the form.
+                Update your request details here.
               </p>
             </div>
 
             <div className="space-y-3">
               <div className="bg-white/10 rounded-xl p-4 border border-white/5">
                 <p className="text-[10px] text-green-300 uppercase font-semibold">
-                  Total Blocked Time
+                  Total Reserved Time
                 </p>
                 <p className="text-white text-sm font-semibold mt-1">
                   {formatVisualTime(actualSetup)}
@@ -432,7 +432,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               </div>
               {needsBuffer && (
                 <p className="text-xs text-green-200/70 italic px-1">
-                  * Includes setup and pack-up buffer times.
+                  * Includes setup and wrap-up time.
                 </p>
               )}
               <div className="grid grid-cols-2 gap-2 mt-2">
@@ -481,7 +481,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               )}
 
               {/* STEP 1: SCHEDULE */}
-              <SectionLabel>1. Schedule Context</SectionLabel>
+              <SectionLabel>1. Date & Time Details</SectionLabel>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                 <Field
@@ -521,7 +521,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                     onChange={(e) => setNeedsBuffer(e.target.checked)}
                   />
                   <span className="text-sm font-medium text-gray-700 select-none">
-                    Add extra prep &amp; pack-up time (for media team support)
+                    Add setup &amp; and wrap-up time (for media team support)
                   </span>
                 </label>
               </div>
@@ -529,7 +529,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               {needsBuffer && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-100/50 rounded-xl border border-gray-200">
                   <Field
-                    label="Prep / Arrival Time"
+                    label="Team Arrival Time"
                     required={needsBuffer}
                     error={errors.setup_start_datetime}
                     helpText="When does the team need to arrive?"
@@ -543,7 +543,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                     />
                   </Field>
                   <Field
-                    label="Pack-up Finish Time"
+                    label="Wrap-up End Time"
                     required={needsBuffer}
                     error={errors.teardown_end_datetime}
                     helpText="When will the room be totally clear?"
@@ -562,16 +562,16 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               {/* STEP 2: HARDWARE (equipment bookings only) */}
               {!booking.is_team_request && (
                 <>
-                  <SectionLabel>2. Hardware &amp; Gear</SectionLabel>
+                  <SectionLabel>2. Equipment Needed</SectionLabel>
 
                   <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4">
                     <div className="flex justify-between items-center mb-4">
                       <label className="text-sm font-bold text-gray-800">
-                        Available Inventory
+                        Available Items
                       </label>
                       {checkingInventory && (
                         <span className="text-xs text-blue-600 animate-pulse font-medium bg-blue-50 px-2 py-1 rounded">
-                          Syncing inventory…
+                          Checking availability…
                         </span>
                       )}
                     </div>
@@ -579,8 +579,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                     {availableEquipment.length === 0 ? (
                       <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
                         <p className="text-sm text-gray-500 font-medium">
-                          Please set the event start and end times above to unlock
-                          the gear catalog.
+                          Select the event times above to see available equipment
                         </p>
                       </div>
                     ) : (
@@ -619,7 +618,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                                     )
                                   }
                                 >
-                                  <option value="">-- Select Item --</option>
+                                  <option value="">-- Choose Item --</option>
                                   {Object.entries(groupedEquipment).map(
                                     ([category, items]) => (
                                       <optgroup key={category} label={category}>
@@ -646,9 +645,9 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                                             eq.currently_available === 0 &&
                                             !isHeldByMe
                                           )
-                                            optionText = `${eq.name} (Out of stock)`
+                                            optionText = `${eq.name} (Not available)`
                                           else if (isSelectedElsewhere)
-                                            optionText = `${eq.name} (Already added)`
+                                            optionText = `${eq.name} (Already selected)`
 
                                           return (
                                             <option
@@ -696,7 +695,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                                 )}
                                 {selectedEq && !errors[`qty_${index}`] && (
                                   <p className="text-gray-400 text-[10px] mt-1">
-                                    max {maxQty}
+                                    Maximum {maxQty}
                                   </p>
                                 )}
                               </div>
@@ -732,8 +731,8 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
 
               <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field
-                  label="Event Name / Purpose"
-                  required
+                  label="Event Name or Purpose"
+                  helpText="This field is required"
                   error={errors.event_name}
                 >
                   <input
@@ -746,8 +745,8 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                   />
                 </Field>
                 <Field
-                  label="Location (Hall/Room)"
-                  required
+                  label="Venue"
+                  helpText="This field is required"
                   error={errors.space}
                 >
                   <select
@@ -756,7 +755,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
                     value={formData.space}
                     onChange={handleChange}
                   >
-                    <option value="">Select Location…</option>
+                    <option value="">Select Venue…</option>
                     {spaces.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -769,21 +768,21 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {booking.is_team_request ? (
                   <Field
-                    label="Coverage Type"
-                    helpText="The media team will assign the appropriate staff and kit."
+                    label="Support Type"
+                    helpText="The media team will arrange the required staff and equipment"
                   >
                     <input
                       type="text"
                       className={inputCls()}
-                      value="Media team coverage"
+                      value="Media team support"
                       disabled
                     />
                   </Field>
                 ) : (
                   <Field
-                    label="Human Resources (Optional)"
+                    label="Media Staff Needed (Optional)"
                     error={errors.requested_services}
-                    helpText="Do you need media staff?"
+                    helpText="Need media team support?"
                   >
                     <input
                       type="text"
@@ -799,7 +798,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
 
               <div className="mb-6">
                 <Field
-                  label="Remarks / Notes (Optional)"
+                  label="Remarks (Optional)"
                   error={errors.user_notes}
                 >
                   <textarea
@@ -896,7 +895,7 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               Save Changes?
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              Are you sure you want to update this media booking?
+              Are you sure you want to update this media request?
             </p>
             <div className="flex gap-3">
               <button
@@ -938,10 +937,10 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               </svg>
             </div>
             <h2 className="text-lg font-bold text-gray-900 mb-1">
-              Delete Booking?
+              Delete Request?
             </h2>
             <p className="text-sm text-gray-500 mb-1">
-              You're about to delete your booking for
+              You're about to delete your request for
             </p>
             <p className="text-sm font-semibold text-gray-800 mb-1">
               {formData.event_name}

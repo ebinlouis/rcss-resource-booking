@@ -266,7 +266,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
 
                     <div className="flex gap-3 mt-6 justify-end pt-2">
                         <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
-                        <button type="submit" disabled={isSubmitting || !selectedUser || !selectedRole || !validUntil || !reason || (isRoleScoped && scopeType === 'BLOCK' && !selectedBlockId) || (isRoleScoped && scopeType === 'SPACE' && !selectedSpaceId)} className="px-4 py-2 text-sm font-semibold text-white bg-gray-900 hover:bg-black rounded-lg transition disabled:opacity-50 shadow-sm">
+                        <button type="submit" disabled={isSubmitting || !selectedUser || !selectedRole || !validUntil || !reason || (isRoleScoped && scopeType === 'BLOCK' && !selectedBlockId) || (isRoleScoped && scopeType === 'SPACE' && !selectedSpaceId)} className="px-4 py-2 text-sm font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-lg transition disabled:opacity-50 shadow-sm">
                             {isSubmitting ? 'Granting...' : 'Assign Access'}
                         </button>
                     </div>
