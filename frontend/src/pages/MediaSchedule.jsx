@@ -19,6 +19,7 @@ import {
 import EditLoadoutModal from "../components/EditLoadoutModal"
 import mediaService from "../api/mediaApi"
 import { useAuth } from "../hooks/useAuth"
+import MainLayout from "../layouts/MainLayout"
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -609,8 +610,9 @@ function MediaSchedule() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="p-5 md:p-8">
-      <div className="mx-auto w-full max-w-[1280px]">
+    <MainLayout>
+      <div className="p-5 md:p-8">
+        <div className="mx-auto w-full max-w-[1280px]">
 
         {/* Page header */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -738,7 +740,8 @@ function MediaSchedule() {
           onSuccess={handleLoadoutSaved}
         />
       )}
-    </div>
+      </div>
+    </MainLayout>
   )
 }
 

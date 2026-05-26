@@ -305,7 +305,7 @@ const BookingCard = ({
             </p>
 
             <div
-              className={`rounded-xl md:rounded-2xl border p-2.5 md:p-3 md:p-4 ${statusMeta.bg} ${statusMeta.border}`}
+              className={`rounded-xl md:rounded-2xl border p-2.5 md:p-4 ${statusMeta.bg} ${statusMeta.border}`}
             >
               <div className="flex items-start gap-3">
                 <div className="shrink-0 mt-0.5">{statusMeta.icon}</div>

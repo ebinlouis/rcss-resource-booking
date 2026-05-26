@@ -2,11 +2,17 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, F, Sum
+from django.conf import settings
 from apps.approvals.models import BaseBooking
 
 
 class MediaSettings(models.Model):
-    max_concurrent_events = models.PositiveIntegerField(default=2)
+    """
+    Singleton settings model for the media team.
+    max_concurrent_events has been removed — capacity is now derived
+    dynamically from the number of free MEDIA_INCHARGE users in a given
+    time window. This model is retained for future settings fields.
+    """
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -19,15 +25,19 @@ class MediaSettings(models.Model):
 
     @classmethod
     def load(cls):
-        settings, _ = cls.objects.get_or_create(pk=1)
-        return settings
+        settings_obj, _ = cls.objects.get_or_create(pk=1)
+        return settings_obj
 
     def __str__(self):
-        return f"Media capacity: {self.max_concurrent_events} concurrent events"
+        return "Media Settings"
 
 
 class MediaBooking(BaseBooking):
-    space = models.ForeignKey('spaces.Space', on_delete=models.PROTECT, related_name='media_bookings')
+    space = models.ForeignKey(
+        'spaces.Space',
+        on_delete=models.PROTECT,
+        related_name='media_bookings',
+    )
     event_group_id = models.UUIDField(null=True, blank=True, db_index=True)
     event_name = models.CharField(max_length=200)
 
@@ -41,11 +51,22 @@ class MediaBooking(BaseBooking):
 
     is_external_event = models.BooleanField(
         default=False,
-        help_text="True if this event is organised by an external party outside the college."
+        help_text="True if this event is organised by an external party outside the college.",
     )
     is_team_request = models.BooleanField(
         default=False,
-        help_text="True when the requester needs the media team to cover the event."
+        help_text="True when the requester needs the media team to cover the event.",
+    )
+
+    # -- Crew Assignment --
+    # Populated by the admin at approval time.
+    # Filtered to MEDIA_INCHARGE users only at the serializer/view layer,
+    # not here, to avoid a circular import with the users app.
+    assigned_crew = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='assigned_media_bookings',
+        help_text="Media team members assigned to cover this booking. Set at approval time.",
     )
 
     class Meta(BaseBooking.Meta):
@@ -53,18 +74,18 @@ class MediaBooking(BaseBooking):
             # 1. Setup must start before or exactly when the event starts
             models.CheckConstraint(
                 condition=Q(setup_start_datetime__lte=F('event_start_datetime')),
-                name='media_setup_before_event_start'
+                name='media_setup_before_event_start',
             ),
             # 2. Event start must be strictly before event end
             models.CheckConstraint(
                 condition=Q(event_start_datetime__lt=F('event_end_datetime')),
-                name='media_event_start_before_end'
+                name='media_event_start_before_end',
             ),
             # 3. Teardown must end after or exactly when the event ends
             models.CheckConstraint(
                 condition=Q(event_end_datetime__lte=F('teardown_end_datetime')),
-                name='media_event_end_before_teardown'
-            )
+                name='media_event_end_before_teardown',
+            ),
         ]
 
     def save(self, *args, **kwargs):
@@ -80,7 +101,7 @@ class MediaEquipmentRequest(models.Model):
     media_booking = models.ForeignKey(
         MediaBooking,
         on_delete=models.CASCADE,
-        related_name='equipment_requests'
+        related_name='equipment_requests',
     )
     equipment = models.ForeignKey('spaces.Equipment', on_delete=models.RESTRICT)
     quantity  = models.PositiveIntegerField(default=1)
@@ -89,12 +110,12 @@ class MediaEquipmentRequest(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=Q(quantity__gt=0),
-                name='media_equipment_quantity_positive'
+                name='media_equipment_quantity_positive',
             ),
             models.UniqueConstraint(
                 fields=['media_booking', 'equipment'],
-                name='unique_equipment_per_media_booking'
-            )
+                name='unique_equipment_per_media_booking',
+            ),
         ]
 
     def clean(self):
@@ -116,18 +137,10 @@ class MediaEquipmentRequest(models.Model):
         if not hasattr(self, 'media_booking') or not hasattr(self, 'equipment'):
             return
 
-        # Skip validation for bookings that are no longer active / relevant.
         INACTIVE_STATUSES = {'REJECTED', 'CANCELLED', 'EXPIRED', 'COMPLETED'}
         if self.media_booking.status in INACTIVE_STATUSES:
             return
 
-        # Count how much of this equipment is already committed in OTHER
-        # APPROVED bookings that overlap with this booking's full time block.
-        # We deliberately check only APPROVED here so that multiple simultaneous
-        # PENDING requests for the same scarce gear are not blocked against each
-        # other — that would make the approval process a race condition.
-        # The approval view is responsible for the APPROVED-vs-APPROVED conflict
-        # check at decision time.
         overlapping_approved = MediaBooking.objects.filter(
             status='APPROVED',
             setup_start_datetime__lt=self.media_booking.teardown_end_datetime,
