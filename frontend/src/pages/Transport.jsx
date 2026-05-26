@@ -19,17 +19,30 @@ const STATUS_STYLES = {
     badge: "bg-green-100 text-green-700",
     card: "bg-green-50 border-green-100 text-green-700",
   },
+
   PENDING: {
     badge: "bg-yellow-100 text-yellow-700",
     card: "bg-yellow-50 border-yellow-100 text-yellow-700",
   },
-  REJECTED: {
+
+  COMPLETED: {
     badge: "bg-blue-100 text-blue-700",
     card: "bg-blue-50 border-blue-100 text-blue-700",
   },
+
+  REJECTED: {
+    badge: "bg-red-100 text-red-700",
+    card: "bg-red-50 border-red-100 text-red-700",
+  },
+
+  EXPIRED: {
+    badge: "bg-orange-100 text-orange-700",
+    card: "bg-orange-50 border-orange-100 text-orange-700",
+  },
+
   CANCELLED: {
-    badge: "bg-gray-100 text-gray-500",
-    card: "bg-gray-50 border-gray-100 text-gray-500",
+    badge: "bg-gray-100 text-gray-600",
+    card: "bg-gray-50 border-gray-100 text-gray-600",
   },
 }
 
@@ -337,12 +350,22 @@ function Transport() {
                 STATUS_STYLES[booking.status]?.card ??
                 STATUS_STYLES.PENDING.card
 
+              const isPastBooking =
+                new Date(booking.end_datetime) <= new Date()
+
               const canEdit =
-                booking.status === "PENDING" ||
-                booking.can_modify
+                !isPastBooking &&
+                (
+                  booking.status === "PENDING" ||
+                  booking.status === "APPROVED"
+                )
 
               const canCancel =
-                booking.status === "PENDING"
+                !isPastBooking &&
+                (
+                  booking.status === "PENDING" ||
+                  booking.status === "APPROVED"
+                )
 
               return (
                 <div
