@@ -63,6 +63,7 @@ function TransportBookingModal({
 }) {
 
   const isEditMode = Boolean(editData)
+  console.log("EDIT DATA", editData)
 
   const [form, setForm] = useState({
 
@@ -70,16 +71,24 @@ function TransportBookingModal({
       editData?.purpose ?? "",
 
     pickup_date:
-      "",
-
-    pickup_time:
-      "",
-
-    pickup_period:
-      "AM",
+      editData?.start_datetime?.split("T")[0] ?? "",
 
     pickup_time_24:
-      "",
+      editData?.start_datetime
+        ?.split("T")[1]
+        ?.slice(0, 5) ?? "",
+
+    pickup_time:
+      editData?.start_datetime
+        ?.split("T")[1]
+        ?.slice(0, 5) ?? "",
+
+    pickup_period:
+      editData?.start_datetime
+        ?.split("T")[1]
+        ?.slice(0, 2) >= 12
+          ? "PM"
+          : "AM",
 
     return_required:
       false,
