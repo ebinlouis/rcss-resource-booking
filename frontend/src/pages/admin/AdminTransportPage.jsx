@@ -29,6 +29,7 @@ import {
 } from '../../api/fleetApi'
 import Tooltip from "../../components/Tooltip"
 import PageInfo from '../../components/PageInfo'
+import toast from 'react-hot-toast'
 
 // ==========================================
 // SHARED STYLE MAP  (mirrors Transport.jsx)
@@ -537,7 +538,7 @@ export default function AdminTransportPage() {
             setLastApproved(approved ?? { id, reference_code: '—' })
             refresh()
         } catch (err) {
-            alert(err?.response?.data?.error || 'Approval failed.')
+            toast.error(err?.response?.data?.error || 'Approval failed.')
         } finally {
             setActionLoading(null)
         }
@@ -557,7 +558,7 @@ export default function AdminTransportPage() {
             setRejectTarget(null)
             refresh()
         } catch (err) {
-            alert(err?.response?.data?.error || 'Rejection failed.')
+            toast.error(err?.response?.data?.error || 'Rejection failed.')
         } finally {
             setActionLoading(null)
         }
@@ -580,7 +581,7 @@ export default function AdminTransportPage() {
             const msg = typeof errData === 'object'
                 ? Object.values(errData).flat().join(' ')
                 : 'Reschedule failed. Check for conflicts.'
-            alert(msg)
+            toast.error(msg)
         } finally {
             setActionLoading(null)
         }

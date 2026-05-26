@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import spaceAdminService from '../../api/spaceAdminService';
 import AssignApproverModal from '../../components/admin/AssignApproverModal';
+import toast from 'react-hot-toast'
 
 const SpaceApproversManagement = () => {
     const [approvers, setApprovers] = useState([]);
@@ -17,6 +18,7 @@ const SpaceApproversManagement = () => {
                 if (isMounted) setApprovers(Array.isArray(data) ? data : data.results || []);
             } catch (error) {
                 console.error('Failed to fetch approvers', error);
+                toast.error('Failed to fetch approvers.');
             } finally {
                 if (isMounted) setIsLoading(false);
             }
@@ -35,6 +37,7 @@ const SpaceApproversManagement = () => {
             setApprovers(Array.isArray(data) ? data : data.results || []);
         } catch (error) {
             console.error('Failed to refresh approvers', error);
+            toast.error('Failed to refresh approvers.');
         } finally {
             setIsLoading(false);
         }
@@ -52,7 +55,7 @@ const SpaceApproversManagement = () => {
             await spaceAdminService.deleteApprover(approver.id);
             refreshApprovers();
         } catch {
-            alert("Failed to revoke assignment.");
+            toast.error("Failed to revoke assignment.");
         }
     };
 

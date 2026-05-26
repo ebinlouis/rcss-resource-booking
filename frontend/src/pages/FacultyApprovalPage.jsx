@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import approvalService from '../api/approvalService'
 import { useAuth } from '../hooks/useAuth'
 import MainLayout from '../layouts/MainLayout'
+import toast from 'react-hot-toast'
 import { CheckCircle2, XCircle, Clock, ChevronDown, RefreshCw, User, Phone, Mail, Building2, Users, CalendarDays, FileText } from 'lucide-react'
 
 const STATUS_META = {
@@ -141,12 +142,6 @@ export default function FacultyApprovalPage() {
   const [loading,  setLoading]            = useState(true)
   const [actingId, setActingId]           = useState(null)
   const [loadError, setLoadError]         = useState(false)
-  const [toast, setToast]                 = useState(null)
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
-  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -168,10 +163,10 @@ export default function FacultyApprovalPage() {
     setActingId(id)
     try {
       await approvalService.resolveFacultyBooking({ id, action: 'approve' })
-      showToast('Booking approved successfully.')
+      toast.success('Booking approved successfully.')
       await fetchData()
     } catch {
-      showToast('Failed to approve. Please try again.', 'error')
+      toast.error('Failed to approve. Please try again.')
     } finally {
       setActingId(null)
     }
@@ -181,10 +176,10 @@ export default function FacultyApprovalPage() {
     setActingId(id)
     try {
       await approvalService.resolveFacultyBooking({ id, action: 'reject', rejectionNote: note })
-      showToast('Booking rejected.')
+      toast.error('Booking rejected.')
       await fetchData()
     } catch {
-      showToast('Failed to reject. Please try again.', 'error')
+      toast.error('Failed to reject. Please try again.')
     } finally {
       setActingId(null)
     }
@@ -209,14 +204,6 @@ export default function FacultyApprovalPage() {
   return (
     <MainLayout>
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-
-        {/* Toast */}
-        {toast && (
-          <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-full shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-4 duration-200 ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`}>
-            {toast.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4 text-green-400" />}
-            {toast.msg}
-          </div>
-        )}
 
         {/* Header */}
         <div className="flex items-center justify-between">

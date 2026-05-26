@@ -11,6 +11,7 @@ import {
   X, CalendarDays, ChefHat, ChevronRight, History,
   MapPin, User, Building, AlertCircle, ShieldOff, ChevronDown, ChevronUp,
 } from "lucide-react";
+import toast from 'react-hot-toast'
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -84,7 +85,7 @@ function AccessDenied() {
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, onSelect, isHighlighted, isFlush }) {
+function BookingCard({ booking, onSelect, isHighlighted }) {
   const meals       = getRequestedMeals(booking);
   const statusLower = booking.status?.toLowerCase();
   const multiDay    = isMultiDay(booking);
@@ -92,15 +93,11 @@ function BookingCard({ booking, onSelect, isHighlighted, isFlush }) {
   const dateLabel   = formatDateRange(booking.start_date, booking.end_date);
   const dayCount    = booking.daily_menus?.length ?? 1;
 
-  const containerClasses = isFlush
-    ? `px-7 py-5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "ring-2 ring-emerald-300 ring-inset bg-emerald-50/70" : "bg-white"}`
-    : `bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`;
-
   return (
     <div
       data-booking-reference={booking.reference_code || ""}
       onClick={() => onSelect(booking)}
-      className={containerClasses}
+      className={`bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`}
     >
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
@@ -264,7 +261,6 @@ function AdminMess() {
   ));
   const [bookings,       setBookings]       = useState([]);
   const [isLoading,      setIsLoading]      = useState(true);
-  const [toastMsg,       setToastMsg]       = useState("");
   const [dispatchDate,   setDispatchDate]   = useState(getTomorrowStr);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -273,7 +269,6 @@ function AdminMess() {
   const [showRejectInput,  setShowRejectInput]  = useState(false);
   const [rejectRemark,     setRejectRemark]     = useState("");
   const [remarkError,      setRemarkError]      = useState("");
-  const [historyFilter,    setHistoryFilter]    = useState("ALL");
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -306,10 +301,6 @@ function AdminMess() {
   }, []);
 
   const closePanel  = useCallback(() => setSelectedBooking(null), []);
-  const showToast   = useCallback((msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 4000);
-  }, []);
 
   useEffect(() => {
     if (!["pending", "dispatch", "history"].includes(requestedTab)) return undefined;
@@ -323,15 +314,9 @@ function AdminMess() {
     .filter((b) => b.status?.toLowerCase() === "pending")
     .sort(compareSubmissionTimeDesc);
 
-  const historyBookings = bookings
-    .filter((b) => {
-      const s = b.status?.toUpperCase() || "";
-      if (historyFilter !== "ALL") {
-        return s === historyFilter;
-      }
-      return s !== "PENDING";
-    })
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const historyBookings = [...bookings].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
 
   // Multi-day aware: a booking appears on a dispatch day if that date falls
   // anywhere within start_date…end_date, not just if booking_date matches.
@@ -391,10 +376,10 @@ function AdminMess() {
         navigate("/admin/mess?tab=pending", { replace: true });
       }
       setBookings((prev) => prev.map((b) => b.id === booking.id ? { ...b, status: "APPROVED" } : b));
-      showToast("Booking approved.");
+      toast.success("Booking approved.");
       closePanel();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to approve booking.");
+      toast.error(err.response?.data?.detail || "Failed to approve booking.");
     } finally {
       setActionLoading(false);
     }
@@ -427,11 +412,11 @@ function AdminMess() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === selectedBooking.id
-            ? { ...b, status: "REJECTED", rejection_remark: trimmed, remarks_by_admin: trimmed }
+            ? { ...b, status: "rejected", rejection_remark: trimmed }
             : b
         )
       );
-      showToast(selectedBooking.status?.toLowerCase() === "approved" ? "Booking cancelled." : "Booking rejected.");
+      toast.success("Booking rejected.");
       closePanel();
     } catch (err) {
       setRemarkError(
@@ -472,23 +457,15 @@ function AdminMess() {
   return (
     <div className="flex flex-col h-full bg-gray-50/50 relative font-geist">
 
-      {/* Toast */}
-      {toastMsg && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5">
-          <CheckCircle2 size={18} className="text-emerald-400" />
-          <span className="text-sm font-medium">{toastMsg}</span>
-        </div>
-      )}
-
       {/* Header & Tabs */}
       <div className="bg-white border-b border-gray-200 px-6 sm:px-8 pt-8 shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900">Food Management</h1>
-              <PageInfo text="Review and approve food requests. Approved bookings are sent to the kitchen for preparation." />
+              <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
             </div>
-            <p className="text-sm text-gray-500 mt-1">Manage food requests and view meal schedules.</p>
+            <p className="text-sm text-gray-500 mt-1">Manage catering requests and view kitchen schedules.</p>
           </div>
           <button
             onClick={() => setRefreshTrigger((p) => p + 1)}
@@ -588,7 +565,7 @@ function AdminMess() {
             <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Delivery Schedule</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
               {dispatchBookings.length === 0 ? (
-                <p className="text-sm text-gray-400 p-6 text-center">No food requests scheduled for this date.</p>
+                <p className="text-sm text-gray-400 p-6 text-center">No catering events are scheduled for this date.</p>
               ) : dispatchBookings.map((b) => {
                 const dayMenu  = getDayMenu(b, dispatchDate);
                 // For the timeline, show the earliest meal time on the specific day
@@ -648,52 +625,23 @@ function AdminMess() {
 
         {/* ── History tab ── */}
         {activeTab === "history" && (
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-5xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-3 border-b border-gray-200 bg-gray-50/50">
-              <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
-                Booking History
-              </span>
-              <div className="flex gap-2">
-                {[
-                  { id: 'ALL', label: 'All Records' },
-                  { id: 'APPROVED', label: 'Approved' },
-                  { id: 'COMPLETED', label: 'Completed' },
-                  { id: 'REJECTED', label: 'Rejected' },
-                  { id: 'CANCELLED', label: 'Cancelled' },
-                ].map(tab => (
-                  <button 
-                    key={tab.id}
-                    onClick={() => setHistoryFilter(tab.id)}
-                    className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-lg transition-colors ${historyFilter === tab.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'}`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+          <div className="space-y-4 max-w-5xl">
+            {isLoading ? (
+              <p className="text-sm text-gray-400">Loading all records...</p>
+            ) : historyBookings.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
+                <History size={40} className="text-gray-200 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-gray-900">No Records Found</h3>
+                <p className="text-sm text-gray-500 mt-1">No previous bookings found.</p>
               </div>
-            </div>
-            <div className="flex flex-col">
-              {isLoading ? (
-                <div className="py-20 text-center">
-                   <p className="text-[14px] text-gray-500 font-medium">Loading all records…</p>
-                </div>
-              ) : historyBookings.length === 0 ? (
-                <div className="py-20 text-center px-8">
-                  <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
-                    <History size={24} className="text-gray-400" />
-                  </div>
-                  <h3 className="text-[15px] font-semibold text-gray-900">No Records Found</h3>
-                  <p className="text-[13.5px] text-gray-500 mt-1.5">No previous bookings found for this filter.</p>
-                </div>
-              ) : historyBookings.map((b) => (
-                <BookingCard
-                  key={b.id}
-                  booking={b}
-                  onSelect={openPanel}
-                  isFlush
-                  isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
-                />
-              ))}
-            </div>
+            ) : historyBookings.map((b) => (
+              <BookingCard
+                key={b.id}
+                booking={b}
+                onSelect={openPanel}
+                isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -786,7 +734,7 @@ function AdminMess() {
               {panelMenus.length > 0 ? (
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                    {panelMultiDay ? "Daily Menus" : "Food Menu"}
+                    {panelMultiDay ? "Daily Menus" : "Catering Menu"}
                   </p>
                   <div className="space-y-2">
                     {panelMenus.map((dayMenu, idx) => (
@@ -803,7 +751,7 @@ function AdminMess() {
               ) : (
                 // Fallback for legacy flat bookings with no daily_menus array
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Food Menu</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Catering Menu</p>
                   <div className="space-y-3">
                     {MEALS.filter((m) => selectedBooking[m.timeKey]).map(({ id, label, timeKey, menuKey }) => (
                       <div key={id} className="border border-gray-100 rounded-lg p-3 bg-white shadow-sm">
@@ -838,7 +786,7 @@ function AdminMess() {
               {/* Rejection/cancellation remark */}
               {["rejected", "cancelled"].includes(selectedBooking.status?.toLowerCase()) && (selectedBooking.rejection_remark || selectedBooking.remarks_by_admin) && (
                 <div>
-                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Reason</p>
+                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Rejection / Cancellation Reason</p>
                   <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 leading-relaxed">
                     {selectedBooking.rejection_remark || selectedBooking.remarks_by_admin}
                   </p>
@@ -846,23 +794,19 @@ function AdminMess() {
               )}
             </div>
 
-            {/* Action footer — for pending or approved bookings */}
-            {["pending", "approved"].includes(selectedBooking.status?.toLowerCase()) && (
+            {/* Action footer — only for pending bookings */}
+            {selectedBooking.status?.toLowerCase() === "pending" && (
               <div className="border-t border-gray-100 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {showRejectInput && (
                   <div className="px-6 pt-4 pb-2">
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      {selectedBooking.status?.toLowerCase() === "approved" ? "Cancellation Reason" : "Rejection Reason"} <span className="text-red-500">*</span>
+                      Rejection Reason <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       rows={3}
                       value={rejectRemark}
                       onChange={(e) => { setRejectRemark(e.target.value); if (remarkError) setRemarkError(""); }}
-placeholder={
-  selectedBooking.status?.toLowerCase() === "approved"
-    ? "Explain why this approved booking is being cancelled..."
-    : "Explain the reason so the requester knows what to change..."
-}
+                      placeholder="Provide a clear reason so the requester can act on it..."
                       className={`w-full text-sm border rounded-xl px-3 py-2.5 resize-none outline-none transition focus:ring-2 ${
                         remarkError
                           ? "border-red-300 focus:ring-red-200 bg-red-50"
@@ -883,35 +827,28 @@ placeholder={
                     <>
                       <button onClick={handleRejectClick} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50">
-                        Back
+                        Cancel
                       </button>
                       <button onClick={handleConfirmReject} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50">
                         {actionLoading
                           ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><XCircle size={18} /> {selectedBooking.status?.toLowerCase() === "approved" ? "Confirm Cancellation" : "Confirm Rejection"}</>}
+                          : <><XCircle size={18} /> Confirm Rejection</>}
                       </button>
                     </>
                   ) : (
-                    selectedBooking.status?.toLowerCase() === "approved" ? (
+                    <>
                       <button onClick={handleRejectClick} disabled={actionLoading}
-                        className="col-span-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
-                        <XCircle size={18} /> Cancel Approved Booking
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
+                        <XCircle size={18} /> Reject
                       </button>
-                    ) : (
-                      <>
-                        <button onClick={handleRejectClick} disabled={actionLoading}
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
-                          <XCircle size={18} /> Reject
-                        </button>
-                        <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
-                          {actionLoading
-                            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            : <><CheckCircle2 size={18} /> Approve</>}
-                        </button>
-                      </>
-                    )
+                      <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
+                        {actionLoading
+                          ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : <><CheckCircle2 size={18} /> Approve</>}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

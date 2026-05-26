@@ -6,6 +6,8 @@ import ProfileForm from '../components/ProfileForm';
 import profileApi from '../api/profileApi';
 import { useAuth } from '../hooks/useAuth';
 import { CheckCircle2, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast'
+
 
 const DetailItem = ({ label, value }) => (
   <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
@@ -21,7 +23,6 @@ const Profile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
   const { updateUser } = useAuth();
 
   // Load user profile on mount
@@ -51,15 +52,8 @@ const Profile = () => {
     setUser(updatedUser);
     updateUser?.(updatedUser);
     setShowEditModal(false);
-    setToastMsg('Profile updated successfully.');
+    toast.success('Profile updated successfully.');
   };
-
-  useEffect(() => {
-    if (!toastMsg) return undefined;
-
-    const timer = window.setTimeout(() => setToastMsg(''), 3500);
-    return () => window.clearTimeout(timer);
-  }, [toastMsg]);
 
   // Calculate booking eligibility
   const canBookResources = user && (
@@ -103,12 +97,6 @@ const Profile = () => {
   return (
     <MainLayout>
       <div className="space-y-6 p-4 sm:p-6">
-        {toastMsg && (
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3">
-            <CheckCircle2 size={18} className="text-emerald-400" />
-            <span className="text-sm font-medium">{toastMsg}</span>
-          </div>
-        )}
 
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">

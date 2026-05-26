@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import roleOverrideService from '../../api/roleOverrideService';
 import GrantOverrideModal from '../../components/admin/GrantOverrideModal';
+import toast from 'react-hot-toast'
 
 const RoleOverridesPage = () => {
     const [overrides, setOverrides] = useState([]);
@@ -34,7 +35,7 @@ const RoleOverridesPage = () => {
 
     const handleRevoke = async (id) => {
         if (!id) {
-            alert("Something went wrong. Please try again.");
+            toast.error("Something went wrong. Please try again.");
             return;
         }
 
@@ -47,7 +48,7 @@ const RoleOverridesPage = () => {
             setRefreshTrigger(prev => prev + 1);
         } catch (err) {
             console.error("Revoke API Error:", err);
-            alert('Could not remove access. Please try again.');
+            toast.error('Could not remove access. Please try again.');
             setIsLoading(false); // Only reset if it failed, else let useEffect handle it
         }
     };
