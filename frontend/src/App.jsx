@@ -4,6 +4,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import LinkedBookingWizard from "./components/LinkedBookingWizard";
 
+import { Toaster } from 'react-hot-toast'
+
 // Pages
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -36,6 +38,29 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster
+  position="top-center"
+  toastOptions={{
+    duration: 3500,
+    style: {
+      borderRadius: '14px',
+      fontWeight: '600',
+      padding: '14px 18px',
+    },
+    success: {
+      iconTheme: {
+        primary: '#16a34a',
+        secondary: '#fff',
+      },
+    },
+    error: {
+      iconTheme: {
+        primary: '#dc2626',
+        secondary: '#fff',
+      },
+    },
+  }}
+/>
         <Routes>
 
           {/* PUBLIC LOGIN ROUTE */}

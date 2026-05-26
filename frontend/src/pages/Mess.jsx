@@ -5,6 +5,8 @@ import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
 import { getSubmissionTimestamp } from "../utils/submissionTime"
+import toast from 'react-hot-toast'
+
 import {
   MEALS,
   getEarliestTime,
@@ -119,7 +121,6 @@ function Mess() {
 
   const [bookings,                setBookings]                = useState([])
   const [isLoading,               setIsLoading]               = useState(true)
-  const [toastMsg,                setToastMsg]                = useState("")
   const [refreshTrigger,          setRefreshTrigger]          = useState(0)
 
   const [selectedDate,            setSelectedDate]            = useState("")
@@ -194,13 +195,6 @@ function Mess() {
     })
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  const showToast = (message) => {
-    setToastMsg(message)
-    setTimeout(() => setToastMsg(""), 4000)
-  }
-
   const closeSidePanel = () => { setSelectedViewBooking(null); setDetailDay(0) }
 
   const openDeleteModal = (booking) => {
@@ -231,10 +225,10 @@ function Mess() {
       await messService.deleteBooking(selectedBookingToDelete.id)
       setRefreshTrigger((prev) => prev + 1)
       setShowDeleteModal(false)
-      showToast("Booking cancelled successfully.")
+      toast.success("Booking cancelled successfully.")
     } catch (err) {
       console.error("Failed to delete:", err)
-      alert("Could not cancel booking. Please try again.")
+      toast.error("Booking could not be cancelled. Please try again.")
     } finally {
       setIsDeleting(false)
       setSelectedBookingToDelete(null)
@@ -243,7 +237,7 @@ function Mess() {
 
   const handleSave = () => {
     closeForm()
-    showToast(editMode ? "Booking updated successfully!" : "Booking submitted! Waiting for approval.")
+    toast.success(editMode ? "Booking updated successfully!" : "Booking submitted! Waiting for approval.")
     setSelectedDate("")
     setRefreshTrigger((prev) => prev + 1)
     if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
@@ -276,14 +270,6 @@ function Mess() {
   return (
     <MainLayout>
       <div className="space-y-6 p-4 sm:p-6 relative">
-
-        {/* Toast */}
-        {toastMsg && (
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5">
-            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-            <span className="text-base font-medium">{toastMsg}</span>
-          </div>
-        )}
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

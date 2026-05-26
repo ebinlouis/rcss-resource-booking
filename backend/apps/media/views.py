@@ -693,7 +693,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
         day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
         bookings  = MediaBooking.objects.filter(
-            status='APPROVED',
+            status__in=['APPROVED', 'COMPLETED'],
             is_team_request=True,
             setup_start_datetime__lt=day_end,
             teardown_end_datetime__gt=day_start,

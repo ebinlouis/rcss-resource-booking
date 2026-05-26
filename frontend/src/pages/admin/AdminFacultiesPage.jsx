@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
+import toast from 'react-hot-toast'
 
 const inputCls =
     'w-full border border-[#e2e8f0] rounded-xl px-3.5 py-2.5 text-sm text-[#0f172a] bg-white outline-none transition focus:ring-2 focus:ring-[#15803d] focus:border-transparent placeholder:text-[#94a3b8] hover:border-[#94a3b8]';
@@ -30,15 +31,6 @@ export default function AdminFacultiesPage() {
     const [faculties, setFaculties] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [roles, setRoles] = useState([]);
-    const [toasts, setToasts] = useState([]);
-
-    const showToast = useCallback((message, type = 'success') => {
-        const id = Date.now() + Math.random();
-        setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 4000);
-    }, []);
     
     const [loading, setLoading] = useState(true);
     const [listError, setListError] = useState(null);
@@ -306,10 +298,10 @@ export default function AdminFacultiesPage() {
         try {
             if (editingUser) {
                 await api.patch(`/auth/admin-users/${editingUser.id}/`, payload);
-                showToast('Faculty updated successfully', 'success');
+                toast.success('Faculty updated successfully');
             } else {
                 await api.post('/auth/admin-users/', payload);
-                showToast('Faculty added successfully', 'success');
+                toast.success('Faculty added successfully');
             }
             setIsModalOpen(false);
             fetchData();
@@ -340,7 +332,7 @@ export default function AdminFacultiesPage() {
             }
             const finalError = errMsg || (editingUser ? 'Unable to save faculty changes' : 'Error adding faculty');
             setFormError(finalError);
-            showToast(finalError, 'error');
+            toast.error(finalError);
         } finally {
             setIsSubmitting(false);
         }
@@ -353,11 +345,11 @@ export default function AdminFacultiesPage() {
             await api.post(`/auth/admin-users/${resetTargetUser.id}/reset-password/`, {
                 password: 'Rajagiri@123'
             });
-            showToast('Password reset successfully', 'success');
+            toast.success('Password reset successfully');
             setResetTargetUser(null);
         } catch (err) {
             console.error(err);
-            showToast('Failed to reset password', 'error');
+            toast.error('Failed to reset password');
         } finally {
             setIsResetting(false);
         }
@@ -379,9 +371,8 @@ export default function AdminFacultiesPage() {
             setCsvFile(null);
             // Refresh the faculty list to reflect new/updated users
             fetchData();
-            showToast(
-                `CSV imported: ${res.data.summary.created_count} created, ${res.data.summary.updated_count} updated.`,
-                'success'
+            toast.success(
+                `CSV imported: ${res.data.summary.created_count} created, ${res.data.summary.updated_count} updated.`
             );
         } catch (err) {
             const data = err.response?.data;
@@ -408,20 +399,20 @@ export default function AdminFacultiesPage() {
         try {
             if (actionType === 'delete') {
                 await api.delete(`/auth/admin-users/${actionTargetUser.id}/`);
-                showToast('Faculty removed successfully', 'success');
+                toast.success('Faculty removed successfully');
             } else {
                 // Deactivate
                 await api.patch(`/auth/admin-users/${actionTargetUser.id}/`, {
                     is_active: false
                 });
-                showToast('Faculty deactivated successfully', 'success');
+                toast.success('Faculty deactivated successfully');
             }
             setActionTargetUser(null);
             fetchData();
         } catch (err) {
             console.error(err);
             const errMsg = err.response?.data?.message || 'Error occurred. This user may have bookings, consider deactivating them instead.';
-            showToast(errMsg, 'error');
+            toast.error(errMsg);
         } finally {
             setIsActionSubmitting(false);
         }
@@ -1455,37 +1446,6 @@ export default function AdminFacultiesPage() {
                     </div>
                 </div>
             )}
-
-            {/* Success / Error Toasts */}
-            <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full">
-                {toasts.map((t) => (
-                    <div
-                        key={t.id}
-                        className={`bg-white border-l-4 ${
-                            t.type === 'success' ? 'border-[#15803d]' : 'border-red-500'
-                        } shadow-xl rounded-xl p-4 flex items-start gap-3 border border-slate-100/80 animate-in slide-in-from-bottom-5 duration-200`}
-                    >
-                        {t.type === 'success' ? (
-                            <svg className="w-5 h-5 text-[#15803d] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        ) : (
-                            <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        )}
-                        <div className="flex-1 text-[13.5px] font-medium text-slate-800">
-                            {t.message}
-                        </div>
-                        <button
-                            onClick={() => setToasts((prev) => prev.filter((toast) => toast.id !== t.id))}
-                            className="text-slate-400 hover:text-slate-600 transition"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                ))}
-            </div>
         </div>
     );
 }

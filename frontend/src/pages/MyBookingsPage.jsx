@@ -5,6 +5,8 @@ import api from "../api/axios"
 import MainLayout from "../layouts/MainLayout"
 import BookingModal from "../components/BookingModal"
 import { getSubmissionTimestamp } from "../utils/submissionTime"
+import toast from 'react-hot-toast'
+
 
 import {
   RefreshCcw,
@@ -667,7 +669,7 @@ const confirmCancelBooking = async () => {
     await refreshData()
     setCancelBookingId(null)
   } catch {
-    alert("Could not cancel booking.")
+    toast.error("Booking could not be cancelled. Please try again.")
   } finally {
     setIsActionLoading(false)
   }
@@ -758,6 +760,7 @@ const confirmCancelBooking = async () => {
     return (
       
     <MainLayout>
+      
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
         <div className="max-w-[1450px] mx-auto w-full px-3 md:px-6 py-4 md:py-8">
 

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
+import toast from 'react-hot-toast'
+
 import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal" 
 import { useNavigate, useSearchParams } from "react-router-dom"
@@ -503,7 +505,7 @@ const MyMediaBookingsPage = () => {
       await mediaApi.deleteBooking(id)
       await refreshData()
     } catch {
-      alert("Could not cancel booking.")
+      toast.error("Booking could not be cancelled. Please try again.")
     } finally {
       setIsActionLoading(false)
     }
@@ -548,6 +550,7 @@ const MyMediaBookingsPage = () => {
 
   return (
     <MainLayout>
+      
       <div className="max-w-[1400px] mx-auto w-full">
 
         <button onClick={() => navigate('/media')} className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 mb-5 transition-colors">

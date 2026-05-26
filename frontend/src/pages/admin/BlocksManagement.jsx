@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import spaceAdminService from '../../api/spaceAdminService';
+import toast from 'react-hot-toast'
 
 const BlocksManagement = () => {
     const navigate = useNavigate();
@@ -14,6 +15,7 @@ const BlocksManagement = () => {
     });
     const [editingId, setEditingId] = useState(null);
     const [search, setSearch] = useState('');
+    
 
     useEffect(() => {
         let isMounted = true;
@@ -78,7 +80,7 @@ const BlocksManagement = () => {
                 error.response?.data?.name?.[0] ||
                 'Please check your inputs.';
 
-            alert(`Failed to save block: ${backendError}`);
+            toast.error(`Failed to save block: ${backendError}`);
         }
     };
 
