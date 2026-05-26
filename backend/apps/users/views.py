@@ -20,7 +20,7 @@ from apps.media.models import MediaBooking
 
 from .models import RoleOverride, Department, CustomUser, Role
 from .serializers import AdminUserSerializer, RoleOverrideSerializer, DepartmentSerializer
-from .permissions import IsITAdmin, IsITAdminOrHOD
+from .permissions import IsITAdmin, IsITAdminOrHOD, IsHODWithDepartment
 
 
 # ==========================================
@@ -619,3 +619,264 @@ class UserSearchView(APIView):
         ).values('id', 'email', 'first_name', 'last_name', 'employee_student_id')[:10]
 
         return Response(list(users))
+
+
+# ==========================================
+# HOD FACULTY CSV BULK UPLOAD VIEW
+# ==========================================
+
+class HODFacultyCSVUploadView(APIView):
+    """
+    Allows an HOD to bulk-add or update faculty/students in their department
+    by uploading a CSV file.
+
+    Security model:
+      - IsHODWithDepartment: caller must hold the HOD role AND have a dept set.
+      - Department-boundary check: existing users belonging to a different
+        department cause the entire upload to be rejected.
+
+    CSV contract:
+      Required headers (exact): Sl No, Name, Dept., mail id, Mobile Number
+      Encoding: utf-8-sig (strips Excel BOM automatically)
+
+    Transaction model:
+      - Validation pass first — zero DB writes if any row is invalid.
+      - All DB writes happen inside transaction.atomic(); any unexpected
+        exception rolls back everything.
+    """
+
+    permission_classes = [IsAuthenticated, IsHODWithDepartment]
+    parser_classes     = [MultiPartParser, FormParser]
+
+    # ── Constants ──────────────────────────────────────────────────────────
+    REQUIRED_HEADERS = {'Sl No', 'Name', 'Dept.', 'mail id', 'Mobile Number'}
+    MAX_ROWS         = 500
+
+    def post(self, request):
+        import csv
+        import io
+        from django.contrib.auth.hashers import make_password
+
+        # ── 1. File presence check ─────────────────────────────────────────
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response(
+                {'detail': 'No file uploaded. Please attach a CSV file with key "file".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 2. Decode with utf-8-sig to transparently strip Excel BOM ──────
+        try:
+            decoded = csv_file.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            return Response(
+                {'detail': 'File encoding error. Please save your CSV as UTF-8 before uploading.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reader   = csv.DictReader(io.StringIO(decoded))
+        raw_hdrs = set(reader.fieldnames or [])
+
+        # ── 3. Header validation ───────────────────────────────────────────
+        missing = self.REQUIRED_HEADERS - raw_hdrs
+        if missing:
+            return Response(
+                {
+                    'detail': (
+                        f'Invalid CSV structure. Missing headers: {", ".join(sorted(missing))}. '
+                        f'Required headers: {", ".join(sorted(self.REQUIRED_HEADERS))}.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 4. Read all rows into memory ───────────────────────────────────
+        rows = list(reader)
+
+        if len(rows) > self.MAX_ROWS:
+            return Response(
+                {'detail': f'Upload limit exceeded. Maximum {self.MAX_ROWS} rows allowed; file has {len(rows)}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not rows:
+            return Response(
+                {'detail': 'The uploaded CSV file contains no data rows.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 5. Validation pass (no DB writes) ─────────────────────────────
+        validation_errors = []
+        seen_emails       = {}   # email_lower → first Sl No that used it
+
+        parsed_rows = []  # list of clean dicts ready for DB work
+
+        for row in rows:
+            sl_no = str(row.get('Sl No', '')).strip()
+            name  = str(row.get('Name', '')).strip()
+            email = str(row.get('mail id', '')).strip()
+            phone = str(row.get('Mobile Number', '')).strip() or None
+
+            row_errors = []
+
+            # Name must not be empty
+            if not name:
+                row_errors.append('Name cannot be empty.')
+
+            # Email format validation
+            if not email:
+                row_errors.append('mail id cannot be empty.')
+            else:
+                try:
+                    validate_email(email)
+                    email_lower = email.lower()
+                except ValidationError:
+                    row_errors.append(f'"{email}" is not a valid email address.')
+                    email_lower = None
+
+                if email_lower:
+                    if email_lower in seen_emails:
+                        row_errors.append(
+                            f'Duplicate email "{email}" — already appears at row {seen_emails[email_lower]}.'
+                        )
+                    else:
+                        seen_emails[email_lower] = sl_no or str(len(parsed_rows) + 1)
+
+            if row_errors:
+                validation_errors.append({
+                    'sl_no':  sl_no,
+                    'email':  email,
+                    'errors': row_errors,
+                })
+                continue  # keep collecting errors for all rows
+
+            # Name splitting: safe for single names and multi-space names
+            parts      = name.split(' ', 1)
+            first_name = parts[0]
+            last_name  = parts[1] if len(parts) > 1 else ''
+
+            # Derive email prefix for password / role heuristic
+            email_prefix = email.split('@')[0]
+
+            parsed_rows.append({
+                'sl_no':        sl_no,
+                'name':         name,
+                'email':        email,
+                'email_lower':  email.lower(),
+                'email_prefix': email_prefix,
+                'first_name':   first_name,
+                'last_name':    last_name,
+                'phone':        phone,
+            })
+
+        # Reject the entire upload if any row failed validation
+        if validation_errors:
+            return Response(
+                {
+                    'detail': f'{len(validation_errors)} row(s) failed validation. No data was imported.',
+                    'validation_errors': validation_errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 6. Database pass — inside atomic transaction ───────────────────
+        hod_department = request.user.department
+
+        created_users = []
+        updated_users = []
+
+        try:
+            from django.db import transaction
+
+            with transaction.atomic():
+                # Pre-fetch roles needed for new-user assignment
+                student_role = Role.objects.filter(name=Role.Name.STUDENT).first()
+                faculty_role = Role.objects.filter(name=Role.Name.FACULTY).first()
+
+                # Bulk-fetch all matching existing users in one query
+                all_emails = [r['email_lower'] for r in parsed_rows]
+                existing_map = {
+                    u.email.lower(): u
+                    for u in CustomUser.objects.filter(email__in=all_emails).select_related('department')
+                }
+
+                for pr in parsed_rows:
+                    existing = existing_map.get(pr['email_lower'])
+
+                    if existing:
+                        # ── Department-boundary security check ─────────────
+                        if existing.department and existing.department != hod_department:
+                            # Abort the entire upload
+                            raise ValueError(
+                                f"User {pr['email']} belongs to department "
+                                f"'{existing.department.department_name}' and cannot be "
+                                f"modified by a Head of Department from "
+                                f"'{hod_department.department_name}'."
+                            )
+
+                        # ── Update existing user (name + phone only) ───────
+                        existing.first_name = pr['first_name']
+                        existing.last_name  = pr['last_name']
+                        existing.phone      = pr['phone']
+                        existing.save(update_fields=['first_name', 'last_name', 'phone', 'updated_at'])
+
+                        updated_users.append({
+                            'email': existing.email,
+                            'name':  f"{pr['first_name']} {pr['last_name']}".strip(),
+                        })
+
+                    else:
+                        # ── Create new user ────────────────────────────────
+                        # Role heuristic: digits in prefix → STUDENT, else FACULTY
+                        has_digits  = any(c.isdigit() for c in pr['email_prefix'])
+                        assign_role = student_role if has_digits else faculty_role
+
+                        # Deterministic password: RCSS@<email_prefix>
+                        raw_password  = f"RCSS@{pr['email_prefix']}"
+                        hashed_pwd    = make_password(raw_password)
+
+                        # Generate a unique employee_student_id
+                        import uuid
+                        emp_id = f"CSV-{uuid.uuid4().hex[:8].upper()}"
+
+                        new_user = CustomUser(
+                            email               = pr['email'],
+                            first_name          = pr['first_name'],
+                            last_name           = pr['last_name'],
+                            phone               = pr['phone'],
+                            department          = hod_department,
+                            is_active           = True,
+                            employee_student_id = emp_id,
+                            password            = hashed_pwd,
+                        )
+                        new_user.save()
+
+                        if assign_role:
+                            new_user.roles.add(assign_role)
+
+                        created_users.append({
+                            'email': new_user.email,
+                            'name':  f"{pr['first_name']} {pr['last_name']}".strip(),
+                        })
+
+        except ValueError as exc:
+            # Department-boundary violation — raised inside atomic(), already rolled back
+            return Response(
+                {'detail': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── 7. Success response ────────────────────────────────────────────
+        return Response(
+            {
+                'summary': {
+                    'created_count': len(created_users),
+                    'updated_count': len(updated_users),
+                    'error_count':   0,
+                },
+                'created': created_users,
+                'updated': updated_users,
+                'errors':  [],
+            },
+            status=status.HTTP_200_OK,
+        )

@@ -39,6 +39,17 @@ const toDatetimeLocal = (date, time) => {
   return `${date}T${time}`
 }
 
+const getISTMinDatetime = () => {
+  const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  const d = new Date(nowStr);
+  const year    = d.getFullYear();
+  const month   = String(d.getMonth() + 1).padStart(2, '0');
+  const day     = String(d.getDate()).padStart(2, '0');
+  const hours   = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 // ── Field Wrapper ──────────────────────────────────────────────────────────
 function Field({ label, required, children, error, helpText }) {
   return (
@@ -267,7 +278,35 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value }
+
+      if (name === 'event_end_datetime' && prev.event_end_datetime && next.teardown_end_datetime) {
+        const oldEnd = new Date(prev.event_end_datetime).getTime()
+        const oldTear = new Date(prev.teardown_end_datetime).getTime()
+        if (!isNaN(oldEnd) && !isNaN(oldTear)) {
+          const diff = oldTear - oldEnd
+          const newEnd = new Date(value).getTime()
+          if (!isNaN(newEnd)) {
+            next.teardown_end_datetime = formatForDatetimeLocal(new Date(newEnd + diff).toISOString())
+          }
+        }
+      }
+
+      if (name === 'event_start_datetime' && prev.event_start_datetime && next.setup_start_datetime) {
+        const oldStart = new Date(prev.event_start_datetime).getTime()
+        const oldSetup = new Date(prev.setup_start_datetime).getTime()
+        if (!isNaN(oldStart) && !isNaN(oldSetup)) {
+          const diff = oldSetup - oldStart
+          const newStart = new Date(value).getTime()
+          if (!isNaN(newStart)) {
+            next.setup_start_datetime = formatForDatetimeLocal(new Date(newStart + diff).toISOString())
+          }
+        }
+      }
+
+      return next
+    })
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }))
   }
 
@@ -332,7 +371,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
       }
       if (tearDt && endDt && tearDt < endDt) {
         e.teardown_end_datetime = "Must be after event ends"
-        e.timeError = "Teardown time cannot end before the event ends."
+        e.timeError = "Pack-up time cannot end before the event ends."
       }
     }
 
@@ -634,17 +673,32 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
             </div>
 
             <div className="space-y-3">
-              <div className="bg-white/10 rounded-xl p-4 border border-white/5">
-                <p className="text-[10px] text-green-300 uppercase font-semibold">
-                  Booking Duration
-                </p>
-                <p className="text-white text-sm font-semibold mt-1">
-                  {formatVisualTime(actualSetup)}
-                  <br />
-                  <span className="text-green-300/80 text-xs font-normal">until</span>
-                  <br />
-                  {formatVisualTime(actualTeardown)}
-                </p>
+              <div className="bg-white/10 rounded-xl p-4 border border-white/5 space-y-3">
+                <div>
+                  <p className="text-[10px] text-green-300 uppercase font-semibold">
+                    Event Timing
+                  </p>
+                  <p className="text-white text-sm font-semibold mt-1">
+                    {formatVisualTime(formData.event_start_datetime)}
+                    <span className="text-green-300/80 text-xs font-normal mx-1.5">-</span>
+                    <br />
+                    {formatVisualTime(formData.event_end_datetime)}
+                  </p>
+                </div>
+                {needsBuffer && (
+                  <div className="pt-3 border-t border-white/10">
+                    <p className="text-[10px] text-amber-300 uppercase font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3" />
+                      Total Booking Duration
+                    </p>
+                    <p className="text-white text-sm font-semibold mt-1">
+                      {formatVisualTime(actualSetup)}
+                      <span className="text-green-300/80 text-xs font-normal mx-1.5">-</span>
+                      <br />
+                      {formatVisualTime(actualTeardown)}
+                    </p>
+                  </div>
+                )}
               </div>
               {needsBuffer && (
                 <p className="text-xs text-green-200/70 italic px-1">
@@ -733,6 +787,7 @@ Your request will still be reviewed.
                     className={inputCls(errors.event_start_datetime)}
                     value={formData.event_start_datetime}
                     onChange={handleChange}
+                    min={getISTMinDatetime()}
                   />
                 </Field>
                 <Field
@@ -746,6 +801,7 @@ Your request will still be reviewed.
                     className={inputCls(errors.event_end_datetime)}
                     value={formData.event_end_datetime}
                     onChange={handleChange}
+                    min={formData.event_start_datetime || getISTMinDatetime()}
                   />
                 </Field>
               </div>
@@ -778,6 +834,7 @@ Your request will still be reviewed.
                       className={inputCls(errors.setup_start_datetime)}
                       value={formData.setup_start_datetime}
                       onChange={handleChange}
+                      min={getISTMinDatetime()}
                     />
                   </Field>
                   <Field
@@ -792,6 +849,7 @@ Your request will still be reviewed.
                       className={inputCls(errors.teardown_end_datetime)}
                       value={formData.teardown_end_datetime}
                       onChange={handleChange}
+                      min={formData.event_end_datetime || formData.setup_start_datetime || getISTMinDatetime()}
                     />
                   </Field>
                 </div>

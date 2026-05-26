@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle2, Clapperboard, Utensils } from "lucide-react"
-import api from "../api/axios"
+import mediaApi from "../api/mediaApi"
 import { bookingSessionActions } from "../store/bookingSessionStore"
 
 function LinkedBookingOptions({
@@ -25,12 +25,10 @@ function LinkedBookingOptions({
       bookingSessionActions.setMediaCapacity(null)
       setIsCheckingMedia(true)
       try {
-        const response = await api.get("/media/bookings/team_capacity/", {
-          params: { start: startIso, end: endIso },
-        })
+        const data = await mediaApi.getCrewCount({ start: startIso, end: endIso })
         if (cancelled) return
-        setMediaCapacity(response.data)
-        bookingSessionActions.setMediaCapacity(response.data)
+        setMediaCapacity(data)
+        bookingSessionActions.setMediaCapacity(data)
       } catch (error) {
         if (cancelled) return
         setMediaCapacity(null)
@@ -49,9 +47,9 @@ function LinkedBookingOptions({
 
   if (!visible) return null
 
-  const messDone = completedBookings.includes("mess")
-  const mediaDone = completedBookings.includes("media")
-  const mediaLimited = mediaCapacity?.limited_capacity
+  const messDone   = completedBookings.includes("mess")
+  const mediaDone   = completedBookings.includes("media")
+  const mediaIsFull = mediaCapacity?.is_full
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
@@ -95,9 +93,9 @@ function LinkedBookingOptions({
                   Checking media team capacity...
                 </p>
               )}
-              {!isCheckingMedia && mediaLimited && (
-                <p className="mt-1.5 text-xs font-semibold text-amber-800">
-                  Media team is at limited capacity for this slot.
+              {!isCheckingMedia && mediaIsFull && (
+                <p className="mt-1.5 text-xs font-semibold text-red-700">
+                  Media team is fully occupied for this time slot.
                 </p>
               )}
             </div>

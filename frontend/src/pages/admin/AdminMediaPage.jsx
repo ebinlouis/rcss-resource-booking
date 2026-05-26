@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-    Building2, ChevronDown, Check, Mail, Package,
-    Phone, RefreshCw, Settings, Wrench, X, Users,
+    AlertTriangle, Building2, Check, ChevronDown, Clapperboard,
+    Mail, Package, Phone, RefreshCw, Users, Wrench, X, Clock,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
@@ -23,7 +23,6 @@ const STATUS_STYLES = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// UPDATED: Now parses the full ISO string
 const formatDate = (isoString) => {
     if (!isoString) return 'TBD'
     const d = new Date(isoString)
@@ -31,7 +30,6 @@ const formatDate = (isoString) => {
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// UPDATED: Now extracts time from the full ISO string
 const formatTime = (isoString) => {
     if (!isoString) return 'TBD'
     const d = new Date(isoString)
@@ -92,134 +90,357 @@ const ModalBackdrop = ({ onClose, children }) => (
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 
-function TeamSettingsModal({ currentMax, onSave, onClose }) {
-    const [value,   setValue]   = useState(String(currentMax ?? ''))
-    const [loading, setLoading] = useState(false)
-    const [error,   setError]   = useState('')
+/**
+ * CrewApprovalModal — fetches crew availability for the booking, shows
+ * a multi-select checkbox list with busy/free indicators, and submits
+ * the selected crew IDs along with the APPROVED status.
+ */
+function CrewApprovalModal({ booking, onConfirm, onCancel }) {
+    const [crewData,    setCrewData]    = useState(null)
+    const [fetchError,  setFetchError]  = useState('')
+    const [fetching,    setFetching]    = useState(true)
+    const [selected,    setSelected]    = useState(new Set())
+    const [submitting,  setSubmitting]  = useState(false)
+    const [submitError, setSubmitError] = useState('')
 
-    const parsed  = parseInt(value, 10)
-    const isValid = !isNaN(parsed) && parsed >= 1 && parsed <= 20 && parsed !== currentMax
+    useEffect(() => {
+        let cancelled = false
+        mediaApi.getCrewAvailability(booking.id)
+            .then((data) => { if (!cancelled) { setCrewData(data); setFetching(false) } })
+            .catch((err) => { if (!cancelled) { setFetchError(apiError(err)); setFetching(false) } })
+        return () => { cancelled = true }
+    }, [booking.id])
 
-    const handleSave = async () => {
-        if (!isValid) return
-        setLoading(true); setError('')
+    const toggleMember = (id) => {
+        setSelected((prev) => {
+            const next = new Set(prev)
+            next.has(id) ? next.delete(id) : next.add(id)
+            return next
+        })
+    }
+
+    const handleSubmit = async () => {
+        if (selected.size === 0) { setSubmitError('Please select at least one crew member.'); return }
+        setSubmitting(true); setSubmitError('')
         try {
-            await onSave(parsed)
-            onClose()
+            await onConfirm(Array.from(selected))
         } catch (err) {
-            setError(apiError(err))
-        } finally {
-            setLoading(false)
+            setSubmitError(apiError(err))
+            setSubmitting(false)
         }
     }
 
+    const crew = crewData?.crew ?? []
+    const freeCrew = crew.filter((m) => !m.is_busy)
+    const busyCrew = crew.filter((m) => m.is_busy)
+
     return (
-        <ModalBackdrop onClose={onClose}>
+        <ModalBackdrop onClose={submitting ? undefined : onCancel}>
             <div
-                className="w-full max-w-[420px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
-                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                className="w-full max-w-[560px] rounded-2xl border border-[#e8f5ee] bg-white shadow-2xl shadow-black/10 overflow-hidden"
+                style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
             >
-                <div className="mb-5 flex items-center justify-between">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 px-7 py-5 border-b border-[#e8f5ee]">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0fdf4] text-[#15803d]">
-                            <Settings className="h-5 w-5" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dcfce7] text-[#15803d]">
+                            <Users className="h-5 w-5" />
                         </div>
                         <div>
-                            <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Team Settings</p>
-                            <p className="text-[13px] text-[#6b7280]">Set team availability</p>
-                        </div>
+<p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Assign Crew & Approve</p>
+<p className="text-[13px] text-[#6b7280]">{booking.event_name}</p>
+</div>
                     </div>
-                    <button onClick={onClose} className="rounded-lg p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#374151]">
+                    <button onClick={onCancel} disabled={submitting} className="rounded-lg p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#374151] disabled:opacity-40">
                         <X className="h-4 w-4" />
                     </button>
                 </div>
-
-                <div className="rounded-xl border border-[#e8f5ee] bg-[#f6fbf8] p-4 mb-5">
-                    <p className="text-[13px] font-medium leading-relaxed text-[#374151]">
-                        <span className="font-bold text-[#0f172a]">Maximum events at the same time</span> 
-                        Choose how many events your media team can handle at the same time.
-Already approved events will not be affected.
-                    </p>
-                </div>
-
-                <label className="mb-2 block text-[12px] font-bold uppercase tracking-[0.1em] text-[#6b7280]">
-                    Max Concurrent Events
-                </label>
-                <div className="flex items-center gap-3">
-                    <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={value}
-                        onChange={(e) => { setValue(e.target.value); setError('') }}
-                        className="w-full rounded-xl border border-[#dbe7df] bg-white px-4 py-3 text-[16px] font-semibold text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7]"
-                        autoFocus
-                    />
-                    <span className="shrink-0 text-[13px] font-medium text-[#6b7280]">/ 20 max</span>
-                </div>
-                <p className="mt-2 text-[13px] text-[#6b7280]">Currently set to <strong>{currentMax}</strong>.</p>
-
-                {error && (
-                    <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13.5px] font-medium text-red-700">
-                        {error}
-                    </p>
+                <div>
+    <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">
+        Assign Crew & Approve
+    </p>
+    <p className="text-[13px] text-[#6b7280]">
+        {booking.event_name}
+    </p>
+</div>
+                {/* Window info */}
+                {crewData && (
+                    <div className="px-7 pt-4 pb-2">
+                        <p className="text-[12px] font-semibold text-[#6b7280]">
+                            Time window: {formatDate(crewData.window_start)} {formatTime(crewData.window_start)} — {formatTime(crewData.window_end)}
+                        </p>
+                    </div>
                 )}
 
-                <div className="mt-6 flex justify-end gap-2.5">
-                    <button
-                        onClick={onClose}
-                        disabled={loading}
-                        className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-2.5 text-[14px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={!isValid || loading}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#166534] disabled:opacity-40"
-                    >
-                        {loading ? 'Saving…' : 'Save'}
-                    </button>
+                {/* Crew list */}
+                <div className="max-h-[360px] overflow-y-auto px-7 py-3 space-y-2">
+                    {fetching ? (
+                        <div className="flex items-center justify-center py-10">
+                            <RefreshCw className="h-6 w-6 animate-spin text-[#15803d]" />
+                            <span className="ml-3 text-[14px] text-[#6b7280]">Checking availability…</span>
+                        </div>
+                    ) : fetchError ? (
+                        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{fetchError}</p>
+                    ) : crew.length === 0 ? (
+                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No crew members found. Please contact IT Admin to assign the MEDIA_INCHARGE role.</p>
+                    ) : (
+                        <>
+                            {/* Free members */}
+                            {freeCrew.length > 0 && (
+                                <div className="mb-3">
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-green-600">Available ({freeCrew.length})</p>
+                                    <div className="space-y-2">
+                                        {freeCrew.map((member) => (
+                                            <CrewMemberRow key={member.id} member={member} selected={selected.has(member.id)} onToggle={toggleMember} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Busy members */}
+                            {busyCrew.length > 0 && (
+                                <div>
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Busy — Already Assigned ({busyCrew.length})</p>
+                                    <div className="space-y-2">
+                                        {busyCrew.map((member) => (
+                                            <CrewMemberRow key={member.id} member={member} selected={selected.has(member.id)} onToggle={toggleMember} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+
+                {/* Error & footer */}
+                <div className="border-t border-[#e8f5ee] px-7 py-5">
+                    {submitError && (
+                        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700">{submitError}</p>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-[13px] text-[#6b7280]">
+                            {selected.size === 0 ? 'No crew selected' : `${selected.size} crew member${selected.size > 1 ? 's' : ''} selected`}
+                        </p>
+                        <div className="flex gap-2.5">
+                            <button onClick={onCancel} disabled={submitting} className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-2.5 text-[14px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={submitting || fetching || selected.size === 0}
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#166534] disabled:opacity-40"
+                            >
+                                {submitting ? <><RefreshCw className="h-4 w-4 animate-spin" /> Approving…</> : <><Check className="h-4 w-4" /> Approve Booking</>}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </ModalBackdrop>
     )
 }
 
-function ApproveModal({ booking, onConfirm, onCancel, isLoading }) {
-    if (!booking) return null
+function CrewMemberRow({ member, selected, onToggle }) {
     return (
-        <ModalBackdrop onClose={onCancel}>
-            <div
-                className="w-full max-w-[400px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
-                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
-            >
-                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
-                    <Check className="h-6 w-6 text-[#15803d]" />
+        <button
+            type="button"
+            onClick={() => onToggle(member.id)}
+            className={`w-full rounded-xl border px-4 py-3 text-left transition-all ${
+                selected
+                    ? 'border-[#15803d] bg-[#f0fdf4] ring-1 ring-[#15803d]'
+                    : member.is_busy
+                    ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+                    : 'border-[#e8f5ee] bg-white hover:border-[#15803d]/40 hover:bg-[#f9fdfb]'
+            }`}
+        >
+            <div className="flex items-start gap-3">
+                {/* Checkbox */}
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+                    selected ? 'border-[#15803d] bg-[#15803d]' : 'border-[#d1d5db]'
+                }`}>
+                    {selected && <Check className="h-3 w-3 text-white" />}
                 </div>
-                <p className="text-center text-[18px] font-bold tracking-tight text-[#0f172a]">Approve this request?</p>
-                <p className="mt-2 text-center text-[14.5px] leading-relaxed text-[#4b5563]">
-                    Are you sure you want to approve this media request for{' '}
-                    <span className="font-semibold text-[#0f172a]">{booking.user_details?.name || `User #${booking.user}`}</span>?
-                </p>
-                {booking.is_team_request && (
-                    <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-left">
-                        <p className="flex items-start gap-2 text-[13.5px] font-medium leading-relaxed text-purple-800">
-                            <Users className="mt-0.5 h-4 w-4 shrink-0 text-purple-600" />
-                            <span>
-                                <strong className="font-bold">This event requires media team support.</strong> Approving it will reserve the team and required equipment. 
-                                Make sure to check the event schedule and team availability before confirming.
+
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[14px] font-semibold text-[#0f172a]">{member.name}</p>
+                        {member.is_busy ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                <AlertTriangle className="h-3 w-3" /> Busy
                             </span>
-                        </p>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-700">
+                                <Check className="h-3 w-3" /> Free
+                            </span>
+                        )}
                     </div>
-                )}
-                <div className="mt-6 flex justify-center gap-2.5">
-                    <button onClick={onCancel} disabled={isLoading} className="rounded-xl border border-[#e2e8f0] bg-white px-6 py-2.5 text-[14.5px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40">
-                        Cancel
+                    {member.designation && (
+                        <p className="mt-0.5 text-[12.5px] text-[#6b7280]">{member.designation}</p>
+                    )}
+                    {member.phone && (
+                        <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-[#6b7280]">
+                            <Phone className="h-3 w-3" /> {member.phone}
+                        </p>
+                    )}
+                    {/* Busy conflicts warning */}
+                    {member.is_busy && member.busy_bookings?.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                            {member.busy_bookings.map((b, i) => (
+                                <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                    <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
+                                </p>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </button>
+    )
+}
+
+function UpdateCrewModal({ booking, onConfirm, onCancel }) {
+    const [crewData,    setCrewData]    = useState(null)
+    const [fetchError,  setFetchError]  = useState('')
+    const [fetching,    setFetching]    = useState(true)
+    const [selected,    setSelected]    = useState(new Set())
+    const [submitting,  setSubmitting]  = useState(false)
+    const [submitError, setSubmitError] = useState('')
+
+    useEffect(() => {
+        let cancelled = false
+        mediaApi.getEditCrewAvailability(booking.id)
+            .then((data) => {
+                if (!cancelled) {
+                    setCrewData(data)
+                    const preselected = new Set()
+                    data.available_crew?.forEach(m => { if (m.is_preselected) preselected.add(m.id) })
+                    setSelected(preselected)
+                    setFetching(false)
+                }
+            })
+            .catch((err) => { if (!cancelled) { setFetchError(apiError(err)); setFetching(false) } })
+        return () => { cancelled = true }
+    }, [booking.id])
+
+    const toggleMember = (id) => {
+        setSelected((prev) => {
+            const next = new Set(prev)
+            next.has(id) ? next.delete(id) : next.add(id)
+            return next
+        })
+    }
+
+    const handleSubmit = async () => {
+        if (selected.size === 0) { setSubmitError('Please select at least one crew member.'); return }
+        setSubmitting(true); setSubmitError('')
+        try {
+            await onConfirm(Array.from(selected))
+        } catch (err) {
+            setSubmitError(apiError(err))
+            setSubmitting(false)
+        }
+    }
+
+    const freeCrew = crewData?.available_crew ?? []
+    const busyCrew = crewData?.currently_assigned_busy ?? []
+
+    return (
+        <ModalBackdrop onClose={submitting ? undefined : onCancel}>
+            <div
+                className="w-full max-w-[560px] rounded-2xl border border-[#e8f5ee] bg-white shadow-2xl shadow-black/10 overflow-hidden"
+                style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+            >
+                <div className="flex items-center justify-between gap-3 px-7 py-5 border-b border-[#e8f5ee]">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dbeafe] text-[#1d4ed8]">
+                            <Users className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Update Assigned Crew</p>
+                            <p className="text-[13px] text-[#6b7280]">{booking.event_name}</p>
+                        </div>
+                    </div>
+                    <button onClick={onCancel} disabled={submitting} className="rounded-lg p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#374151] disabled:opacity-40">
+                        <X className="h-4 w-4" />
                     </button>
-                    <button onClick={onConfirm} disabled={isLoading} className="inline-flex items-center gap-2 rounded-xl bg-[#15803d] px-6 py-2.5 text-[14.5px] font-semibold text-white hover:bg-[#166534] disabled:opacity-40">
-                        {isLoading ? 'Approving…' : 'Yes, Approve'}
-                    </button>
+                </div>
+                <div className="max-h-[360px] overflow-y-auto px-7 py-3 space-y-2">
+                    {fetching ? (
+                        <div className="flex items-center justify-center py-10">
+                            <RefreshCw className="h-6 w-6 animate-spin text-[#1d4ed8]" />
+                            <span className="ml-3 text-[14px] text-[#6b7280]">Loading crew availability…</span>
+                        </div>
+                    ) : fetchError ? (
+                        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{fetchError}</p>
+                    ) : (freeCrew.length === 0 && busyCrew.length === 0) ? (
+                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No crew members found.</p>
+                    ) : (
+                        <>
+                            {freeCrew.length > 0 && (
+                                <div className="mb-3">
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[#1d4ed8]">Available Options ({freeCrew.length})</p>
+                                    <div className="space-y-2">
+                                        {freeCrew.map((member) => (
+                                            <CrewMemberRow key={member.id} member={member} selected={selected.has(member.id)} onToggle={toggleMember} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {busyCrew.length > 0 && (
+                                <div>
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Currently Assigned but Busy ({busyCrew.length})</p>
+                                    <div className="space-y-2">
+                                        {busyCrew.map((member) => (
+                                            <div key={member.id} className="w-full rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3 opacity-75">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <p className="text-[14px] font-semibold text-[#0f172a]">{member.name}</p>
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                                                <AlertTriangle className="h-3 w-3" /> Busy
+                                                            </span>
+                                                        </div>
+                                                        {member.designation && <p className="mt-0.5 text-[12.5px] text-[#6b7280]">{member.designation}</p>}
+                                                        {member.busy_bookings?.length > 0 && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {member.busy_bookings.map((b, i) => (
+                                                                    <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                                                        <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+                <div className="border-t border-[#e8f5ee] px-7 py-5">
+                    {submitError && (
+                        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700">{submitError}</p>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-[13px] text-[#6b7280]">
+                            {selected.size === 0 ? 'No crew selected' : `${selected.size} crew member${selected.size > 1 ? 's' : ''} selected`}
+                        </p>
+                        <div className="flex gap-2.5">
+                            <button onClick={onCancel} disabled={submitting} className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-2.5 text-[14px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={submitting || fetching || selected.size === 0}
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#1d4ed8] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#1e40af] disabled:opacity-40"
+                            >
+                                {submitting ? <><RefreshCw className="h-4 w-4 animate-spin" /> Saving…</> : <><Check className="h-4 w-4" /> Save Changes</>}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </ModalBackdrop>
@@ -234,7 +455,7 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
         <ModalBackdrop onClose={onCancel}>
             <div
                 className="w-full max-w-[460px] rounded-2xl border border-[#e8f5ee] bg-white p-7 shadow-2xl shadow-black/10"
-                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
             >
                 <p className="text-[19px] font-semibold tracking-tight text-[#0f172a]">
                     {isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?'}
@@ -276,14 +497,14 @@ function SuccessModal({ booking, onClose }) {
         <ModalBackdrop onClose={onClose}>
             <div
                 className="w-full max-w-[360px] rounded-2xl border border-[#e8f5ee] bg-white p-8 text-center shadow-2xl shadow-black/10"
-                style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
+                style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
             >
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
                     <Check className="h-6 w-6 text-[#15803d]" />
                 </div>
                 <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Request approved</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-[#6b6b6b]">
-                    <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved.
+                    <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved with crew assigned.
                 </p>
                 <button onClick={onClose} className="mt-6 w-full rounded-xl bg-[#15803d] py-3 text-[14px] font-semibold text-white hover:bg-[#166534]">
                     Done
@@ -293,9 +514,95 @@ function SuccessModal({ booking, onClose }) {
     )
 }
 
+// ── Media Team Roster Card ─────────────────────────────────────────────────────
+
+function MediaTeamRosterCard() {
+    const [roster,  setRoster]  = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error,   setError]   = useState('')
+
+    useEffect(() => {
+        let cancelled = false
+        mediaApi.getCrewRoster()
+            .then((data) => { if (!cancelled) { setRoster(data); setLoading(false) } })
+            .catch(() => { if (!cancelled) { setError('Could not load team roster.'); setLoading(false) } })
+        return () => { cancelled = true }
+    }, [])
+
+    return (
+        <div
+            className="rounded-2xl border border-[#e8f5ee] bg-white shadow-sm overflow-hidden"
+            style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+        >
+            {/* Card header */}
+            <div className="flex items-center gap-3 border-b border-[#e8f5ee] px-6 py-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f0fdf4] text-[#15803d]">
+                    <Clapperboard className="h-4 w-4" />
+                </div>
+                <div>
+                    <p className="text-[15px] font-bold tracking-tight text-[#0f172a]">Media Team Roster</p>
+                    <p className="text-[12px] text-[#6b7280]">All MEDIA_INCHARGE members · Managed by IT Admin</p>
+                </div>
+                {!loading && (
+                    <span className="ml-auto rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[12px] font-bold text-[#15803d]">
+                        {roster.length} member{roster.length !== 1 ? 's' : ''}
+                    </span>
+                )}
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-4">
+                {loading ? (
+                    <div className="flex items-center gap-3 py-4">
+                        <RefreshCw className="h-4 w-4 animate-spin text-[#15803d]" />
+                        <span className="text-[13.5px] text-[#6b7280]">Loading roster…</span>
+                    </div>
+                ) : error ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{error}</p>
+                ) : roster.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[#d1fae5] bg-[#f6fbf8] px-5 py-8 text-center">
+                        <Users className="mx-auto mb-3 h-7 w-7 text-[#86efac]" />
+                        <p className="text-[14px] font-semibold text-[#374151]">No media crew assigned yet</p>
+                        <p className="mt-1 text-[13px] text-[#6b7280]">Contact an IT Admin to assign the MEDIA_INCHARGE role to team members.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {roster.map((member) => (
+                            <div key={member.id} className="flex items-center gap-4 rounded-xl border border-[#e8f5ee] bg-[#f9fdfb] px-4 py-3">
+                                {/* Avatar */}
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[15px] font-bold text-[#15803d]">
+                                    {member.name?.charAt(0)?.toUpperCase() ?? '?'}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[14.5px] font-semibold text-[#0f172a]">{member.name}</p>
+                                    {member.designation && (
+                                        <p className="truncate text-[12.5px] text-[#6b7280]">{member.designation}</p>
+                                    )}
+                                </div>
+                                <div className="shrink-0 space-y-1 text-right">
+                                    {member.phone && (
+                                        <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-[#374151]">
+                                            <Phone className="h-3.5 w-3.5 text-[#15803d]" /> {member.phone}
+                                        </p>
+                                    )}
+                                    {member.email && (
+                                        <p className="flex items-center gap-1.5 text-[12.5px] text-[#6b7280]">
+                                            <Mail className="h-3.5 w-3.5 text-[#15803d]" /> {member.email}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onRejectClick, isHighlighted }) {
+function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onRejectClick, onUpdateCrewClick, isHighlighted }) {
     const [isExpanded, setIsExpanded] = useState(false)
 
     useEffect(() => {
@@ -309,16 +616,19 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     const hasServices  = Boolean(booking.requested_services?.trim())
     const hasNotes     = Boolean(booking.user_notes?.trim())
 
-    // UPDATED: Now compares absolute time strings instead of dates
-    const hasBuffer = booking.setup_start_datetime && booking.event_start_datetime && 
+    const hasBuffer = booking.setup_start_datetime && booking.event_start_datetime &&
         (new Date(booking.setup_start_datetime).getTime() !== new Date(booking.event_start_datetime).getTime() ||
-         new Date(booking.teardown_end_datetime).getTime() !== new Date(booking.event_end_datetime).getTime());
+         new Date(booking.teardown_end_datetime).getTime() !== new Date(booking.event_end_datetime).getTime())
 
-    const user         = booking.user_details ?? {}
+    const user          = booking.user_details ?? {}
     const requesterName = user.name || `User #${booking.user}`
     const dept         = user.department || user.department_code || 'Department not provided'
     const spaceName    = booking.space_details?.name || 'Any suitable venue'
     const location     = booking.space_details?.location || 'Location not specified'
+
+    // Assigned crew (visible on non-pending approved bookings)
+    const assignedCrew = booking.assigned_crew ?? []
+    const showCrew     = booking.status === 'APPROVED' && assignedCrew.length > 0
 
     const toggle = () => { if (!window.getSelection().toString()) setIsExpanded((v) => !v) }
 
@@ -373,7 +683,6 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                     <div>
                         <FieldLabel>Event Schedule</FieldLabel>
                         <div className="space-y-2.5">
-                            {/* UPDATED: Map over the new Datetimes */}
                             {[['bg-[#22c55e]', booking.setup_start_datetime], ['bg-[#dc2626]', booking.teardown_end_datetime]].map(([dot, time], i) => (
                                 <div key={i} className="flex items-center gap-3">
                                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
@@ -476,6 +785,27 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">{booking.remarks_by_admin}</p>
                             </div>
                         )}
+
+                        {/* Assigned crew for approved bookings */}
+                        {showCrew && (
+                            <div className="mb-6 rounded-xl border border-[#d1fae5] bg-[#f0fdf4] px-5 py-4">
+                                <p className="mb-3 text-[12px] font-bold uppercase tracking-[0.1em] text-[#15803d]">Assigned Crew</p>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {assignedCrew.map((member) => (
+                                        <div key={member.id} className="flex items-center gap-3 rounded-xl border border-[#bbf7d0] bg-white px-3 py-2.5">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[13px] font-bold text-[#15803d]">
+                                                {member.name?.charAt(0)?.toUpperCase() ?? '?'}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-[13.5px] font-semibold text-[#0f172a]">{member.name}</p>
+                                                {member.designation && <p className="truncate text-[12px] text-[#6b7280]">{member.designation}</p>}
+                                                {member.phone && <p className="truncate text-[12px] text-[#374151]">{member.phone}</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
@@ -485,13 +815,37 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                     <X className="h-4 w-4" /> Reject
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); onApproveClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all disabled:opacity-40">
-                                    {isActing ? 'Processing…' : <><Check className="h-4 w-4" /> Approve</>}
+                                    {isActing ? 'Processing…' : <><Check className="h-4 w-4" /> Approve & Assign Crew</>}
                                 </button>
                             </>
                         ) : booking.status === 'APPROVED' ? (
-                            <button onClick={(e) => { e.stopPropagation(); onRejectClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all disabled:opacity-40">
-                                <X className="h-4 w-4" /> Cancel Booking
-                            </button>
+<>
+    {booking.is_team_request && (
+        <button
+            onClick={(e) => {
+                e.stopPropagation()
+                onUpdateCrewClick(booking)
+            }}
+            disabled={isActing}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#1d4ed8] bg-white hover:bg-[#eff6ff] hover:text-[#1e40af] hover:border-[#bfdbfe] transition-all disabled:opacity-40"
+        >
+            <Users className="h-4 w-4" />
+            Update Crew
+        </button>
+    )}
+
+    <button
+        onClick={(e) => {
+            e.stopPropagation()
+            onRejectClick(booking)
+        }}
+        disabled={isActing}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all disabled:opacity-40"
+    >
+        <X className="h-4 w-4" />
+        Cancel Booking
+    </button>
+</>
                         ) : booking.status === 'CANCELLED' ? (
                             <span className="rounded-xl bg-gray-100 px-5 py-2 text-[13px] font-bold uppercase tracking-wider text-gray-500">
                                 Cancelled
@@ -531,28 +885,23 @@ function AdminMediaPage() {
     const requestedTab = searchParams.get('tab')
     const highlightedReference = searchParams.get('booking') || ''
 
-    const [activeTab,       setActiveTab]      = useState(() => (
+    const [activeTab,      setActiveTab]     = useState(() => (
         ['pending', 'active', 'history', 'resolved'].includes(requestedTab) ? requestedTab : 'pending'
     ))
-    const [data,            setData]           = useState({ pending: [], resolved: [], active: [], history: [] })
-    const [loading,         setLoading]        = useState(true)
-    const [error,           setError]          = useState('')
-    const [actionLoading,   setActionLoading]  = useState(null)
-    const [rejectTarget,    setRejectTarget]   = useState(null)
-    const [approveTarget,   setApproveTarget]  = useState(null)
-    const [successTarget,   setSuccessTarget]  = useState(null)
-    const [showSettings,    setShowSettings]   = useState(false)
-    const [maxConcurrent,   setMaxConcurrent]  = useState(null)
+    const [data,           setData]          = useState({ pending: [], resolved: [], active: [], history: [] })
+    const [loading,        setLoading]       = useState(true)
+    const [error,          setError]         = useState('')
+    const [actionLoading,  setActionLoading] = useState(null)
+    const [rejectTarget,   setRejectTarget]  = useState(null)
+    const [approveTarget,  setApproveTarget] = useState(null)
+    const [successTarget,  setSuccessTarget] = useState(null)
+    const [updateCrewTarget, setUpdateCrewTarget] = useState(null)
 
     const fetchData = useCallback(async ({ showLoading = true } = {}) => {
         if (showLoading) setLoading(true)
         try {
-            const [nextData, settings] = await Promise.all([
-                loadAdminMediaData(),
-                mediaApi.getSettings(),
-            ])
+            const nextData = await loadAdminMediaData()
             setData(nextData)
-            setMaxConcurrent(settings.max_concurrent_events)
             setError('')
         } catch (err) {
             console.error('Failed to load media admin data', err)
@@ -573,11 +922,15 @@ function AdminMediaPage() {
         return () => window.clearTimeout(timer)
     }, [requestedTab])
 
-    const handleApproveConfirm = async () => {
+    /** Called by CrewApprovalModal once crew are selected */
+    const handleApproveConfirm = async (crewIds) => {
         if (!approveTarget) return
         setActionLoading(approveTarget.id)
         try {
-            await mediaApi.reviewBooking(approveTarget.id, { status: 'APPROVED' })
+            await mediaApi.reviewBooking(approveTarget.id, {
+                status: 'APPROVED',
+                assigned_crew: crewIds,
+            })
             await notificationService.markBookingRead(approveTarget.reference_code, 'media').catch(() => null)
             if (normaliseReference(approveTarget.reference_code) === normaliseReference(highlightedReference)) {
                 navigate('/admin/media?tab=pending', { replace: true })
@@ -586,7 +939,24 @@ function AdminMediaPage() {
             setApproveTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
-            alert(`Failed to approve booking. ${apiError(err)}`)
+            // Let the modal handle the error display by re-throwing
+            setActionLoading(null)
+            throw err
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const handleUpdateCrewConfirm = async (crewIds) => {
+        if (!updateCrewTarget) return
+        setActionLoading(updateCrewTarget.id)
+        try {
+            await mediaApi.updateCrew(updateCrewTarget.id, crewIds)
+            setUpdateCrewTarget(null)
+            await fetchData({ showLoading: false })
+        } catch (err) {
+            setActionLoading(null)
+            throw err
         } finally {
             setActionLoading(null)
         }
@@ -608,11 +978,6 @@ function AdminMediaPage() {
         } finally {
             setActionLoading(null)
         }
-    }
-
-    const handleSaveSettings = async (newMax) => {
-        await mediaApi.updateSettings({ max_concurrent_events: newMax })
-        setMaxConcurrent(newMax)
     }
 
     const todayStr = new Date().toLocaleDateString('en-CA')
@@ -670,7 +1035,7 @@ function AdminMediaPage() {
 
     if (!canManageMedia) {
         return (
-            <div className="flex min-h-full flex-col items-center justify-center gap-3 bg-[#f6fbf8] p-8 text-center" style={{ fontFamily: "'Geist', system-ui, sans-serif" }}>
+            <div className="flex min-h-full flex-col items-center justify-center gap-3 bg-[#f6fbf8] p-8 text-center" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
                     <X className="h-7 w-7" />
                 </div>
@@ -681,19 +1046,27 @@ function AdminMediaPage() {
     }
 
     return (
-        <div className="min-h-full bg-[#f6fbf8] p-6 md:p-8" style={{ fontFamily: "'Geist', system-ui, sans-serif" }}>
+        <div className="min-h-full bg-[#f6fbf8] p-6 md:p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
             {/* Modals */}
             {approveTarget && (
-                <ApproveModal booking={approveTarget} onConfirm={handleApproveConfirm} onCancel={() => setApproveTarget(null)} isLoading={actionLoading === approveTarget.id} />
+                <CrewApprovalModal
+                    booking={approveTarget}
+                    onConfirm={handleApproveConfirm}
+                    onCancel={() => setApproveTarget(null)}
+                />
+            )}
+            {updateCrewTarget && (
+                <UpdateCrewModal
+                    booking={updateCrewTarget}
+                    onConfirm={handleUpdateCrewConfirm}
+                    onCancel={() => setUpdateCrewTarget(null)}
+                />
             )}
             {rejectTarget && (
                 <RejectModal booking={rejectTarget} onConfirm={handleRejectConfirm} onCancel={() => setRejectTarget(null)} isLoading={actionLoading === rejectTarget.id} />
             )}
             {successTarget && (
                 <SuccessModal booking={successTarget} onClose={() => setSuccessTarget(null)} />
-            )}
-            {showSettings && maxConcurrent !== null && (
-                <TeamSettingsModal currentMax={maxConcurrent} onSave={handleSaveSettings} onClose={() => setShowSettings(false)} />
             )}
 
             <div className="mx-auto max-w-[1100px]">
@@ -703,23 +1076,11 @@ function AdminMediaPage() {
                         <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Rajagiri College · Admin</p>
                         <div className="flex items-center gap-2">
                           <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
-                          <PageInfo text="Approve or reject media team booking requests. Configure how many simultaneous media bookings are allowed." />
+                          <PageInfo text="Approve media booking requests and assign crew members. The Media Team Roster is managed by IT Admin." />
                         </div>
                         <p className="mt-2 text-[15px] text-[#374151]">Review media support and equipment requests for events.</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowSettings(true)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4]"
-                        >
-                            <Settings className="h-[17px] w-[17px]" />
-                            Team Availability
-                            {maxConcurrent !== null && (
-                                <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-[12px] font-bold text-[#15803d]">
-                                    {maxConcurrent}
-                                </span>
-                            )}
-                        </button>
                         <button onClick={() => fetchData()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4] disabled:opacity-40">
                             <RefreshCw className={`h-[18px] w-[18px] ${loading ? 'animate-spin' : ''}`} /> Refresh
                         </button>
@@ -739,6 +1100,11 @@ function AdminMediaPage() {
                             <p className="mt-2 text-[14px] font-semibold text-[#374151]">{label}</p>
                         </div>
                     ))}
+                </div>
+
+                {/* Media Team Roster Card */}
+                <div className="mb-6">
+                    <MediaTeamRosterCard />
                 </div>
 
                 {/* Tabs */}
@@ -764,17 +1130,19 @@ function AdminMediaPage() {
                 {/* List */}
                 <div className="space-y-4">
                     {loading && list.length === 0 ? (
-                        <div className="rounded-2xl border border-[#e8f5ee] bg-white py-16 text-center shadow-sm">
-                            <RefreshCw className="mx-auto mb-3 h-8 w-8 animate-spin text-[#15803d]" />
-                            <p className="text-[15px] font-semibold text-[#6b7280]">Loading media requests...</p>
+                        <div className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-12 text-center">
+                            <RefreshCw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15803d]" />
+                            <p className="text-[14px] font-medium text-[#6b7280]">Loading bookings…</p>
                         </div>
                     ) : list.length === 0 ? (
-                        <div className="rounded-2xl border border-[#e8f5ee] bg-white px-8 py-16 text-center shadow-sm">
-                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#dcfce7] text-[#15803d]">
-                                <Check className="h-6 w-6" />
+                        <div className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-12 text-center">
+                            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#f0fdf4]">
+                                <Package className="h-6 w-6 text-[#86efac]" />
                             </div>
-                            <p className="text-[16px] font-semibold text-[#0f172a]">No requests found</p>
-                            <p className="mt-1.5 text-[14px] text-[#6b7280]">There are no {activeTab.replace('_', ' ')} requests in this section right now.</p>
+<p className="text-[16px] font-semibold text-[#0f172a]">No requests found</p>
+<p className="mt-1.5 text-[14px] text-[#6b7280]">
+    There are no {activeTab.replace('_', ' ')} requests in this section right now.
+</p>
                         </div>
                     ) : (
                         list.map((booking) => (
@@ -783,8 +1151,9 @@ function AdminMediaPage() {
                                 booking={booking}
                                 isPendingTab={activeTab === 'pending'}
                                 isActing={actionLoading === booking.id}
-                                onApproveClick={setApproveTarget}
-                                onRejectClick={setRejectTarget}
+                                onApproveClick={(b) => setApproveTarget(b)}
+                                onRejectClick={(b) => setRejectTarget(b)}
+                                onUpdateCrewClick={(b) => setUpdateCrewTarget(b)}
                                 isHighlighted={normaliseReference(booking.reference_code) === normaliseReference(highlightedReference)}
                             />
                         ))

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
@@ -42,9 +43,19 @@ export default function AdminFacultiesPage() {
     const [loading, setLoading] = useState(true);
     const [listError, setListError] = useState(null);
     const isBlockingHodSetup = !isHOD && !loading && !listError && faculties.length === 0;
-    
+
     // Search
     const [searchQuery, setSearchQuery] = useState('');
+
+    // CSV Upload Modal
+    const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
+    const [csvFile, setCsvFile] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [csvUploadError, setCsvUploadError] = useState(null);
+
+    // CSV Results Modal
+    const [csvUploadResult, setCsvUploadResult] = useState(null);
+    const [csvResultTab, setCsvResultTab] = useState('created');
 
     // Add / Edit Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,6 +84,7 @@ export default function AdminFacultiesPage() {
 
     // Dropdown Action Menu
     const [openMenuUserId, setOpenMenuUserId] = useState(null);
+    const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
     const menuRef = useRef(null);
 
     useEffect(() => {
@@ -81,11 +93,21 @@ export default function AdminFacultiesPage() {
                 setOpenMenuUserId(null);
             }
         };
+        const handleScroll = (e) => {
+            if (menuRef.current && menuRef.current.contains(e.target)) return;
+            setOpenMenuUserId(null);
+        };
         document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('scroll', handleScroll, true);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', handleScroll, true);
         };
     }, []);
+
+    // Delete/Deactivate Confirmation Modal
+    const [actionTargetUser, setActionTargetUser] = useState(null);
+    const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -94,6 +116,8 @@ export default function AdminFacultiesPage() {
                 setViewingUser(null);
                 setResetTargetUser(null);
                 setActionTargetUser(null);
+                setIsCSVModalOpen(false);
+                setCsvUploadResult(null);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -101,10 +125,6 @@ export default function AdminFacultiesPage() {
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
-
-    // Delete/Deactivate Confirmation Modal
-    const [actionTargetUser, setActionTargetUser] = useState(null);
-    const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
     // Fetch initial page data
     const fetchData = useCallback(async () => {
@@ -184,6 +204,7 @@ export default function AdminFacultiesPage() {
     }, [departmentId, isHOD]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchData();
     }, [fetchData]);
 
@@ -196,7 +217,7 @@ export default function AdminFacultiesPage() {
                 navigate(location.pathname, { replace: true });
             }
         }
-    }, [loading, listError, location.search]);
+    }, [loading, listError, location.search, location.pathname, navigate]);
 
     // HOD is displayed separately in a Highlighted HOD Card
     const activeHOD = faculties.find(f => f.effective_roles?.includes('HOD'));
@@ -342,6 +363,45 @@ export default function AdminFacultiesPage() {
         }
     };
 
+    const handleCSVUpload = async () => {
+        if (!csvFile) return;
+        setIsUploading(true);
+        setCsvUploadError(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', csvFile);
+            const res = await api.post('/auth/admin-users/csv-upload/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            setCsvUploadResult(res.data);
+            setCsvResultTab('created');
+            setIsCSVModalOpen(false);
+            setCsvFile(null);
+            // Refresh the faculty list to reflect new/updated users
+            fetchData();
+            showToast(
+                `CSV imported: ${res.data.summary.created_count} created, ${res.data.summary.updated_count} updated.`,
+                'success'
+            );
+        } catch (err) {
+            const data = err.response?.data;
+            if (data?.validation_errors) {
+                // Show validation errors directly inside the results modal
+                setCsvUploadResult({
+                    _validationErrors: data.validation_errors,
+                    _detail: data.detail,
+                });
+                setCsvResultTab('errors');
+                setIsCSVModalOpen(false);
+                setCsvFile(null);
+            } else {
+                setCsvUploadError(data?.detail || 'Upload failed. Please try again.');
+            }
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleRemoveAction = async (actionType) => {
         if (!actionTargetUser) return;
         setIsActionSubmitting(true);
@@ -412,24 +472,33 @@ export default function AdminFacultiesPage() {
                         </div>
                     </div>
                     
-                    <button
-                        type="button"
-                        onClick={openAddModal}
-                        className="self-start md:self-center inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
-                    >
-                        <svg
-                            viewBox="0 0 24 24"
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                    <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
+                        {/* Upload CSV — HOD only */}
+                        {isHOD && (
+                            <button
+                                id="btn-csv-upload"
+                                type="button"
+                                onClick={() => { setCsvFile(null); setCsvUploadError(null); setIsCSVModalOpen(true); }}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#15803d]/30 bg-[#f0fdf4] hover:bg-[#dcfce7] text-[#15803d] text-[13px] font-semibold transition"
+                            >
+                                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                Upload CSV
+                            </button>
+                        )}
+                        <button
+                            id="btn-add-faculty"
+                            type="button"
+                            onClick={openAddModal}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
                         >
-                            <path d="M12 4v16m8-8H4" />
-                        </svg>
-                        {activeHOD ? 'Add Faculty' : 'Add Head of Department'}
-                    </button>
+                            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 4v16m8-8H4" />
+                            </svg>
+                            {activeHOD ? 'Add Faculty' : 'Add Head of Department'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Alert for password reset */}
@@ -551,7 +620,7 @@ export default function AdminFacultiesPage() {
                         <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{listError}</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-2xl border border-[#e8f5ee] overflow-hidden overflow-x-auto shadow-sm">
+                    <div className="bg-white rounded-2xl border border-[#e8f5ee] overflow-x-auto shadow-sm">
                         <table className="w-full min-w-[800px] text-left border-collapse">
                             <thead>
                                 <tr className="bg-[#f6fbf8] border-b border-[#e8f5ee]">
@@ -614,21 +683,45 @@ export default function AdminFacultiesPage() {
                                                     {fac.is_active ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right relative overflow-visible">
+                                            <td className="px-6 py-4 text-right">
                                                 <div className="inline-block text-left">
                                                     <button
                                                         type="button"
-                                                        onClick={(e) => { e.stopPropagation(); setOpenMenuUserId(openMenuUserId === fac.id ? null : fac.id); }}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (openMenuUserId === fac.id) {
+                                                                setOpenMenuUserId(null);
+                                                            } else {
+                                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                                const spaceBelow = window.innerHeight - rect.bottom;
+                                                                const isUpward = spaceBelow < 180;
+                                                                const rightPos = window.innerWidth - rect.right;
+                                                                if (isUpward) {
+                                                                    setMenuPos({ top: undefined, bottom: window.innerHeight - rect.top + 4, right: rightPos, isUpward: true });
+                                                                } else {
+                                                                    setMenuPos({ bottom: undefined, top: rect.bottom + 4, right: rightPos, isUpward: false });
+                                                                }
+                                                                setOpenMenuUserId(fac.id);
+                                                            }
+                                                        }}
                                                         className="w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition"
                                                     >
                                                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                                             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                                                         </svg>
                                                     </button>
-                                                    {openMenuUserId === fac.id && (
+                                                    {openMenuUserId === fac.id && createPortal(
                                                         <div
                                                             ref={menuRef}
-                                                            className="absolute right-6 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-40 animate-in fade-in slide-in-from-top-1 duration-100 text-left"
+                                                            style={{ 
+                                                                ...(menuPos.top ? { top: menuPos.top } : {}),
+                                                                ...(menuPos.bottom ? { bottom: menuPos.bottom } : {}),
+                                                                right: menuPos.right 
+                                                            }}
+                                                            className={`fixed w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-[9999] animate-in fade-in duration-100 text-left ${
+                                                                menuPos.isUpward ? 'slide-in-from-bottom-2' : 'slide-in-from-top-2'
+                                                            }`}
+                                                            onClick={(e) => e.stopPropagation()}
                                                         >
                                                             <button
                                                                 type="button"
@@ -676,7 +769,8 @@ export default function AdminFacultiesPage() {
                                                                     </button>
                                                                 </>
                                                             )}
-                                                        </div>
+                                                        </div>,
+                                                        document.body
                                                     )}
                                                 </div>
                                             </td>
@@ -1100,6 +1194,263 @@ export default function AdminFacultiesPage() {
                             >
                                 {isActionSubmitting ? 'Processing...' : 'Delete Completely'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── CSV Upload Modal ──────────────────────────────────── */}
+            {isCSVModalOpen && (
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={() => { if (!isUploading) setIsCSVModalOpen(false); }}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border border-[#e8f5ee] w-full max-w-lg p-6"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex justify-between items-start mb-5">
+                            <div>
+                                <p className="caps-label mb-0.5">Bulk Import</p>
+                                <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">Upload Faculty CSV</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsCSVModalOpen(false)}
+                                disabled={isUploading}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#f1f5f9] text-[#94a3b8] transition disabled:opacity-40"
+                            >✕</button>
+                        </div>
+
+                        {/* Info banner */}
+                        <div className="mb-5 p-3.5 rounded-xl bg-[#f0fdf4] border border-[#d1fae5] text-[12.5px] text-[#166534] space-y-1.5">
+                            <p className="font-bold flex items-center gap-1.5">
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                CSV Format Requirements
+                            </p>
+                            <p>Required headers: <code className="bg-[#dcfce7] px-1.5 py-0.5 rounded font-mono text-[11px]">Sl No, Name, Dept., mail id, Mobile Number</code></p>
+                            <p>Max <strong>500 rows</strong> per upload. Encoding: <strong>UTF-8</strong> (Excel-exported CSVs are supported).</p>
+                            <p>New users get password <code className="bg-[#dcfce7] px-1.5 py-0.5 rounded font-mono text-[11px]">RCSS@&lt;email-prefix&gt;</code>. Department is auto-set to yours.</p>
+                        </div>
+
+                        {/* File drop zone */}
+                        <label
+                            htmlFor="csv-file-input"
+                            className={`block w-full border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
+                                csvFile
+                                    ? 'border-[#15803d] bg-[#f0fdf4]'
+                                    : 'border-[#e2e8f0] bg-[#f8fafc] hover:border-[#15803d]/50 hover:bg-[#f0fdf4]/50'
+                            }`}
+                        >
+                            <input
+                                id="csv-file-input"
+                                type="file"
+                                accept=".csv"
+                                className="sr-only"
+                                onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) { setCsvFile(f); setCsvUploadError(null); }
+                                }}
+                                disabled={isUploading}
+                            />
+                            {csvFile ? (
+                                <div className="space-y-1">
+                                    <div className="w-10 h-10 rounded-xl bg-[#15803d] text-white flex items-center justify-center mx-auto shadow-sm">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    </div>
+                                    <p className="text-[13.5px] font-bold text-[#0f172a] mt-2">{csvFile.name}</p>
+                                    <p className="text-[12px] text-[#64748b]">{(csvFile.size / 1024).toFixed(1)} KB — click to change</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="w-10 h-10 rounded-xl bg-[#e2e8f0] flex items-center justify-center mx-auto">
+                                        <svg className="w-5 h-5 text-[#94a3b8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                    </div>
+                                    <p className="text-[13.5px] font-semibold text-[#475569]">Click to select a CSV file</p>
+                                    <p className="text-[12px] text-[#94a3b8]">Only .csv files are accepted</p>
+                                </div>
+                            )}
+                        </label>
+
+                        {/* Error */}
+                        {csvUploadError && (
+                            <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[12.5px] text-red-700 font-medium flex items-start gap-2">
+                                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                {csvUploadError}
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="flex flex-wrap gap-3 justify-end pt-5 mt-5 border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setIsCSVModalOpen(false)}
+                                disabled={isUploading}
+                                className="px-4 py-2.5 text-[13px] font-semibold text-[#4a6b58] border border-[#d1fae5] bg-white hover:bg-[#f0fdf4] rounded-xl transition disabled:opacity-40"
+                            >Cancel</button>
+                            <button
+                                id="btn-csv-submit"
+                                type="button"
+                                onClick={handleCSVUpload}
+                                disabled={!csvFile || isUploading}
+                                className="px-5 py-2.5 text-[13px] font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-xl transition disabled:opacity-40 flex items-center gap-2"
+                            >
+                                {isUploading ? (
+                                    <>
+                                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                                        Importing...
+                                    </>
+                                ) : 'Import CSV'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── CSV Results Modal ─────────────────────────────────── */}
+            {csvUploadResult && (
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={() => setCsvUploadResult(null)}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border border-[#e8f5ee] w-full max-w-2xl max-h-[85vh] flex flex-col"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-start shrink-0">
+                            <div>
+                                <p className="caps-label mb-0.5">
+                                    {csvUploadResult._validationErrors ? 'Validation Failed' : 'Import Complete'}
+                                </p>
+                                <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
+                                    CSV Upload Results
+                                </h3>
+                                {csvUploadResult._detail && (
+                                    <p className="text-[12.5px] text-red-600 font-medium mt-1">{csvUploadResult._detail}</p>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCsvUploadResult(null)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#f1f5f9] text-[#94a3b8] transition"
+                            >✕</button>
+                        </div>
+
+                        {/* Summary cards — only for successful imports */}
+                        {!csvUploadResult._validationErrors && (
+                            <div className="px-6 pt-5 grid grid-cols-3 gap-3 shrink-0">
+                                {[
+                                    { label: 'Created', count: csvUploadResult.summary?.created_count ?? 0, color: 'text-[#15803d]', bg: 'bg-[#f0fdf4]', border: 'border-[#d1fae5]', tab: 'created' },
+                                    { label: 'Updated', count: csvUploadResult.summary?.updated_count ?? 0, color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', tab: 'updated' },
+                                    { label: 'Errors', count: csvUploadResult.summary?.error_count ?? 0, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', tab: 'errors' },
+                                ].map(({ label, count, color, bg, border, tab }) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setCsvResultTab(tab)}
+                                        className={`rounded-xl border p-3 text-left transition ${bg} ${border} ${
+                                            csvResultTab === tab ? 'ring-2 ring-offset-1 ring-[#15803d]/40' : 'hover:opacity-80'
+                                        }`}
+                                    >
+                                        <p className={`text-2xl font-black ${color}`}>{count}</p>
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">{label}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Tab strip */}
+                        {!csvUploadResult._validationErrors && (
+                            <div className="px-6 pt-4 flex gap-1 shrink-0 border-b border-slate-100">
+                                {['created', 'updated', 'errors'].map((t) => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setCsvResultTab(t)}
+                                        className={`px-4 py-2 rounded-t-lg text-[12.5px] font-bold capitalize transition ${
+                                            csvResultTab === t
+                                                ? 'bg-white border-x border-t border-slate-200 text-[#0f172a] -mb-px'
+                                                : 'text-[#64748b] hover:text-[#0f172a]'
+                                        }`}
+                                    >{t}</button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-2">
+                            {csvUploadResult._validationErrors ? (
+                                // Validation error rows
+                                csvUploadResult._validationErrors.map((err, i) => (
+                                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-red-50 border border-red-100">
+                                        <span className="shrink-0 w-7 h-7 rounded-lg bg-red-100 text-red-600 text-[11px] font-black flex items-center justify-center">
+                                            {err.sl_no || i + 1}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[13px] font-semibold text-[#0f172a] truncate">{err.email || '—'}</p>
+                                            <ul className="mt-0.5 space-y-0.5">
+                                                {err.errors.map((e, j) => (
+                                                    <li key={j} className="text-[12px] text-red-600 font-medium">• {e}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : csvResultTab === 'created' ? (
+                                csvUploadResult.created?.length > 0 ? (
+                                    csvUploadResult.created.map((u, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[#f0fdf4] border border-[#d1fae5]">
+                                            <div className="w-8 h-8 rounded-full bg-[#15803d] text-white text-[13px] font-bold flex items-center justify-center shrink-0">
+                                                {u.name?.charAt(0)?.toUpperCase() || '?'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[13.5px] font-semibold text-[#0f172a] truncate">{u.name || '—'}</p>
+                                                <p className="text-[12px] text-[#64748b] truncate">{u.email}</p>
+                                            </div>
+                                            <span className="shrink-0 text-[10.5px] font-bold text-[#15803d] bg-white border border-[#d1fae5] px-2 py-0.5 rounded-full">NEW</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-[13.5px] text-[#94a3b8] py-8">No new users were created.</p>
+                                )
+                            ) : csvResultTab === 'updated' ? (
+                                csvUploadResult.updated?.length > 0 ? (
+                                    csvUploadResult.updated.map((u, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
+                                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white text-[13px] font-bold flex items-center justify-center shrink-0">
+                                                {u.name?.charAt(0)?.toUpperCase() || '?'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[13.5px] font-semibold text-[#0f172a] truncate">{u.name || '—'}</p>
+                                                <p className="text-[12px] text-[#64748b] truncate">{u.email}</p>
+                                            </div>
+                                            <span className="shrink-0 text-[10.5px] font-bold text-blue-700 bg-white border border-blue-200 px-2 py-0.5 rounded-full">UPDATED</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-[13.5px] text-[#94a3b8] py-8">No existing users were updated.</p>
+                                )
+                            ) : (
+                                csvUploadResult.errors?.length > 0 ? (
+                                    csvUploadResult.errors.map((err, i) => (
+                                        <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-red-50 border border-red-100">
+                                            <p className="text-[13px] text-red-700 font-medium">{JSON.stringify(err)}</p>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-[13.5px] text-[#94a3b8] py-8">No errors reported.</p>
+                                )
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-slate-100 flex justify-end shrink-0">
+                            <button
+                                id="btn-csv-results-close"
+                                type="button"
+                                onClick={() => setCsvUploadResult(null)}
+                                className="px-5 py-2.5 text-[13px] font-semibold text-[#4a6b58] border border-[#d1fae5] bg-white hover:bg-[#f0fdf4] rounded-xl transition"
+                            >Close</button>
                         </div>
                     </div>
                 </div>

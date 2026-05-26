@@ -37,6 +37,46 @@ const mediaApi = {
     return data;
   },
 
+  // ── Crew ──────────────────────────────────────────────────────────────────
+  /**
+   * Fetches all MEDIA_INCHARGE users annotated with is_busy/busy_bookings
+   * for the given booking's time window. Used by the admin approval modal.
+   */
+  getCrewAvailability: async (bookingId) => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}${bookingId}/crew_availability/`);
+    return data;
+  },
+
+  /**
+   * Returns { total_crew, free_crew, is_full } for a given time window.
+   * Pass start/end ISO strings for a specific window, or omit for today.
+   */
+  getCrewCount: async (params = {}) => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}crew_count/`, { params });
+    return data;
+  },
+
+  /**
+   * Returns the full list of active MEDIA_INCHARGE users for the
+   * read-only roster card on the Admin Media page.
+   */
+  getCrewRoster: async () => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}crew_roster/`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  getEditCrewAvailability: async (bookingId) => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}${bookingId}/edit_crew_availability/`);
+    return data;
+  },
+
+  updateCrew: async (bookingId, assignedCrew) => {
+    const { data } = await api.patch(`${MEDIA_ENDPOINT}${bookingId}/update_crew/`, {
+      assigned_crew: assignedCrew,
+    });
+    return data;
+  },
+
   // ── Bookings ──────────────────────────────────────────────────────────────
   getMyBookings: async () => {
     const { data } = await api.get(MEDIA_ENDPOINT, { params: { view: 'mine' } });
@@ -96,10 +136,14 @@ const mediaApi = {
     await api.delete(`${MEDIA_ENDPOINT}${id}/`, { params: { view: 'general' } });
   },
 
-  reviewBooking: async (id, { status, remarks_by_admin = '' }) => {
+  /**
+   * UPDATED: now accepts assigned_crew (array of user PKs) when approving.
+   * The backend requires at least one crew ID to approve a booking.
+   */
+  reviewBooking: async (id, { status, remarks_by_admin = '', assigned_crew = [] }) => {
     const { data } = await api.patch(
       `${MEDIA_ENDPOINT}${id}/review/`,
-      { status, remarks_by_admin },
+      { status, remarks_by_admin, assigned_crew },
       { params: { view: 'general' } },
     );
     return data;

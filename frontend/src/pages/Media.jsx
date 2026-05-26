@@ -11,7 +11,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
-  Clock,
+  MapPin,
 } from "lucide-react"
 
 import MainLayout from "../layouts/MainLayout"
@@ -220,76 +220,124 @@ function AvailabilityRow({ item }) {
   )
 }
 
-function TeamFluidView({ teamData }) {
+function TeamFluidView({ teamData, dateStr }) {
   if (!teamData) return null
 
-  const { max_capacity, booked_slots, fully_booked_periods } = teamData
+  const { total_crew, free_crew, booked_slots } = teamData
+  const is_full = free_crew === 0
+  const busyCrew = total_crew - free_crew
+  const pct = total_crew > 0 ? Math.round((free_crew / total_crew) * 100) : 0
 
-  if (!booked_slots || booked_slots.length === 0) {
-    return (
-      <div className="rounded-xl border border-green-100 bg-green-50 px-6 py-10 text-center md:col-span-2">
-        <Clapperboard className="mx-auto mb-3 h-8 w-8 text-green-300" />
-
-        <p className="text-sm font-bold text-green-800">
-          Media team is available all day
-        </p>
-
-        <p className="mt-1 text-sm text-green-600">
-          No bookings are scheduled for this day. The team can handle up to{" "}
-          {max_capacity} simultaneous events.
-        </p>
-      </div>
-    )
-  }
+  const isToday = dateStr === new Date().toLocaleDateString("en-CA")
+  const dateLabel = isToday
+    ? "Today"
+    : new Date(dateStr).toLocaleDateString("en-IN", {
+        month: "short",
+        day: "numeric",
+      })
 
   return (
-    <div className="space-y-6 md:col-span-2">
-
-      {/* Capacity summary */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+    <div className="space-y-4 md:col-span-2">
+      {/* Summary banner */}
+      <div
+        className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border px-5 py-4 shadow-sm ${
+          is_full
+            ? "border-red-200 bg-red-50"
+            : free_crew <= 1
+            ? "border-amber-200 bg-amber-50"
+            : "border-green-100 bg-white"
+        }`}
+      >
         <div>
           <p className="text-sm font-semibold text-gray-900">
-            Team Availability Status
+            Media Team Availability — {dateLabel}
           </p>
 
-          <p className="mt-1 text-sm text-gray-500">
-            The media team can handle{" "}
-            <span className="font-semibold text-gray-700">
-              {max_capacity} events at the same time
+          <p
+            className={`mt-1 text-2xl font-bold ${
+              is_full
+                ? "text-red-600"
+                : free_crew <= 1
+                ? "text-amber-600"
+                : "text-green-700"
+            }`}
+          >
+            {free_crew} of {total_crew}
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              {free_crew === 1 ? "member available" : "members available"}{" "}
+              {isToday ? "today" : `on ${dateLabel}`}
             </span>
-            .
           </p>
         </div>
 
-        {fully_booked_periods?.length === 0 && (
-          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-            Slots Available
-          </span>
-        )}
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            is_full
+              ? "bg-red-100 text-red-700"
+              : free_crew <= 1
+              ? "bg-amber-100 text-amber-700"
+              : "bg-green-100 text-green-700"
+          }`}
+        >
+          {is_full
+            ? "Fully Occupied"
+            : free_crew <= 1
+            ? "Limited Availability"
+            : "Available"}
+        </span>
       </div>
 
-      {/* Fully booked warning */}
-      {fully_booked_periods?.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-          <p className="mb-2 flex items-center gap-2 text-sm font-bold text-red-800">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
-            Fully Booked Times
-          </p>
-
-          <p className="mb-3 text-sm text-red-600">
-            The media team is fully booked during these times.
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {fully_booked_periods.map((period, i) => (
-              <span
-                key={i}
-                className="rounded-lg bg-red-100 px-3 py-1 text-sm font-semibold text-red-800"
-              >
-                {formatTime(period.start)} – {formatTime(period.end)}
-              </span>
-            ))}
+      {/* Progress bar */}
+      {total_crew > 0 && (
+        <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold">
+            <span className="text-gray-500">Free</span>
+            <span
+              className={is_full ? "text-red-600" : "text-green-700"}
+            >
+              {pct}% available
+            </span>
           </div>
+
+          <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className={`h-full rounded-full transition-all ${
+                is_full
+                  ? "bg-red-500"
+                  : free_crew <= 1
+                  ? "bg-amber-500"
+                  : "bg-green-500"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              {free_crew} free
+            </span>
+
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-gray-300" />
+              {busyCrew} busy
+            </span>
+          </div>
+        </div>
+      )}
+
+      {is_full && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm">
+          <p className="flex items-center gap-2 text-sm font-bold text-red-800">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
+            No crew available for new bookings{" "}
+            {isToday ? "today" : `on ${dateLabel}`}
+          </p>
+
+          <p className="mt-1 text-sm text-red-600">
+            All {total_crew} media crew members are currently assigned to other
+            bookings.
+          </p>
         </div>
       )}
 
@@ -299,32 +347,64 @@ function TeamFluidView({ teamData }) {
           Scheduled Events
         </p>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {booked_slots.map((slot, i) => {
-            const displayStart = slot.is_multiday ? slot.actual_start : slot.start_time
-            const displayEnd = slot.is_multiday ? slot.actual_end : slot.end_time
+        {booked_slots?.length === 0 ? (
+          <div className="rounded-xl border border-gray-100 bg-white px-5 py-6 text-center shadow-sm">
+            <p className="text-sm font-semibold text-gray-500">
+              No bookings scheduled for {isToday ? "today" : dateLabel}.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {booked_slots?.map((slot, i) => {
+              const displayStart = slot.is_multiday
+                ? slot.actual_start
+                : slot.start_time
 
-            return (
-              <div
-                key={i}
-                className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition"
-              >
-                <p className="text-sm font-semibold text-gray-900">
-                  {slot.event_name}
-                </p>
+              const displayEnd = slot.is_multiday
+                ? slot.actual_end
+                : slot.end_time
 
-                <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700">
-                  <Clock className="h-4 w-4" />
-                  {formatTime(displayStart)} – {formatTime(displayEnd)}
+              return (
+                <div
+                  key={i}
+                  className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition"
+                >
+                  <p className="text-sm font-semibold text-gray-900">
+                    {slot.event_name}
+                  </p>
+
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      {slot.assigned_crew_count} assigned
+                    </span>
+
+                    <span className="opacity-50">·</span>
+
+                    {slot.is_multiday ? (
+                      <span>Multi-day event</span>
+                    ) : (
+                      <span>
+                        {displayStart} – {displayEnd}
+                      </span>
+                    )}
+
+                    {slot.location && (
+                      <>
+                        <span className="opacity-50">·</span>
+
+                        <span className="flex items-center gap-1 truncate max-w-[120px]">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{slot.location}</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
-
-                <p className="mt-3 text-xs text-gray-400">
-                  Includes preparation and wrap-up time
-                </p>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -343,7 +423,7 @@ function Media() {
   const isLinkedFlow = searchParams.get("linked") === "1"
   const [selectedDate, setSelectedDate] = useState(todayKey())
   const [availability, setAvailability] = useState([])
-  const [teamData, setTeamData] = useState(null)
+  const [crewCount,          setCrewCount]          = useState(null)
   const [availabilityLoading, setAvailabilityLoading] = useState(true)
   const [availabilityError, setAvailabilityError] = useState("")
   const [availabilityType, setAvailabilityType] = useState("equipment")
@@ -413,21 +493,17 @@ function Media() {
       setAvailabilityError("")
 
       try {
-        const data = await mediaApi.getDailyAvailability(
-          selectedDate,
-          availabilityType
-        )
-
-        if (!active) return
-
         if (availabilityType === "team") {
-          setTeamData(data)
+          const data = await mediaApi.getDailyAvailability(selectedDate, "team")
+          if (!active) return
+          setCrewCount(data)
         } else {
+          const data = await mediaApi.getDailyAvailability(selectedDate, availabilityType)
+          if (!active) return
           setAvailability(data.items ?? [])
         }
       } catch (error) {
         console.error("Failed to load media availability:", error)
-
         if (active) {
           setAvailabilityError("Could not load availability.")
         }
@@ -453,6 +529,11 @@ function Media() {
 
       if (!active) return
 
+      if (!user) {
+        setMyLoading(false)
+        return
+      }
+
       setMyLoading(true)
 
       try {
@@ -470,8 +551,7 @@ function Media() {
       }
     }
 
-    if (user) loadBookings()
-    else setMyLoading(false)
+    loadBookings()
 
     return () => {
       active = false
@@ -661,7 +741,7 @@ function Media() {
                   {availabilityError}
                 </div>
               ) : availabilityType === "team" ? (
-                <TeamFluidView teamData={teamData} />
+                <TeamFluidView teamData={crewCount} dateStr={selectedDate} />
               ) : filteredAvailability.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-6 py-12 text-center md:col-span-2">
                   <Package className="mx-auto mb-3 h-6 w-6 text-gray-300" />

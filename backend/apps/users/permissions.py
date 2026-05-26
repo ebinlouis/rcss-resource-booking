@@ -214,3 +214,36 @@ class IsITAdminOrHOD(HasRole):
     """Allows IT Admin or Head of Department to manage resources/faculty."""
     required_roles = [Role.Name.IT_ADMIN, Role.Name.HOD]
 
+
+# ==========================================
+# CSV UPLOAD GATE
+# ==========================================
+
+class IsHODWithDepartment(permissions.BasePermission):
+    """
+    Strict gate for the HOD Faculty CSV upload endpoint.
+
+    Passes ONLY when ALL of the following are true:
+      1. The user is authenticated.
+      2. 'HOD' is in their effective roles (base roles + active overrides).
+      3. Their department FK is not null.
+
+    Intentionally excludes IT_ADMIN — this endpoint modifies data scoped
+    to a specific department and must only be exercised by a real HOD who
+    owns that department.
+    """
+
+    message = (
+        "Access denied. This endpoint requires a Head of Department role "
+        "with an assigned department."
+    )
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if Role.Name.HOD not in request.user.get_effective_roles():
+            return False
+        if not request.user.department_id:
+            return False
+        return True
+
