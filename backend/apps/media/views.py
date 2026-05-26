@@ -693,15 +693,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
         day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
         bookings  = MediaBooking.objects.filter(
-<<<<<<< HEAD
-            status__in=['APPROVED', 'COMPLETED'], is_team_request=True,
-=======
             status='APPROVED',
             is_team_request=True,
->>>>>>> production
             setup_start_datetime__lt=day_end,
             teardown_end_datetime__gt=day_start,
-        ).select_related('space', 'user', 'department').prefetch_related(
+        ).select_related(
+            'space', 'user', 'department'
+        ).prefetch_related(
             'equipment_requests__equipment',
             'assigned_crew',
         ).order_by('event_start_datetime')
