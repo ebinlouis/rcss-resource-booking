@@ -270,7 +270,7 @@ const AdminLayout = () => {
                     </div>
 
                     <div className="flex items-center gap-2.5">
-                        <NotificationBell />
+                        <NotificationBell tone="admin" />
                         <div className="hidden md:block w-px h-6 bg-[#e8f5ee]" />
                         <div className="relative" ref={profileRef}>
                             <button

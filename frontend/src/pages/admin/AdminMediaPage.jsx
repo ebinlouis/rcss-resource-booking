@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
     AlertTriangle, Building2, Check, ChevronDown, Clapperboard,
-    Mail, Package, Phone, RefreshCw, Users, Wrench, X,
+    Mail, Package, Phone, RefreshCw, Users, Wrench, X, Clock,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import mediaApi from '../../api/mediaApi'
@@ -279,8 +279,8 @@ function CrewMemberRow({ member, selected, onToggle }) {
                     {member.is_busy && member.busy_bookings?.length > 0 && (
                         <div className="mt-2 space-y-1">
                             {member.busy_bookings.map((b, i) => (
-                                <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800">
-                                    ⚡ {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
+                                <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                    <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
                                 </p>
                             ))}
                         </div>
@@ -397,8 +397,8 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
                                                         {member.busy_bookings?.length > 0 && (
                                                             <div className="mt-2 space-y-1">
                                                                 {member.busy_bookings.map((b, i) => (
-                                                                    <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800">
-                                                                        ⚡ {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
+                                                                    <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                                                        <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
                                                                     </p>
                                                                 ))}
                                                             </div>
