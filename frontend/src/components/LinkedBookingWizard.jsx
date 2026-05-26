@@ -1108,7 +1108,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
             checked={needsBuffer}
             onChange={(event) => setNeedsBuffer(event.target.checked)}
           />
-          Add extra prep and pack-up time
+          Add setup and wrap-up time for the media team
         </label>
 
         {needsBuffer && (
