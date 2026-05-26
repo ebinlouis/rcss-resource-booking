@@ -8,7 +8,6 @@ import {
   RefreshCcw,
   Trash2,
   Pencil,
-  CalendarClock,
   Search,
   X as XIcon,
   Package,
@@ -16,7 +15,9 @@ import {
   Building2,
   Wrench,
   Clapperboard,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  Phone,
 } from "lucide-react"
 
 import mediaApi from "../api/mediaApi"
@@ -263,7 +264,38 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
                 </div>
             )}
 
-            {/* ADMIN FEEDBACK */}
+            {/* ASSIGNED CREW — only for APPROVED bookings with crew */}
+            {booking.status === "APPROVED" && (booking.assigned_crew ?? []).length > 0 && (
+              <div className="mb-6">
+                <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-emerald-600 inline-block">
+                  Assigned Media Crew
+                </p>
+                <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
+                  {booking.assigned_crew.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[13px] font-bold text-emerald-700">
+                        {member.name?.charAt(0)?.toUpperCase() ?? <Users className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-semibold text-gray-900">{member.name}</p>
+                        {member.designation && (
+                          <p className="truncate text-[12px] text-gray-500">{member.designation}</p>
+                        )}
+                        {member.phone && (
+                          <p className="flex items-center gap-1.5 text-[12.5px] text-gray-700 mt-0.5">
+                            <Phone className="h-3 w-3 text-emerald-600" /> {member.phone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {booking.status === "REJECTED" && booking.remarks_by_admin && (
               <div className="mb-6">
                  <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-red-500 inline-block">

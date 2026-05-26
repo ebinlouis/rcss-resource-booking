@@ -866,3 +866,23 @@ def notify_chain_cancelled(booking):
                     reference_code=_booking_reference(booking),
                     is_actionable=False,
                 )
+
+
+def notify_crew_updated(booking):
+    """
+    Notify the requester that their assigned media team has been updated.
+    """
+    event_name = getattr(booking, "event_name", None) or "the event"
+    reference = _booking_reference(booking)
+    link = _requester_link('media', reference)
+
+    return notify(
+        booking.user,
+        Notification.Category.SYSTEM,
+        "Media Team Updated",
+        f"Your assigned media team for {event_name} has been updated. Please check your booking for the latest crew details.",
+        link=link,
+        domain='media',
+        reference_code=reference,
+        is_actionable=False,
+    )

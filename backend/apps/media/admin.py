@@ -1,43 +1,47 @@
 from django.contrib import admin
 from apps.media.models import MediaBooking, MediaSettings, MediaEquipmentRequest
 
+
 # ==========================================
-# 1. EQUIPMENT REQUEST INLINE (For Bookings)
+# EQUIPMENT REQUEST INLINE
 # ==========================================
+
 class MediaEquipmentRequestInline(admin.TabularInline):
     model = MediaEquipmentRequest
-    extra = 0  # Set to 0 so it only shows gear actually requested, no blank rows
+    extra = 0
+
 
 # ==========================================
 # MEDIA SETTINGS (Singleton)
 # ==========================================
+
 @admin.register(MediaSettings)
 class MediaSettingsAdmin(admin.ModelAdmin):
-    list_display = ('id', 'max_concurrent_events', 'updated_at')
+    # max_concurrent_events removed — capacity is now crew-driven
+    list_display = ('id', 'updated_at')
 
     def has_add_permission(self, request):
-        # Prevents creating a second settings row if one already exists
         return not MediaSettings.objects.exists()
+
 
 # ==========================================
 # MEDIA BOOKING
 # ==========================================
+
 @admin.register(MediaBooking)
 class MediaBookingAdmin(admin.ModelAdmin):
-    # UPDATED: Replaced 'booking_date' with 'event_start_datetime'
     list_display  = ('reference_code', 'event_name', 'event_start_datetime', 'is_team_request', 'status', 'created_at')
     search_fields = ('reference_code', 'event_name')
-    
-    # UPDATED: Replaced 'booking_date' with 'event_start_datetime'
     list_filter   = ('status', 'is_team_request', 'event_start_datetime')
-    
-    # This embeds the equipment list directly inside the booking page!
-    inlines = [MediaEquipmentRequestInline]
+    filter_horizontal = ('assigned_crew',)  # makes M2M crew selection usable in admin
+    inlines       = [MediaEquipmentRequestInline]
+
 
 # ==========================================
-# MEDIA EQUIPMENT REQUEST (Standalone List)
+# MEDIA EQUIPMENT REQUEST (Standalone)
 # ==========================================
+
 @admin.register(MediaEquipmentRequest)
 class MediaEquipmentRequestAdmin(admin.ModelAdmin):
-    list_display = ('media_booking', 'equipment', 'quantity')
+    list_display  = ('media_booking', 'equipment', 'quantity')
     search_fields = ('media_booking__reference_code', 'equipment__name')
