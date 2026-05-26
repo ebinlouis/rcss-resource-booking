@@ -37,6 +37,8 @@ from apps.notifications.utils import (
     notify_booking_status_change,
     notify_new_request,
     notify_crew_updated,
+    notify_incharge_booking_edited,
+    notify_incharge_cancelled,
 )
 
 
@@ -180,10 +182,25 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         booking = serializer.save()
 
+        if booking.is_team_request:
+            free = count_free_crew(
+                booking.setup_start_datetime,
+                booking.teardown_end_datetime,
+                exclude_booking_pk=booking.pk,
+            )
+            if free == 0:
+                raise ValidationError({
+                    "non_field_errors": (
+                        "The media team is fully occupied during this time slot. "
+                        "Please choose a different date or time."
+                    )
+                })
+
         if booking.is_team_request and not was_team_request:
             reserve_standard_team_kit(booking)
 
-        if was_approved and not is_media_admin(user):
+        is_owner = (instance.user == user)
+        if was_approved and (is_owner or not is_media_admin(user)):
             booking.status           = 'PENDING'
             booking.resolved_by      = None
             booking.resolved_at      = None
@@ -195,7 +212,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 'status', 'resolved_by', 'resolved_at',
                 'remarks_by_admin', 'updated_by', 'updated_at',
             ])
-            notify_new_request(
+            notify_incharge_booking_edited(
                 booking=booking,
                 domain='media',
                 role_name=Role.Name.MEDIA_INCHARGE,
@@ -215,6 +232,11 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             'remarks_by_admin', 'updated_at',
         ])
         mark_pending_request_notifications_read(instance, domain='media')
+        notify_incharge_cancelled(
+            booking=instance,
+            domain='media',
+            role_name=Role.Name.MEDIA_INCHARGE,
+        )
 
     # ------------------------------------------------------------------
     # Admin: Review (approve / reject) with crew assignment
