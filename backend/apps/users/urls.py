@@ -3,16 +3,17 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
-    CookieTokenObtainPairView, 
-    LogoutView, 
-    CurrentUserView, 
+    CookieTokenObtainPairView,
+    LogoutView,
+    CurrentUserView,
     DashboardAPIView,
     AdminUserViewSet,
     RoleOverrideViewSet,
     DepartmentViewSet,
-    RoleListView, 
+    RoleListView,
     UserSearchView,
     UserProfileUpdateView,
+    HODFacultyCSVUploadView,
 )
 
 # Initialize the router for viewsets
@@ -32,7 +33,10 @@ urlpatterns = [
     # --- STATIC ENDPOINTS ---
     path('roles/', RoleListView.as_view(), name='role-list'),
     path('users/search/', UserSearchView.as_view(), name='user-search'),
-    
+
+    # --- HOD CSV BULK UPLOAD ---
+    path('admin-users/csv-upload/', HODFacultyCSVUploadView.as_view(), name='faculty-csv-upload'),
+
     # Include the router
     path('', include(router.urls)),
 ]

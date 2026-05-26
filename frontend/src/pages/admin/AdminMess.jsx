@@ -84,7 +84,7 @@ function AccessDenied() {
 
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
-function BookingCard({ booking, onSelect, isHighlighted }) {
+function BookingCard({ booking, onSelect, isHighlighted, isFlush }) {
   const meals       = getRequestedMeals(booking);
   const statusLower = booking.status?.toLowerCase();
   const multiDay    = isMultiDay(booking);
@@ -92,11 +92,15 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
   const dateLabel   = formatDateRange(booking.start_date, booking.end_date);
   const dayCount    = booking.daily_menus?.length ?? 1;
 
+  const containerClasses = isFlush
+    ? `px-7 py-5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "ring-2 ring-emerald-300 ring-inset bg-emerald-50/70" : "bg-white"}`
+    : `bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`;
+
   return (
     <div
       data-booking-reference={booking.reference_code || ""}
       onClick={() => onSelect(booking)}
-      className={`bg-white border rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${isHighlighted ? "border-emerald-400 ring-2 ring-emerald-300 bg-emerald-50/70" : "border-gray-200"}`}
+      className={containerClasses}
     >
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
@@ -269,6 +273,7 @@ function AdminMess() {
   const [showRejectInput,  setShowRejectInput]  = useState(false);
   const [rejectRemark,     setRejectRemark]     = useState("");
   const [remarkError,      setRemarkError]      = useState("");
+  const [historyFilter,    setHistoryFilter]    = useState("ALL");
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -318,9 +323,15 @@ function AdminMess() {
     .filter((b) => b.status?.toLowerCase() === "pending")
     .sort(compareSubmissionTimeDesc);
 
-  const historyBookings = [...bookings].sort(
-    (a, b) => new Date(b.created_at) - new Date(a.created_at)
-  );
+  const historyBookings = bookings
+    .filter((b) => {
+      const s = b.status?.toUpperCase() || "";
+      if (historyFilter !== "ALL") {
+        return s === historyFilter;
+      }
+      return s !== "PENDING";
+    })
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   // Multi-day aware: a booking appears on a dispatch day if that date falls
   // anywhere within start_date…end_date, not just if booking_date matches.
@@ -416,11 +427,11 @@ function AdminMess() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === selectedBooking.id
-            ? { ...b, status: "rejected", rejection_remark: trimmed }
+            ? { ...b, status: "REJECTED", rejection_remark: trimmed, remarks_by_admin: trimmed }
             : b
         )
       );
-      showToast("Booking rejected.");
+      showToast(selectedBooking.status?.toLowerCase() === "approved" ? "Booking cancelled." : "Booking rejected.");
       closePanel();
     } catch (err) {
       setRemarkError(
@@ -637,23 +648,52 @@ function AdminMess() {
 
         {/* ── History tab ── */}
         {activeTab === "history" && (
-          <div className="space-y-4 max-w-5xl">
-            {isLoading ? (
-              <p className="text-sm text-gray-400">Loading all records...</p>
-            ) : historyBookings.length === 0 ? (
-              <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
-                <History size={40} className="text-gray-200 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-900">No Records Found</h3>
-                <p className="text-sm text-gray-500 mt-1">No previous bookings found.</p>
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-5xl">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-3 border-b border-gray-200 bg-gray-50/50">
+              <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-gray-600">
+                Booking History
+              </span>
+              <div className="flex gap-2">
+                {[
+                  { id: 'ALL', label: 'All Records' },
+                  { id: 'APPROVED', label: 'Approved' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                  { id: 'REJECTED', label: 'Rejected' },
+                  { id: 'CANCELLED', label: 'Cancelled' },
+                ].map(tab => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setHistoryFilter(tab.id)}
+                    className={`px-3 py-1.5 text-[12.5px] font-semibold rounded-lg transition-colors ${historyFilter === tab.id ? 'bg-emerald-100 text-emerald-800' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-            ) : historyBookings.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                onSelect={openPanel}
-                isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
-              />
-            ))}
+            </div>
+            <div className="flex flex-col">
+              {isLoading ? (
+                <div className="py-20 text-center">
+                   <p className="text-[14px] text-gray-500 font-medium">Loading all records…</p>
+                </div>
+              ) : historyBookings.length === 0 ? (
+                <div className="py-20 text-center px-8">
+                  <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                    <History size={24} className="text-gray-400" />
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-gray-900">No Records Found</h3>
+                  <p className="text-[13.5px] text-gray-500 mt-1.5">No previous bookings found for this filter.</p>
+                </div>
+              ) : historyBookings.map((b) => (
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onSelect={openPanel}
+                  isFlush
+                  isHighlighted={normaliseReference(b.reference_code) === normaliseReference(highlightedReference)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -806,19 +846,19 @@ function AdminMess() {
               )}
             </div>
 
-            {/* Action footer — only for pending bookings */}
-            {selectedBooking.status?.toLowerCase() === "pending" && (
+            {/* Action footer — for pending or approved bookings */}
+            {["pending", "approved"].includes(selectedBooking.status?.toLowerCase()) && (
               <div className="border-t border-gray-100 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {showRejectInput && (
                   <div className="px-6 pt-4 pb-2">
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Rejection Reason <span className="text-red-500">*</span>
+                      {selectedBooking.status?.toLowerCase() === "approved" ? "Cancellation Reason" : "Rejection Reason"} <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       rows={3}
                       value={rejectRemark}
                       onChange={(e) => { setRejectRemark(e.target.value); if (remarkError) setRemarkError(""); }}
-                      placeholder="Provide a clear reason so the requester can act on it..."
+                      placeholder={selectedBooking.status?.toLowerCase() === "approved" ? "Provide a reason for cancelling this approved booking..." : "Provide a clear reason so the requester can act on it..."}
                       className={`w-full text-sm border rounded-xl px-3 py-2.5 resize-none outline-none transition focus:ring-2 ${
                         remarkError
                           ? "border-red-300 focus:ring-red-200 bg-red-50"
@@ -839,28 +879,35 @@ function AdminMess() {
                     <>
                       <button onClick={handleRejectClick} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50">
-                        Cancel
+                        Back
                       </button>
                       <button onClick={handleConfirmReject} disabled={actionLoading}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50">
                         {actionLoading
                           ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><XCircle size={18} /> Confirm Rejection</>}
+                          : <><XCircle size={18} /> {selectedBooking.status?.toLowerCase() === "approved" ? "Confirm Cancellation" : "Confirm Rejection"}</>}
                       </button>
                     </>
                   ) : (
-                    <>
+                    selectedBooking.status?.toLowerCase() === "approved" ? (
                       <button onClick={handleRejectClick} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
-                        <XCircle size={18} /> Reject
+                        className="col-span-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
+                        <XCircle size={18} /> Cancel Approved Booking
                       </button>
-                      <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
-                        {actionLoading
-                          ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><CheckCircle2 size={18} /> Approve</>}
-                      </button>
-                    </>
+                    ) : (
+                      <>
+                        <button onClick={handleRejectClick} disabled={actionLoading}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition disabled:opacity-50">
+                          <XCircle size={18} /> Reject
+                        </button>
+                        <button onClick={() => handleApprove(selectedBooking)} disabled={actionLoading}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50">
+                          {actionLoading
+                            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            : <><CheckCircle2 size={18} /> Approve</>}
+                        </button>
+                      </>
+                    )
                   )}
                 </div>
               </div>
