@@ -8,7 +8,7 @@ import { CheckCircle2, XCircle, Clock, ChevronDown, RefreshCw, User, Phone, Mail
 const STATUS_META = {
   APPROVED:          { label: 'Approved',   cls: 'bg-green-100 text-green-700' },
   REJECTED:          { label: 'Rejected',   cls: 'bg-red-100 text-red-700' },
-  FACULTY_ESCALATED: { label: 'Escalated',  cls: 'bg-purple-100 text-purple-700' },
+  FACULTY_ESCALATED: { label: 'Needs Higher Approval',  cls: 'bg-purple-100 text-purple-700' },
   CANCELLED:         { label: 'Cancelled',  cls: 'bg-gray-100 text-gray-500' },
 }
 
@@ -37,7 +37,7 @@ function PendingCard({ booking, onApprove, onReject, isActing }) {
 
   const handleReject = () => {
     if (!note.trim() || note.trim().length < 10) {
-      setErr('Please enter at least 10 characters explaining the reason.')
+      setErr('Please provide a short reason so the student understands why it was rejected.')
       return
     }
     setErr('')
@@ -50,7 +50,7 @@ function PendingCard({ booking, onApprove, onReject, isActing }) {
       <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
         <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{booking.space_details?.name || 'Space Booking'}</h3>
+          <h3 className="font-bold text-gray-900 truncate">{booking.space_details?.name || 'Venue Booking'}</h3>
           <p className="text-xs text-amber-700 font-semibold mt-0.5">Action Required</p>
         </div>
         <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
@@ -85,13 +85,13 @@ function PendingCard({ booking, onApprove, onReject, isActing }) {
               className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50 shadow-sm shadow-green-100"
             >
               <CheckCircle2 className="w-4 h-4" />
-              {isActing ? 'Processing…' : 'Approve Request'}
+              {isActing ? 'Please wait...' : 'Approve Request'}
             </button>
 
             <div className="relative">
               <textarea
                 rows={3}
-                placeholder="Reason for rejection (min. 10 characters)…"
+                placeholder="Tell the student why this booking is being rejected..."
                 value={note}
                 onChange={e => { setNote(e.target.value); setErr('') }}
                 className={`w-full text-sm border rounded-xl p-3 resize-none outline-none transition ${err ? 'border-red-300 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 focus:ring-2 focus:ring-gray-200'}`}
@@ -163,10 +163,10 @@ export default function FacultyApprovalPage() {
     setActingId(id)
     try {
       await approvalService.resolveFacultyBooking({ id, action: 'approve' })
-      toast.success('Booking approved successfully.')
+      toast.success('Booking approved successfully!')
       await fetchData()
     } catch {
-      toast.error('Failed to approve. Please try again.')
+      toast.error('Couldn\'t approve the booking. Please try again.')
     } finally {
       setActingId(null)
     }
@@ -176,10 +176,10 @@ export default function FacultyApprovalPage() {
     setActingId(id)
     try {
       await approvalService.resolveFacultyBooking({ id, action: 'reject', rejectionNote: note })
-      toast.error('Booking rejected.')
+      toast.error('Booking request rejected.')
       await fetchData()
     } catch {
-      toast.error('Failed to reject. Please try again.')
+      toast.error('Couldn\'t reject the booking. Please try again.')
     } finally {
       setActingId(null)
     }
@@ -193,8 +193,8 @@ export default function FacultyApprovalPage() {
             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-3">
               <XCircle className="w-6 h-6 text-red-400" />
             </div>
-            <p className="text-sm font-semibold text-gray-700">Access Restricted</p>
-            <p className="text-xs text-gray-400 mt-1">Faculty approval access only.</p>
+            <p className="text-sm font-semibold text-gray-700">Access Denied</p>
+            <p className="text-xs text-gray-400 mt-1">Only authorised faculty members can view this page.</p>
           </div>
         </div>
       </MainLayout>
@@ -209,7 +209,7 @@ export default function FacultyApprovalPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Faculty Approvals</h1>
-            <p className="text-sm text-gray-400 mt-1">Review student space booking requests requiring your sponsorship.</p>
+            <p className="text-sm text-gray-400 mt-1">Review student booking requests that need your approval.</p>
           </div>
           <button
             onClick={fetchData}
@@ -243,7 +243,7 @@ export default function FacultyApprovalPage() {
         {/* Error */}
         {loadError && (
           <div className="bg-red-50 border border-red-100 rounded-2xl px-5 py-4 text-sm text-red-600 font-medium">
-            Failed to load approvals. Please refresh.
+            Couldn't load booking requests. Please try again.
           </div>
         )}
 
@@ -252,7 +252,7 @@ export default function FacultyApprovalPage() {
           <section>
             <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-500" />
-              Pending Your Review
+              Waiting for Your Approval
               {pending.length > 0 && (
                 <span className="ml-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{pending.length}</span>
               )}
@@ -265,7 +265,7 @@ export default function FacultyApprovalPage() {
             ) : pending.length === 0 ? (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
                 <CheckCircle2 className="w-8 h-8 text-green-300 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-gray-600">All caught up!</p>
+                <p className="text-sm font-semibold text-gray-600">No pending requests</p>
                 <p className="text-xs text-gray-400 mt-1">No pending requests at the moment.</p>
               </div>
             ) : (
@@ -289,13 +289,13 @@ export default function FacultyApprovalPage() {
           <section>
             <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Past Approvals
+              Approvals History
             </h2>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Space', 'Student', 'Date', 'Status'].map(h => (
+                    {['Venue', 'Student', 'Date', 'Status'].map(h => (
                       <th key={h} className="px-5 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
