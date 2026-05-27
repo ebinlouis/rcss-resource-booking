@@ -174,7 +174,7 @@ function Home() {
                 <div className="rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-4 min-w-[110px] shadow-lg">
                   <div className="flex flex-col h-full">
                     <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-                      Requests
+                      My Requests
                     </p>
                     <div className="flex-1 flex items-center justify-center">
                       <h2 className="text-4xl font-bold leading-none text-white">

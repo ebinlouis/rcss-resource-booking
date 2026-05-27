@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { Toaster } from 'react-hot-toast'
+import AppLoader from "./components/common/AppLoader";
 
 // LinkedBookingWizard stays eager — mounted on every page
 import LinkedBookingWizard from "./components/LinkedBookingWizard";
@@ -63,7 +64,7 @@ function App() {
             },
           }}
         />
-        <Suspense fallback={null}>
+        <Suspense fallback={<AppLoader />}>
           <Routes>
 
             {/* PUBLIC LOGIN ROUTE */}
