@@ -74,7 +74,6 @@ function App() {
           <Route path="/transport" element={<Transport />} />
           <Route path="/media" element={<Media />} />
           <Route path="/mess" element={<Mess />} />
-          <Route path="/media/schedule" element={<MediaSchedule />} />
 
           {/* PROTECTED USER ROUTES */}
           <Route element={<ProtectedRoute />}>
@@ -119,6 +118,7 @@ function App() {
                 }
               >
                 <Route path="/admin/media" element={<AdminMediaPage />} />
+                <Route path="/media/schedule" element={<MediaSchedule />} />
               </Route>
 
               <Route
