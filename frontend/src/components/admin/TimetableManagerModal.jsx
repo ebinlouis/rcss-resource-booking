@@ -316,12 +316,12 @@ export default function TimetableManagerModal({ space, onClose }) {
                         {editingBlockId === block.id ? (
                           <div className="flex flex-col gap-3">
                             <div className="flex gap-3">
-                              <input type="date" value={editBlockForm.date} onChange={e => setEditBlockForm({...editBlockForm, date: e.target.value})} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
-                              <input type="time" value={editBlockForm.start_time} onChange={e => setEditBlockForm({...editBlockForm, start_time: e.target.value})} className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
-                              <input type="time" value={editBlockForm.end_time} onChange={e => setEditBlockForm({...editBlockForm, end_time: e.target.value})} className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="date" name="edit_date" value={editBlockForm.date} onChange={e => setEditBlockForm({...editBlockForm, date: e.target.value})} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="time" name="edit_start_time" value={editBlockForm.start_time} onChange={e => setEditBlockForm({...editBlockForm, start_time: e.target.value})} className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="time" name="edit_end_time" value={editBlockForm.end_time} onChange={e => setEditBlockForm({...editBlockForm, end_time: e.target.value})} className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
                             </div>
                             <div className="flex gap-3">
-                              <input type="text" value={editBlockForm.label} onChange={e => setEditBlockForm({...editBlockForm, label: e.target.value})} placeholder="Label" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="text" name="edit_label" value={editBlockForm.label} onChange={e => setEditBlockForm({...editBlockForm, label: e.target.value})} placeholder="Label" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
                               <button onClick={() => handleSaveBlock(block.id)} className="text-white bg-green-600 text-sm font-semibold px-4 py-2 hover:bg-green-700 rounded-lg transition">Save</button>
                               <button onClick={() => setCancelAction(() => () => setEditingBlockId(null))} className="text-gray-600 bg-gray-100 text-sm font-semibold px-4 py-2 hover:bg-gray-200 rounded-lg transition">Cancel</button>
                             </div>

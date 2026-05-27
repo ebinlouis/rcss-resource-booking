@@ -82,13 +82,16 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         user       = self.request.user
         view_param = self.request.query_params.get('view', 'mine')
         admin      = is_media_admin(user)
-        refresh_queryset_lifecycle(MediaBooking.objects.all())
+        if self.request.query_params.get('view', 'mine') != 'general' or is_media_admin(self.request.user):
+            refresh_queryset_lifecycle(MediaBooking.objects.filter(user=self.request.user))
 
         qs = MediaBooking.objects.select_related(
-            'space', 'user', 'department'
+            'space', 'user', 'department', 'space__block', 'space__approver_chain'
         ).prefetch_related(
             'equipment_requests__equipment',
             'assigned_crew',
+            'user__roles',
+            'user__role_overrides__role',
         )
 
         if self.action in ['review', 'update_loadout', 'crew_availability', 'update_crew', 'edit_crew_availability', 'retrieve', 'partial_update', 'update'] and admin:
@@ -497,7 +500,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
-        refresh_queryset_lifecycle(MediaBooking.objects.all())
         req_start_str = request.query_params.get('start')
         req_end_str   = request.query_params.get('end')
         exclude_id    = request.query_params.get('exclude')
@@ -575,8 +577,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         Falls back to today's full calendar day if params are not supplied.
         Replaces the old team_capacity endpoint on the media landing page.
         """
-        refresh_queryset_lifecycle(MediaBooking.objects.all())
-
         start_str = request.query_params.get('start')
         end_str   = request.query_params.get('end')
 
@@ -613,7 +613,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def daily_availability(self, request):
-        refresh_queryset_lifecycle(MediaBooking.objects.all())
         date_param   = request.query_params.get('date')
         view_type    = request.query_params.get('type', 'equipment')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
@@ -685,7 +684,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def runsheet(self, request):
-        refresh_queryset_lifecycle(MediaBooking.objects.all())
         date_param   = request.query_params.get('date')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
         if not booking_date:
