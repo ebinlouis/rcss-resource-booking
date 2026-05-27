@@ -41,7 +41,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         refresh_queryset_lifecycle(
-            MessBooking.objects.prefetch_related('daily_menus')
+            MessBooking.objects.filter(user=user).prefetch_related('daily_menus')
         )
 
         if _is_mess_admin(user):

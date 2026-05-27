@@ -4,7 +4,7 @@ from datetime import timedelta
 from rest_framework import serializers
 
 from apps.approvals.lifecycle import can_user_modify_booking
-from apps.users.models import Role
+from apps.users.models import Role, RoleOverride
 from .models import (
     Block,
     Space,
@@ -336,6 +336,43 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return None
         return user
 
+    def _get_effective_roles_for(self, user):
+        if hasattr(user, '_cached_effective_roles'):
+            return user._cached_effective_roles
+
+        from django.utils import timezone
+        from django.db.models import Q
+        now = timezone.now()
+
+        # Use prefetch cache for roles if available — avoids a DB hit
+        if hasattr(user, '_prefetched_objects_cache') and 'roles' in user._prefetched_objects_cache:
+            base = {r.name for r in user.roles.all()}
+        else:
+            base = set(user.roles.values_list('name', flat=True))
+
+        # Use prefetch cache for role_overrides if available
+        if hasattr(user, '_prefetched_objects_cache') and 'role_overrides' in user._prefetched_objects_cache:
+            override_roles = {
+                o.role.name for o in user.role_overrides.all()
+                if o.is_active
+                and (o.valid_until is None or o.valid_until > now)
+                and o.revoked_at is None
+            }
+        else:
+            override_roles = set(
+                RoleOverride.objects.filter(
+                    user=user,
+                    is_active=True,
+                )
+                .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+                .filter(revoked_at__isnull=True)
+                .values_list('role__name', flat=True)
+            )
+
+        result = base | override_roles
+        user._cached_effective_roles = result
+        return result
+
     def get_purpose_of_booking(self, obj):
         if not obj.purpose_of_booking:
             return "Occupied"
@@ -352,7 +389,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if obj.user_id == user.pk:
             return obj.purpose_of_booking
 
-        if "FACULTY" in user.get_effective_roles():
+        if "FACULTY" in self._get_effective_roles_for(user):
             return obj.purpose_of_booking
 
         return "Occupied"
@@ -415,7 +452,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "STAFF",
             "STUDENT",
         ]
-        effective_roles = user.get_effective_roles()
+        effective_roles = self._get_effective_roles_for(user)
         for role in priority:
             if role in effective_roles:
                 return ROLE_LABELS[role]
@@ -429,19 +466,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
     def get_booked_by_phone(self, obj):
         requester = self._user()
-
         if requester is None:
             return None
-
-        is_it_admin = requester.roles.filter(name=Role.Name.IT_ADMIN).exists()
-
-        is_faculty = requester.roles.filter(name=Role.Name.FACULTY).exists()
-
-        if requester.is_staff or requester.is_superuser or is_it_admin or is_faculty:
-            return getattr(obj.user, "phone_number", None) or getattr(
-                obj.user, "phone", None
-            )
-
+        effective = self._get_effective_roles_for(requester)
+        if requester.is_staff or requester.is_superuser or 'IT_ADMIN' in effective or 'FACULTY' in effective:
+            return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
         return None
 
     def get_booked_by_photo(self, obj):
