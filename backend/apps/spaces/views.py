@@ -705,30 +705,46 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user       = self.request.user
         view_param = self.request.query_params.get('view', 'mine')
-        refresh_queryset_lifecycle(SpaceBooking.objects.all())
 
-        # Faculty actions need to see bookings they sponsor, not own
+        if view_param != 'general':
+            refresh_queryset_lifecycle(SpaceBooking.objects.filter(user=user))
+
         if self.action in ('faculty_approve', 'faculty_reject'):
             return SpaceBooking.objects.filter(
                 faculty_sponsor=user
             ).select_related('space', 'user')
 
-        # Incharge actions need to see escalated bookings
         if self.action in ('incharge_resend',):
             return SpaceBooking.objects.all().select_related('space', 'user')
 
         if view_param == 'general':
-            return (
+            space_id = self.request.query_params.get('space')
+            qs = (
                 SpaceBooking.objects
-                .select_related('space', 'user')
+                .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain')
+                .prefetch_related(
+                    'space__built_in_equipment__equipment',
+                    'requested_equipment__equipment',
+                    'user__roles',
+                    'user__role_overrides__role',
+                )
                 .exclude(status__in=['REJECTED', 'CANCELLED'])
                 .order_by('start_datetime')
             )
+            if space_id:
+                qs = qs.filter(space_id=space_id)
+            return qs
 
         return (
             SpaceBooking.objects
             .filter(user=user)
-            .select_related('space', 'user')
+            .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain')
+            .prefetch_related(
+                'space__built_in_equipment__equipment',
+                'requested_equipment__equipment',
+                'user__roles',
+                'user__role_overrides__role',
+            )
             .order_by('-updated_at')
         )
 
@@ -740,17 +756,22 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             from apps.spaces.models import SpaceTimetableBlock
             from datetime import datetime
             from django.utils import timezone
-            
-            blocks = SpaceTimetableBlock.objects.select_related('space', 'batch').all()
+
+            space_id = request.query_params.get('space')
+            blocks_qs = SpaceTimetableBlock.objects.select_related('space', 'batch')
+            if space_id:
+                blocks_qs = blocks_qs.filter(space_id=space_id)
+            blocks = blocks_qs.all()
+
             timetable_data = []
             for b in blocks:
                 start_dt = timezone.make_aware(datetime.combine(b.date, b.start_time))
-                end_dt = timezone.make_aware(datetime.combine(b.date, b.end_time))
-                
+                end_dt   = timezone.make_aware(datetime.combine(b.date, b.end_time))
+
                 label = getattr(b, 'label', '')
                 if not label and getattr(b, 'batch', None):
                     label = getattr(b.batch, 'upload_label', '')
-                
+
                 timetable_data.append({
                     "id": f"tt_{b.id}",
                     "start_datetime": start_dt.isoformat(),
@@ -766,7 +787,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                         "capacity_hard": getattr(b.space, 'capacity_hard', 0),
                     }
                 })
-            
+
             if isinstance(response.data, dict) and 'results' in response.data:
                 response.data['results'].extend(timetable_data)
             elif isinstance(response.data, list):

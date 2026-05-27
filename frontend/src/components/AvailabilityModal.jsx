@@ -114,18 +114,38 @@ function getDayStatus(bookings) {
 // HELPERS — shared fetch logic
 // ─────────────────────────────────────────────
 async function loadBookings(spaceId) {
-  const res  = await api.get("/spaces/requests/?view=general")
+  const res  = await api.get(`/spaces/requests/?view=general&space=${spaceId}`)
   const data = res.data.results || res.data || []
 
   const grouped = {}
 
   data.forEach((b) => {
-    if ((b.space !== spaceId && b.space?.id !== spaceId) || b.status === "REJECTED") return
+    if (b.status === "REJECTED") return
 
-    const startD    = new Date(b.start_datetime)
-    const endD      = new Date(b.end_datetime)
-    const startKey  = formatDateKey(startD.getFullYear(), startD.getMonth(), startD.getDate())
-    const endKey    = formatDateKey(endD.getFullYear(), endD.getMonth(), endD.getDate())
+    if (b.is_timetable) {
+      const cursor = b.start_datetime.split("T")[0]
+      if (!grouped[cursor]) grouped[cursor] = []
+      grouped[cursor].push({
+        start: b.start_datetime.slice(11, 16),
+        end:   b.end_datetime.slice(11, 16),
+        title: b.purpose_of_booking || "Class Timetable",
+        status: "APPROVED",
+        isMultiDay: false,
+        isContinue: false,
+        bookedByName: "Timetable",
+        bookedByDesignation: "Scheduled Class",
+        bookedByDepartment: "Admin",
+        bookedByPhone: "",
+        bookedByPhoto: "",
+        purpose: b.purpose_of_booking,
+      })
+      return
+    }
+
+    const startD   = new Date(b.start_datetime)
+    const endD     = new Date(b.end_datetime)
+    const startKey = formatDateKey(startD.getFullYear(), startD.getMonth(), startD.getDate())
+    const endKey   = formatDateKey(endD.getFullYear(), endD.getMonth(), endD.getDate())
     const isMultiDay = startKey !== endKey
 
     const startStr = `${String(startD.getHours()).padStart(2, "0")}:${String(startD.getMinutes()).padStart(2, "0")}`
@@ -137,16 +157,13 @@ async function loadBookings(spaceId) {
     while (cursor <= endKey && iterations < MAX_SPAN) {
       if (!grouped[cursor]) grouped[cursor] = []
 
-      const isContinue = cursor !== startKey
-
       grouped[cursor].push({
         start: startStr,
         end: endStr,
         title: b.purpose_of_booking || "Booked Event",
         status: b.status,
-        isMultiDay: isMultiDay,
-        isContinue: isContinue,
-
+        isMultiDay,
+        isContinue: cursor !== startKey,
         bookedByName: b.booked_by_name,
         bookedByDesignation: b.booked_by_designation,
         bookedByDepartment: b.booked_by_department,
@@ -159,34 +176,6 @@ async function loadBookings(spaceId) {
       cursor = nextDateKey(cursor)
       iterations++
     }
-  })
-
-  let timetableBlocks = []
-  try {
-    const ttRes = await api.get(`/spaces/catalog/${spaceId}/timetable/`)
-    timetableBlocks = ttRes.data?.blocks || ttRes.data || []
-  } catch (err) {
-    console.error("Failed to fetch timetable blocks:", err)
-  }
-
-  timetableBlocks.forEach(b => {
-    const cursor = b.date
-    if (!grouped[cursor]) grouped[cursor] = []
-    
-    grouped[cursor].push({
-      start: b.start_time,
-      end: b.end_time,
-      title: b.label || "Class Timetable",
-      status: "APPROVED",
-      isMultiDay: false,
-      isContinue: false,
-      bookedByName: "Timetable",
-      bookedByDesignation: "Scheduled Class",
-      bookedByDepartment: "Admin",
-      bookedByPhone: "",
-      bookedByPhoto: "",
-      purpose: b.label || "Class Timetable",
-    })
   })
 
   return grouped

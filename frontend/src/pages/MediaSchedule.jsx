@@ -19,7 +19,7 @@ import {
 import EditLoadoutModal from "../components/EditLoadoutModal"
 import mediaService from "../api/mediaApi"
 import { useAuth } from "../hooks/useAuth"
-import MainLayout from "../layouts/MainLayout"
+
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -610,7 +610,6 @@ function MediaSchedule() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <MainLayout>
       <div className="p-5 md:p-8">
         <div className="mx-auto w-full max-w-[1280px]">
 
@@ -741,7 +740,6 @@ function MediaSchedule() {
         />
       )}
       </div>
-    </MainLayout>
   )
 }
 
