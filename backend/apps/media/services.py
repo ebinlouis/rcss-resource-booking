@@ -48,7 +48,7 @@ def get_busy_crew_ids(setup_start, teardown_end, exclude_booking_pk=None):
     they are assigned to — setup_start through teardown_end.
     """
     overlapping_qs = MediaBooking.objects.filter(
-        status='APPROVED',
+        status__in=['APPROVED', 'COMPLETED'],
         setup_start_datetime__lt=teardown_end,
         teardown_end_datetime__gt=setup_start,
     )
@@ -91,7 +91,7 @@ def get_crew_availability(setup_start, teardown_end, exclude_booking_pk=None):
 
     # Fetch the actual overlapping bookings for richer warning detail
     overlapping_qs = MediaBooking.objects.filter(
-        status='APPROVED',
+        status__in=['APPROVED', 'COMPLETED'],
         setup_start_datetime__lt=teardown_end,
         teardown_end_datetime__gt=setup_start,
     ).prefetch_related('assigned_crew')
@@ -258,7 +258,7 @@ def get_daily_team_availability(booking_date):
     free_crew  = count_free_crew(day_start, day_end)
 
     approved_bookings = MediaBooking.objects.filter(
-        status='APPROVED',
+        status__in=['APPROVED', 'COMPLETED'],
         is_team_request=True,
         setup_start_datetime__lt=day_end,
         teardown_end_datetime__gt=day_start,
