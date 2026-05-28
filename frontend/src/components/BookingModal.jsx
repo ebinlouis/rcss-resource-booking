@@ -835,7 +835,8 @@ These bookings may need additional review.
   }
   position="top"
 >
-  <button
+ 
+ <button
     onClick={handleSubmit}
     disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
     className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
