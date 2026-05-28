@@ -9,13 +9,15 @@ import {
   Clapperboard,
   UtensilsCrossed,
   ShieldCheck,
+
 } from "lucide-react"
 
-const TABS = [
+const BASE_TABS = [
   { name: "Venues", path: "/dashboard", icon: LayoutGrid },
   { name: "Transport", path: "/transport", icon: Bus },
   { name: "Media", path: "/media", icon: Clapperboard },
   { name: "Food", path: "/mess", icon: UtensilsCrossed },
+
 ]
 
 const ROLE_DISPLAY_MAP = {
@@ -139,6 +141,16 @@ function Navbar({ onTabChange }) {
 
   const roleLabel = getRoleLabel(effectiveRoles)
 
+  const tabs = [...BASE_TABS]
+
+if (effectiveRoles.includes("FACULTY")) {
+  tabs.push({
+    name: "Faculty Approval",
+    path: "/faculty-approvals",
+    icon: ShieldCheck,
+  })
+}
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/40 bg-white/70 backdrop-blur-xl">
       <div className="w-full px-5 md:px-8 xl:px-10">
@@ -152,7 +164,7 @@ function Navbar({ onTabChange }) {
           </div>
 
           <nav className="hidden md:flex items-stretch gap-1 self-stretch">
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const isActive = location.pathname === tab.path
               const Icon = tab.icon
 
