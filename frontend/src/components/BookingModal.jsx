@@ -112,9 +112,7 @@ function BookingModal({
   const bookingSession = useBookingSession();
 
   const handleClose = () => {
-    if (isStandalone) {
-      bookingSessionActions.clearSession()
-    }
+    bookingSessionActions.clearSession()
     onClose()
   }
 

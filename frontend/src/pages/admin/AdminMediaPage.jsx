@@ -514,14 +514,12 @@ const TABS = [
     { id: 'resolved', label: 'Resolved by Me',   key: 'resolved' },
 ]
 
-async function loadAdminMediaData() {
-    const [pending, resolved, active, history] = await Promise.all([
-        mediaApi.getPendingBookings(),
-        mediaApi.getResolvedByMe(),
-        mediaApi.getActiveBookings(),
-        mediaApi.getHistoryBookings(),
-    ])
-    return { pending, resolved, active, history }
+// Tab key → API fetcher mapping
+const TAB_FETCHER = {
+    pending:  () => mediaApi.getPendingBookings(),
+    active:   () => mediaApi.getActiveBookings(),
+    history:  () => mediaApi.getHistoryBookings(),
+    resolved: () => mediaApi.getResolvedByMe(),
 }
 
 function AdminMediaPage() {
@@ -532,47 +530,124 @@ function AdminMediaPage() {
     const requestedTab = searchParams.get('tab')
     const highlightedReference = searchParams.get('booking') || ''
 
-    const [activeTab,       setActiveTab]      = useState(() => (
+    const [activeTab,      setActiveTab]     = useState(() => (
         ['pending', 'active', 'history', 'resolved'].includes(requestedTab) ? requestedTab : 'pending'
     ))
-    const [data,            setData]           = useState({ pending: [], resolved: [], active: [], history: [] })
-    const [loading,         setLoading]        = useState(true)
-    const [error,           setError]          = useState('')
-    const [actionLoading,   setActionLoading]  = useState(null)
-    const [rejectTarget,    setRejectTarget]   = useState(null)
-    const [approveTarget,   setApproveTarget]  = useState(null)
-    const [successTarget,   setSuccessTarget]  = useState(null)
-    const [showSettings,    setShowSettings]   = useState(false)
-    const [maxConcurrent,   setMaxConcurrent]  = useState(null)
+    // null = never fetched; [] = fetched but empty
+    const [data,           setData]          = useState({ pending: null, resolved: null, active: null, history: null })
+    const [counts,         setCounts]        = useState({ pending: 0, active: 0, history: 0, resolved: 0 })
+    const [tabLoading,     setTabLoading]    = useState(false)
+    const [error,          setError]         = useState('')
+    const [actionLoading,  setActionLoading] = useState(null)
+    const [rejectTarget,   setRejectTarget]  = useState(null)
+    const [approveTarget,  setApproveTarget] = useState(null)
+    const [successTarget,  setSuccessTarget] = useState(null)
+    const [showSettings,   setShowSettings]  = useState(false)
+    const [maxConcurrent,  setMaxConcurrent] = useState(null)
 
-    const fetchData = useCallback(async ({ showLoading = true } = {}) => {
-        if (showLoading) setLoading(true)
+    // ── Fetch helpers ──────────────────────────────────────────────────────────
+
+    const fetchCounts = useCallback(async () => {
         try {
-            const [nextData, settings] = await Promise.all([
-                loadAdminMediaData(),
-                mediaApi.getSettings(),
-            ])
-            setData(nextData)
-            setMaxConcurrent(settings.max_concurrent_events)
-            setError('')
+            const c = await mediaApi.getBookingCounts()
+            setCounts(c)
         } catch (err) {
-            console.error('Failed to load media admin data', err)
-            setError('Could not load media requests. Please try again.')
-        } finally {
-            setLoading(false)
+            console.error('Failed to fetch booking counts', err)
         }
     }, [])
 
+    const fetchTab = useCallback(async (tabName) => {
+        const fetcher = TAB_FETCHER[tabName]
+        if (!fetcher) return
+        setTabLoading(true)
+        try {
+            const result = await fetcher()
+            setData((prev) => ({ ...prev, [tabName]: result }))
+            setError('')
+        } catch (err) {
+            console.error(`Failed to fetch tab "${tabName}"`, err)
+            setError('Could not load media requests. Please try again.')
+        } finally {
+            setTabLoading(false)
+        }
+    }, [])
+
+    const invalidateTabs = useCallback((...tabs) => {
+        setData((prev) => {
+            const next = { ...prev }
+            tabs.forEach((t) => { next[t] = null })
+            return next
+        })
+    }, [])
+
+    // ── Mount: initial data load ───────────────────────────────────────────────
+
     useEffect(() => {
         if (!canManageMedia) return
-        ;(async () => { await fetchData({ showLoading: false }) })()
-    }, [canManageMedia, fetchData])
+
+        const loadMount = async () => {
+            setTabLoading(true)
+            try {
+                if (highlightedReference) {
+                    // Deep-link: fetch all tabs so the cross-tab bookmark
+                    // search can find the highlighted booking immediately.
+                    const [pending, active, history, resolved, counts, settings] = await Promise.all([
+                        mediaApi.getPendingBookings(),
+                        mediaApi.getActiveBookings(),
+                        mediaApi.getHistoryBookings(),
+                        mediaApi.getResolvedByMe(),
+                        mediaApi.getBookingCounts(),
+                        mediaApi.getSettings(),
+                    ])
+                    setData({ pending, active, history, resolved })
+                    setCounts(counts)
+                    setMaxConcurrent(settings.max_concurrent_events)
+                } else {
+                    // Normal mount: only pending tab + counts + settings.
+                    const [pending, counts, settings] = await Promise.all([
+                        mediaApi.getPendingBookings(),
+                        mediaApi.getBookingCounts(),
+                        mediaApi.getSettings(),
+                    ])
+                    setData((prev) => ({ ...prev, pending }))
+                    setCounts(counts)
+                    setMaxConcurrent(settings.max_concurrent_events)
+                }
+                setError('')
+            } catch (err) {
+                console.error('Failed to load media admin data', err)
+                setError('Could not load media requests. Please try again.')
+            } finally {
+                setTabLoading(false)
+            }
+        }
+
+        loadMount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [canManageMedia])
+
+    // ── Lazy-load tab on first visit ───────────────────────────────────────────
+
+    useEffect(() => {
+        if (!canManageMedia) return
+        if (data[activeTab] !== null) return // already cached
+        
+        const timer = setTimeout(() => {
+            fetchTab(activeTab)
+        }, 0)
+        
+        return () => clearTimeout(timer)
+    }, [activeTab, canManageMedia, data, fetchTab])
+
+    // ── Sync tab from URL param ────────────────────────────────────────────────
 
     useEffect(() => {
         if (!['pending', 'active', 'history', 'resolved'].includes(requestedTab)) return undefined
         const timer = window.setTimeout(() => setActiveTab(requestedTab), 0)
         return () => window.clearTimeout(timer)
     }, [requestedTab])
+
+    // ── Action handlers ────────────────────────────────────────────────────────
 
     const handleApproveConfirm = async () => {
         if (!approveTarget) return
@@ -585,7 +660,9 @@ function AdminMediaPage() {
             }
             setSuccessTarget(approveTarget)
             setApproveTarget(null)
-            await fetchData({ showLoading: false })
+            // Refetch pending + counts immediately; active and history are stale
+            await Promise.all([fetchTab('pending'), fetchCounts()])
+            invalidateTabs('active', 'history')
         } catch (err) {
             toast.error(`Failed to approve booking. ${apiError(err)}`)
         } finally {
@@ -596,6 +673,7 @@ function AdminMediaPage() {
     const handleRejectConfirm = async (remarks) => {
         if (!rejectTarget) return
         setActionLoading(rejectTarget.id)
+        const isRevoke = rejectTarget.status === 'APPROVED'
         try {
             await mediaApi.reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks_by_admin: remarks })
             await notificationService.markBookingRead(rejectTarget.reference_code, 'media').catch(() => null)
@@ -603,7 +681,15 @@ function AdminMediaPage() {
                 navigate('/admin/media?tab=pending', { replace: true })
             }
             setRejectTarget(null)
-            await fetchData({ showLoading: false })
+            if (isRevoke) {
+                // Revoking an APPROVED booking → active list changed
+                await Promise.all([fetchTab('active'), fetchCounts()])
+                invalidateTabs('history')
+            } else {
+                // Rejecting a PENDING booking → pending list changed
+                await Promise.all([fetchTab('pending'), fetchCounts()])
+                invalidateTabs('history')
+            }
         } catch (err) {
             toast.error(`Failed to reject booking. ${apiError(err)}`)
         } finally {
@@ -617,7 +703,7 @@ function AdminMediaPage() {
     }
 
     const todayStr = new Date().toLocaleDateString('en-CA')
-    const sortByExternal = (list) => [...list].sort((a, b) => {
+    const sortByExternal = (arr) => [...arr].sort((a, b) => {
         const externalDelta = (b.is_external_event ? 1 : 0) - (a.is_external_event ? 1 : 0)
         if (externalDelta) return externalDelta
         if (activeTab === 'pending') return compareSubmissionTimeDesc(a, b)
@@ -626,10 +712,11 @@ function AdminMediaPage() {
         }
         return 0
     })
-    const list = sortByExternal(data[activeTab] ?? [])
+    const currentTabData = data[activeTab]     // null = not yet fetched
+    const list = sortByExternal(currentTabData ?? [])
 
     useEffect(() => {
-        if (!highlightedReference || loading || list.length === 0) return undefined
+        if (!highlightedReference || currentTabData === null || list.length === 0) return undefined
 
         const target = Array.from(document.querySelectorAll('[data-booking-reference]'))
             .find((element) => normaliseReference(element.getAttribute('data-booking-reference')) === normaliseReference(highlightedReference))
@@ -641,10 +728,12 @@ function AdminMediaPage() {
         }, 80)
 
         return () => window.clearTimeout(timer)
-    }, [highlightedReference, list, loading])
+    }, [highlightedReference, list, currentTabData])
 
     useEffect(() => {
-        if (!highlightedReference || loading || activeTab !== 'pending') return undefined
+        if (!highlightedReference || tabLoading || activeTab !== 'pending') return undefined
+        // All tabs are pre-fetched on mount when a deep-link is present,
+        // so data.history / data.resolved will be arrays, not null.
         if ((data.pending ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))) return undefined
 
         const nextTab = (data.history ?? []).some((booking) => normaliseReference(booking.reference_code) === normaliseReference(highlightedReference))
@@ -659,7 +748,7 @@ function AdminMediaPage() {
 
         const timer = window.setTimeout(() => setActiveTab(nextTab), 0)
         return () => window.clearTimeout(timer)
-    }, [activeTab, data.active, data.history, data.pending, data.resolved, highlightedReference, loading])
+    }, [activeTab, data.active, data.history, data.pending, data.resolved, highlightedReference, tabLoading])
 
     if (authLoading) {
         return (
@@ -721,8 +810,15 @@ function AdminMediaPage() {
                                 </span>
                             )}
                         </button>
-                        <button onClick={() => fetchData()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4] disabled:opacity-40">
-                            <RefreshCw className={`h-[18px] w-[18px] ${loading ? 'animate-spin' : ''}`} /> Refresh
+                        <button
+                            onClick={async () => {
+                                await Promise.all([fetchTab(activeTab), fetchCounts()])
+                                invalidateTabs(...TABS.map((t) => t.id).filter((id) => id !== activeTab))
+                            }}
+                            disabled={tabLoading}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4] disabled:opacity-40"
+                        >
+                            <RefreshCw className={`h-[18px] w-[18px] ${tabLoading ? 'animate-spin' : ''}`} /> Refresh
                         </button>
                     </div>
                 </div>
@@ -730,10 +826,15 @@ function AdminMediaPage() {
                 {/* Stats */}
                 <div className="mb-6 grid gap-3 md:grid-cols-3">
                     {[
-                        { value: data.pending.length, label: 'Waiting for review'       },
-                        { value: data.active.length,  label: 'Approved active bookings' },
-                        // UPDATED: Use the new event_start_datetime for the "Today" check
-                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Approved for today' },
+                        { value: counts.pending, label: 'Waiting for review'       },
+                        { value: counts.active,  label: 'Approved active bookings' },
+                        // Use data.active for the "Today" filter if available, else fall back to counts.active
+                        {
+                            value: data.active
+                                ? data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length
+                                : '–',
+                            label: 'Approved for today',
+                        },
                     ].map(({ value, label }) => (
                         <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
                             <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>
@@ -752,7 +853,7 @@ function AdminMediaPage() {
                         >
                             {tab.label}
                             <span className="rounded-full bg-[#f6fbf8] px-2 py-0.5 text-[12px] text-[#0f172a]">
-                                {data[tab.key]?.length ?? 0}
+                                {counts[tab.key]}
                             </span>
                         </button>
                     ))}
@@ -764,7 +865,7 @@ function AdminMediaPage() {
 
                 {/* List */}
                 <div className="space-y-4">
-                    {loading && list.length === 0 ? (
+                    {currentTabData === null || (tabLoading && currentTabData === null) ? (
                         <div className="rounded-2xl border border-[#e8f5ee] bg-white py-16 text-center shadow-sm">
                             <RefreshCw className="mx-auto mb-3 h-8 w-8 animate-spin text-[#15803d]" />
                             <p className="text-[15px] font-semibold text-[#6b7280]">Loading media requests...</p>

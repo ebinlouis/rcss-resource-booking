@@ -2,7 +2,7 @@ import datetime
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -605,6 +605,33 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             "free_crew":  free,
             "is_full":    free == 0,
         })
+
+
+    # ------------------------------------------------------------------
+    # Admin: Booking counts (lightweight tab badge data)
+    # ------------------------------------------------------------------
+
+    @action(detail=False, methods=['get'], url_path='booking_counts')
+    def booking_counts(self, request):
+        """
+        Returns { pending, active, history, resolved } — four COUNT(*)
+        aggregations executed in a single DB round-trip with no booking
+        object serialization.  Admin-only.  Used to populate tab badges
+        immediately on mount without waiting for full list queries.
+        """
+        if not is_media_admin(request.user):
+            return Response(
+                {"detail": "Only the Media administrator can view booking counts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        counts = MediaBooking.objects.aggregate(
+            pending=Count('id', filter=Q(status='PENDING')),
+            active=Count('id', filter=Q(status='APPROVED')),
+            history=Count('id', filter=~Q(status='PENDING')),
+            resolved=Count('id', filter=Q(resolved_by=request.user)),
+        )
+        return Response(counts)
 
 
     # ------------------------------------------------------------------
