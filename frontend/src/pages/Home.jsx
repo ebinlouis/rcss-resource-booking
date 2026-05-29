@@ -38,8 +38,11 @@ function Home() {
   const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
 
   useEffect(() => {
-    if (!shouldResumeSpace) bookingSessionActions.clearSession()
-  }, [shouldResumeSpace])
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("resumeSpace") !== "1") {
+      bookingSessionActions.clearSession()
+    }
+  }, [])
 
   // Fetch public venue list once on mount
   useEffect(() => {

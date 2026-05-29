@@ -17,6 +17,7 @@ import {
 import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal"
 import mediaApi from "../api/mediaApi"
+import toast from "react-hot-toast"
 
 
 const todayKey = () => {
@@ -842,6 +843,7 @@ function Media() {
           onClose={() => setOpenCreate(false)}
           onSuccess={() => {
             setOpenCreate(false)
+            toast.success("Media booking submitted successfully!")
             if (isLinkedFlow) {
               navigate("/dashboard?resumeSpace=1")
             } else {

@@ -427,7 +427,7 @@ const AvailabilityModal = memo(function AvailabilityModal({
               </p>
             </div>
             <Tooltip text="Close this calendar and go back." position="left">
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5">
+              <button onClick={() => { bookingSessionActions.clearSession(); onClose(); }} className="text-gray-400 hover:text-gray-600 transition text-lg leading-none mt-0.5">
                 ✕
               </button>
             </Tooltip>

@@ -1,5 +1,6 @@
 import datetime
 
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -155,8 +156,55 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
 
 
 def refresh_queryset_lifecycle(queryset):
+    """
+    Idempotently transitions all bookings in *queryset* that have crossed
+    their lifecycle deadline.
+
+    DB-level optimisation: rather than loading every PENDING/APPROVED row
+    into Python and checking timestamps there, we build a Q filter that
+    mirrors the exact deadline logic and let the database discard the vast
+    majority of rows before they ever leave PostgreSQL.
+
+    Field-name detection is done once per call by inspecting the model's
+    meta so this function stays generic across all booking domains (spaces,
+    fleet, mess, media).  Mess meal-time bookings fall back to the
+    unfiltered approach because their deadline is computed from a related
+    manager, which cannot be expressed as a simple DB filter.
+    """
+    now = timezone.now()
     changed = 0
-    for booking in queryset.filter(status__in=[PENDING, APPROVED, AWAITING_FACULTY, FACULTY_ESCALATED]):
-        if refresh_booking_lifecycle(booking):
+
+    model = queryset.model
+    field_names = {f.name for f in model._meta.get_fields()}
+
+    # ── Build expiry filter (PENDING / AWAITING_FACULTY / FACULTY_ESCALATED) ──
+    # A booking in one of these statuses expires when its approval deadline
+    # (setup_start_datetime or start_datetime) has passed.
+    expiry_statuses = [PENDING, AWAITING_FACULTY, FACULTY_ESCALATED]
+
+    if 'setup_start_datetime' in field_names:
+        expiry_q = Q(status__in=expiry_statuses, setup_start_datetime__lte=now)
+    elif 'start_datetime' in field_names:
+        expiry_q = Q(status__in=expiry_statuses, start_datetime__lte=now)
+    else:
+        # Mess or unknown domain — deadline lives in a related manager;
+        # fall back to loading all candidate rows and checking in Python.
+        expiry_q = Q(status__in=expiry_statuses)
+
+    # ── Build completion filter (APPROVED) ────────────────────────────────────
+    # An APPROVED booking completes when its completion deadline
+    # (teardown_end_datetime or end_datetime) has passed.
+    if 'teardown_end_datetime' in field_names:
+        completion_q = Q(status=APPROVED, teardown_end_datetime__lte=now)
+    elif 'end_datetime' in field_names:
+        completion_q = Q(status=APPROVED, end_datetime__lte=now)
+    else:
+        completion_q = Q(status=APPROVED)
+
+    candidates = queryset.filter(expiry_q | completion_q)
+
+    for booking in candidates:
+        if refresh_booking_lifecycle(booking, now=now):
             changed += 1
+
     return changed

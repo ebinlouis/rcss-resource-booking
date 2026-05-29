@@ -148,6 +148,16 @@ const mediaApi = {
     );
     return data;
   },
+
+  /**
+   * Returns { pending, active, history, resolved } counts in a single
+   * aggregate DB query. Used to populate tab badges immediately on mount
+   * without fetching full booking objects.
+   */
+  getBookingCounts: async () => {
+    const { data } = await api.get(`${MEDIA_ENDPOINT}booking_counts/`);
+    return data;
+  },
 };
 
 export default mediaApi;

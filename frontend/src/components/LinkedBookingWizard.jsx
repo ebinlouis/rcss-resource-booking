@@ -1622,7 +1622,7 @@ function LinkedBookingWizard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => closeToOrigin(!hasSubmittedSpace)}
+                        onClick={() => closeToOrigin(true)}
                         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
                       >
                         Yes, Cancel

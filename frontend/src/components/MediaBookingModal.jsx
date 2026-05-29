@@ -167,7 +167,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
   const [checkingInventory,   setCheckingInventory]   = useState(false)
   const [errors,              setErrors]              = useState({})
   const [submitting,          setSubmitting]          = useState(false)
-  const [submitted,           setSubmitted]           = useState(false)
+
   const [spaces,              setSpaces]              = useState([])
 
   useEffect(() => {
@@ -455,8 +455,12 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
         await mediaService.createBooking(payload)
         if (isLinkedBooking) bookingSessionActions.markComplete("media")
       }
+      
+      bookingSessionActions.clearSession();
+      bookingSessionActions.setMediaRequestMode(null);
+      setRequestMode(null);
+      
       onSuccess?.()
-      setSubmitted(true)
     } catch (err) {
       const data = err.response?.data
       if (data && typeof data === "object") {
@@ -479,57 +483,6 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     }
   }
 
-  // ── SUCCESS SCREEN ────────────────────────────────────────────────────────
-  if (submitted) {
-    return createPortal(
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 max-w-sm w-full text-center">
-          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-            <svg
-              className="w-7 h-7 text-green-700"
-              fill="none" viewBox="0 0 24 24"
-              stroke="currentColor" strokeWidth={2.5}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900">
-            {initialData ? "Updates Saved" : "Booking Submitted"}
-          </h2>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Your media booking {initialData ? "modifications have" : "request has"} been
-            submitted for review.
-            {formData.is_external_event && (
-              <span className="block mt-1 text-xs text-amber-600 font-medium">
-                Marked as an external event — will be prioritised for review.
-              </span>
-            )}
-          </p>
-          {isLinkedBooking && !bookingSession.completedBookings.includes("mess") && (
-            <button
-              onClick={() => {
-                onClose()
-                navigate("/mess?linked=1")
-              }}
-              className="mt-2 w-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 py-2.5 rounded-xl text-sm font-semibold transition"
-            >
-              Add Mess Booking
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (isLinkedBooking) bookingSessionActions.clearSession()
-              onClose()
-            }}
-            className={`${isLinkedBooking && !bookingSession.completedBookings.includes("mess") ? "" : "mt-2"} w-full bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-medium transition`}
-          >
-            {isLinkedBooking ? "Finish Booking" : "Done"}
-          </button>
-        </div>
-      </div>,
-      document.body
-    )
-  }
 
   // ── REQUEST TYPE PICKER ───────────────────────────────────────────────────
   if (!requestMode) {
@@ -598,8 +551,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
           <div className="flex justify-end px-8 py-5 border-t border-gray-100 bg-gray-50">
             <button
             onClick={() => {
-              bookingSessionActions.setMediaRequestMode(null)
-              setRequestMode(null)
+              bookingSessionActions.clearSession()
               onClose()}}
               className="px-5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
@@ -717,8 +669,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </h2>
               <button
               onClick={() => {
-                bookingSessionActions.setMediaRequestMode(null)
-                setRequestMode(null)
+                bookingSessionActions.clearSession()
                 onClose()
               }}
                 className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors"
@@ -1146,8 +1097,7 @@ Your request will still be reviewed.
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    bookingSessionActions.setMediaRequestMode(null)
-                    setRequestMode(null)
+                    bookingSessionActions.clearSession()
                     onClose()}}
                   disabled={submitting}
                   className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm disabled:opacity-50 font-semibold transition-colors"
