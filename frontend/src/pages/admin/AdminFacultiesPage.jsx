@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../api/axios';
-import toast from 'react-hot-toast'
+import toast from 'react-hot-toast';
+import { useCreateAdminUser, useUpdateAdminUser, useDeleteAdminUser, useToggleUserActive } from '../../hooks/useAdminUserQueries';
 
 const inputCls =
     'w-full border border-[#e2e8f0] rounded-xl px-3.5 py-2.5 text-sm text-[#0f172a] bg-white outline-none transition focus:ring-2 focus:ring-[#15803d] focus:border-transparent placeholder:text-[#94a3b8] hover:border-[#94a3b8]';
@@ -21,6 +22,11 @@ export default function AdminFacultiesPage() {
     const { id: routeDeptId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+
+    const createAdminUser = useCreateAdminUser();
+    const updateAdminUser = useUpdateAdminUser();
+    const deleteAdminUser = useDeleteAdminUser();
+    const toggleUserActive = useToggleUserActive();
 
     // Determine the active department ID
     // IT Admin uses route parameter, HOD uses their own department
@@ -297,10 +303,10 @@ export default function AdminFacultiesPage() {
 
         try {
             if (editingUser) {
-                await api.patch(`/auth/admin-users/${editingUser.id}/`, payload);
+                await updateAdminUser.mutateAsync({ id: editingUser.id, payload });
                 toast.success('Faculty updated successfully');
             } else {
-                await api.post('/auth/admin-users/', payload);
+                await createAdminUser.mutateAsync(payload);
                 toast.success('Faculty added successfully');
             }
             setIsModalOpen(false);
@@ -398,13 +404,11 @@ export default function AdminFacultiesPage() {
         setIsActionSubmitting(true);
         try {
             if (actionType === 'delete') {
-                await api.delete(`/auth/admin-users/${actionTargetUser.id}/`);
+                await deleteAdminUser.mutateAsync(actionTargetUser.id);
                 toast.success('Faculty removed successfully');
             } else {
                 // Deactivate
-                await api.patch(`/auth/admin-users/${actionTargetUser.id}/`, {
-                    is_active: false
-                });
+                await toggleUserActive.mutateAsync({ id: actionTargetUser.id, is_active: false });
                 toast.success('Faculty deactivated successfully');
             }
             setActionTargetUser(null);

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
 import TransportBookingModal from "../components/TransportBookingModal"
-import { getMyBookings, cancelBooking } from "../api/fleetApi"
+import { useMyFleetBookings, useCancelFleetBooking } from "../hooks/useFleetQueries"
 import {
   Pencil,
   Trash2,
@@ -102,9 +102,9 @@ function Transport() {
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
 
   // API state
-  const [allBookings, setAllBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState("")
+  const { data: queryData = [], isLoading: loading, isError, refetch } = useMyFleetBookings()
+  const allBookings = queryData || []
+  const loadError = isError ? "Failed to load bookings. Please refresh and try again." : ""
 
   // Modal state
   const [showModal, setShowModal] = useState(false)
@@ -120,36 +120,16 @@ function Transport() {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  const fetchBookings = useCallback(async () => {
-    if (!user) { setLoading(false); return }
-    setLoading(true)
-    setLoadError("")
+  const fetchBookings = useCallback(() => {
+    refetch()
+  }, [refetch])
 
-    try {
-      const data = await getMyBookings()
-
-      setAllBookings(
-        Array.isArray(data)
-          ? data
-          : data.results ?? []
-      )
-    } catch {
-      setLoadError(
-        "Failed to load bookings. Please refresh and try again."
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [user])
-
-  useEffect(() => {
-    fetchBookings()
-  }, [fetchBookings])
-
-  const bookingsForDate = allBookings.filter((booking) => {
-    if (!booking.start_datetime) return false
-    return booking.start_datetime.slice(0, 10) === selectedDate
-  })
+  const bookingsForDate = useMemo(() => {
+    return allBookings.filter((booking) => {
+      if (!booking.start_datetime) return false
+      return booking.start_datetime.slice(0, 10) === selectedDate
+    })
+  }, [allBookings, selectedDate])
 
   const openCreateModal = () => {
     if (!user) { navigate("/login", { state: { from: location.pathname } }); return }
@@ -162,23 +142,7 @@ function Transport() {
     setShowModal(true)
   }
 
-  const handleSave = (savedBooking) => {
-    setAllBookings((prev) => {
-      const exists = prev.find(
-        (booking) => booking.id === savedBooking.id
-      )
-
-      if (exists) {
-        return prev.map((booking) =>
-          booking.id === savedBooking.id
-            ? savedBooking
-            : booking
-        )
-      }
-
-      return [savedBooking, ...prev]
-    })
-
+  const handleSave = () => {
     setShowModal(false)
     setEditData(null)
   }
@@ -189,6 +153,8 @@ function Transport() {
     setShowDeleteModal(true)
   }
 
+  const cancelMutation = useCancelFleetBooking()
+
   const handleCancel = async () => {
     if (!deleteTarget) return
 
@@ -196,16 +162,7 @@ function Transport() {
     setDeleteError("")
 
     try {
-      await cancelBooking(deleteTarget.id)
-
-      setAllBookings((prev) =>
-        prev.map((booking) =>
-          booking.id === deleteTarget.id
-            ? { ...booking, status: "CANCELLED" }
-            : booking
-        )
-      )
-
+      await cancelMutation.mutateAsync(deleteTarget.id)
       setShowDeleteModal(false)
       setDeleteTarget(null)
     } catch (err) {
@@ -217,7 +174,7 @@ function Transport() {
     } finally {
       setDeleting(false)
     }
-  }   // <-- THIS MUST BE HERE
+  }
 
   return (
     <MainLayout>

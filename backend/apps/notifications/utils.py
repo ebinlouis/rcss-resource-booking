@@ -628,6 +628,76 @@ def notify_new_request(booking, domain, role_name):
     )
 
 
+def notify_incharge_expired(booking, domain):
+    """
+    Notify the relevant admins that a booking request has automatically expired.
+    """
+    resource = _resource_name(booking, domain)
+    reference = _booking_reference(booking)
+    link = _approver_link(domain, reference, tab='history')
+    requester = getattr(booking.user, "first_name", None) or "A user"
+    
+    time_str = _format_booking_time(booking, domain)
+    time_context = f" scheduled for {time_str}" if time_str else ""
+
+    title = f"{domain.capitalize()} Request Expired"
+    message = f"A {domain} request from {requester} for {resource}{time_context} has automatically expired."
+
+    if domain == "mess":
+        date_range = _format_mess_date_range(booking)
+        first_meal = _mess_first_meal_time(booking)
+        title = "Catering Request Expired"
+        if date_range and first_meal:
+            message = f"A catering request from {requester} for {date_range} (first meal at {_format_time_value(first_meal)}) has automatically expired."
+        elif date_range:
+            message = f"A catering request from {requester} for {date_range} has automatically expired."
+        else:
+            message = f"A catering request from {requester} has automatically expired."
+
+    elif domain == "media":
+        event_name = getattr(booking, "event_name", None) or "the event"
+        date_range = _format_media_date_range(booking)
+        request_label = "Media team request" if getattr(booking, "is_team_request", False) else "Equipment request"
+        title = "Media Request Expired"
+        if date_range:
+            message = f"A {request_label} from {requester} for {event_name} on {date_range} has automatically expired."
+        else:
+            message = f"A {request_label} from {requester} for {event_name} has automatically expired."
+
+    if domain == 'spaces':
+        chain = getattr(getattr(booking, 'space', None), 'approver_chain', None)
+        if chain:
+            for approver in [chain.primary_approver, chain.fallback_approver]:
+                if approver:
+                    notify(
+                        approver,
+                        Notification.Category.SYSTEM,
+                        title,
+                        message,
+                        link=link,
+                        domain=domain,
+                        reference_code=reference,
+                        is_actionable=False,
+                    )
+    else:
+        role_map = {
+            'fleet': Role.Name.FLEET_MANAGER,
+            'mess': Role.Name.MESS_MANAGER,
+            'media': Role.Name.MEDIA_INCHARGE,
+        }
+        role_name = role_map.get(domain)
+        if role_name:
+            notify_approvers(
+                role_name,
+                Notification.Category.SYSTEM,
+                title,
+                message,
+                link=link,
+                domain=domain,
+                reference_code=reference,
+                is_actionable=False,
+            )
+
 # ==========================================
 # FACULTY APPROVAL NOTIFICATIONS
 # ==========================================

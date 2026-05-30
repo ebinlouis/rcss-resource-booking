@@ -53,21 +53,27 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
     const [error, setError] = useState('');
     const isActionTray = tone === 'admin';
 
-    const shellClasses = tone === 'admin'
-        ? 'hover:bg-[#f0fdf4] text-[#4a6b58] hover:text-[#15803d]'
-        : 'hover:bg-gray-100 text-gray-500 hover:text-gray-800';
+    const shellClasses = 'hover:bg-gray-100 text-gray-500 hover:text-gray-800';
+    const badgeClasses = 'bg-red-500';
 
-    const badgeClasses = tone === 'admin'
-        ? 'bg-[#22c55e]'
-        : 'bg-red-500';
+    const [activeTab, setActiveTab] = useState('actionable');
+    const [updatesCount, setUpdatesCount] = useState(0);
 
     const loadUnreadCount = useCallback(async () => {
         if (!user) return;
         try {
-            const count = await notificationService.getUnreadCount(isActionTray ? { actionable: 'true' } : {});
-            setUnreadCount(count);
+            if (isActionTray) {
+                const actCount = await notificationService.getUnreadCount({ actionable: 'true' });
+                const upCount = await notificationService.getUnreadCount({ actionable: 'false' });
+                setUnreadCount(actCount);
+                setUpdatesCount(upCount);
+            } else {
+                const count = await notificationService.getUnreadCount({});
+                setUnreadCount(count);
+            }
         } catch {
             setUnreadCount(0);
+            if (isActionTray) setUpdatesCount(0);
         }
     }, [isActionTray, user]);
 
@@ -77,18 +83,33 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         setError('');
 
         try {
-            const data = await notificationService.getNotifications({
-                page_size: 10,
-                ...(isActionTray ? { actionable: 'true' } : { unread: 'true' }),
-            });
+            const params = { page_size: 10 };
+            if (isActionTray) {
+                if (activeTab === 'actionable') {
+                    params.actionable = 'true';
+                } else {
+                    params.actionable = 'false';
+                    params.unread = 'true';
+                }
+            } else {
+                params.unread = 'true';
+            }
+
+            const data = await notificationService.getNotifications(params);
             setNotifications(data.results ?? []);
-            setUnreadCount(data.unread_count ?? 0);
+            
+            if (isActionTray) {
+                if (activeTab === 'actionable') setUnreadCount(data.unread_count ?? 0);
+                else setUpdatesCount(data.unread_count ?? 0);
+            } else {
+                setUnreadCount(data.unread_count ?? 0);
+            }
         } catch {
             setError('Could not load notifications.');
         } finally {
             setIsLoading(false);
         }
-    }, [isActionTray, user]);
+    }, [isActionTray, activeTab, user]);
 
     useEffect(() => {
         if (!user) {
@@ -121,23 +142,29 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
         return () => document.removeEventListener('mousedown', handler);
     }, [isOpen]);
 
-    const handleToggle = async (event) => {
-        event.stopPropagation();
-        const nextOpen = !isOpen;
-        setIsOpen(nextOpen);
-        if (nextOpen) {
-            await loadNotifications();
+    useEffect(() => {
+        if (isOpen) {
+            loadNotifications();
         }
+    }, [isOpen, activeTab, loadNotifications]);
+
+    const handleToggle = (event) => {
+        event.stopPropagation();
+        setIsOpen(!isOpen);
     };
 
     const handleNotificationClick = async (notification) => {
-        if (!isActionTray && !notification.is_read) {
+        if (!notification.is_actionable && !notification.is_read) {
             try {
                 const updated = await notificationService.markRead(notification.id);
                 setNotifications((current) =>
                     current.filter((item) => item.id !== updated.id)
                 );
-                setUnreadCount((count) => Math.max(0, count - 1));
+                if (isActionTray) {
+                    setUpdatesCount((count) => Math.max(0, count - 1));
+                } else {
+                    setUnreadCount((count) => Math.max(0, count - 1));
+                }
             } catch {
                 return;
             }
@@ -183,14 +210,45 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
 
             {isOpen && (
                 <div className="absolute right-0 top-full mt-2.5 w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-2xl shadow-emerald-950/10 backdrop-blur-xl ring-1 ring-emerald-900/5 z-[70]">
-                    <div className="flex items-center justify-between gap-3 border-b border-gray-100/80 bg-white/85 px-4 py-3">
-                        <div>
-                            <p className="text-[15px] font-bold text-gray-900 leading-tight">Notifications</p>
-                            <p className="text-[13px] text-gray-500 mt-0.5">
-                                {unreadCount} {isActionTray ? 'needs action' : 'unread'}
-                            </p>
+                    {isActionTray ? (
+                        <div className="bg-white/85 px-4 pt-3">
+                            <div className="flex w-full border-b border-gray-100/80">
+                                <button
+                                    onClick={() => setActiveTab('actionable')}
+                                    className={`flex-1 pb-2.5 text-[13px] font-bold border-b-2 transition-colors ${
+                                        activeTab === 'actionable'
+                                            ? 'border-green-600 text-green-700'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`}
+                                >
+                                    Needs Action
+                                    <span className={`ml-1.5 inline-flex items-center justify-center ${unreadCount > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'} text-[10px] font-black px-1.5 rounded-md`}>
+                                        {unreadCount}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('updates')}
+                                    className={`flex-1 pb-2.5 text-[13px] font-bold border-b-2 transition-colors ${
+                                        activeTab === 'updates'
+                                            ? 'border-green-600 text-green-700'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`}
+                                >
+                                    Recent Updates
+                                    <span className={`ml-1.5 inline-flex items-center justify-center ${updatesCount > 0 ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'} text-[10px] font-black px-1.5 rounded-md`}>
+                                        {updatesCount}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
-                        {!isActionTray && (
+                    ) : (
+                        <div className="flex items-center justify-between gap-3 border-b border-gray-100/80 bg-white/85 px-4 py-3">
+                            <div>
+                                <p className="text-[15px] font-bold text-gray-900 leading-tight">Notifications</p>
+                                <p className="text-[13px] text-gray-500 mt-0.5">
+                                    {unreadCount} unread
+                                </p>
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleMarkAllRead}
@@ -204,8 +262,8 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                                 )}
                                 Mark all
                             </button>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     <div className="max-h-[420px] overflow-y-auto">
                         {isLoading ? (
@@ -230,7 +288,9 @@ const NotificationBell = ({ className = '', tone = 'user' }) => {
                                 <p className="text-[15px] font-semibold text-gray-700">No notifications</p>
                                 <p className="text-[13px] text-gray-400 mt-1">
                                     {isActionTray
-                                        ? 'Requests waiting for your decision will appear here.'
+                                        ? activeTab === 'actionable'
+                                            ? 'Requests waiting for your decision will appear here.'
+                                            : 'No recent updates about your resources.'
                                         : 'Updates about your bookings will appear here.'}
                                 </p>
                             </div>

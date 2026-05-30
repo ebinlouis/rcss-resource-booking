@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, memo } from "react"
 import { useNavigate } from "react-router-dom"
 import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
+import { useAdminSpacesCatalog, useAdminBlocks } from "../../hooks/useSpaceQueries"
 import SpaceFormModal from "../../components/admin/SpaceFormModal"
 import TimetableManagerModal from "../../components/admin/TimetableManagerModal"
 import { parseSpaceLocation } from "../../utils/spaceLocation"
@@ -51,14 +52,14 @@ function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", str
 // Space Card
 // ─────────────────────────────────────────────────────────────
 
-function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable }) {
+const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable }) {
   const { blockName, locationDetails } = parseSpaceLocation(space.location, blocks)
   const typeMeta = SPACE_TYPE_META[space.space_type] ?? {
     label: space.space_type,
     color: "bg-[#f1f5f9] text-[#475569] border-[#e2e8f0]",
   }
 
-  return (
+  const content = (
     <div
       className={`bg-white rounded-2xl border overflow-hidden flex flex-col transition-all duration-200
         hover:shadow-md hover:-translate-y-0.5 group
@@ -70,6 +71,8 @@ function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetabl
           <img
             src={space.image_1}
             alt={space.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
@@ -185,20 +188,19 @@ function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetabl
       </div>
     </div>
   )
-}
+  return content;
+})
 
 // ─────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────
 
+const EMPTY_ARRAY = []
+
 const AdminSpacesPage = () => {
   const navigate = useNavigate()
   const { can_manage_system } = useAuth()
   
-  const [spaces, setSpaces]           = useState([])
-  const [blocks, setBlocks]           = useState([])
-  const [isLoading, setIsLoading]     = useState(true)
-  const [error, setError]             = useState(null)
   const [refreshCount, setRefreshCount] = useState(0)
 
   const [modalOpen, setModalOpen]     = useState(false)
@@ -212,38 +214,19 @@ const AdminSpacesPage = () => {
   const [filterActive, setFilterActive] = useState("ALL")
   const [filterSpecial, setFilterSpecial] = useState(false)
 
-  // ── Fetch rooms + blocks ──
-  useEffect(() => {
-    let isMounted = true
+  const { data: spacesData, isLoading: spacesLoading, isError: spacesError, refetch: refetchSpaces } = useAdminSpacesCatalog()
+  const { data: blocksData, isLoading: blocksLoading, isError: blocksError, refetch: refetchBlocks } = useAdminBlocks()
 
-    Promise.all([
-      api.get("/spaces/catalog/?manage=true"),
-      spaceAdminService.getBlocks(),
-    ])
-      .then(([spacesRes, blocksData]) => {
-        if (isMounted) {
-          setSpaces(spacesRes.data.results ?? spacesRes.data ?? [])
-          setBlocks(Array.isArray(blocksData) ? blocksData : blocksData.results ?? [])
-          setError(null)
-        }
-      })
-      .catch((err) => {
-        if (isMounted)
-          setError(
-            err.response?.status === 401
-              ? "You don't have permission to manage venues."
-              : "Could not load venues. Please check your connection."
-          )
-      })
-      .finally(() => { if (isMounted) setIsLoading(false) })
-
-    return () => { isMounted = false }
-  }, [refreshCount])
+  const spaces = spacesData?.results ?? spacesData ?? EMPTY_ARRAY
+  const blocks = Array.isArray(blocksData) ? blocksData : blocksData?.results ?? EMPTY_ARRAY
+  
+  const isLoading = spacesLoading || blocksLoading
+  const error = (spacesError || blocksError) ? "Could not load venues. Please check your connection." : null
 
   // Fix: Set loading state directly in the action handlers, not in the effect
   const handleRefresh = () => {
-    setIsLoading(true)
-    setRefreshCount((c) => c + 1)
+    refetchSpaces()
+    refetchBlocks()
   }
 
   const openCreate = () => { 
@@ -264,8 +247,7 @@ const AdminSpacesPage = () => {
   const handleModalClose = () => {
     setModalOpen(false)
     setEditTarget(null)
-    setIsLoading(true) // Trigger loading state before fetch
-    setRefreshCount((c) => c + 1)
+    handleRefresh()
   }
 
   // ── Derived data ──
@@ -466,8 +448,21 @@ const AdminSpacesPage = () => {
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{error}</p>
           </div>
         ) : isLoading && spaces.length === 0 ? (
-          <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center">
-            <p className="text-[14px] text-[#94a3b8]">Loading venues...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col h-80 animate-pulse">
+                <div className="h-36 bg-gray-100"></div>
+                <div className="p-4 flex flex-col flex-1 gap-3">
+                  <div className="h-4 bg-gray-100 rounded w-3/4 mb-1"></div>
+                  <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                  <div className="h-3 bg-gray-100 rounded w-1/3 mt-2"></div>
+                  <div className="mt-auto pt-1 flex gap-2">
+                    <div className="h-9 bg-gray-100 rounded-xl flex-1"></div>
+                    <div className="h-9 bg-gray-100 rounded-xl flex-1"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">

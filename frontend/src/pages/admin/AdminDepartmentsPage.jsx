@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import { useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from '../../hooks/useDepartmentQueries';
 
 const inputCls =
     'w-full border border-[#e2e8f0] rounded-xl px-3.5 py-2.5 text-sm text-[#0f172a] bg-white outline-none transition focus:ring-2 focus:ring-[#15803d] focus:border-transparent placeholder:text-[#94a3b8] hover:border-[#94a3b8]';
 
 export default function AdminDepartmentsPage() {
     const navigate = useNavigate();
+    const createDepartment = useCreateDepartment();
+    const updateDepartment = useUpdateDepartment();
+    const deleteDepartment = useDeleteDepartment();
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [listError, setListError] = useState(null);
@@ -23,7 +27,7 @@ export default function AdminDepartmentsPage() {
     const [openMenuDeptId, setOpenMenuDeptId] = useState(null);
     const menuRef = useRef(null);
 
-    const refreshRef = useRef(null);
+
 
     const fetchDepartments = useCallback(async ({ silent = false } = {}) => {
         if (!silent) setLoading(true);
@@ -39,9 +43,7 @@ export default function AdminDepartmentsPage() {
         }
     }, []);
 
-    useEffect(() => {
-        refreshRef.current = fetchDepartments;
-    }, [fetchDepartments]);
+
 
     useEffect(() => {
         let cancelled = false;
@@ -132,17 +134,16 @@ export default function AdminDepartmentsPage() {
         setFormError(null);
         try {
             if (editingId) {
-                await api.patch(`/auth/departments/${editingId}/`, form);
+                await updateDepartment.mutateAsync({ id: editingId, payload: form });
                 setIsModalOpen(false);
                 setEditingId(null);
                 setForm({ department_name: '', department_code: '' });
-                refreshRef.current?.({ silent: true });
             } else {
-                const res = await api.post('/auth/departments/', form);
+                const res = await createDepartment.mutateAsync(form);
                 setIsModalOpen(false);
                 setEditingId(null);
                 setForm({ department_name: '', department_code: '' });
-                navigate(`/admin/departments/${res.data.id}/faculties?onboard=true`);
+                navigate(`/admin/departments/${res.id}/faculties?onboard=true`);
             }
         } catch (err) {
             setFormError(
@@ -160,9 +161,8 @@ export default function AdminDepartmentsPage() {
         setIsDeleting(true);
         setDeleteError(null);
         try {
-            await api.delete(`/auth/departments/${deleteTarget.id}/`);
+            await deleteDepartment.mutateAsync(deleteTarget.id);
             setDeleteTarget(null);
-            refreshRef.current?.({ silent: true });
         } catch {
             setDeleteError('Error deleting department. It may be in use.');
         } finally {

@@ -3,6 +3,7 @@ import api from "../api/axios"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 import { useAuth } from "./useAuth"
 import toast from 'react-hot-toast'
+import { useCreateSpaceBooking, useUpdateSpaceBooking } from "./useSpaceQueries"
 
 const LOW_OCCUPANCY_THRESHOLD = 0.3
 const COLLEGE_START = "08:00"
@@ -536,6 +537,9 @@ export function useBookingForm({
     return e
   }
 
+  const createMutation = useCreateSpaceBooking()
+  const updateMutation = useUpdateSpaceBooking()
+
   const handleSubmit = async () => {
     if (isAvailable !== true || exceedsCapacity) {
       return
@@ -570,14 +574,14 @@ export function useBookingForm({
       }
 
       if (isEdit) {
-        await api.patch(`/spaces/requests/${initialData.id}/`, payload)
+        await updateMutation.mutateAsync({ id: initialData.id, data: payload })
       } else {
         if (hasLinkedBookings) payload.event_group_id = bookingSession.eventGroupId
-        const response = await api.post("/spaces/requests/", payload)
+        const response = await createMutation.mutateAsync(payload)
         bookingSessionActions.setSpaceFormData({
-          id: response.data?.id,
-          reference_code: response.data?.reference_code,
-          event_group_id: response.data?.event_group_id || bookingSession.eventGroupId,
+          id: response?.id,
+          reference_code: response?.reference_code,
+          event_group_id: response?.event_group_id || bookingSession.eventGroupId,
           space: activeSpaceId,
           spaceName: activeSpaceName,
           start_date: form.start_date,
@@ -610,32 +614,32 @@ export function useBookingForm({
           ? errData.purpose_of_booking_input[0]
           : errData.purpose_of_booking_input
       if (errData.non_field_errors) {
-  const msg = Array.isArray(errData.non_field_errors)
-    ? errData.non_field_errors[0]
-    : errData.non_field_errors
+        const msg = Array.isArray(errData.non_field_errors)
+          ? errData.non_field_errors[0]
+          : errData.non_field_errors
 
-  if (msg.toLowerCase().includes("overlap")) {
-    toast.error("This venue is already booked for the selected time slot.")
-    return
-  }
+        if (msg.toLowerCase().includes("overlap")) {
+          toast.error("This venue is already booked for the selected time slot.")
+          return
+        }
 
-  mappedErrors.server = msg
-}
+        mappedErrors.server = msg
+      }
 
-if (Object.keys(mappedErrors).length === 0) {
-  const rawError = errData.error || errData.detail || ""
+      if (Object.keys(mappedErrors).length === 0) {
+        const rawError = errData.error || errData.detail || ""
 
-  if (
-    rawError.includes("exclude_overlapping_approved_space_bookings") ||
-    rawError.includes("conflicting key value violates exclusion constraint")
-  ) {
-    toast.error("This venue is already booked for the selected time slot.")
-  } else {
-    toast.error(rawError || "Submission failed.")
-  }
+        if (
+          rawError.includes("exclude_overlapping_approved_space_bookings") ||
+          rawError.includes("conflicting key value violates exclusion constraint")
+        ) {
+          toast.error("This venue is already booked for the selected time slot.")
+        } else {
+          toast.error(rawError || "Submission failed.")
+        }
 
-  return
-}
+        return
+      }
       setErrors(mappedErrors)
     } finally {
       setIsSubmitting(false)

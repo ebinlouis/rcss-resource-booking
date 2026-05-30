@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { getVehicles, createBooking, updateBooking } from "../api/fleetApi"
+import { getVehicles } from "../api/fleetApi"
+import { useCreateFleetBooking, useUpdateFleetBooking } from "../hooks/useFleetQueries"
 
 // ── FIELD ─────────────────────────────────────
 function Field({ label, required, children, error }) {
@@ -140,6 +141,9 @@ function TransportBookingModal({
 
   const [fieldErrors, setFieldErrors] =
     useState({})
+
+  const createMutation = useCreateFleetBooking()
+  const updateMutation = useUpdateFleetBooking()
 
   // ── FETCH VEHICLES ─────────────────────────
 
@@ -336,15 +340,15 @@ function TransportBookingModal({
       if (isEditMode) {
 
         result =
-          await updateBooking(
-            editData.id,
-            payload
-          )
+          await updateMutation.mutateAsync({
+            id: editData.id,
+            bookingData: payload
+          })
 
       } else {
 
         result =
-          await createBooking(payload)
+          await createMutation.mutateAsync(payload)
       }
 
       onSave(result)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
-import toast from 'react-hot-toast'
+import toast from 'react-hot-toast';
+import { useCreateEquipment, useUpdateEquipment, useSoftDeleteEquipment } from '../../hooks/useEquipmentQueries';
 
 // Must match EquipmentCategory choices in models.py exactly
 const EQUIPMENT_CATEGORIES = [
@@ -66,7 +67,6 @@ const Toggle = ({ checked, onChange, label, sublabel }) => (
 const AdminEquipmentPage = () => {
     const [equipment, setEquipment]           = useState([]);
     const [isLoading, setIsLoading]           = useState(true);
-    const [refreshCount, setRefreshCount]     = useState(0);
     const [search, setSearch]                 = useState('');
     const [filterCategory, setFilterCategory] = useState('ALL');
 
@@ -75,6 +75,10 @@ const AdminEquipmentPage = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData]         = useState(EMPTY_FORM);
     const [formError, setFormError]       = useState('');
+
+    const createEquipment = useCreateEquipment();
+    const updateEquipment = useUpdateEquipment();
+    const softDeleteEquipment = useSoftDeleteEquipment();
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -96,7 +100,7 @@ const AdminEquipmentPage = () => {
 
         fetchEquipment();
         return () => { isMounted = false; };
-    }, [refreshCount]);
+    }, []);
 
     // ── Modal ─────────────────────────────────────────────────────────────────
     const handleOpenModal = (item = null) => {
@@ -144,12 +148,11 @@ const AdminEquipmentPage = () => {
             };
 
             if (editingItem) {
-                await api.put(`${ENDPOINT}${editingItem.id}/`, payload);
+                await updateEquipment.mutateAsync({ id: editingItem.id, payload });
             } else {
-                await api.post(ENDPOINT, payload);
+                await createEquipment.mutateAsync(payload);
             }
 
-            setRefreshCount((c) => c + 1);
             handleCloseModal();
         } catch (err) {
             console.error('Failed to save equipment:', err);
@@ -168,8 +171,7 @@ const AdminEquipmentPage = () => {
     const handleDeactivate = async (id) => {
         if (!window.confirm('Deactivate this item? It will be hidden from space assignments.')) return;
         try {
-            await api.patch(`${ENDPOINT}${id}/`, { is_active: false });
-            setRefreshCount((c) => c + 1);
+            await softDeleteEquipment.mutateAsync(id);
         } catch (err) {
             console.error('Failed to deactivate:', err);
             toast.error('Failed to deactivate equipment.');

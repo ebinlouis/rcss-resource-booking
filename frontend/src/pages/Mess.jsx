@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
@@ -6,6 +6,7 @@ import MessBookingForm from "../components/MessBookingForm"
 import messService from "../api/messService"
 import { getSubmissionTimestamp } from "../utils/submissionTime"
 import toast from 'react-hot-toast'
+import { useMyMessBookings, useCancelMessBooking } from "../hooks/useMessQueries"
 
 import {
   MEALS,
@@ -119,9 +120,8 @@ function Mess() {
   const highlightedReference = searchParams.get("booking") || ""
   const isLinkedFlow = searchParams.get("linked") === "1"
 
-  const [bookings,                setBookings]                = useState([])
-  const [isLoading,               setIsLoading]               = useState(true)
-  const [refreshTrigger,          setRefreshTrigger]          = useState(0)
+  const { data: bookingsData, isLoading, refetch } = useMyMessBookings();
+  const bookings = bookingsData || [];
 
   const [selectedDate,            setSelectedDate]            = useState("")
   const [mealFilter,              setMealFilter]              = useState("All")
@@ -143,57 +143,41 @@ function Mess() {
   const [isDeleting,              setIsDeleting]              = useState(false)
 
   const [detailDay, setDetailDay] = useState(0)
-  const isFirstLoad = useRef(true)
-
-  // ── Data fetching ───────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!user) { setIsLoading(false); return }
-    let isMounted = true
-    const fetchBookings = async () => {
-      if (isFirstLoad.current) { setIsLoading(true); isFirstLoad.current = false }
-      try {
-        const data = await messService.getMyBookings()
-        if (isMounted) { setBookings(data); setIsLoading(false) }
-      } catch (err) {
-        console.error("Failed to fetch food bookings:", err)
-        if (isMounted) setIsLoading(false)
-      }
-    }
-    fetchBookings()
-    return () => { isMounted = false }
-  }, [refreshTrigger, user])
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
-  let filteredBookings = [...bookings]
+  const filteredBookings = useMemo(() => {
+    let result = [...bookings]
 
-  if (highlightedReference) {
-    filteredBookings = filteredBookings.filter(
-      (b) => normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
-    )
-  } else if (selectedDate) {
-    filteredBookings = filteredBookings.filter(
-      (b) => b.start_date <= selectedDate && b.end_date >= selectedDate
-    )
-  } else {
-    filteredBookings = filteredBookings
-      .filter((b) => b.end_date >= todayStr)
-      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
-    if (!showAllUpcoming) filteredBookings = filteredBookings.slice(0, 3)
-  }
+    if (highlightedReference) {
+      result = result.filter(
+        (b) => normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+      )
+    } else if (selectedDate) {
+      result = result.filter(
+        (b) => b.start_date <= selectedDate && b.end_date >= selectedDate
+      )
+    } else {
+      result = result
+        .filter((b) => b.end_date >= todayStr)
+        .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+      if (!showAllUpcoming) result = result.slice(0, 3)
+    }
 
-  if (mealFilter !== "All") {
-    filteredBookings = filteredBookings.filter((b) => {
-      const meals = getRequestedMeals(b)
-      if (mealFilter === "Breakfast" && !meals.includes("Breakfast"))   return false
-      if (mealFilter === "Lunch"     && !meals.includes("Lunch"))       return false
-      if (mealFilter === "Dinner"    && !meals.includes("Dinner"))      return false
-      if (mealFilter === "Snacks"    && !meals.includes("Morning Tea")
-                                     && !meals.includes("Evening Tea")) return false
-      return true
-    })
-  }
+    if (mealFilter !== "All") {
+      result = result.filter((b) => {
+        const meals = getRequestedMeals(b)
+        if (mealFilter === "Breakfast" && !meals.includes("Breakfast"))   return false
+        if (mealFilter === "Lunch"     && !meals.includes("Lunch"))       return false
+        if (mealFilter === "Dinner"    && !meals.includes("Dinner"))      return false
+        if (mealFilter === "Snacks"    && !meals.includes("Morning Tea")
+                                       && !meals.includes("Evening Tea")) return false
+        return true
+      })
+    }
+    
+    return result
+  }, [bookings, highlightedReference, selectedDate, showAllUpcoming, mealFilter])
 
   const closeSidePanel = () => { setSelectedViewBooking(null); setDetailDay(0) }
 
@@ -217,13 +201,13 @@ function Mess() {
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
+  const cancelMutation = useCancelMessBooking();
 
   const handleDelete = async () => {
     if (!selectedBookingToDelete) return
     setIsDeleting(true)
     try {
-      await messService.deleteBooking(selectedBookingToDelete.id)
-      setRefreshTrigger((prev) => prev + 1)
+      await cancelMutation.mutateAsync(selectedBookingToDelete.id)
       setShowDeleteModal(false)
       toast.success("Booking cancelled successfully.")
     } catch (err) {
@@ -239,7 +223,6 @@ function Mess() {
     closeForm()
     toast.success(editMode ? "Booking updated successfully!" : "Booking submitted! Waiting for approval.")
     setSelectedDate("")
-    setRefreshTrigger((prev) => prev + 1)
     if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
   }
 
@@ -360,9 +343,18 @@ function Mess() {
           )}
 
           {user && isLoading && (
-            <div className="py-16 flex justify-center items-center gap-2 text-base text-slate-500">
-              <span className="w-4 h-4 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
-              Loading bookings…
+            <div className="flex flex-col">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="hidden md:grid grid-cols-12 items-center px-5 py-4 border-b border-slate-100 animate-pulse bg-white">
+                  <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
+                  <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
+                  <div className="col-span-3 pr-4 space-y-2"><div className="h-5 bg-slate-100 rounded w-48"></div><div className="h-4 bg-slate-100 rounded w-32"></div></div>
+                  <div className="col-span-2 pr-4 flex gap-2"><div className="h-6 bg-slate-100 rounded-full w-16"></div><div className="h-6 bg-slate-100 rounded-full w-16"></div></div>
+                  <div className="col-span-1 pr-4"><div className="h-6 bg-slate-100 rounded w-20"></div></div>
+                  <div className="col-span-1 pr-4"><div className="h-6 bg-slate-100 rounded w-20"></div></div>
+                  <div className="col-span-1 flex justify-end"><div className="h-4 w-4 bg-slate-100 rounded"></div></div>
+                </div>
+              ))}
             </div>
           )}
 

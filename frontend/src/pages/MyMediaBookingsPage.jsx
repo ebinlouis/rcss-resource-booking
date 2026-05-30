@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 
 import mediaApi from "../api/mediaApi"
-
+import { useMyMediaBookings, useCancelMediaBooking } from "../hooks/useMediaQueries"
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 // UPDATED: Now accepts a single ISO string instead of splitting date and time
@@ -366,9 +366,9 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
 const MyMediaBookingsPage = () => {
-  const [myBookings, setMyBookings] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { data: myBookingsData, isLoading, isError, refetch: refreshData } = useMyMediaBookings();
+  const myBookings = myBookingsData || [];
+  const error = isError ? "Failed to load your media history." : null;
   const [isActionLoading, setIsActionLoading] = useState(false)
 
   const navigate = useNavigate()
@@ -392,36 +392,6 @@ const MyMediaBookingsPage = () => {
     { id: 'EXPIRED', label: 'Expired' },
     { id: 'REJECTED', label: 'Rejected' },
   ]
-
-  // ================= FETCH =================
-
-  useEffect(() => {
-    let isMounted = true
-
-    async function loadInitialData() {
-      try {
-        const data = await mediaApi.getMyBookings()
-
-        if (isMounted) {
-          setMyBookings(data)
-          setError(null)
-        }
-      } catch (err) {
-        console.error("Fetch error:", err)
-        if (isMounted) {
-          setError("Failed to load your media history.")
-        }
-      } finally {
-        if (isMounted) setIsLoading(false)
-      }
-    }
-
-    loadInitialData()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   // ================= FILTER =================
 
@@ -483,18 +453,8 @@ const MyMediaBookingsPage = () => {
     return () => window.clearTimeout(timer)
   }, [filteredBookings, highlightedReference, isLoading])
 
-  // ================= REFRESH =================
-
-  const refreshData = async () => {
-    try {
-      const data = await mediaApi.getMyBookings()
-      setMyBookings(data)
-    } catch (err) {
-      console.error("Refresh error:", err)
-    }
-  }
-
   // ================= CANCEL =================
+  const cancelMutation = useCancelMediaBooking();
 
   const handleCancelBooking = async (id) => {
     if (!window.confirm("Are you sure you want to cancel this media request?")) return;
@@ -502,8 +462,7 @@ const MyMediaBookingsPage = () => {
     setIsActionLoading(true)
 
     try {
-      await mediaApi.deleteBooking(id)
-      await refreshData()
+      await cancelMutation.mutateAsync(id)
     } catch {
       toast.error("Booking could not be cancelled. Please try again.")
     } finally {
@@ -637,8 +596,20 @@ const MyMediaBookingsPage = () => {
 
           {/* States */}
           {isLoading ? (
-            <div className="py-20 text-center">
-               <p className="text-[14px] text-gray-500 font-medium">Loading your media requests…</p>
+            <div className="flex flex-col">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="px-7 py-6 border-b border-gray-100 animate-pulse bg-white">
+                  <div className="flex justify-between mb-5">
+                    <div className="h-6 bg-gray-100 rounded w-24"></div>
+                    <div className="h-4 bg-gray-100 rounded w-32"></div>
+                  </div>
+                  <div className="grid gap-7 grid-cols-1 md:grid-cols-3" style={{ gridTemplateColumns: '1.8fr 1.6fr 2.6fr' }}>
+                    <div><div className="h-3 bg-gray-100 rounded w-24 mb-3"></div><div className="flex gap-3"><div className="w-10 h-10 rounded-xl bg-gray-100 shrink-0"></div><div><div className="h-4 bg-gray-100 rounded w-32 mb-1"></div><div className="h-3 bg-gray-100 rounded w-24"></div></div></div></div>
+                    <div><div className="h-3 bg-gray-100 rounded w-16 mb-3"></div><div className="space-y-3"><div className="flex gap-3"><div className="w-2.5 h-2.5 rounded-full bg-gray-200 mt-1"></div><div className="h-8 bg-gray-100 rounded w-24"></div></div><div className="flex gap-3"><div className="w-2.5 h-2.5 rounded-full bg-gray-200 mt-1"></div><div className="h-8 bg-gray-100 rounded w-24"></div></div></div></div>
+                    <div><div className="h-3 bg-gray-100 rounded w-24 mb-3"></div><div className="h-5 bg-gray-100 rounded w-48 mb-2"></div><div className="h-4 bg-gray-100 rounded w-64"></div></div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : error ? (
             <div className="py-20 text-center px-8">
@@ -688,7 +659,6 @@ const MyMediaBookingsPage = () => {
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={() => {
             setIsCreateModalOpen(false)
-            refreshData()
           }}
         />
       )}
@@ -700,12 +670,10 @@ const MyMediaBookingsPage = () => {
           onClose={() => {
             setIsEditModalOpen(false)
             setSelectedBooking(null)
-            refreshData()
           }}
           onSuccess={() => {
             setIsEditModalOpen(false)
             setSelectedBooking(null)
-            refreshData()
           }}
         />
       )}

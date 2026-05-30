@@ -6,8 +6,7 @@ import MainLayout from "../layouts/MainLayout"
 import BookingModal from "../components/BookingModal"
 import { getSubmissionTimestamp } from "../utils/submissionTime"
 import toast from 'react-hot-toast'
-
-
+import { useMySpaceBookings, useCancelSpaceBooking } from "../hooks/useSpaceQueries"
 import {
   RefreshCcw,
   Trash2,
@@ -467,9 +466,9 @@ const BookingCard = ({
 
 const MyBookingsPage = () => {
   const { referenceCode } = useParams()
-  const [myBookings, setMyBookings] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { data: myBookingsData, isLoading, isError, refetch: refreshData } = useMySpaceBookings();
+  const myBookings = myBookingsData || [];
+  const error = isError ? "Failed to load your booking history." : null;
   const [isActionLoading, setIsActionLoading] = useState(false)
 
   // MODAL STATE
@@ -491,42 +490,6 @@ const MyBookingsPage = () => {
 
     return () => window.clearTimeout(timer)
   }, [referenceCode])
-
-  // ───────────────────────────────────────────────────────────
-  // FETCH DATA
-  // ───────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    let isMounted = true
-
-    async function loadInitialData() {
-      try {
-        const response = await api.get("/spaces/requests/")
-        const data = response.data.results || response.data || []
-
-        if (isMounted) {
-          setMyBookings(data)
-          setError(null)
-        }
-      } catch (err) {
-        console.error("Fetch error:", err)
-
-        if (isMounted) {
-          setError("Failed to load your booking history.")
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    loadInitialData()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   // ───────────────────────────────────────────────────────────
   // FILTER BOOKINGS
@@ -638,22 +601,10 @@ const filteredBookings = useMemo(() => {
   }, [myBookings])
 
   // ───────────────────────────────────────────────────────────
-  // REFRESH
-  // ───────────────────────────────────────────────────────────
-
-  const refreshData = async () => {
-    try {
-      const response = await api.get("/spaces/requests/")
-      const data = response.data.results || response.data || []
-      setMyBookings(data)
-    } catch (err) {
-      console.error("Refresh error:", err)
-    }
-  }
-
-  // ───────────────────────────────────────────────────────────
   // CANCEL BOOKING
   // ───────────────────────────────────────────────────────────
+
+const cancelMutation = useCancelSpaceBooking()
 
 const handleCancelBooking = (id) => {
   setCancelBookingId(id)
@@ -665,8 +616,7 @@ const confirmCancelBooking = async () => {
   setIsActionLoading(true)
 
   try {
-    await api.delete(`/spaces/requests/${cancelBookingId}/`)
-    await refreshData()
+    await cancelMutation.mutateAsync(cancelBookingId)
     setCancelBookingId(null)
   } catch {
     toast.error("Booking could not be cancelled. Please try again.")
@@ -913,18 +863,20 @@ rounded-xl md:rounded-2xl
             </div>
                         {/* CONTENT STATES */}
             {isLoading ? (
-              <div className="py-28 text-center px-8">
-                <div className="w-16 h-16 rounded-2xl md:rounded-3xl bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-5">
-                  <RefreshCcw className="w-6 h-6 text-green-600 animate-spin" />
-                </div>
-
-                <h3 className="text-[18px] font-bold text-gray-900 mb-2">
-                  Loading your bookings
-                </h3>
-
-                <p className="text-[14px] text-gray-500">
-                  Getting your booking history...
-                </p>
+              <div className="bg-slate-50 p-2 md:p-6 flex flex-col gap-5">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-3xl border border-gray-200 bg-white p-6 animate-pulse">
+                    <div className="flex justify-between mb-6">
+                      <div className="h-6 w-32 bg-gray-100 rounded-full"></div>
+                      <div className="h-4 w-24 bg-gray-100 rounded"></div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div><div className="h-3 w-16 bg-gray-100 rounded mb-3"></div><div className="flex gap-4"><div className="w-14 h-14 bg-gray-100 rounded-2xl"></div><div><div className="h-5 w-32 bg-gray-100 rounded mb-2"></div><div className="h-4 w-24 bg-gray-100 rounded"></div></div></div></div>
+                      <div><div className="h-3 w-16 bg-gray-100 rounded mb-3"></div><div className="h-12 w-full bg-gray-100 rounded"></div></div>
+                      <div><div className="h-3 w-16 bg-gray-100 rounded mb-3"></div><div className="h-16 w-full bg-gray-100 rounded-xl"></div></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : error ? (
               <div className="py-28 text-center px-8">
@@ -1034,7 +986,6 @@ rounded-xl md:rounded-2xl
     onClose={() => {
       setIsEditModalOpen(false)
       setSelectedBooking(null)
-      refreshData()
     }}
   />
 )}

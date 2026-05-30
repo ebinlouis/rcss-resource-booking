@@ -6,6 +6,7 @@ import AutoSuggestInput from "./AutoSuggestInput"
 import { MEALS, getDateRange } from "../api/messConfig"
 import { Copy, ChevronLeft, ChevronRight } from "lucide-react"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
+import { useCreateMessBooking, useUpdateMessBooking } from "../hooks/useMessQueries"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -413,6 +414,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
+  const createMutation = useCreateMessBooking()
+  const updateMutation = useUpdateMessBooking()
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
@@ -451,9 +455,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
     setIsSubmitting(true)
     try {
       if (editData?.id) {
-        await messService.updateBooking(editData.id, payload)
+        await updateMutation.mutateAsync({ id: editData.id, data: payload })
       } else {
-        await messService.createBooking(payload)
+        await createMutation.mutateAsync(payload)
         if (isLinkedBooking) bookingSessionActions.markComplete("mess")
       }
       if (isMounted.current) { setIsSubmitting(false); onSave?.() }
