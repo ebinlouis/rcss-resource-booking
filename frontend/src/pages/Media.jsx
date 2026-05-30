@@ -18,6 +18,7 @@ import MainLayout from "../layouts/MainLayout"
 import MediaBookingModal from "../components/MediaBookingModal"
 import mediaApi from "../api/mediaApi"
 import toast from "react-hot-toast"
+import { useMediaAvailability, useMyMediaBookings } from "../hooks/useMediaQueries"
 
 
 const todayKey = () => {
@@ -423,14 +424,16 @@ function Media() {
   const [searchParams] = useSearchParams()
   const isLinkedFlow = searchParams.get("linked") === "1"
   const [selectedDate, setSelectedDate] = useState(todayKey())
-  const [availability, setAvailability] = useState([])
-  const [crewCount,          setCrewCount]          = useState(null)
-  const [availabilityLoading, setAvailabilityLoading] = useState(true)
-  const [availabilityError, setAvailabilityError] = useState("")
   const [availabilityType, setAvailabilityType] = useState("equipment")
 
-  const [myBookings, setMyBookings] = useState([])
-  const [myLoading, setMyLoading] = useState(true)
+  const { data: availabilityData, isLoading: availabilityLoading, isError: availabilityErrorBool } = useMediaAvailability(selectedDate, availabilityType);
+  const availabilityError = availabilityErrorBool ? "Could not load availability." : "";
+
+  const availability = availabilityType === "equipment" ? (availabilityData?.items ?? []) : [];
+  const crewCount = availabilityType === "team" ? availabilityData : null;
+
+  const { data: myBookingsData, isLoading: myLoading, refetch } = useMyMediaBookings();
+  const myBookings = myBookingsData || [];
 
   const [openCreate, setOpenCreate] = useState(false)
   const [search, setSearch] = useState("")
@@ -470,94 +473,8 @@ function Media() {
   const recentBookings = myBookings.slice(0, 3)
 
   async function refreshMyBookings() {
-    setMyLoading(true)
-
-    try {
-      const data = await mediaApi.getMyBookings()
-      setMyBookings(data)
-    } catch (error) {
-      console.error("Failed to load media requests:", error)
-    } finally {
-      setMyLoading(false)
-    }
+    refetch()
   }
-
-  useEffect(() => {
-    let active = true
-
-    const loadAvailability = async () => {
-      await Promise.resolve()
-
-      if (!active) return
-
-      setAvailabilityLoading(true)
-      setAvailabilityError("")
-
-      try {
-        if (availabilityType === "team") {
-          const data = await mediaApi.getDailyAvailability(selectedDate, "team")
-          if (!active) return
-          setCrewCount(data)
-        } else {
-          const data = await mediaApi.getDailyAvailability(selectedDate, availabilityType)
-          if (!active) return
-          setAvailability(data.items ?? [])
-        }
-      } catch (error) {
-        console.error("Failed to load media availability:", error)
-        if (active) {
-          setAvailabilityError("Could not load availability.")
-        }
-      } finally {
-        if (active) {
-          setAvailabilityLoading(false)
-        }
-      }
-    }
-
-    loadAvailability()
-
-    return () => {
-      active = false
-    }
-  }, [selectedDate, availabilityType])
-
-  useEffect(() => {
-    let active = true
-
-    const loadBookings = async () => {
-      await Promise.resolve()
-
-      if (!active) return
-
-      if (!user) {
-        setMyLoading(false)
-        return
-      }
-
-      setMyLoading(true)
-
-      try {
-        const data = await mediaApi.getMyBookings()
-
-        if (active) {
-          setMyBookings(data)
-        }
-      } catch (error) {
-        console.error("Failed to load media requests:", error)
-      } finally {
-        if (active) {
-          setMyLoading(false)
-        }
-      }
-    }
-
-    loadBookings()
-
-    return () => {
-      active = false
-    }
-  }, [user])
 
   return (
     <MainLayout>
@@ -846,8 +763,6 @@ function Media() {
             toast.success("Media booking submitted successfully!")
             if (isLinkedFlow) {
               navigate("/dashboard?resumeSpace=1")
-            } else {
-              refreshMyBookings()
             }
           }}
         />

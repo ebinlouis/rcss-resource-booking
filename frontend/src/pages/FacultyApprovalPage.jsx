@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import approvalService from '../api/approvalService'
 import { useAuth } from '../hooks/useAuth'
+import { useFacultyPending, useResolveFacultyApproval } from '../hooks/useApprovalQueries'
 import MainLayout from '../layouts/MainLayout'
 import toast from 'react-hot-toast'
 import { CheckCircle2, XCircle, Clock, ChevronDown, RefreshCw, User, Phone, Mail, Building2, Users, CalendarDays, FileText } from 'lucide-react'
@@ -137,34 +138,17 @@ function HistoryRow({ item }) {
 /* ── Main page ──────────────────────────────── */
 export default function FacultyApprovalPage() {
   const { user }                          = useAuth()
-  const [pending,  setPending]            = useState([])
-  const [history,  setHistory]            = useState([])
-  const [loading,  setLoading]            = useState(true)
+  const { data: facultyData, isLoading: loading, isError: loadError, refetch: fetchData } = useFacultyPending();
+  const pending = facultyData?.pending || [];
+  const history = facultyData?.history || [];
   const [actingId, setActingId]           = useState(null)
-  const [loadError, setLoadError]         = useState(false)
-
-  const fetchData = async () => {
-    setLoading(true)
-    setLoadError(false)
-    try {
-      const data = await approvalService.fetchFacultyPending()
-      setPending(data.pending || [])
-      setHistory(data.history || [])
-    } catch {
-      setLoadError(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { fetchData() }, [])
+  const resolveMutation = useResolveFacultyApproval();
 
   const handleApprove = async (id) => {
     setActingId(id)
     try {
-      await approvalService.resolveFacultyBooking({ id, action: 'approve' })
+      await resolveMutation.mutateAsync({ id, action: 'approve' })
       toast.success('Booking approved successfully!')
-      await fetchData()
     } catch {
       toast.error('Couldn\'t approve the booking. Please try again.')
     } finally {
@@ -175,9 +159,8 @@ export default function FacultyApprovalPage() {
   const handleReject = async (id, note) => {
     setActingId(id)
     try {
-      await approvalService.resolveFacultyBooking({ id, action: 'reject', rejectionNote: note })
+      await resolveMutation.mutateAsync({ id, action: 'reject', rejectionNote: note })
       toast.error('Booking request rejected.')
-      await fetchData()
     } catch {
       toast.error('Couldn\'t reject the booking. Please try again.')
     } finally {
@@ -233,7 +216,11 @@ export default function FacultyApprovalPage() {
                 <Icon className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 leading-none">{loading ? '—' : value}</p>
+                {loading ? (
+                  <div className="h-6 w-12 bg-gray-100 rounded animate-pulse mb-1"></div>
+                ) : (
+                  <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
+                )}
                 <p className="text-xs text-gray-400 font-medium mt-0.5">{label}</p>
               </div>
             </div>
@@ -259,8 +246,8 @@ export default function FacultyApprovalPage() {
             </h2>
 
             {loading ? (
-              <div className="space-y-3">
-                {[1,2].map(i => <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />)}
+              <div className="space-y-4">
+                {[1,2,3].map(i => <div key={i} className="h-[120px] rounded-2xl bg-gray-50 border border-gray-100 animate-pulse" />)}
               </div>
             ) : pending.length === 0 ? (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
@@ -285,7 +272,7 @@ export default function FacultyApprovalPage() {
         )}
 
         {/* History section */}
-        {!loadError && !loading && history.length > 0 && (
+        {!loadError && (loading || history.length > 0) && (
           <section>
             <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -301,7 +288,18 @@ export default function FacultyApprovalPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {history.map(item => <HistoryRow key={item.id} item={item} />)}
+                  {loading ? (
+                    [1, 2, 3].map(i => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-24"></div></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-32 mb-1"></div><div className="h-3 bg-gray-100 rounded w-24"></div></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-20"></div></td>
+                        <td className="px-5 py-4"><div className="h-6 bg-gray-100 rounded-full w-20"></div></td>
+                      </tr>
+                    ))
+                  ) : (
+                    history.map(item => <HistoryRow key={item.id} item={item} />)
+                  )}
                 </tbody>
               </table>
             </div>

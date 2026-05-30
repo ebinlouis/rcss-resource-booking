@@ -8,6 +8,8 @@ import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime';
 import api from '../../api/axios';
+import { useApprovals, useResolveApproval } from '../../hooks/useApprovalQueries';
+import { useSpaceCatalog } from '../../hooks/useSpaceQueries';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -799,11 +801,31 @@ const AdminDashboard = () => {
     // ── Optional date filter (empty string = no filter) ──────────────────────
     const [dateFilter, setDateFilter] = useState('');
 
-    // ── Raw fetched data ──────────────────────────────────────────────────────
-    const [raw, setRaw] = useState({ pending: [], approved: [], rejected: [], cancelled: [] });
+    // ── React Query ───────────────────────────────────────────────────────────
+    const pendingQuery = useApprovals(PAGE_DOMAIN, 'PENDING');
+    const approvedQuery = useApprovals(PAGE_DOMAIN, 'APPROVED');
+    const rejectedQuery = useApprovals(PAGE_DOMAIN, 'REJECTED');
+    const cancelledQuery = useApprovals(PAGE_DOMAIN, 'CANCELLED');
+
+    const isLoading = pendingQuery.isLoading || approvedQuery.isLoading || rejectedQuery.isLoading || cancelledQuery.isLoading;
+    const isFetching = pendingQuery.isFetching || approvedQuery.isFetching || rejectedQuery.isFetching || cancelledQuery.isFetching;
+
+    const raw = useMemo(() => {
+        const r = {
+            pending: groupBookings(pendingQuery.data?.queue || []),
+            approved: groupBookings(approvedQuery.data?.queue || []),
+            rejected: groupBookings(rejectedQuery.data?.queue || []),
+            cancelled: groupBookings(cancelledQuery.data?.queue || []),
+        };
+        return r;
+    }, [
+        pendingQuery.data?.queue,
+        approvedQuery.data?.queue,
+        rejectedQuery.data?.queue,
+        cancelledQuery.data?.queue
+    ]);
 
     // ── UI state ──────────────────────────────────────────────────────────────
-    const [isLoading, setIsLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
     const [actionError, setActionError] = useState(null);
     const [error, setError] = useState(null);
@@ -818,17 +840,9 @@ const AdminDashboard = () => {
     // ── Unified filter toolbar state ──────────────────────────────────────────
     const [searchQuery, setSearchQuery] = useState('');
     const [venueFilter, setVenueFilter] = useState('all');
-    const [venues, setVenues] = useState([]);
-
-    // Fetch venues once on mount
-    useEffect(() => {
-        api.get('/spaces/catalog/')
-            .then(r => {
-                const list = Array.isArray(r.data) ? r.data : (r.data.results ?? []);
-                setVenues(list);
-            })
-            .catch(() => { });
-    }, []);
+    
+    const { data: spacesData } = useSpaceCatalog();
+    const venues = Array.isArray(spacesData) ? spacesData : (spacesData?.results ?? []);
 
     // Reset filters when switching tabs
     const handleTabChange = useCallback((tab) => {
@@ -845,19 +859,22 @@ const AdminDashboard = () => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
-        return [...raw.approved, ...raw.rejected, ...raw.cancelled]
+        const res = [...raw.approved, ...raw.rejected, ...raw.cancelled]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        return res;
     }, [raw.approved, raw.rejected, raw.cancelled]);
 
     const upcoming = useMemo(() => {
-        return raw.approved
+        const res = raw.approved
             .filter(b => b.start_datetime && new Date(b.start_datetime) > now)
             .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
+        return res;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [raw.approved]);
 
     const resolvedByMe = useMemo(() => {
-        return history.filter(b => b.resolved_by_id === currentUserId);
+        const res = history.filter(b => b.resolved_by_id === currentUserId);
+        return res;
     }, [history, currentUserId]);
 
     // ── Apply filters to a list ───────────────────────────────────────────────
@@ -886,13 +903,15 @@ const AdminDashboard = () => {
 
     // ── What renders in the queue panel ───────────────────────────────────────
     const listForTab = useMemo(() => {
+        let res;
         switch (activeTab) {
-            case 'pending': return [...raw.pending].sort(compareSubmissionTimeDesc);
-            case 'upcoming': return upcoming;
-            case 'history': return applyFilters(history);
-            case 'resolvedByMe': return applyFilters(resolvedByMe);
-            default: return [];
+            case 'pending': res = [...raw.pending].sort(compareSubmissionTimeDesc); break;
+            case 'upcoming': res = upcoming; break;
+            case 'history': res = applyFilters(history); break;
+            case 'resolvedByMe': res = applyFilters(resolvedByMe); break;
+            default: res = []; break;
         }
+        return res;
     }, [activeTab, raw.pending, upcoming, history, resolvedByMe, applyFilters]);
 
     // ── Combined display list: tab → optional date → venue → search ──────────
@@ -922,7 +941,6 @@ const AdminDashboard = () => {
                 return fields.some(f => f.includes(q));
             });
         }
-
         return result;
     }, [listForTab, dateFilter, venueFilter, searchQuery]);
 
@@ -957,32 +975,7 @@ const AdminDashboard = () => {
         return () => window.clearTimeout(timer);
     }, [activeTab, handleTabChange, highlightedReference, history, isLoading, raw.pending, upcoming]);
 
-    // ── Fetch ─────────────────────────────────────────────────────────────────
-    const fetchQueue = useCallback(async ({ showLoading = true } = {}) => {
-        if (showLoading) setIsLoading(true);
-        setError(null);
-        try {
-            const [pendingData, approvedData, rejectedData, cancelledData] = await Promise.all([
-                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'PENDING' }).catch(() => ({ queue: [] })),
-                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'APPROVED' }).catch(() => ({ queue: [] })),
-                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'REJECTED' }).catch(() => ({ queue: [] })),
-                approvalService.getApprovals({ domain: PAGE_DOMAIN, status: 'CANCELLED' }).catch(() => ({ queue: [] })),
-            ]);
-
-            setRaw({
-                pending: groupBookings(pendingData.queue),
-                approved: groupBookings(approvedData.queue),
-                rejected: groupBookings(rejectedData.queue),
-                cancelled: groupBookings(cancelledData.queue),
-            });
-        } catch (err) {
-            console.error('Fetch error:', err);
-            setError('Could not load bookings. Please check your connection.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
+    // ── Auth Redirects ────────────────────────────────────────────────────────
     useEffect(() => {
         if (can_manage_mess && !can_manage_system) {
             navigate('/admin/mess', { replace: true });
@@ -992,13 +985,9 @@ const AdminDashboard = () => {
             navigate('/admin/media', { replace: true });
             return;
         }
+    }, [can_manage_mess, can_manage_system, can_manage_media, navigate]);
 
-        const timeoutId = setTimeout(() => {
-            fetchQueue({ showLoading: true });
-        }, 0);
-
-        return () => clearTimeout(timeoutId);
-    }, [can_manage_system, can_manage_mess, can_manage_media, navigate, fetchQueue]);
+    const resolveMutation = useResolveApproval();
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -1012,7 +1001,7 @@ const AdminDashboard = () => {
             // The backend's _resolve_group() fans out to all siblings via group_id,
             // so a single request is both correct and sufficient.
             const representativeId = parentBooking.child_bookings?.[0]?.id ?? parentBooking.id;
-            await approvalService.resolveBooking({
+            await resolveMutation.mutateAsync({
                 module: parentBooking.domain || 'spaces',
                 id: representativeId,
                 status: 'APPROVED',
@@ -1025,7 +1014,6 @@ const AdminDashboard = () => {
 
             setSuccessTarget(parentBooking);
             setApproveTarget(null);
-            await fetchQueue({ showLoading: false });
         } catch (err) {
             console.error('Approve error:', err);
             setActionError(err.response?.data?.error || 'Could not approve booking. Please try again.');
@@ -1042,7 +1030,7 @@ const AdminDashboard = () => {
         try {
             // Same single-call pattern — backend resolves the whole group.
             const representativeId = parentBooking.child_bookings?.[0]?.id ?? parentBooking.id;
-            await approvalService.resolveBooking({
+            await resolveMutation.mutateAsync({
                 module: parentBooking.domain || 'spaces',
                 id: representativeId,
                 status: 'REJECTED',
@@ -1054,7 +1042,6 @@ const AdminDashboard = () => {
             }
 
             setRejectTarget(null);
-            await fetchQueue({ showLoading: false });
         } catch (err) {
             console.error('Reject error:', err);
             setActionError(err.response?.data?.error || 'Could not reject booking. Please try again.');
@@ -1089,19 +1076,26 @@ const AdminDashboard = () => {
     // Filter option counts
     const baseList = activeTab === 'history' ? history : resolvedByMe;
 
-    const statusOptions = [
-        { value: 'all', label: 'All', count: baseList.length },
-        { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
-        { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
-        { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
-    ];
+    const statusOptions = useMemo(() => {
+        const res = [
+            { value: 'all', label: 'All', count: baseList.length },
+            { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
+            { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
+            { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
+        ];
+        return res;
+    }, [baseList]);
 
-    const timingOptions = [
-        { value: 'all', label: 'All time' },
-        { value: 'today', label: 'Today', count: baseList.filter(b => isToday(b.start_datetime)).length },
-        { value: 'upcoming', label: 'Upcoming', count: baseList.filter(b => b.start_datetime && new Date(b.start_datetime) > now).length },
-        { value: 'past', label: 'Past', count: baseList.filter(b => b.end_datetime && new Date(b.end_datetime) < now).length },
-    ];
+    const timingOptions = useMemo(() => {
+        const res = [
+            { value: 'all', label: 'All time' },
+            { value: 'today', label: 'Today', count: baseList.filter(b => isToday(b.start_datetime)).length },
+            { value: 'upcoming', label: 'Upcoming', count: baseList.filter(b => b.start_datetime && new Date(b.start_datetime) > now).length },
+            { value: 'past', label: 'Past', count: baseList.filter(b => b.end_datetime && new Date(b.end_datetime) < now).length },
+        ];
+        return res;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [baseList]);
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -1152,11 +1146,16 @@ const AdminDashboard = () => {
                     </div>
                     <Tooltip text="Reload the booking queue to see the latest requests." position="top">
                         <button
-                            onClick={() => fetchQueue({ showLoading: true })}
-                            disabled={isLoading}
+                            onClick={() => {
+                                pendingQuery.refetch();
+                                approvedQuery.refetch();
+                                rejectedQuery.refetch();
+                                cancelledQuery.refetch();
+                            }}
+                            disabled={isFetching}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[14px] font-semibold text-[#4a6b58] hover:bg-[#f0fdf4] transition-all duration-150 disabled:opacity-40"
                         >
-                            <IconRefresh spinning={isLoading} />
+                            <IconRefresh spinning={isFetching} />
                             Refresh
                         </button>
                     </Tooltip>
@@ -1288,8 +1287,17 @@ const AdminDashboard = () => {
                             <p className="text-[13.5px] text-[#a8c4b4] mt-1.5">Sign out and back in, then try again.</p>
                         </div>
                     ) : isLoading ? (
-                        <div className="py-20 text-center">
-                            <p className="text-[14px] text-[#a8c4b4]">Loading bookings…</p>
+                        <div className="flex flex-col">
+                            {[1, 2, 3, 4].map((i) => (
+                                <div key={i} className="px-7 py-6 border-b border-[#e8f5ee] animate-pulse">
+                                    <div className="h-4 bg-[#f0fdf4] rounded w-32 mb-5"></div>
+                                    <div className="grid grid-cols-3 gap-7">
+                                        <div><div className="h-3 bg-gray-100 rounded w-16 mb-2"></div><div className="h-10 bg-gray-50 rounded"></div></div>
+                                        <div><div className="h-3 bg-gray-100 rounded w-16 mb-2"></div><div className="h-10 bg-gray-50 rounded"></div></div>
+                                        <div><div className="h-3 bg-gray-100 rounded w-16 mb-2"></div><div className="h-10 bg-gray-50 rounded"></div></div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     ) : displayList.length === 0 ? (
                         <div className="py-20 text-center px-8">

@@ -1,13 +1,22 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Outlet, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { Toaster } from 'react-hot-toast'
 import AppLoader from "./components/common/AppLoader";
-
-// LinkedBookingWizard stays eager — mounted on every page
 import LinkedBookingWizard from "./components/LinkedBookingWizard";
+import { ensureProtectedQuery, prefetchProtectedQuery } from './lib/loaderUtils';
+
+// Import APIs for loaders
+import spaceApi from './api/spaceApi';
+import { getVehicles } from './api/fleetApi';
+import mediaApi from './api/mediaApi';
+import messService from './api/messService';
+import notificationService from './api/notificationService';
+import approvalService from './api/approvalService';
+import api from './api/axios';
+import spaceAdminService from './api/spaceAdminService';
 
 // Pages — lazy loaded
 const Login = lazy(() => import("./pages/Login"));
@@ -37,125 +46,194 @@ const BlocksManagement = lazy(() => import("./pages/admin/BlocksManagement"));
 const SpaceApproversManagement = lazy(() => import("./pages/admin/SpaceApproversManagement"));
 const AdminFacultiesPage = lazy(() => import("./pages/admin/AdminFacultiesPage"));
 
-function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3500,
-            style: {
-              borderRadius: '14px',
-              fontWeight: '600',
-              padding: '14px 18px',
-            },
-            success: {
-              iconTheme: {
-                primary: '#16a34a',
-                secondary: '#fff',
+const AppRoot = () => (
+  <AuthProvider>
+    <Toaster
+      position="top-center"
+      toastOptions={{
+        duration: 3500,
+        style: {
+          borderRadius: '14px',
+          fontWeight: '600',
+          padding: '14px 18px',
+        },
+        success: {
+          iconTheme: {
+            primary: '#16a34a',
+            secondary: '#fff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#dc2626',
+            secondary: '#fff',
+          },
+        },
+      }}
+    />
+    <Suspense fallback={<AppLoader />}>
+      <Outlet />
+    </Suspense>
+    <LinkedBookingWizard />
+  </AuthProvider>
+);
+
+const router = createBrowserRouter([
+  {
+    element: <AppRoot />,
+    children: [
+      {
+        element: <PublicRoute />,
+        children: [
+          { path: "/login", element: <Login /> }
+        ]
+      },
+      { path: "/", element: <Navigate to="/dashboard" replace /> },
+      {
+        path: "/dashboard",
+        element: <Home />,
+        loader: () => {
+          prefetchProtectedQuery({ queryKey: ['spaces', 'catalog'], queryFn: () => spaceApi.getSpaces() });
+          prefetchProtectedQuery({ queryKey: ['spaces', 'bookings', 'mine'], queryFn: () => spaceApi.getMyBookings() });
+          return null;
+        }
+      },
+      {
+        path: "/transport",
+        element: <Transport />,
+        loader: () => ensureProtectedQuery({
+          queryKey: ['fleet', 'vehicles'], queryFn: () => getVehicles()
+        })
+      },
+      {
+        path: "/media",
+        element: <Media />,
+        loader: () => prefetchProtectedQuery({
+          queryKey: ['media', 'bookings', 'mine'], queryFn: () => mediaApi.getMyBookings()
+        })
+      },
+      {
+        path: "/mess",
+        element: <Mess />,
+        loader: () => prefetchProtectedQuery({
+          queryKey: ['mess', 'bookings', 'mine'], queryFn: () => messService.getMyBookings()
+        })
+      },
+      {
+        element: <ProtectedRoute />,
+        children: [
+          {
+            path: "/media/my-bookings",
+            element: <MyMediaBookingsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['media', 'bookings', 'mine'], queryFn: () => mediaApi.getMyBookings()
+            })
+          },
+          {
+            path: "/my-bookings",
+            element: <MyBookingsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['spaces', 'bookings', 'mine'], queryFn: () => spaceApi.getMyBookings()
+            })
+          },
+          {
+            path: "/bookings/:referenceCode",
+            element: <MyBookingsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['spaces', 'bookings', 'mine'], queryFn: () => spaceApi.getMyBookings()
+            })
+          },
+          {
+            path: "/notifications",
+            element: <NotificationsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['notifications', 'all', {}], queryFn: () => notificationService.getNotifications({})
+            })
+          },
+          { path: "/profile", element: <Profile /> },
+          {
+            path: "/faculty-approvals",
+            element: <FacultyApprovalPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['approvals', 'faculty', 'pending'], queryFn: () => approvalService.fetchFacultyPending()
+            })
+          }
+        ]
+      },
+      {
+        element: <ProtectedRoute requiredCapability="can_access_admin_portal" />,
+        children: [
+          {
+            element: <AdminLayout />,
+            children: [
+              {
+                path: "/admin",
+                element: <AdminDashboard />,
+                loader: () => {
+                  prefetchProtectedQuery({ queryKey: ['approvals', 'spaces', 'PENDING'], queryFn: () => approvalService.getApprovals({ domain: 'spaces', status: 'PENDING' }) });
+                  prefetchProtectedQuery({ queryKey: ['approvals', 'spaces', 'APPROVED'], queryFn: () => approvalService.getApprovals({ domain: 'spaces', status: 'APPROVED' }) });
+                  prefetchProtectedQuery({ queryKey: ['approvals', 'spaces', 'REJECTED'], queryFn: () => approvalService.getApprovals({ domain: 'spaces', status: 'REJECTED' }) });
+                  prefetchProtectedQuery({ queryKey: ['approvals', 'spaces', 'CANCELLED'], queryFn: () => approvalService.getApprovals({ domain: 'spaces', status: 'CANCELLED' }) });
+                  return null;
+                }
               },
-            },
-            error: {
-              iconTheme: {
-                primary: '#dc2626',
-                secondary: '#fff',
+              { path: "/admin/faculties", element: <AdminFacultiesPage /> },
+              {
+                element: <ProtectedRoute requiredCapability="can_manage_equipment" />,
+                children: [
+                  { path: "/admin/equipment", element: <AdminEquipmentPage /> }
+                ]
               },
-            },
-          }}
-        />
-        <Suspense fallback={<AppLoader />}>
-          <Routes>
-
-            {/* PUBLIC LOGIN ROUTE */}
-            <Route element={<PublicRoute />}>
-              <Route path="/login" element={<Login />} />
-            </Route>
-
-            {/* PUBLIC VIEW ROUTES */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Home />} />
-            <Route path="/transport" element={<Transport />} />
-            <Route path="/media" element={<Media />} />
-            <Route path="/mess" element={<Mess />} />
-
-            {/* PROTECTED USER ROUTES */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/media/my-bookings" element={<MyMediaBookingsPage />} />
-              <Route path="/my-bookings" element={<MyBookingsPage />} />
-              <Route path="/bookings/:referenceCode" element={<MyBookingsPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/faculty-approvals" element={<FacultyApprovalPage />} />
-            </Route>
-
-            {/* ADMIN ROUTES */}
-            <Route
-              element={
-                <ProtectedRoute requiredCapability="can_access_admin_portal" />
+              {
+                element: <ProtectedRoute requiredCapability="can_manage_mess" />,
+                children: [
+                  { path: "/admin/mess", element: <AdminMess /> }
+                ]
+              },
+              {
+                element: <ProtectedRoute requiredCapability="can_manage_media" />,
+                children: [
+                  { path: "/admin/media", element: <AdminMediaPage /> },
+                  { path: "/media/schedule", element: <MediaSchedule /> }
+                ]
+              },
+              {
+                element: <ProtectedRoute requiredCapability="can_manage_system" />,
+                children: [
+                  { path: "/admin/blocks", element: <BlocksManagement /> },
+                  { path: "/admin/users", element: <AdminUsersPage /> },
+                  { path: "/admin/approvers", element: <SpaceApproversManagement /> },
+                  { path: "/admin/departments", element: <AdminDepartmentsPage /> },
+                  { path: "/admin/departments/:id/faculties", element: <AdminFacultiesPage /> },
+                  { path: "/admin/transport", element: <AdminTransportPage /> },
+                  { path: "/admin/role-overrides", element: <RoleOverridesPage /> }
+                ]
+              },
+              {
+                element: <ProtectedRoute requiredCapabilities={["can_manage_system", "can_manage_spaces"]} />,
+                children: [
+                  { 
+                    path: "/admin/spaces", 
+                    element: <AdminSpacesPage />,
+                    loader: () => {
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'catalog', 'manage'], queryFn: () => api.get('/spaces/catalog/?manage=true').then(res => res.data) });
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'blocks'], queryFn: () => spaceAdminService.getBlocks() });
+                      return null;
+                    }
+                  }
+                ]
               }
-            >
-              <Route element={<AdminLayout />}>
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/faculties" element={<AdminFacultiesPage />} />
+            ]
+          }
+        ]
+      },
+      { path: "*", element: <Navigate to="/dashboard" replace /> }
+    ]
+  }
+]);
 
-                <Route
-                  element={
-                    <ProtectedRoute requiredCapability="can_manage_equipment" />
-                  }
-                >
-                  <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
-                </Route>
-
-                <Route
-                  element={<ProtectedRoute requiredCapability="can_manage_mess" />}
-                >
-                  <Route path="/admin/mess" element={<AdminMess />} />
-                </Route>
-
-                <Route
-                  element={
-                    <ProtectedRoute requiredCapability="can_manage_media" />
-                  }
-                >
-                  <Route path="/admin/media" element={<AdminMediaPage />} />
-                  <Route path="/media/schedule" element={<MediaSchedule />} />
-                </Route>
-
-                <Route
-                  element={
-                    <ProtectedRoute requiredCapability="can_manage_system" />
-                  }
-                >
-                  <Route path="/admin/blocks" element={<BlocksManagement />} />
-                  <Route path="/admin/users" element={<AdminUsersPage />} />
-                  <Route path="/admin/approvers" element={<SpaceApproversManagement />} />
-                  <Route path="/admin/departments" element={<AdminDepartmentsPage />} />
-                  <Route path="/admin/departments/:id/faculties" element={<AdminFacultiesPage />} />
-                  <Route path="/admin/transport" element={<AdminTransportPage />} />
-                  <Route path="/admin/role-overrides" element={<RoleOverridesPage />} />
-                </Route>
-
-                <Route
-                  element={
-                    <ProtectedRoute requiredCapabilities={["can_manage_system", "can_manage_spaces"]} />
-                  }
-                >
-                  <Route path="/admin/spaces" element={<AdminSpacesPage />} />
-                </Route>
-              </Route>
-            </Route>
-
-            {/* FALLBACK */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-
-          </Routes>
-        </Suspense>
-
-        <LinkedBookingWizard />
-      </AuthProvider>
-    </BrowserRouter>
-  );
+function App() {
+  return <RouterProvider router={router} />;
 }
 
 export default App;

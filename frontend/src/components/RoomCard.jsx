@@ -1,5 +1,5 @@
 import Tooltip from "./Tooltip"
-import { useState } from "react"
+import { useState, memo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import BookingModal from "./BookingModal"
 import { useAuth } from "../hooks/useAuth"
@@ -178,7 +178,7 @@ function RoomCard({ room, onOpenAvailability }) {
             {/* Schedule Button */}
             <Tooltip text="See which time slots are already booked so you can pick the right time." position="top">
               <button
-                onClick={onOpenAvailability}
+                onClick={() => onOpenAvailability(room)}
                 className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-emerald-500 hover:text-emerald-600 transition-all text-xs font-medium"
               >
                 <svg
@@ -225,4 +225,4 @@ function RoomCard({ room, onOpenAvailability }) {
   )
 }
 
-export default RoomCard
+export default memo(RoomCard)

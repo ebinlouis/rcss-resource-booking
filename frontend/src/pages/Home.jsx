@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "../hooks/useAuth";
 import RoomCard from "../components/RoomCard"
 import TodayBookings from "../components/TodayBookings"
@@ -8,6 +8,7 @@ import MainLayout from "../layouts/MainLayout"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 
 import api from "../api/axios"
+import { useSpaceCatalog, useMySpaceBookings } from "../hooks/useSpaceQueries"
 
 const FILTERS = ["All", "Halls", "Labs", "Open Areas"]
 
@@ -31,11 +32,11 @@ function Home() {
   // null = closed. { room } = open for that room.
   const [availabilityTarget, setAvailabilityTarget] = useState(null)
 
-  const [dbRooms, setDbRooms] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: dbRoomsData, isLoading } = useSpaceCatalog();
+  const { data: myBookingsData, isLoading: isLoadingMyBookings } = useMySpaceBookings();
 
-  const [myBookings, setMyBookings] = useState([])
-  const [isLoadingMyBookings, setIsLoadingMyBookings] = useState(true)
+  const dbRooms = dbRoomsData || [];
+  const myBookings = myBookingsData || [];
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -44,52 +45,17 @@ function Home() {
     }
   }, [])
 
-  // Fetch public venue list once on mount
   useEffect(() => {
- const fetchSpaces = async () => {
-  try {
-    const response = await api.get("/spaces/catalog/")
-
-    const spaceData = response.data.results ?? response.data ?? []
-    setDbRooms(Array.isArray(spaceData) ? spaceData : [])
-
-    if (shouldResumeSpace && bookingSession.spaceFormData?.space) {
+    if (shouldResumeSpace && bookingSession.spaceFormData?.space && dbRooms.length > 0) {
       const draftSpaceId = bookingSession.spaceFormData.space
-      const room = spaceData.find(
+      const room = dbRooms.find(
         (item) => String(item.id) === String(draftSpaceId)
       )
-      if (room) setAvailabilityTarget(room)
-    }
-
-  } catch (error) {
-    console.error("Failed to fetch venues:", error)
-    setDbRooms([])
-  } finally {
-    setIsLoading(false)
-  }
-}
-    fetchSpaces()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Fetch personal bookings only when the user is known (logged in)
-  useEffect(() => {
-    if (!user) { setIsLoadingMyBookings(false); return }
-    let cancelled = false
-    const fetchMyBookings = async () => {
-      try {
-        const response = await api.get("/spaces/requests/?view=mine")
-        const data = response.data.results ?? response.data ?? []
-        if (!cancelled) setMyBookings(data)
-      } catch (error) {
-        console.error("Failed to fetch my bookings:", error)
-      } finally {
-        if (!cancelled) setIsLoadingMyBookings(false)
+      if (room && !availabilityTarget) {
+        setAvailabilityTarget(room)
       }
     }
-    fetchMyBookings()
-    return () => { cancelled = true }
-  }, [user])
+  }, [shouldResumeSpace, bookingSession.spaceFormData?.space, dbRooms, availabilityTarget])
 
   const handleEditBooking = (booking) => {
     const room = dbRooms.find(
@@ -98,28 +64,36 @@ function Home() {
     setAvailabilityTarget(room || { name: booking.hall })
   }
 
-  const filteredRooms = (dbRooms || []).filter((r) => {
-    const roomType = String(
-      r.space_type || r.type || r.category || ""
-    ).toLowerCase()
+  const filteredRooms = useMemo(() => {
+    return (dbRooms || []).filter((r) => {
+      const roomType = String(
+        r.space_type || r.type || r.category || ""
+      ).toLowerCase()
 
-    const matchesSearch =
-      (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      roomType.includes(search.toLowerCase())
+      const matchesSearch =
+        (r.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        roomType.includes(search.toLowerCase())
 
-    const matchesFilter =
-      activeFilter === "All" ||
-      (activeFilter === "Halls" && roomType.includes("hall")) ||
-      (activeFilter === "Labs" && roomType.includes("lab")) ||
-      (activeFilter === "Open Areas" &&
-        (roomType.includes("open") || roomType.includes("outdoor")))
+      const matchesFilter =
+        activeFilter === "All" ||
+        (activeFilter === "Halls" && roomType.includes("hall")) ||
+        (activeFilter === "Labs" && roomType.includes("lab")) ||
+        (activeFilter === "Open Areas" &&
+          (roomType.includes("open") || roomType.includes("outdoor")))
 
-    return matchesSearch && matchesFilter
-  })
+      return matchesSearch && matchesFilter
+    })
+  }, [dbRooms, search, activeFilter])
 
-  const approvedRequests = myBookings.filter(
-    (booking) => booking.status === "APPROVED"
-  ).length
+  const approvedRequests = useMemo(() => {
+    return myBookings.filter(
+      (booking) => booking.status === "APPROVED"
+    ).length
+  }, [myBookings])
+
+  const handleOpenAvailability = useCallback((room) => {
+    setAvailabilityTarget(room)
+  }, [])
 
   const hour = new Date().getHours()
   const greeting =
@@ -355,10 +329,10 @@ function Home() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center items-center py-14">
-            <p className="text-sm text-gray-500 font-medium animate-pulse">
-              Loading venues from database...
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-[220px] bg-gray-100 rounded-2xl animate-pulse" />
+            ))}
           </div>
         ) : filteredRooms.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -366,7 +340,7 @@ function Home() {
               <RoomCard
                 key={room.id}
                 room={room}
-                onOpenAvailability={() => setAvailabilityTarget(room)}
+                onOpenAvailability={handleOpenAvailability}
               />
             ))}
           </div>

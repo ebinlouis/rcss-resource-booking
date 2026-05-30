@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import api from "../../api/axios"
+import {
+  useCreateTimetableBatch,
+  useDeleteTimetableBatch,
+  useUpdateTimetableBatch,
+  useEditTimetableBlock,
+  useClearTimetableDate,
+  useDeleteTimetableBlock
+} from "../../hooks/useSpaceQueries"
 
 export default function TimetableManagerModal({ space, onClose }) {
   const [batches, setBatches] = useState([])
@@ -22,6 +30,13 @@ export default function TimetableManagerModal({ space, onClose }) {
   const [editBlockForm, setEditBlockForm] = useState({ date: "", start_time: "", end_time: "", label: "" })
   
   const [cancelAction, setCancelAction] = useState(null)
+
+  const createBatch = useCreateTimetableBatch(space.id)
+  const deleteBatch = useDeleteTimetableBatch(space.id)
+  const updateBatch = useUpdateTimetableBatch(space.id)
+  const editBlock = useEditTimetableBlock(space.id)
+  const clearDate = useClearTimetableDate(space.id)
+  const deleteBlock = useDeleteTimetableBlock(space.id)
 
   const fetchBatches = useCallback(async (preserveError = false) => {
     try {
@@ -62,16 +77,14 @@ export default function TimetableManagerModal({ space, onClose }) {
       fd.append("file", uploadFile)
       fd.append("label", uploadLabel)
       
-      const res = await api.post(`/spaces/catalog/${space.id}/timetable/`, fd, {
-        headers: { "Content-Type": "multipart/form-data" }
-      })
+      const res = await createBatch.mutateAsync(fd)
       
       let hasError = false;
-      if (res.data.conflicts && res.data.conflicts.length > 0) {
+      if (res.conflicts && res.conflicts.length > 0) {
         setError(
-          res.data.message + 
+          res.message + 
           "\nFailed Blocks:\n" + 
-          res.data.conflicts.join("\n")
+          res.conflicts.join("\n")
         )
         hasError = true;
       } else {
@@ -101,7 +114,7 @@ export default function TimetableManagerModal({ space, onClose }) {
   const handleDeleteBatch = async (batchId) => {
     if (!window.confirm("Are you sure you want to delete this timetable?")) return
     try {
-      await api.delete(`/spaces/catalog/${space.id}/timetable/${batchId}/`)
+      await deleteBatch.mutateAsync(batchId)
       fetchBatches()
     } catch {
       setError("Failed to delete timetable.")
@@ -117,9 +130,7 @@ export default function TimetableManagerModal({ space, onClose }) {
         fd.append("file", editBatchFile)
       }
       
-      await api.patch(`/spaces/catalog/${space.id}/timetable/${batchId}/`, fd, {
-        headers: { "Content-Type": "multipart/form-data" }
-      })
+      await updateBatch.mutateAsync({ batchId, fd })
       setEditBatchId(null)
       setEditBatchFile(null)
       fetchBatches()
@@ -132,7 +143,7 @@ export default function TimetableManagerModal({ space, onClose }) {
 
   const handleSaveBlock = async (blockId) => {
     try {
-      await api.patch(`/spaces/catalog/${space.id}/timetable/blocks/${blockId}/`, editBlockForm)
+      await editBlock.mutateAsync({ blockId, data: editBlockForm })
       setEditingBlockId(null)
       fetchBatches()
       setError(null)
@@ -149,7 +160,7 @@ export default function TimetableManagerModal({ space, onClose }) {
     if (!deleteDate) return
     if (!window.confirm(`Delete all blocks on ${deleteDate}?`)) return
     try {
-      await api.delete(`/spaces/catalog/${space.id}/timetable/blocks/?date=${deleteDate}`)
+      await clearDate.mutateAsync(deleteDate)
       setDeleteDate("")
       fetchBatches()
     } catch {
@@ -160,7 +171,7 @@ export default function TimetableManagerModal({ space, onClose }) {
   const handleDeleteBlock = async (blockId) => {
     if (!window.confirm("Delete this block?")) return
     try {
-      await api.delete(`/spaces/catalog/${space.id}/timetable/blocks/${blockId}/`)
+      await deleteBlock.mutateAsync(blockId)
       fetchBatches()
     } catch {
       setError("Failed to delete block.")

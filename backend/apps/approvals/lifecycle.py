@@ -140,11 +140,24 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
 
     if next_status == EXPIRED:
         # Import locally to avoid circular dependencies with models
-        from apps.notifications.utils import notify_booking_status_change
+        from apps.notifications.utils import (
+            notify_booking_status_change,
+            mark_pending_request_notifications_read,
+            notify_incharge_expired,
+        )
+        
+        domain = _get_booking_domain(booking)
+        
+        # Clear the actionable notification for approvers since the booking is now expired
+        mark_pending_request_notifications_read(booking, domain=domain)
+        
+        # Send a new non-actionable standard notification to the admins
+        notify_incharge_expired(booking, domain=domain)
+
         notify_booking_status_change(
             booking=booking,
             new_status='EXPIRED',
-            domain=_get_booking_domain(booking),
+            domain=domain,
             resolved_by=None,
             remarks=(
                 "This request automatically expired because its scheduled "

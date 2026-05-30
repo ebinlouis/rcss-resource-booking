@@ -11,6 +11,7 @@ import {
 import mediaService from "../api/mediaApi"
 import ErrorBoundary from "./ErrorBoundary"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
+import { useCreateMediaBooking, useUpdateMediaBooking } from "../hooks/useMediaQueries"
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatForDatetimeLocal = (isoString) => {
@@ -415,6 +416,9 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     return Object.keys(e).length === 0
   }
 
+  const createMutation = useCreateMediaBooking()
+  const updateMutation = useUpdateMediaBooking()
+
   const handleSubmit = async (e) => {
     e?.preventDefault()
     if (!validate()) return
@@ -450,9 +454,9 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
     try {
       setSubmitting(true)
       if (initialData?.id) {
-        await mediaService.updateBooking(initialData.id, payload)
+        await updateMutation.mutateAsync({ id: initialData.id, data: payload })
       } else {
-        await mediaService.createBooking(payload)
+        await createMutation.mutateAsync(payload)
         if (isLinkedBooking) bookingSessionActions.markComplete("media")
       }
       

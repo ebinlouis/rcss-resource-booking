@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
+import { useCreateSpace, useUpdateSpace } from "../../hooks/useSpaceQueries"
 import { combineSpaceLocation, parseSpaceLocation } from "../../utils/spaceLocation"
 
 // ─────────────────────────────────────────────────────────────
@@ -239,6 +240,9 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
   const isEdit = !!initialData
   const fileInputRef = useRef(null)
 
+  const createSpace = useCreateSpace()
+  const updateSpace = useUpdateSpace()
+
   const [blocks, setBlocks] = useState([])
   const [blocksLoading, setBlocksLoading] = useState(true)
 
@@ -448,13 +452,9 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
       )
 
       if (isEdit) {
-        await api.patch(`/spaces/catalog/${initialData.id}/`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        })
+        await updateSpace.mutateAsync({ id: initialData.id, fd })
       } else {
-        await api.post("/spaces/catalog/", fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        })
+        await createSpace.mutateAsync(fd)
       }
 
       setSubmitted(true)

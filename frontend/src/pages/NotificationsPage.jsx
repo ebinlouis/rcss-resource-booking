@@ -4,6 +4,7 @@ import { Bell, CheckCheck, ChevronLeft, ChevronRight, Inbox, Loader2 } from 'luc
 
 import MainLayout from '../layouts/MainLayout';
 import notificationService from '../api/notificationService';
+import { useNotifications } from '../hooks/useNotificationQueries';
 import { getNotificationDestination } from '../utils/notificationNavigation';
 import { useAuth } from '../hooks/useAuth';
 
@@ -40,38 +41,19 @@ const NotificationsPage = () => {
     const { effectiveRoles } = useAuth();
     const [page, setPage] = useState(1);
     const [activeFilter, setActiveFilter] = useState('ALL');
-    const [data, setData] = useState({
+    const { data: queryData, isLoading, isError, refetch } = useNotifications({ page, page_size: PAGE_SIZE });
+    const data = queryData || {
         unread_count: 0,
         count: 0,
         next: null,
         previous: null,
         results: [],
-    });
-    const [isLoading, setIsLoading] = useState(true);
-    const [isMarkingAll, setIsMarkingAll] = useState(false);
-    const [error, setError] = useState('');
+    };
+    const error = isError ? 'Could not load your notification history.' : '';
 
-    const loadNotifications = useCallback(async () => {
-        setIsLoading(true);
-        setError('');
-
-        try {
-            const response = await notificationService.getNotifications({
-                page,
-                page_size: PAGE_SIZE,
-            });
-            setData(response);
-        } catch {
-            setError('Could not load your notification history.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page]);
-
-    useEffect(() => {
-        const timer = window.setTimeout(loadNotifications, 0);
-        return () => window.clearTimeout(timer);
-    }, [loadNotifications]);
+    const loadNotifications = useCallback(() => {
+        refetch();
+    }, [refetch]);
 
     const visibleNotifications = useMemo(() => {
         if (activeFilter === 'UNREAD') {
@@ -80,17 +62,13 @@ const NotificationsPage = () => {
         return data.results;
     }, [activeFilter, data.results]);
 
+    const [isMarkingAll, setIsMarkingAll] = useState(false);
+
     const handleNotificationClick = async (notification) => {
         if (!notification.is_read) {
             try {
-                const updated = await notificationService.markRead(notification.id);
-                setData((current) => ({
-                    ...current,
-                    unread_count: Math.max(0, current.unread_count - 1),
-                    results: current.results.map((item) =>
-                        item.id === notification.id ? updated : item
-                    ),
-                }));
+                await notificationService.markRead(notification.id);
+                refetch();
             } catch {
                 return;
             }
@@ -108,15 +86,7 @@ const NotificationsPage = () => {
         setIsMarkingAll(true);
         try {
             await notificationService.markAllRead();
-            setData((current) => ({
-                ...current,
-                unread_count: 0,
-                results: current.results.map((notification) => ({
-                    ...notification,
-                    is_read: true,
-                    read_at: notification.read_at ?? new Date().toISOString(),
-                })),
-            }));
+            refetch();
         } finally {
             setIsMarkingAll(false);
         }
@@ -181,9 +151,23 @@ const NotificationsPage = () => {
                     </div>
 
                     {isLoading ? (
-                        <div className="py-24 flex flex-col items-center justify-center text-gray-500">
-                            <Loader2 className="w-7 h-7 animate-spin mb-3 text-green-600" />
-                            <p className="text-[15px] font-semibold">Loading notifications</p>
+                        <div className="divide-y divide-gray-100/80">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="flex w-full gap-4 px-6 py-5 animate-pulse">
+                                    <div className="mt-2 w-2.5 h-2.5 rounded-full bg-gray-200 shrink-0"></div>
+                                    <div className="flex-1">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div className="h-5 bg-gray-200 rounded w-1/3"></div>
+                                            <div className="h-4 bg-gray-100 rounded w-24 shrink-0"></div>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            <div className="h-4 bg-gray-100 rounded w-full"></div>
+                                            <div className="h-4 bg-gray-100 rounded w-5/6"></div>
+                                        </div>
+                                        <div className="mt-4 h-6 bg-gray-200 rounded-full w-20"></div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     ) : error ? (
                         <div className="py-24 px-6 text-center">

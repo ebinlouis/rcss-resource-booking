@@ -21,15 +21,18 @@ class NotificationListAPIView(APIView):
 
     def get(self, request):
         queryset = Notification.objects.filter(recipient=request.user).order_by('-created_at')
-        wants_actionable = request.query_params.get('actionable') == 'true'
-        unread_count = (
-            queryset.filter(is_actionable=True).count()
-            if wants_actionable
-            else queryset.filter(is_read=False).count()
-        )
-
-        if wants_actionable:
+        
+        actionable_param = request.query_params.get('actionable')
+        
+        if actionable_param == 'true':
             queryset = queryset.filter(is_actionable=True)
+            unread_count = queryset.count()
+        elif actionable_param == 'false':
+            queryset = queryset.filter(is_actionable=False)
+            unread_count = queryset.filter(is_read=False).count()
+        else:
+            unread_count = queryset.filter(is_read=False).count()
+
         if request.query_params.get('unread') == 'true':
             queryset = queryset.filter(is_read=False)
 
@@ -50,20 +53,15 @@ class NotificationUnreadCountAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.query_params.get('actionable') == 'true':
-            return Response({
-                "unread_count": Notification.objects.filter(
-                    recipient=request.user,
-                    is_actionable=True,
-                ).count()
-            })
-
-        return Response({
-            "unread_count": Notification.objects.filter(
-                recipient=request.user,
-                is_read=False,
-            ).count()
-        })
+        queryset = Notification.objects.filter(recipient=request.user)
+        actionable_param = request.query_params.get('actionable')
+        
+        if actionable_param == 'true':
+            return Response({"unread_count": queryset.filter(is_actionable=True).count()})
+        elif actionable_param == 'false':
+            return Response({"unread_count": queryset.filter(is_actionable=False, is_read=False).count()})
+        
+        return Response({"unread_count": queryset.filter(is_read=False).count()})
 
 
 class NotificationMarkReadAPIView(APIView):

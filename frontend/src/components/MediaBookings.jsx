@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
 import MediaBookingDetailsModal from "./MediaBookingDetailsModal"
-import mediaService from "../api/mediaApi"
+import { useCancelMediaBooking } from "../hooks/useMediaQueries"
 
 // ── Time Formatting Helpers ───────────────────────────────────────────────
 const formatDate = (isoString) => {
@@ -87,13 +87,14 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
+  const cancelMutation = useCancelMediaBooking();
 
   const handleDelete = async () => {
     if (!confirmDelete) return
     try {
       setDeleting(true)
       setDeleteError(null)
-      await mediaService.deleteBooking(confirmDelete.id)
+      await cancelMutation.mutateAsync(confirmDelete.id)
       setConfirmDelete(null)
       onRefresh?.()
     } catch (err) {
