@@ -83,6 +83,7 @@ export const useCreateTimetableBatch = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
@@ -95,6 +96,7 @@ export const useDeleteTimetableBatch = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
@@ -109,6 +111,7 @@ export const useUpdateTimetableBatch = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
@@ -121,6 +124,7 @@ export const useEditTimetableBlock = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
@@ -133,6 +137,7 @@ export const useClearTimetableDate = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
@@ -145,6 +150,7 @@ export const useDeleteTimetableBlock = (spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'availability'] });
+      window.dispatchEvent(new CustomEvent('timetable-updated'));
     }
   });
 };
