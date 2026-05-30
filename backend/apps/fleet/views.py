@@ -7,6 +7,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.users.permissions import IsAdminOrReadOnly, IsApprover
@@ -143,8 +144,15 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         )
 
     # ------------------------------------------------------------------
-    # QUERYSET
+    # GET OBJECT — bypass owner-scoped queryset for admin actions
     # ------------------------------------------------------------------
+
+    def get_object(self):
+        if self.action in ['review', 'reschedule']:
+            obj = get_object_or_404(FleetBooking, pk=self.kwargs['pk'])
+            self.check_object_permissions(self.request, obj)
+            return obj
+        return super().get_object()
 
     def get_queryset(self):
         user = self.request.user
