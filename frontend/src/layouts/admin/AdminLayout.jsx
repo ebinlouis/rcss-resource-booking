@@ -12,7 +12,7 @@ const NAV_LINKS = [
     { to: '/admin/approvers',      label: 'Venue Managers',        end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/departments',    label: 'Departments & Faculties', end: false, capability: (c) => c?.can_manage_system },
     { to: '/admin/faculties',      label: 'Faculties',             end: false, capability: (c) => c?.is_hod && !c?.can_manage_system },
-    { to: '/admin/transport',      label: 'Transport Management',  end: false, capability: (c) => c?.can_manage_system },
+    { to: '/admin/transport',      label: 'Transport Management',  end: false, capability: (c) => c?.can_manage_fleet },
     { to: '/admin/mess',           label: 'Mess',                  end: false, capability: (c) => c?.can_manage_mess },
     { to: '/admin/media',          label: 'Media Management',      end: false, capability: (c) => c?.can_manage_media },
     { to: '/media/schedule',       label: 'Team Schedule',         end: false, capability: (c) => c?.can_manage_media },
@@ -195,6 +195,7 @@ const AdminLayout = () => {
         can_manage_equipment:      user?.capabilities?.can_manage_equipment,
         can_manage_mess:           user?.capabilities?.can_manage_mess,
         can_manage_media:          user?.capabilities?.can_manage_media,
+        can_manage_fleet:          user?.capabilities?.can_manage_fleet,
         can_manage_principal_view: user?.capabilities?.can_manage_principal_view,
         is_hod:                    user?.effective_roles?.includes('HOD'),
     };

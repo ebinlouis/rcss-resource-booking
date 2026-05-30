@@ -256,6 +256,12 @@ const AvailabilityModal = memo(function AvailabilityModal({
   const tooltipRef = useRef(null)
   useEffect(() => { refreshRef.current = refresh }, [refresh])
   
+  useEffect(() => {
+    const handler = () => refreshRef.current?.()
+    window.addEventListener('timetable-updated', handler)
+    return () => window.removeEventListener('timetable-updated', handler)
+  }, [])
+  
   // Resume from wizard: prefill is allowed, not standalone
   useEffect(() => {
     if (!openBookingOnMount || didOpenBookingOnMount.current) return
