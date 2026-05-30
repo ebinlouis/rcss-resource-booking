@@ -12,6 +12,7 @@ from django.utils import timezone
 from apps.users.permissions import IsAdminOrReadOnly, IsApprover
 from apps.fleet.models import Vehicle, FleetBooking
 from apps.fleet.serializers import VehicleSerializer, FleetBookingSerializer
+from apps.users.models import Role
 
 
 # ==========================================
@@ -32,7 +33,7 @@ class IsOwnerOrAdminOrReadOnly(drf_permissions.BasePermission):
             return True
         if request.user.is_superuser or request.user.is_staff:
             return True
-        if request.user.role and request.user.role.name == 'IT_ADMIN':
+        if Role.Name.FLEET_MANAGER in request.user.get_effective_roles():
             return True
         return obj.user == request.user
 
@@ -64,7 +65,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         user = self.request.user
         is_admin = user.is_authenticated and (
             user.is_superuser or user.is_staff or (
-                getattr(user, 'role', None) and user.role.name == 'IT_ADMIN'
+                Role.Name.FLEET_MANAGER in user.get_effective_roles()
             )
         )
         if is_admin and self.request.query_params.get('all') == 'true':
@@ -138,7 +139,7 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
 
     def _is_admin(self, user):
         return user.is_superuser or user.is_staff or (
-            user.role and user.role.name in ['IT_ADMIN', 'HOD']
+            Role.Name.FLEET_MANAGER in user.get_effective_roles()
         )
 
     # ------------------------------------------------------------------
@@ -210,6 +211,12 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         from the user's profile.
         """
         user = self.request.user
+
+        if Role.Name.STUDENT in user.get_effective_roles():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                "non_field_errors": "Students are not permitted to make fleet bookings."
+            })
 
         if not user.department:
             from rest_framework.exceptions import ValidationError

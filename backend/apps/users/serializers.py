@@ -108,7 +108,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
                 "can_manage_equipment":      True,
                 "can_manage_mess":           False,
                 "can_manage_media":          False,
-                "can_manage_fleet":          True,
+                "can_manage_fleet":          False,
                 "can_manage_principal_view": True,
                 "can_approve_faculty":       True,
                 "is_student":                False,
