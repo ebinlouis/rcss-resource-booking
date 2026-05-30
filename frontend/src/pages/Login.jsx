@@ -32,21 +32,23 @@ export default function Login() {
             const capabilities = userData?.capabilities || {};
 
             if (from) {
-    navigate(from, { replace: true });
-    return;
-}
+                navigate(from, { replace: true });
+                return;
+            }
 
-if (
-    userData?.is_superuser ||
-    capabilities.can_manage_system ||
-    capabilities.can_access_admin_portal
-) {
-    navigate('/admin', { replace: true });
-} else if (capabilities.can_manage_mess) {
-    navigate('/admin/mess', { replace: true });
-} else {
-    navigate('/dashboard', { replace: true });
-}
+            if (userData?.is_superuser || capabilities.can_manage_system || capabilities.can_manage_spaces || capabilities.can_manage_labs || capabilities.can_manage_principal_view) {
+                navigate('/admin', { replace: true });
+            } else if (capabilities.can_manage_fleet) {
+                navigate('/admin/transport', { replace: true });
+            } else if (capabilities.can_manage_mess) {
+                navigate('/admin/mess', { replace: true });
+            } else if (capabilities.can_manage_media) {
+                navigate('/admin/media', { replace: true });
+            } else if (capabilities.can_access_admin_portal) {
+                navigate('/admin', { replace: true }); // Fallback for other admins
+            } else {
+                navigate('/dashboard', { replace: true });
+            }
 
         } catch (err) {
             setError('An unexpected error occurred. Please try again.');

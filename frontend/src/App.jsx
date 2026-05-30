@@ -205,8 +205,13 @@ const router = createBrowserRouter([
                   { path: "/admin/approvers", element: <SpaceApproversManagement /> },
                   { path: "/admin/departments", element: <AdminDepartmentsPage /> },
                   { path: "/admin/departments/:id/faculties", element: <AdminFacultiesPage /> },
-                  { path: "/admin/transport", element: <AdminTransportPage /> },
                   { path: "/admin/role-overrides", element: <RoleOverridesPage /> }
+                ]
+              },
+              {
+                element: <ProtectedRoute requiredCapability="can_manage_fleet" />,
+                children: [
+                  { path: "/admin/transport", element: <AdminTransportPage /> }
                 ]
               },
               {

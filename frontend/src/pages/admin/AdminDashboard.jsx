@@ -976,7 +976,13 @@ const AdminDashboard = () => {
     }, [activeTab, handleTabChange, highlightedReference, history, isLoading, raw.pending, upcoming]);
 
     // ── Auth Redirects ────────────────────────────────────────────────────────
+    const can_manage_fleet = user?.capabilities?.can_manage_fleet;
+
     useEffect(() => {
+        if (can_manage_fleet && !can_manage_system) {
+            navigate('/admin/transport', { replace: true });
+            return;
+        }
         if (can_manage_mess && !can_manage_system) {
             navigate('/admin/mess', { replace: true });
             return;
@@ -985,7 +991,7 @@ const AdminDashboard = () => {
             navigate('/admin/media', { replace: true });
             return;
         }
-    }, [can_manage_mess, can_manage_system, can_manage_media, navigate]);
+    }, [can_manage_fleet, can_manage_mess, can_manage_system, can_manage_media, navigate]);
 
     const resolveMutation = useResolveApproval();
 
