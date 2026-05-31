@@ -9,7 +9,6 @@ from apps.users.permissions import IsApprover
 from apps.users.models import Role
 from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
-    refresh_queryset_lifecycle,
 )
 from apps.notifications.utils import (
     mark_pending_request_notifications_read,
@@ -399,7 +398,6 @@ class UnifiedApprovalQueueView(APIView):
             }
         )
         if "spaces" in requested_domains and is_space_approver:
-            refresh_queryset_lifecycle(SpaceBooking.objects.all())
             querysets["spaces"] = _get_space_queryset_for_user(
                 user, effective_roles, requested_status
             )
@@ -414,9 +412,6 @@ class UnifiedApprovalQueueView(APIView):
         # ── Mess ──────────────────────────────────────────────────────────────
         if "mess" in requested_domains:
             if is_it_admin or Role.Name.MESS_MANAGER in effective_roles:
-                refresh_queryset_lifecycle(
-                    MessBooking.objects.prefetch_related("daily_menus")
-                )
                 querysets["mess"] = MessBooking.objects.filter(
                     status=requested_status
                 ).select_related("user", "user__department")
@@ -424,7 +419,6 @@ class UnifiedApprovalQueueView(APIView):
         # ── Media ─────────────────────────────────────────────────────────────
         if "media" in requested_domains:
             if is_it_admin or Role.Name.MEDIA_INCHARGE in effective_roles:
-                refresh_queryset_lifecycle(MediaBooking.objects.all())
                 querysets["media"] = (
                     MediaBooking.objects.filter(status=requested_status)
                     .select_related("user", "user__department")
@@ -591,9 +585,6 @@ class AdminResolveBookingAPIView(APIView):
             )
 
         if module in self.GROUP_AWARE_MODULES:
-            refresh_queryset_lifecycle(
-                SpaceBooking.objects.filter(group_id=booking.group_id)
-            )
             booking.refresh_from_db()
         else:
             refresh_booking_lifecycle(booking)

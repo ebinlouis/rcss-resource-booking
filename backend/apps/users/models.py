@@ -162,7 +162,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
         This is the single source of truth for all permission checks.
         Never query roles M2M directly in permission code — always use this.
+
+        Result is cached on the instance for the duration of the request
+        to avoid repeated DB queries.
         """
+        if hasattr(self, '_effective_roles_cache'):
+            return self._effective_roles_cache
+
         now = timezone.now()
 
         # Base roles from M2M
@@ -179,7 +185,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             .values_list('role__name', flat=True)
         )
 
-        return base | override_roles
+        result = base | override_roles
+        self._effective_roles_cache = result
+        return result
 
     def has_role(self, *role_names):
         """
@@ -190,6 +198,20 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             user.has_role('IT_ADMIN', 'HOD')
         """
         return bool(self.get_effective_roles() & set(role_names))
+
+    def invalidate_roles_cache(self):
+        """
+        Clears the instance-level role cache set by get_effective_roles().
+
+        Call this after any operation that mutates this user's roles or
+        overrides mid-request — e.g. after role assignments in management
+        commands, signal handlers, or tests — so the next call to
+        get_effective_roles() re-fetches from the DB instead of returning
+        stale data.
+
+        Safe to call even if the cache was never populated (no-op).
+        """
+        self.__dict__.pop('_effective_roles_cache', None)
 
 
 # ==========================================

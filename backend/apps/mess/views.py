@@ -9,7 +9,6 @@ from rest_framework.exceptions import ValidationError
 from apps.approvals.lifecycle import (
     can_user_modify_booking,
     refresh_booking_lifecycle,
-    refresh_queryset_lifecycle,
 )
 from apps.mess.models import MessBooking, DailyMessMenu
 from apps.mess.serializers import MessBookingSerializer
@@ -40,9 +39,6 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        refresh_queryset_lifecycle(
-            MessBooking.objects.filter(user=user).prefetch_related('daily_menus')
-        )
 
         if _is_mess_admin(user):
             return (
@@ -128,12 +124,6 @@ class MessBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
-        refresh_queryset_lifecycle(
-            MessBooking.objects
-            .prefetch_related('daily_menus')
-            .filter(user=request.user)
-        )
-
         bookings = (
             MessBooking.objects
             .prefetch_related('daily_menus')

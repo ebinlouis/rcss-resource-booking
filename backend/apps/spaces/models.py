@@ -385,7 +385,7 @@ class TimetableUploadBatch(models.Model):
 class SpaceTimetableBlock(models.Model):
     batch = models.ForeignKey(TimetableUploadBatch, on_delete=models.CASCADE, related_name='blocks')
     space = models.ForeignKey(Space, on_delete=models.CASCADE, related_name='timetable_blocks')
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     start_time = models.TimeField()
     end_time = models.TimeField()
     label = models.CharField(max_length=200, default='')
