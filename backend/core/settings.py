@@ -91,7 +91,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/rcss_booking_db')
+    'default': {
+        **env.db('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/rcss_booking_db'),
+        'CONN_MAX_AGE': 60,
+        'CONN_HEALTH_CHECKS': True,
+    }
 }
 
 # ==========================================

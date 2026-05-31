@@ -14,7 +14,6 @@ from rest_framework.views import APIView
 from apps.approvals.lifecycle import (
     can_user_modify_booking,
     refresh_booking_lifecycle,
-    refresh_queryset_lifecycle,
 )
 from apps.media.models import MediaBooking, MediaEquipmentRequest, MediaSettings
 from apps.media.serializers import MediaBookingSerializer, MediaSettingsSerializer
@@ -83,7 +82,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         view_param = self.request.query_params.get('view', 'mine')
         admin      = is_media_admin(user)
         if self.request.query_params.get('view', 'mine') != 'general' or is_media_admin(self.request.user):
-            refresh_queryset_lifecycle(MediaBooking.objects.filter(user=self.request.user))
+            pass  # lifecycle refresh handled by Celery task
 
         qs = MediaBooking.objects.select_related(
             'space', 'user', 'department', 'space__block', 'space__approver_chain'
@@ -736,7 +735,6 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-bookings')
     def my_bookings(self, request):
-        refresh_queryset_lifecycle(MediaBooking.objects.filter(user=request.user))
         bookings = MediaBooking.objects.filter(
             user=request.user
         ).prefetch_related('assigned_crew').order_by('-updated_at')

@@ -10,7 +10,6 @@ from rest_framework.exceptions import ValidationError
 from apps.approvals.lifecycle import (
     can_user_modify_booking,
     refresh_booking_lifecycle,
-    refresh_queryset_lifecycle,
 )
 from apps.notifications.utils import (
     notify_booking_status_change, notify_group_status_change, notify_new_request,
@@ -707,7 +706,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         view_param = self.request.query_params.get('view', 'mine')
 
         if view_param != 'general':
-            refresh_queryset_lifecycle(SpaceBooking.objects.filter(user=user))
+            pass  # lifecycle refresh handled by Celery task
 
         if self.action in ('faculty_approve', 'faculty_reject'):
             return SpaceBooking.objects.filter(
@@ -721,7 +720,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             space_id = self.request.query_params.get('space')
             qs = (
                 SpaceBooking.objects
-                .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain')
+                .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain', 'faculty_sponsor')
                 .prefetch_related(
                     'space__built_in_equipment__equipment',
                     'requested_equipment__equipment',
@@ -738,7 +737,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         return (
             SpaceBooking.objects
             .filter(user=user)
-            .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain')
+            .select_related('space', 'user', 'department', 'space__block', 'space__approver_chain', 'faculty_sponsor')
             .prefetch_related(
                 'space__built_in_equipment__equipment',
                 'requested_equipment__equipment',
@@ -754,11 +753,14 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         if view_param == 'general':
             from apps.spaces.models import SpaceTimetableBlock
-            from datetime import datetime
+            from datetime import datetime, timedelta
             from django.utils import timezone
 
             space_id = request.query_params.get('space')
-            blocks_qs = SpaceTimetableBlock.objects.select_related('space', 'batch')
+            today = timezone.localdate()
+            blocks_qs = SpaceTimetableBlock.objects.select_related(
+                'space', 'batch'
+            ).filter(date__gte=today - timedelta(days=1), date__lte=today + timedelta(days=180))
             if space_id:
                 blocks_qs = blocks_qs.filter(space_id=space_id)
             blocks = blocks_qs.all()
@@ -1005,7 +1007,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking    = self.get_object()
         new_status = request.data.get('status')
         remarks    = request.data.get('remarks_by_admin', '')
-        refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+        refresh_booking_lifecycle(booking)
         booking.refresh_from_db()
 
         if new_status not in ['APPROVED', 'REJECTED', 'PENDING']:
@@ -1117,7 +1119,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         """
         booking = self.get_object()
         remarks = request.data.get('remarks', '').strip()
-        refresh_queryset_lifecycle(SpaceBooking.objects.filter(group_id=booking.group_id))
+        refresh_booking_lifecycle(booking)
         booking.refresh_from_db()
 
         if booking.status != 'APPROVED':
@@ -1181,7 +1183,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if 'FACULTY' not in request.user.get_effective_roles():
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
             
-        refresh_queryset_lifecycle(SpaceBooking.objects.filter(faculty_sponsor=request.user))
         
         pending = SpaceBooking.objects.filter(
             faculty_sponsor=request.user,
