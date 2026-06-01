@@ -323,8 +323,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
               {/* CANCEL */}
               {showEditCancel && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onCancel(booking.id); }}
-                  disabled={isActionLoading}
+onClick={(e) => { e.stopPropagation(); onCancel(booking.id); }}                  disabled={isActionLoading}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-[14.5px] font-medium text-gray-700 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150 disabled:opacity-40"
                 >
                   <Trash2 className="w-4 h-4" /> 
@@ -383,6 +382,8 @@ const MyMediaBookingsPage = () => {
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [filter, setFilter] = useState("ALL")
+
+  const [bookingToCancel, setBookingToCancel] = useState(null);
 
   const FILTER_TABS = [
     { id: 'ALL', label: 'All' },
@@ -457,8 +458,6 @@ const MyMediaBookingsPage = () => {
   const cancelMutation = useCancelMediaBooking();
 
   const handleCancelBooking = async (id) => {
-    if (!window.confirm("Are you sure you want to cancel this media request?")) return;
-
     setIsActionLoading(true)
 
     try {
@@ -652,6 +651,39 @@ const MyMediaBookingsPage = () => {
           )}
         </div>
       </div>
+
+          {bookingToCancel && (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold">
+                Cancel Request?
+            </h3>
+
+            <p className="text-sm text-gray-500 mt-2">
+                Are you sure you want to cancel this media request?
+            </p>
+
+            <div className="flex justify-end gap-3 mt-6">
+                <button
+                    onClick={() => setBookingToCancel(null)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg"
+                >
+                    Keep Request
+                </button>
+
+                <button
+                    onClick={async () => {
+                        await handleCancelBooking(bookingToCancel);
+                        setBookingToCancel(null);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg"
+                >
+                    Cancel Request
+                </button>
+            </div>
+        </div>
+    </div>
+)}
 
       {/* CREATE MODAL */}
       {isCreateModalOpen && (

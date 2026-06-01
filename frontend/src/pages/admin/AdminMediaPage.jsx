@@ -9,7 +9,7 @@ import mediaApi from '../../api/mediaApi'
 import PageInfo from '../../components/PageInfo'
 import notificationService from '../../api/notificationService'
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime'
-
+import toast from 'react-hot-toast';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES = {
@@ -950,8 +950,8 @@ function AdminMediaPage() {
             setRejectTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
-            alert(`Failed to reject booking. ${apiError(err)}`)
-        } finally {
+    toast.error(`Failed to reject booking. ${apiError(err)}`);
+} finally {
             setActionLoading(null)
         }
     }

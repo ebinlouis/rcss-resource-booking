@@ -7,6 +7,7 @@ const SpaceApproversManagement = () => {
     const [approvers, setApprovers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [approverToRevoke, setApproverToRevoke] = useState(null);
 
     // Initial load on mount
     useEffect(() => {
@@ -43,21 +44,19 @@ const SpaceApproversManagement = () => {
         }
     };
 
-    const revokeApprover = async (approver) => {
-        const shouldRevoke = window.confirm(
-            approver.is_last_assignment_for_role
-                ? 'This is the user\'s last active assignment for this role. Revoking it will also remove the role badge from their profile. Continue?'
-                : 'Revoke this scoped approver assignment?'
-        );
-        if (!shouldRevoke) return;
+const revokeApprover = async (approver) => {
 
-        try {
-            await spaceAdminService.deleteApprover(approver.id);
-            refreshApprovers();
-        } catch {
-            toast.error("Failed to revoke assignment.");
-        }
-    };
+    if (!shouldRevoke) return;
+
+    try {
+        await spaceAdminService.deleteApprover(approver.id);
+        await refreshApprovers();
+        toast.success("Assignment revoked successfully.");
+    } catch (error) {
+        console.error("Failed to revoke assignment", error);
+        toast.error("Failed to revoke assignment.");
+    }
+};
 
     const formatScope = (approver) => {
         if (approver.scope_type === 'BLOCK' && approver.block_name) {
@@ -116,7 +115,7 @@ const SpaceApproversManagement = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button
-                                            onClick={() => revokeApprover(approver)}
+                                            onClick={() => setApproverToRevoke(approver)}
                                             className="text-xs font-bold px-3 py-1.5 rounded-lg transition bg-red-50 text-red-600 hover:bg-red-100"
                                         >
                                             Revoke
@@ -128,7 +127,41 @@ const SpaceApproversManagement = () => {
                     </tbody>
                 </table>
             </div>
+            
+            {approverToRevoke && (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold">
+                Revoke Assignment?
+            </h3>
 
+            <p className="text-sm text-gray-500 mt-2">
+                {approverToRevoke.is_last_assignment_for_role
+                    ? "This is the user's last active assignment for this role. Revoking it will also remove the role badge from their profile."
+                    : "Revoke this scoped approver assignment?"}
+            </p>
+
+            <div className="flex justify-end gap-3 mt-6">
+                <button
+                    onClick={() => setApproverToRevoke(null)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    onClick={() => {
+                        revokeApprover(approverToRevoke);
+                        setApproverToRevoke(null);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg"
+                >
+                    Revoke
+                </button>
+            </div>
+        </div>
+    </div>
+)}
             {/* Mount the Modal here */}
             <AssignApproverModal 
                 isOpen={isModalOpen} 

@@ -9,7 +9,8 @@ const RoleOverridesPage = () => {
     const [error, setError] = useState(null); 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-
+    const [revokeTargetId, setRevokeTargetId] = useState(null);
+    
     useEffect(() => {
         let isMounted = true;
 
@@ -37,20 +38,21 @@ const RoleOverridesPage = () => {
         if (!id) {
             toast.error("Something went wrong. Please try again.");
             return;
-        }
-
-        if (!window.confirm("This user will lose temporary access immediately. Continue?")) return;
-        
+        }        
         // Optimistically show loading state
         setIsLoading(true);
-        try {
-            await roleOverrideService.revokeOverride(id);
-            setRefreshTrigger(prev => prev + 1);
-        } catch (err) {
-            console.error("Revoke API Error:", err);
-            toast.error('Could not remove access. Please try again.');
-            setIsLoading(false); // Only reset if it failed, else let useEffect handle it
-        }
+
+try {
+    await roleOverrideService.revokeOverride(id);
+
+    toast.success("Temporary access revoked successfully.");
+
+    setRefreshTrigger(prev => prev + 1);
+} catch (err) {
+    console.error("Revoke API Error:", err);
+    toast.error("Could not remove access. Please try again.");
+    setIsLoading(false);
+}
     };
 
     return (
@@ -170,8 +172,7 @@ const RoleOverridesPage = () => {
                                             <td className="px-6 py-4 text-right">
                                                 {isActive && (
                                                     <button 
-                                                        onClick={() => handleRevoke(override.id)}
-                                                        className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                        onClick={() => setRevokeTargetId(override.id)}                                                        className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                     >
                                                         Remove Access
                                                     </button>
@@ -185,6 +186,47 @@ const RoleOverridesPage = () => {
                     </div>
                 )}
             </div>
+
+                {revokeTargetId && (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold">
+                Remove Temporary Access?
+            </h3>
+
+            <p className="text-sm text-gray-500 mt-2">
+                This user will lose temporary access immediately.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-6">
+                <button
+                    onClick={() => setRevokeTargetId(null)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    onClick={() => {
+                        handleRevoke(revokeTargetId);
+                        setRevokeTargetId(null);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg"
+                >
+                    Remove Access
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
+<GrantOverrideModal 
+    isOpen={isModalOpen} 
+    onClose={() => setIsModalOpen(false)} 
+    onRefresh={() => {
+        setRefreshTrigger(prev => prev + 1);
+    }} 
+/>
 
             <GrantOverrideModal 
                 isOpen={isModalOpen} 

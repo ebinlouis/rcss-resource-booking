@@ -69,6 +69,7 @@ const AdminEquipmentPage = () => {
     const [isLoading, setIsLoading]           = useState(true);
     const [search, setSearch]                 = useState('');
     const [filterCategory, setFilterCategory] = useState('ALL');
+    const [confirmDeactivateId, setConfirmDeactivateId] = useState(null);
 
     const [isModalOpen, setIsModalOpen]   = useState(false);
     const [editingItem, setEditingItem]   = useState(null);
@@ -91,9 +92,10 @@ const AdminEquipmentPage = () => {
                 const data = res.data.results ?? res.data;
                 setEquipment(data ?? []);
             } catch (err) {
-                if (!isMounted) return;
-                console.error('Failed to fetch equipment:', err);
-            } finally {
+    if (!isMounted) return;
+    console.error('Failed to fetch equipment:', err);
+    toast.error('Failed to load equipment.');
+} finally {
                 if (isMounted) setIsLoading(false);
             }
         };
@@ -147,13 +149,15 @@ const AdminEquipmentPage = () => {
                 is_standard_media_kit: formData.is_standard_media_kit,
             };
 
-            if (editingItem) {
-                await updateEquipment.mutateAsync({ id: editingItem.id, payload });
-            } else {
-                await createEquipment.mutateAsync(payload);
-            }
+if (editingItem) {
+    await updateEquipment.mutateAsync({ id: editingItem.id, payload });
+    toast.success('Equipment updated successfully.');
+} else {
+    await createEquipment.mutateAsync(payload);
+    toast.success('Equipment added successfully.');
+}
 
-            handleCloseModal();
+handleCloseModal();
         } catch (err) {
             console.error('Failed to save equipment:', err);
             toast.error(
@@ -169,13 +173,13 @@ const AdminEquipmentPage = () => {
 
     // ── Deactivate ────────────────────────────────────────────────────────────
     const handleDeactivate = async (id) => {
-        if (!window.confirm('Deactivate this item? It will be hidden from space assignments.')) return;
         try {
-            await softDeleteEquipment.mutateAsync(id);
+await softDeleteEquipment.mutateAsync(id);
+toast.success('Equipment deactivated successfully.');
         } catch (err) {
-            console.error('Failed to deactivate:', err);
-            toast.error('Failed to deactivate equipment.');
-        }
+    console.error('Failed to fetch equipment:', err);
+    toast.error('Failed to load equipment.');
+}
     };
 
     // ── Derived ───────────────────────────────────────────────────────────────
@@ -336,7 +340,7 @@ const AdminEquipmentPage = () => {
                                             </button>
                                             {item.is_active && (
                                                 <button
-                                                    onClick={() => handleDeactivate(item.id)}
+                                                    onClick={() => setConfirmDeactivateId(item.id)}
                                                     className="text-red-500 hover:text-red-700 font-medium text-xs transition"
                                                 >
                                                     Deactivate
@@ -359,6 +363,39 @@ const AdminEquipmentPage = () => {
                     </div>
                 )}
             </div>
+
+                {confirmDeactivateId && (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-gray-900">
+                Deactivate Equipment?
+            </h3>
+
+            <p className="text-sm text-gray-500 mt-2">
+                This item will be hidden from venue assignments.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-6">
+                <button
+                    onClick={() => setConfirmDeactivateId(null)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    onClick={async () => {
+                        await handleDeactivate(confirmDeactivateId);
+                        setConfirmDeactivateId(null);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg"
+                >
+                    Deactivate
+                </button>
+            </div>
+        </div>
+    </div>
+)}
 
             {/* MODAL */}
             {isModalOpen && (
