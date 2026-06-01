@@ -565,6 +565,8 @@ class UnifiedApprovalQueueView(APIView):
                     if getattr(item, "faculty_sponsor", None)
                     else None
                 ),
+                faculty_timed_out=getattr(item, "faculty_timed_out", False),
+                faculty_phone=getattr(item.faculty_sponsor, "phone", None) if getattr(item, "faculty_sponsor", None) else None,
                 is_student_booking=bool(getattr(item, "faculty_sponsor_id", None)),
             )
 
