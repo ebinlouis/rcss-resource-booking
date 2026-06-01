@@ -250,11 +250,13 @@ class RoleOverride(models.Model):
         related_name = 'role_overrides',
         help_text    = 'If set, this override applies to this specific space only.',
     )
-    block = models.CharField(
-        max_length = 20,
-        null       = True,
-        blank      = True,
-        help_text  = 'If set, this override applies to this campus block only.',
+    block = models.ForeignKey(
+        'spaces.Block',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='role_overrides',
+        help_text='If set, this override applies to this campus block only.',
     )
 
     # ── Validity window ───────────────────────────────────────────────────────

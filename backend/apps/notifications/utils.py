@@ -111,6 +111,137 @@ def notify_approvers(
     return created_count
 
 
+# ==========================================
+# SCOPED SPACE APPROVER RESOLUTION (Step 2)
+# ==========================================
+
+def resolve_space_approver_recipients(booking, role_name):
+    """
+    Single source of truth for "who should receive notifications/visibility
+    for this space booking."
+
+    Most-specific-wins rule:
+      - If any active SPACE-scope SpaceApprover exists for booking.space with
+        the given role, ONLY those users are returned (block-scope excluded).
+      - Otherwise, users with an active BLOCK-scope SpaceApprover for
+        booking.space.block with the given role are returned.
+
+    RoleOverride users are also included with the same precedence:
+      - Space-scoped overrides (override.space == booking.space) win over
+        block-scoped overrides (override.block == booking.space.block).
+
+    Returns a list of distinct, active CustomUser objects.
+    No notification side effects.
+    """
+    from apps.spaces.models import SpaceApprover
+    now = timezone.now()
+    space = booking.space
+
+    # ── SpaceApprover resolution ─────────────────────────────────────────────
+    space_assignees = list(
+        SpaceApprover.objects.filter(
+            scope_type="SPACE",
+            space=space,
+            role__name=role_name,
+            is_active=True,
+            user__is_active=True,
+        ).values_list("user_id", flat=True)
+    )
+
+    if space_assignees:
+        # Space-scope wins — block-scope excluded entirely for this space
+        approver_user_ids = set(space_assignees)
+    else:
+        # Fall back to block-scope
+        block_assignees = list(
+            SpaceApprover.objects.filter(
+                scope_type="BLOCK",
+                block=space.block,
+                role__name=role_name,
+                is_active=True,
+                user__is_active=True,
+            ).values_list("user_id", flat=True)
+        )
+        approver_user_ids = set(block_assignees)
+
+    # ── RoleOverride resolution — same most-specific-wins rule ───────────────
+    space_override_ids = list(
+        RoleOverride.objects.filter(
+            role__name=role_name,
+            space=space,
+            user__is_active=True,
+            is_active=True,
+            revoked_at__isnull=True,
+        )
+        .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+        .values_list("user_id", flat=True)
+    )
+
+    if space_override_ids:
+        # Space-scoped overrides win — skip block-scoped overrides
+        approver_user_ids |= set(space_override_ids)
+    else:
+        block_override_ids = list(
+            RoleOverride.objects.filter(
+                role__name=role_name,
+                block=space.block,
+                space__isnull=True,
+                user__is_active=True,
+                is_active=True,
+                revoked_at__isnull=True,
+            )
+            .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+            .values_list("user_id", flat=True)
+        )
+        approver_user_ids |= set(block_override_ids)
+
+    if not approver_user_ids:
+        return []
+
+    return list(
+        CustomUser.objects.filter(id__in=approver_user_ids, is_active=True).order_by("id")
+    )
+
+
+# ==========================================
+# SCOPED SPACE NOTIFICATION DISPATCH (Step 3)
+# ==========================================
+
+def notify_space_approvers(
+    booking,
+    role_name,
+    category,
+    title,
+    message,
+    link=None,
+    domain="spaces",
+    reference_code="",
+    is_actionable=False,
+):
+    """
+    Scoped notification dispatcher for space bookings.
+
+    Calls resolve_space_approver_recipients() to determine the correct
+    recipient set (most-specific-wins), then calls notify() for each.
+    Contains no business logic — purely dispatch.
+
+    Never use this for fleet/mess/media — those domains use notify_approvers()
+    because they are global-role domains with no block/space scoping.
+    """
+    recipients = resolve_space_approver_recipients(booking, role_name)
+    for recipient in recipients:
+        notify(
+            recipient,
+            category,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference_code,
+            is_actionable=is_actionable,
+        )
+
+
 def _resource_name(booking, domain=""):
     domain = (domain or "").lower()
 
@@ -528,6 +659,7 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
 def notify_incharge_booking_edited(booking, domain, role_name):
     """
     Notify the relevant admins that an already approved booking was edited and needs re-review.
+    For spaces, uses scoped notify_space_approvers (most-specific-wins).
     """
     resource = _resource_name(booking, domain)
     reference = _booking_reference(booking)
@@ -537,21 +669,35 @@ def notify_incharge_booking_edited(booking, domain, role_name):
     title = f"{domain.capitalize()} Booking Updated"
     message = f"{requester} updated their approved booking for {resource}. Please review the changes."
 
-    notify_approvers(
-        role_name,
-        Notification.Category.BOOKING_PENDING,
-        title,
-        message,
-        link=link,
-        domain=domain,
-        reference_code=reference,
-        is_actionable=True,
-    )
+    if domain == "spaces":
+        notify_space_approvers(
+            booking,
+            role_name,
+            Notification.Category.BOOKING_PENDING,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=True,
+        )
+    else:
+        notify_approvers(
+            role_name,
+            Notification.Category.BOOKING_PENDING,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=True,
+        )
 
 
 def notify_incharge_cancelled(booking, domain, role_name):
     """
     Notify the relevant admins that an active or pending booking was cancelled by the user.
+    For spaces, uses scoped notify_space_approvers (most-specific-wins).
     """
     resource = _resource_name(booking, domain)
     reference = _booking_reference(booking)
@@ -561,21 +707,36 @@ def notify_incharge_cancelled(booking, domain, role_name):
     title = f"{domain.capitalize()} Booking Cancelled"
     message = f"{requester} cancelled their booking for {resource}."
 
-    notify_approvers(
-        role_name,
-        Notification.Category.BOOKING_CANCELLED,
-        title,
-        message,
-        link=link,
-        domain=domain,
-        reference_code=reference,
-        is_actionable=False,
-    )
+    if domain == "spaces":
+        notify_space_approvers(
+            booking,
+            role_name,
+            Notification.Category.BOOKING_CANCELLED,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=False,
+        )
+    else:
+        notify_approvers(
+            role_name,
+            Notification.Category.BOOKING_CANCELLED,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=False,
+        )
 
 
 def notify_new_request(booking, domain, role_name):
     """
     Notify the relevant admins that a new booking requires approval.
+    For spaces, uses scoped notify_space_approvers (most-specific-wins).
+    For other domains, uses global notify_approvers.
     """
     resource = _resource_name(booking, domain)
     reference = _booking_reference(booking)
@@ -616,21 +777,37 @@ def notify_new_request(booking, domain, role_name):
         else:
             message = f"{requester} — {request_label} for {event_name}."
 
-    notify_approvers(
-        role_name,
-        Notification.Category.BOOKING_PENDING,
-        title,
-        message,
-        link=link,
-        domain=domain,
-        reference_code=reference,
-        is_actionable=True,
-    )
+    if domain == "spaces":
+        notify_space_approvers(
+            booking,
+            role_name,
+            Notification.Category.BOOKING_PENDING,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=True,
+        )
+    else:
+        notify_approvers(
+            role_name,
+            Notification.Category.BOOKING_PENDING,
+            title,
+            message,
+            link=link,
+            domain=domain,
+            reference_code=reference,
+            is_actionable=True,
+        )
 
 
 def notify_incharge_expired(booking, domain):
     """
     Notify the relevant admins that a booking request has automatically expired.
+    For spaces with an approver chain, notifies chain members directly.
+    For spaces without a chain, uses scoped notify_space_approvers.
+    For other domains, uses global notify_approvers.
     """
     resource = _resource_name(booking, domain)
     reference = _booking_reference(booking)
@@ -667,6 +844,7 @@ def notify_incharge_expired(booking, domain):
     if domain == 'spaces':
         chain = getattr(getattr(booking, 'space', None), 'approver_chain', None)
         if chain:
+            # Chain-based spaces: notify the named approvers directly
             for approver in [chain.primary_approver, chain.fallback_approver]:
                 if approver:
                     notify(
@@ -679,6 +857,28 @@ def notify_incharge_expired(booking, domain):
                         reference_code=reference,
                         is_actionable=False,
                     )
+        else:
+            # Non-chain spaces: use scoped resolution
+            space = booking.space
+            category = getattr(space, 'approval_category', None)
+            from apps.spaces.models import Space as SpaceModel
+            if category == SpaceModel.ApprovalCategory.LAB:
+                role_name = Role.Name.LAB_INCHARGE
+            elif category == SpaceModel.ApprovalCategory.LIBRARY:
+                role_name = Role.Name.LIBRARIAN
+            else:
+                role_name = Role.Name.RECEPTIONIST
+            notify_space_approvers(
+                booking,
+                role_name,
+                Notification.Category.SYSTEM,
+                title,
+                message,
+                link=link,
+                domain=domain,
+                reference_code=reference,
+                is_actionable=False,
+            )
     else:
         role_map = {
             'fleet': Role.Name.FLEET_MANAGER,
@@ -772,9 +972,15 @@ def notify_faculty_details_changed(booking):
 
 
 def notify_incharge_escalated(booking, role_name):
+    """
+    Notify the relevant admins that a booking has been escalated from faculty to incharge.
+    Uses scoped notify_space_approvers (most-specific-wins) since escalation is
+    always spaces-domain.
+    """
     student_name = getattr(booking.user, "first_name", "A student")
     space_name = _resource_name(booking, "spaces")
-    notify_approvers(
+    notify_space_approvers(
+        booking,
         role_name,
         Notification.Category.FACULTY_ESCALATED,
         "Booking Escalated",
@@ -788,7 +994,8 @@ def notify_incharge_escalated(booking, role_name):
 
 def notify_incharge_booking_returned(booking, role_name):
     space_name = _resource_name(booking, "spaces")
-    notify_approvers(
+    notify_space_approvers(
+        booking,
         role_name,
         Notification.Category.BOOKING_PENDING,
         "Booking Returned",

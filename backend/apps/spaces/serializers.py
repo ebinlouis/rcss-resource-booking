@@ -117,6 +117,7 @@ class SpaceSerializer(serializers.ModelSerializer):
             "approval_category",
             "approval_workflow_type",
             "department",
+            "block",
             "capacity_hard",
             "location",
             "image_1",

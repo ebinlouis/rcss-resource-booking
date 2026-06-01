@@ -428,6 +428,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
         form.locationDetails.trim()
       )
       fd.append("location", locationValue)
+      fd.append("block", form.blockId)
       fd.append("description", form.description.trim())
       fd.append("is_active", form.is_active)
       fd.append("is_special_purpose", form.is_special_purpose)

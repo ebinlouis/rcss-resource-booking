@@ -10,3 +10,6 @@ dist/
 
 # Misc
 *.zip
+backend/audit_output*.txt
+backend/audit_script.py
+localhost*.har
