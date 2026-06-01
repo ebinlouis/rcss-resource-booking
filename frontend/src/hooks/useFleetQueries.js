@@ -11,9 +11,10 @@ export const useVehicles = () => {
 
 export const useMyFleetBookings = (params = {}) => {
   return useQuery({
-    queryKey: ['fleet', 'bookings', 'mine', params],
+    queryKey: ['fleet', 'bookings', 'mine'],
     queryFn: () => getMyBookings(params),
     staleTime: 0,
+    refetchOnMount: 'always',
   });
 };
 

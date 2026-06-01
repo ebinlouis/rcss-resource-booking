@@ -10,7 +10,7 @@ import { ensureProtectedQuery, prefetchProtectedQuery } from './lib/loaderUtils'
 
 // Import APIs for loaders
 import spaceApi from './api/spaceApi';
-import { getVehicles } from './api/fleetApi';
+import { getVehicles, getMyBookings } from './api/fleetApi';
 import mediaApi from './api/mediaApi';
 import messService from './api/messService';
 import notificationService from './api/notificationService';
@@ -26,6 +26,7 @@ const Mess = lazy(() => import("./pages/Mess"));
 const Media = lazy(() => import("./pages/Media"));
 const MediaSchedule = lazy(() => import("./pages/MediaSchedule"));
 const MyMediaBookingsPage = lazy(() => import("./pages/MyMediaBookingsPage"));
+const MyTransportBookingsPage = lazy(() => import("./pages/MyTransportBookingsPage"));
 const MyBookingsPage = lazy(() => import("./pages/MyBookingsPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -127,6 +128,14 @@ const router = createBrowserRouter([
             element: <MyMediaBookingsPage />,
             loader: () => prefetchProtectedQuery({
               queryKey: ['media', 'bookings', 'mine'], queryFn: () => mediaApi.getMyBookings()
+            })
+          },
+          // ✅ NEW: Transport history page
+          {
+            path: "/transport/my-bookings",
+            element: <MyTransportBookingsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['fleet', 'bookings', 'mine'], queryFn: () => getMyBookings()
             })
           },
           {
