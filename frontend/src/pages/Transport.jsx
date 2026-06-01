@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
 import TransportBookingModal from "../components/TransportBookingModal"
+import TransportMyRequests from "../components/TransportMyRequests"
 import { useMyFleetBookings, useCancelFleetBooking } from "../hooks/useFleetQueries"
 import {
   Pencil,
@@ -90,27 +91,22 @@ function EmptyState({ date, onBook }) {
     </div>
   )
 }
+
 function Transport() {
   const today = new Date()
 
   const formatDate = (date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(date.getDate()).padStart(2, "0")}`
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 
   const [selectedDate, setSelectedDate] = useState(formatDate(today))
 
-  // API state
   const { data: queryData = [], isLoading: loading, isError, refetch } = useMyFleetBookings()
   const allBookings = queryData || []
   const loadError = isError ? "Failed to load bookings. Please refresh and try again." : ""
 
-  // Modal state
   const [showModal, setShowModal] = useState(false)
   const [editData, setEditData] = useState(null)
 
-  // Cancel modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -201,268 +197,181 @@ function Transport() {
           </button>
         </div>
 
-        {/* Main content */}
-        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        {/* Two-column layout: main + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          {/* Controls */}
-          <div className="border-b border-gray-100 px-6 py-5">
+          {/* Main booking overview — takes 2/3 width */}
+          <section className="lg:col-span-2 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
+            {/* Controls */}
+            <div className="border-b border-gray-100 px-6 py-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
                   <h2 className="text-lg font-semibold text-gray-900">
                     Booking Overview
                   </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    View confirmed and pending transport bookings for the selected date.
+                  </p>
                 </div>
 
-                <p className="mt-1 text-sm text-gray-500">
-                  View confirmed and pending transport bookings for the selected date.
-                </p>
-              </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  />
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
-                />
-
-                <button
-                  onClick={fetchBookings}
-                  title="Refresh bookings"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-green-600"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
+                  <button
+                    onClick={fetchBookings}
+                    title="Refresh bookings"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-green-600"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-                  {/* Bookings list */}
-        <div className="divide-y divide-gray-100">
 
-          {/* Loading */}
-          {loading && (
-            <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-gray-500">
-              <svg
-                className="h-4 w-4 animate-spin"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8H4z"
-                />
-              </svg>
-              Loading transport bookings...
-            </div>
-          )}
+            {/* Bookings list */}
+            <div className="divide-y divide-gray-100">
 
-          {/* Guest prompt */}
-          {!loading && !user && (
-            <div className="px-6 py-8 text-center space-y-3">
-              <p className="text-sm text-gray-500 font-medium">Sign in to view and manage transport bookings</p>
-              <button
-                onClick={() => navigate("/login", { state: { from: location.pathname } })}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-xs font-semibold hover:bg-green-800 transition"
-              >
-                Sign In
-              </button>
-            </div>
-          )}
+              {loading && (
+                <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-gray-500">
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Loading transport bookings...
+                </div>
+              )}
 
-          {/* Error */}
-          {!loading && user && loadError && (
-            <div className="px-6 py-8 text-center">
-              <p className="text-sm font-medium text-red-600">
-                {loadError}
-              </p>
-            </div>
-          )}
+              {!loading && !user && (
+                <div className="px-6 py-8 text-center space-y-3">
+                  <p className="text-sm text-gray-500 font-medium">Sign in to view and manage transport bookings</p>
+                  <button
+                    onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-xs font-semibold hover:bg-green-800 transition"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              )}
 
-          {/* Empty */}
-          {!loading && user && !loadError && bookingsForDate.length === 0 && (
-            <EmptyState
-              date={selectedDate}
-              onBook={openCreateModal}
-            />
-          )}
+              {!loading && user && loadError && (
+                <div className="px-6 py-8 text-center">
+                  <p className="text-sm font-medium text-red-600">{loadError}</p>
+                </div>
+              )}
 
-          {/* Booking cards */}
-          {!loading &&
-            user &&
-            !loadError &&
-            bookingsForDate.map((booking) => {
-              const cardStyle =
-                STATUS_STYLES[booking.status]?.card ??
-                STATUS_STYLES.PENDING.card
+              {!loading && user && !loadError && bookingsForDate.length === 0 && (
+                <EmptyState date={selectedDate} onBook={openCreateModal} />
+              )}
 
-              const isPastBooking =
-                new Date(booking.end_datetime) <= new Date()
+              {!loading && user && !loadError && bookingsForDate.map((booking) => {
+                const cardStyle = STATUS_STYLES[booking.status]?.card ?? STATUS_STYLES.PENDING.card
+                const isPastBooking = new Date(booking.end_datetime) <= new Date()
+                const canEdit = !isPastBooking && (booking.status === "PENDING" || booking.status === "APPROVED")
+                const canCancel = !isPastBooking && (booking.status === "PENDING" || booking.status === "APPROVED")
 
-              const canEdit =
-                !isPastBooking &&
-                (
-                  booking.status === "PENDING" ||
-                  booking.status === "APPROVED"
-                )
+                return (
+                  <div key={booking.id} className="px-6 py-5 transition hover:bg-gray-50">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-              const canCancel =
-                !isPastBooking &&
-                (
-                  booking.status === "PENDING" ||
-                  booking.status === "APPROVED"
-                )
-
-              return (
-                <div
-                  key={booking.id}
-                  className="px-6 py-5 transition hover:bg-gray-50"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
-                    {/* Left section */}
-                    <div className="flex-1 space-y-3">
-
-                      {/* Top row */}
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-base font-semibold text-gray-900">
-                            {booking.vehicle_details?.name ??
-                              `Vehicle #${booking.vehicle}`}
-                          </p>
-
-                          <p className="mt-1 text-sm text-gray-500">
-                            {booking.pickup_location} →{" "}
-                            {booking.destination}
-                          </p>
+                      <div className="flex-1 space-y-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-base font-semibold text-gray-900">
+                              {booking.vehicle_details?.name ?? `Vehicle #${booking.vehicle}`}
+                            </p>
+                            <p className="mt-1 text-sm text-gray-500">
+                              {booking.pickup_location} → {booking.destination}
+                            </p>
+                          </div>
+                          <StatusBadge status={booking.status} />
                         </div>
 
-                        <StatusBadge status={booking.status} />
-                      </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Schedule</p>
+                          <p className="mt-1 text-sm font-medium text-gray-700">{formatDT(booking.start_datetime)}</p>
+                          <p className="mt-1 text-sm text-gray-500">Until {formatDT(booking.end_datetime)}</p>
+                        </div>
 
-                      {/* Time card */}
-                      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                          Schedule
-                        </p>
-
-                        <p className="mt-1 text-sm font-medium text-gray-700">
-                          {formatDT(booking.start_datetime)}
-                        </p>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                          Until {formatDT(booking.end_datetime)}
-                        </p>
-                      </div>
-
-                      {/* Details */}
-                      <div
-                        className={`rounded-xl border px-4 py-3 ${cardStyle}`}
-                      >
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="text-sm font-semibold">
-                            {booking.total_passengers} passengers
-                          </span>
-
-                          {booking.reference_code && (
-                            <span className="font-mono text-xs opacity-70">
-                              {booking.reference_code}
-                            </span>
+                        <div className={`rounded-xl border px-4 py-3 ${cardStyle}`}>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="text-sm font-semibold">{booking.total_passengers} passengers</span>
+                            {booking.reference_code && (
+                              <span className="font-mono text-xs opacity-70">{booking.reference_code}</span>
+                            )}
+                          </div>
+                          {booking.purpose && (
+                            <p className="mt-2 text-sm opacity-80 italic">{booking.purpose}</p>
                           )}
                         </div>
+                      </div>
 
-                        {booking.purpose && (
-                          <p className="mt-2 text-sm opacity-80 italic">
-                            {booking.purpose}
-                          </p>
+                      <div className="flex items-center gap-2 lg:ml-6">
+                        {canEdit && (
+                          <button
+                            onClick={() => openEditModal(booking)}
+                            title="Edit booking"
+                            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </button>
+                        )}
+
+                        {canCancel && (
+                          <button
+                            onClick={() => openDeleteModal(booking)}
+                            title="Cancel booking"
+                            className="flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Cancel
+                          </button>
                         )}
                       </div>
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 lg:ml-6">
-
-                      {canEdit && (
-                        <button
-                          onClick={() => openEditModal(booking)}
-                          title="Edit booking"
-                          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </button>
-                      )}
-
-                      {canCancel && (
-                        <button
-                          onClick={() => openDeleteModal(booking)}
-                          title="Cancel booking"
-                          className="flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Cancel
-                        </button>
-                      )}
-                    </div>
                   </div>
-                </div>
-              )
-            })}
-        </div>
-                {/* Rejection remarks */}
-        {bookingsForDate.some(
-          (booking) =>
-            booking.status === "REJECTED" &&
-            booking.remarks_by_admin
-        ) && (
-          <div className="border-t border-gray-100 bg-gray-50 px-6 py-5">
-            <div className="space-y-3">
-              {bookingsForDate
-                .filter(
-                  (booking) =>
-                    booking.status === "REJECTED" &&
-                    booking.remarks_by_admin
                 )
-                .map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-blue-800">
-                      Admin Remark
-                    </p>
-
-                    <p className="mt-1 text-sm text-blue-700">
-                      <span className="font-mono text-xs">
-                        {booking.reference_code}
-                      </span>{" "}
-                      — {booking.remarks_by_admin}
-                    </p>
-                  </div>
-                ))}
+              })}
             </div>
+
+            {/* Rejection remarks */}
+            {bookingsForDate.some((b) => b.status === "REJECTED" && b.remarks_by_admin) && (
+              <div className="border-t border-gray-100 bg-gray-50 px-6 py-5">
+                <div className="space-y-3">
+                  {bookingsForDate
+                    .filter((b) => b.status === "REJECTED" && b.remarks_by_admin)
+                    .map((booking) => (
+                      <div key={booking.id} className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-blue-800">Admin Remark</p>
+                        <p className="mt-1 text-sm text-blue-700">
+                          <span className="font-mono text-xs">{booking.reference_code}</span>{" "}
+                          — {booking.remarks_by_admin}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Sidebar — My Requests */}
+          <div className="lg:col-span-1 lg:mt-0">
+            <TransportMyRequests />
           </div>
-        )}
-      </section>
+
         </div>
+      </div>
+
       {/* Booking modal */}
       {showModal && (
         <TransportBookingModal
-          onClose={() => {
-            setShowModal(false)
-            setEditData(null)
-          }}
+          onClose={() => { setShowModal(false); setEditData(null) }}
           editData={editData}
           onSave={handleSave}
         />
@@ -484,36 +393,22 @@ function Transport() {
               <Trash2 className="h-6 w-6 text-red-500" />
             </div>
 
-            <h2 className="text-xl font-bold text-gray-900">
-              Cancel booking?
-            </h2>
-
-            <p className="mt-2 text-sm text-gray-500">
-              This will cancel your transport booking request.
-            </p>
+            <h2 className="text-xl font-bold text-gray-900">Cancel booking?</h2>
+            <p className="mt-2 text-sm text-gray-500">This will cancel your transport booking request.</p>
 
             <div className="mt-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
               <p className="text-sm font-semibold text-gray-900">
                 {deleteTarget.vehicle_details?.name || "Vehicle"}
               </p>
-
               <p className="mt-1 text-sm text-gray-500">
-                {deleteTarget.pickup_location} →{" "}
-                {deleteTarget.destination}
+                {deleteTarget.pickup_location} → {deleteTarget.destination}
               </p>
-
               {deleteTarget.reference_code && (
-                <p className="mt-2 font-mono text-xs text-gray-400">
-                  {deleteTarget.reference_code}
-                </p>
+                <p className="mt-2 font-mono text-xs text-gray-400">{deleteTarget.reference_code}</p>
               )}
             </div>
 
-            {deleteError && (
-              <p className="mt-4 text-sm text-red-600">
-                {deleteError}
-              </p>
-            )}
+            {deleteError && <p className="mt-4 text-sm text-red-600">{deleteError}</p>}
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
@@ -530,28 +425,11 @@ function Transport() {
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
               >
                 {deleting && (
-                  <svg
-                    className="h-4 w-4 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
                 )}
-
                 {deleting ? "Cancelling..." : "Yes, Cancel Booking"}
               </button>
             </div>
