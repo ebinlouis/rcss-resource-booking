@@ -102,7 +102,7 @@ const router = createBrowserRouter([
       {
         path: "/transport",
         element: <Transport />,
-        loader: () => ensureProtectedQuery({
+        loader: () => prefetchProtectedQuery({
           queryKey: ['fleet', 'vehicles'], queryFn: () => getVehicles()
         })
       },
