@@ -144,14 +144,14 @@ NOTIFICATION_EMAIL_STUB = True
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 # Tells Django to accept requests from these origins even with CSRF protection on
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 # Must be False so the axios interceptor can read the csrftoken cookie
