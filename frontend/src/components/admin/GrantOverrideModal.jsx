@@ -221,7 +221,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                                 <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition" value={scopeType} onChange={(e) => { setScopeType(e.target.value); setSelectedBlockId(''); setSelectedSpaceId(''); }}>
                                     <option value="GLOBAL">Select Scope...</option>
                                     <option value="BLOCK">Block Specific</option>
-                                    <option value="SPACE">Space Specific</option>
+                                    <option value="SPACE">Venue Specific</option>
                                 </select>
                             </div>
                             {scopeType === 'BLOCK' && (
@@ -235,9 +235,9 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
                             )}
                             {scopeType === 'SPACE' && (
                                 <div>
-                                    <label className="block caps-label mb-1.5">Select Space <span className="text-red-500">*</span></label>
+                                    <label className="block caps-label mb-1.5">Select Venue <span className="text-red-500">*</span></label>
                                     <select required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition" value={selectedSpaceId} onChange={(e) => setSelectedSpaceId(e.target.value)}>
-                                        <option value="" disabled>-- Select Space --</option>
+                                        <option value="" disabled>-- Select Venue --</option>
                                         {spaces.map(s => <option key={s.id} value={s.id}>{s.name} ({s.room_number})</option>)}
                                     </select>
                                 </div>

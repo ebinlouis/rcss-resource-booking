@@ -276,7 +276,7 @@ export default function FacultyApprovalPage() {
           <section>
             <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Approvals History
+              Approval History
             </h2>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <table className="w-full text-sm">

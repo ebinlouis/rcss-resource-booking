@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 
-const ENDPOINT = '/spaces/equipment/';
+const ENDPOINT = '/spaces/inventory/';
 
 export const useCreateEquipment = () => {
   const queryClient = useQueryClient();

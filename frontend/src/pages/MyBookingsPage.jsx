@@ -737,7 +737,7 @@ const confirmCancelBooking = async () => {
 
                 <input
                   type="text"
-                  placeholder="Search by reference, space, purpose, or status..."
+                  placeholder="Search by reference, venue, purpose, or status..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="

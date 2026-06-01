@@ -16,9 +16,9 @@ const SPACE_TYPES = [
 ]
 
 const APPROVAL_CATEGORIES = [
-  { value: "GENERAL", label: "General", hint: "Receptionist scoped by block or space" },
-  { value: "LAB", label: "Lab", hint: "Lab In-Charge scoped by block or space" },
-  { value: "LIBRARY", label: "Library", hint: "Librarian scoped by block or space" },
+  { value: "GENERAL", label: "General", hint: "Receptionist scoped by block or venue" },
+  { value: "LAB", label: "Lab", hint: "Lab In-Charge scoped by block or venue" },
+  { value: "LIBRARY", label: "Library", hint: "Librarian scoped by block or venue" },
 ]
 
 const APPROVAL_WORKFLOWS = [
@@ -97,7 +97,7 @@ function EquipmentRow({ row, index, allEquipment, onChange, onRemove, usedIds })
       </select>
 
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-xs text-[#6b7280] font-medium">Qty</span>
+        <span className="text-xs text-[#6b7280] font-medium">Quantity</span>
         <input
           type="number"
           min="1"
@@ -379,8 +379,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
   // ── Validation ──
   const validate = () => {
     const e = {}
-    if (!form.name.trim()) e.name = "Space name is required"
-    if (!form.space_type) e.space_type = "Select a space type"
+    if (!form.name.trim()) e.name = "Venue name is required"
+    if (!form.space_type) e.space_type = "Select a venue type"
     if (!form.approval_category) e.approval_category = "Select an approval category"
     if (!form.approval_workflow_type) e.approval_workflow_type = "Select an approval workflow"
     if (!form.capacity_hard || Number(form.capacity_hard) < 1)
@@ -496,7 +496,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </svg>
           </div>
           <h2 className="text-[18px] font-bold text-[#0f172a] tracking-tight">
-            {isEdit ? "Space Updated" : "Space Created"}
+            {isEdit ? "Venue Updated" : "Venue Created"}
           </h2>
           <p className="text-[14px] text-[#6b7280] leading-relaxed">
             <span className="font-semibold text-[#0f172a]">{form.name}</span> has been{" "}
@@ -532,10 +532,10 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
         >
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#86efac] mb-2">
-              {isEdit ? "Edit Space" : "New Space"}
+              {isEdit ? "Edit Venue" : "New Venue"}
             </p>
             <h2 className="text-[22px] font-bold text-white leading-tight tracking-tight">
-              {form.name || "Untitled Space"}
+              {form.name || "Untitled Venue"}
             </h2>
 
             {form.space_type && (
@@ -546,8 +546,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
 
             <p className="text-sm text-[#86efac]/70 mt-4 leading-relaxed">
               {isEdit
-                ? "Editing a space updates it live in the booking catalog immediately."
-                : "New spaces appear in the booking catalog once saved."}
+                ? "Editing a venue updates it live in the booking catalog immediately."
+                : "New venues appear in the booking catalog once saved."}
             </p>
 
             {/* Capacity display */}
@@ -653,11 +653,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
           {/* Header */}
           <div className="flex justify-between items-start px-7 pt-6 pb-4 border-b border-[#e8f5ee] shrink-0">
             <div>
-              <p className="text-[10.5px] font-bold text-[#15803d] uppercase tracking-[0.12em] mb-0.5">
-                Space Configuration
-              </p>
               <h2 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
-                {isEdit ? "Edit space details" : "Add a new space"}
+                {isEdit ? "Edit venue details" : "Add a new venue"}
               </h2>
             </div>
             <button
@@ -675,7 +672,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             <SectionDivider>Basic Information</SectionDivider>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Space Name" required error={errors.name}>
+              <Field label="Venue Name" required error={errors.name}>
                 <input
                   className={inputCls(errors.name)}
                   value={form.name}
@@ -684,7 +681,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
                 />
               </Field>
-              <Field label="Space Type" required error={errors.space_type}>
+              <Field label="Venue Type" required error={errors.space_type}>
                 <select
                   className={inputCls(errors.space_type)}
                   value={form.space_type}
@@ -741,22 +738,22 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               </Field>
             </div>
 
-            <Field label="Description" hint="Optional. Visible to users when they browse spaces.">
+            <Field label="Description" hint="Optional. This information will be shown to users when viewing venues.">
               <textarea
                 rows={3}
                 className={`${inputCls(false)} resize-none`}
                 value={form.description}
                 onChange={(e) => set("description", e.target.value)}
-                placeholder="Describe the space, its features, typical use…"
+                placeholder="Describe the venue, its facilities, typical use…"
                 style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
               />
             </Field>
 
             {/* ── CLEANING BUFFERS ── */}
-            <SectionDivider>Approval Routing</SectionDivider>
+            <SectionDivider>Booking Approval Process</SectionDivider>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Approval Category" required error={errors.approval_category} hint="Determines which scoped role reviews this space.">
+              <Field label="Approval Type" required error={errors.approval_category} hint="Choose who reviews booking requests for this venue.">
                 <select
                   className={inputCls(errors.approval_category)}
                   value={form.approval_category}
@@ -771,7 +768,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 </select>
               </Field>
 
-              <Field label="Approval Workflow" required error={errors.approval_workflow_type} hint="Use HOD fallback only for special lab workflows like AI Lab.">
+              <Field label="Approval Workflow" required error={errors.approval_workflow_type} hint="Use Department Head backup approval only for special venues such as AI lab.">
                 <select
                   className={inputCls(errors.approval_workflow_type)}
                   value={form.approval_workflow_type}
@@ -790,13 +787,13 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             {form.approval_workflow_type === "HOD_FALLBACK" && (
               <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 space-y-4">
                 <p className="text-[12px] font-semibold text-blue-800">
-                  Configure who approves student bookings for this space.
-                  The primary approver (e.g. HOD) acts first. If they don't respond within
+                  Configure who approves student bookings for this venue.
+                  The main approver (e.g. HOD) acts first. If they don't respond within
                   the escalation window, the fallback approver (e.g. Lab In-Charge) is notified.
                 </p>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Primary Approver" required error={errors.chain_primary_approver}>
+                  <Field label="Main Approver" required error={errors.chain_primary_approver}>
                     <UserSearchCombobox
                       value={form.chain_primary_approver}
                       displayValue={primaryApproverDisplay}
@@ -833,8 +830,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
 
                 <div className="grid grid-cols-3 gap-4">
                   <Field
-                    label="Escalation Window"
-                    hint="Hours before fallback approver is notified."
+                    label="Reminder Time"
+                    hint="Number of hours before the backup approver is notified."
                     error={errors.chain_escalation_hours}
                   >
                     <div className="relative flex items-center">
@@ -876,7 +873,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
 
                 <div className="flex items-center justify-between p-3.5 rounded-xl border border-blue-200 bg-white">
                   <div>
-                    <span className="text-[13.5px] font-semibold text-[#0f172a]">Require booking reason</span>
+                    <span className="text-[13.5px] font-semibold text-[#0f172a]">Require Purpose of Booking</span>
                     <p className="text-[12px] text-[#6b7280] mt-0.5">
                       If on, students must fill in a purpose before submitting.
                     </p>
@@ -898,7 +895,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               </div>
             )}
 
-            <SectionDivider>Cleaning &amp; Maintenance Buffers</SectionDivider>
+            <SectionDivider>Preparation & Cleaning Time</SectionDivider>
 
             {/* Explainer card */}
             <div className="flex gap-3 p-3.5 rounded-xl bg-[#f0fdf4] border border-[#d1fae5]">
@@ -908,15 +905,15 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 </svg>
               </div>
               <p className="text-[12px] text-[#166534] leading-relaxed">
-                <span className="font-semibold">These buffers are invisible to users.</span>{" "}
-                After a booking ends, the teardown buffer is automatically held for cleaning — the next available slot shifts forward accordingly. Users see the slot as unavailable; they never need to account for this themselves.
-              </p>
+  <span className="font-semibold">Allow time for venue preparation and cleaning.</span>{" "}
+  The system can automatically reserve extra time before or after bookings. Users will see these periods as unavailable when making a booking.
+</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <Field
-                label="Setup buffer (before)"
-                hint="Held before a booking starts. Rarely needed — use for spaces that require pre-event prep by staff."
+                label="Preparation Time"
+                hint="Reserved before a booking starts. Use this when staff need time to prepare the venue or equipment."
               >
                 <BufferInput
                   value={form.setup_buffer_minutes}
@@ -925,8 +922,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               </Field>
 
               <Field
-                label="Teardown buffer (after)"
-                hint="Held after every booking ends. Use this for cleaning, sanitisation, or equipment reset time."
+                label="Cleaning Time"
+                hint="Reserved after a booking ends. Use this for cleaning, sanitisation, or resetting equipment."
               >
                 <BufferInput
                   value={form.teardown_buffer_minutes}
@@ -938,14 +935,14 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             {/* Quick presets */}
             <div className="flex flex-wrap gap-2 -mt-2">
               <span className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-wide self-center mr-1">
-                Quick presets:
+                Quick Options:
               </span>
               {[
-                { label: "No buffer", setup: 0, teardown: 0 },
-                { label: "15 min cleanup", setup: 0, teardown: 15 },
-                { label: "30 min cleanup", setup: 0, teardown: 30 },
-                { label: "45 min cleanup", setup: 0, teardown: 45 },
-                { label: "1 hr cleanup", setup: 0, teardown: 60 },
+                { label: "No Extra Time", setup: 0, teardown: 0 },
+                { label: "15 min cleaning", setup: 0, teardown: 15 },
+                { label: "30 min cleaning", setup: 0, teardown: 30 },
+                { label: "45 min cleaning", setup: 0, teardown: 45 },
+                { label: "1 hr cleaning", setup: 0, teardown: 60 },
               ].map(({ label, setup, teardown }) => {
                 const isActive =
                   form.setup_buffer_minutes === setup &&
@@ -970,15 +967,15 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </div>
 
             {/* ── STATUS TOGGLES ── */}
-            <SectionDivider>Visibility &amp; Flags</SectionDivider>
+            <SectionDivider>Venue Availability</SectionDivider>
 
             <div className="space-y-3">
               {/* is_active toggle */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-[#e2e8f0] bg-[#f8fafc]">
                 <div className="flex flex-col pr-4">
-                  <span className="text-[14px] font-semibold text-[#0f172a]">Active Space</span>
+                  <span className="text-[14px] font-semibold text-[#0f172a]">Active Venue</span>
                   <span className="text-[12px] text-[#6b7280] mt-0.5 leading-relaxed">
-                    When active, this space appears in the booking catalog and can be requested.
+                    Users can view and book this venue.
                   </span>
                 </div>
                 <button
@@ -1013,19 +1010,18 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   </div>
                   <div>
                     <span className={`text-[14px] font-bold tracking-tight ${form.is_special_purpose ? "text-amber-800" : "text-[#0f172a]"}`}>
-                      Special Purpose Space
+                      Special Purpose Venue
                     </span>
-                    <p className={`text-[12px] mt-0.5 leading-relaxed ${form.is_special_purpose ? "text-amber-700" : "text-[#6b7280]"}`}>
-                      <span className="font-semibold">Fences this room from the suggestion engine.</span>{" "}
-                      Spaces like AI Labs or dedicated research rooms that should never be auto-suggested
-                      as alternatives during low-occupancy bookings must be flagged here.
-                    </p>
+<p className={`text-[12px] mt-0.5 leading-relaxed ${form.is_special_purpose ? "text-amber-700" : "text-[#6b7280]"}`}>
+  <span className="font-semibold">Prevents this venue from being suggested as an alternative.</span>{" "}
+  Use this for special venues such as AI Labs, research rooms, or dedicated facilities that should only be booked intentionally and not suggested automatically.
+</p>
                     {form.is_special_purpose && (
                       <p className="text-[11.5px] text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
                         <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
-                        This space will NOT appear in automated booking suggestions.
+                        This venue will NOT appear in automated booking suggestions.
                       </p>
                     )}
                   </div>
@@ -1048,7 +1044,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </div>
 
             {/* ── IMAGE UPLOAD ── */}
-            <SectionDivider>Space Image</SectionDivider>
+            <SectionDivider>Venue Image</SectionDivider>
 
             <div
               className={`relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer
@@ -1066,7 +1062,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 <div className="relative">
                   <img
                     src={imagePreview}
-                    alt="Space preview"
+                    alt="Venue preview"
                     className="w-full h-44 object-cover rounded-xl"
                   />
                   <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-all rounded-xl flex items-center justify-center">
@@ -1096,8 +1092,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   </div>
                   <div className="text-center">
                     <p className="text-[13.5px] font-semibold text-[#374151]">
-                      Drop an image, or{" "}
-                      <span className="text-[#15803d] underline underline-offset-2">browse</span>
+                      Drag and drop an image here, or{" "}
+                      <span className="text-[#15803d] underline underline-offset-2">click to upload</span>
                     </p>
                     <p className="text-[12px] text-[#94a3b8] mt-1">PNG, JPG up to 10 MB</p>
                   </div>
@@ -1113,7 +1109,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             </div>
 
             {/* ── BUILT-IN EQUIPMENT ── */}
-            <SectionDivider>Built-in Equipment</SectionDivider>
+            <SectionDivider>Available Equipment</SectionDivider>
 
             {errors.equipment && (
               <p className="text-xs text-red-500 font-medium -mt-3">{errors.equipment}</p>
@@ -1147,7 +1143,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                Add equipment row
+                Add Equipment
               </button>
             </div>
 
@@ -1164,8 +1160,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               {!errors.server && (
                 <p className="text-[12px] text-[#94a3b8]">
                   {isEdit
-                    ? "Changes are applied immediately to the booking catalog."
-                    : "The new space will be visible to users right away."}
+                    ? "Changes will be visible immediately."
+                    : "Users can book this venue once it is saved."}
                 </p>
               )}
             </div>
@@ -1181,7 +1177,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 disabled={isSubmitting}
                 className="px-5 py-2 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Saving…" : isEdit ? "Save Changes" : "Create Space"}
+                {isSubmitting ? "Saving…" : isEdit ? "Save Changes" : "Create Venue"}
               </button>
             </div>
           </div>

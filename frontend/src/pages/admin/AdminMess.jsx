@@ -445,7 +445,7 @@ function AdminMess() {
 
   const TABS = [
     { id: "pending",  label: "Needs Approval",        count: pendingBookings.length,  icon: Clock3  },
-    { id: "dispatch", label: "Kitchen Schedule", count: dispatchBookings.length, icon: ChefHat },
+    { id: "dispatch", label: "Meal Schedule", count: dispatchBookings.length, icon: ChefHat },
     { id: "history",  label: "Booking History",            count: null,                    icon: History },
   ];
 
@@ -465,7 +465,7 @@ function AdminMess() {
               <h1 className="text-2xl font-bold text-gray-900">Food Management</h1>
               <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
             </div>
-            <p className="text-sm text-gray-500 mt-1">Manage catering requests and view kitchen schedules.</p>
+            <p className="text-sm text-gray-500 mt-1">Manage catering requests and view meal schedules.</p>
           </div>
           <button
             onClick={() => setRefreshTrigger((p) => p + 1)}
@@ -734,7 +734,7 @@ function AdminMess() {
               {panelMenus.length > 0 ? (
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                    {panelMultiDay ? "Daily Menus" : "Catering Menu"}
+                    {panelMultiDay ? "Daily Menus" : "Meal Details"}
                   </p>
                   <div className="space-y-2">
                     {panelMenus.map((dayMenu, idx) => (
@@ -751,7 +751,7 @@ function AdminMess() {
               ) : (
                 // Fallback for legacy flat bookings with no daily_menus array
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Catering Menu</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Meal Details</p>
                   <div className="space-y-3">
                     {MEALS.filter((m) => selectedBooking[m.timeKey]).map(({ id, label, timeKey, menuKey }) => (
                       <div key={id} className="border border-gray-100 rounded-lg p-3 bg-white shadow-sm">
@@ -786,7 +786,7 @@ function AdminMess() {
               {/* Rejection/cancellation remark */}
               {["rejected", "cancelled"].includes(selectedBooking.status?.toLowerCase()) && (selectedBooking.rejection_remark || selectedBooking.remarks_by_admin) && (
                 <div>
-                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Rejection / Cancellation Reason</p>
+                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Cancellation Reason</p>
                   <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 leading-relaxed">
                     {selectedBooking.rejection_remark || selectedBooking.remarks_by_admin}
                   </p>
@@ -806,7 +806,7 @@ function AdminMess() {
                       rows={3}
                       value={rejectRemark}
                       onChange={(e) => { setRejectRemark(e.target.value); if (remarkError) setRemarkError(""); }}
-                      placeholder="Provide a clear reason so the requester can act on it..."
+                      placeholder="Explain why this request cannot be approved..."
                       className={`w-full text-sm border rounded-xl px-3 py-2.5 resize-none outline-none transition focus:ring-2 ${
                         remarkError
                           ? "border-red-300 focus:ring-red-200 bg-red-50"
@@ -833,7 +833,7 @@ function AdminMess() {
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50">
                         {actionLoading
                           ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <><XCircle size={18} /> Confirm Rejection</>}
+                          : <><XCircle size={18} /> Decline Request</>}
                       </button>
                     </>
                   ) : (

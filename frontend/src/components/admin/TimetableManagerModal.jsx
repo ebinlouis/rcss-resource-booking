@@ -111,15 +111,16 @@ export default function TimetableManagerModal({ space, onClose }) {
     }
   }
 
-  const handleDeleteBatch = async (batchId) => {
-    if (!window.confirm("Are you sure you want to delete this timetable?")) return
+const handleDeleteBatch = async (batchId) => {
+  setCancelAction(() => async () => {
     try {
       await deleteBatch.mutateAsync(batchId)
       fetchBatches()
     } catch {
       setError("Failed to delete timetable.")
     }
-  }
+  })
+}
 
   const handleEditBatch = async (batchId) => {
     setIsEditingBatch(true)
@@ -156,9 +157,10 @@ export default function TimetableManagerModal({ space, onClose }) {
     }
   }
 
-  const handleDeleteByDate = async () => {
-    if (!deleteDate) return
-    if (!window.confirm(`Delete all blocks on ${deleteDate}?`)) return
+const handleDeleteByDate = async () => {
+  if (!deleteDate) return
+
+  setCancelAction(() => async () => {
     try {
       await clearDate.mutateAsync(deleteDate)
       setDeleteDate("")
@@ -166,17 +168,19 @@ export default function TimetableManagerModal({ space, onClose }) {
     } catch {
       setError("Failed to delete blocks.")
     }
-  }
+  })
+}
 
-  const handleDeleteBlock = async (blockId) => {
-    if (!window.confirm("Delete this block?")) return
+const handleDeleteBlock = async (blockId) => {
+  setCancelAction(() => async () => {
     try {
       await deleteBlock.mutateAsync(blockId)
       fetchBatches()
     } catch {
       setError("Failed to delete block.")
     }
-  }
+  })
+}
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] px-4">
@@ -412,10 +416,10 @@ export default function TimetableManagerModal({ space, onClose }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="font-bold text-red-800">Discard Changes?</h3>
+              <h3 className="font-bold text-red-800">Confirm Action</h3>
             </div>
             <div className="p-5 text-sm text-gray-700">
-              Are you sure you want to cancel? Any unsaved changes you have made to this block will be lost.
+              Are you sure you want to continue? This action cannot be undone.
             </div>
             <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
               <button onClick={() => setCancelAction(null)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-50 transition">

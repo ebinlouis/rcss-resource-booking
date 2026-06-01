@@ -275,7 +275,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                     }}
                                 >
                                     <option value="BLOCK">Block Specific</option>
-                                    <option value="SPACE">Space Specific</option>
+                                    <option value="SPACE">Venue Specific</option>
                                 </select>
                             </div>
 
@@ -301,7 +301,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                             {scopeType === 'SPACE' && (
                                 <div>
                                     <label className="block caps-label mb-1.5">
-                                        Select Space <span className="text-red-500">*</span>
+                                        Select Venue <span className="text-red-500">*</span>
                                     </label>
                                     <select 
                                         required
@@ -309,7 +309,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                         value={selectedSpaceId}
                                         onChange={(e) => setSelectedSpaceId(e.target.value)}
                                     >
-                                        <option value="" disabled>-- Select Space --</option>
+                                        <option value="" disabled>-- Select Venue --</option>
                                         {spaces.map(s => {
                                             const suffix = s.room_number ? ` (${s.room_number})` : '';
                                             return <option key={s.id} value={s.id}>{s.name}{suffix}</option>;
