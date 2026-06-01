@@ -37,7 +37,7 @@ export default function AdminDepartmentsPage() {
             setDepartments(res.data.results || res.data);
         } catch (err) {
             console.error(err);
-            setListError('Failed to load departments.');
+            setListError('Couldn\'t load departments. Please try again.');
         } finally {
             if (!silent) setLoading(false);
         }
@@ -56,7 +56,7 @@ export default function AdminDepartmentsPage() {
                 if (!cancelled) setDepartments(res.data.results || res.data);
             } catch (err) {
                 console.error(err);
-                if (!cancelled) setListError('Failed to load departments.');
+                if (!cancelled) setListError('Couldn\'t load departments. Please try again.');
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -164,7 +164,7 @@ export default function AdminDepartmentsPage() {
             await deleteDepartment.mutateAsync(deleteTarget.id);
             setDeleteTarget(null);
         } catch {
-            setDeleteError('Error deleting department. It may be in use.');
+            setDeleteError('This department can\'t be removed because it is currently being used.');
         } finally {
             setIsDeleting(false);
         }
@@ -183,7 +183,7 @@ export default function AdminDepartmentsPage() {
                             Departments
                         </h1>
                         <p className="text-[15px] text-[#374151] mt-2">
-                            Manage departments, HODs, and faculty members.
+                            Manage departments, department heads, and faculty members.
                         </p>
                     </div>
                     <button
@@ -233,7 +233,7 @@ export default function AdminDepartmentsPage() {
                                 ) : departments.length === 0 ? (
                                     <tr>
                                         <td colSpan="4" className="text-center py-10 text-[#94a3b8] text-[13.5px]">
-                                            No departments found. Click &quot;Add Department&quot; to create one.
+                                            No departments have been added yet. Click "Add Department" to get started.
                                         </td>
                                     </tr>
                                 ) : (
@@ -289,7 +289,7 @@ export default function AdminDepartmentsPage() {
                                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                                                             </svg>
-                                                            Manage Department
+                                                            View Department
                                                         </button>
                                                         
                                                         <button
@@ -319,7 +319,7 @@ export default function AdminDepartmentsPage() {
                                                             <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                             </svg>
-                                                            Delete Department
+                                                            Remove Department
                                                         </button>
                                                     </div>
                                                 )}
@@ -429,7 +429,7 @@ export default function AdminDepartmentsPage() {
                     >
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
-                                Delete Department?
+                                Remove Department?
                             </h3>
                             <button
                                 type="button"
@@ -443,7 +443,7 @@ export default function AdminDepartmentsPage() {
                         </div>
 
                         <p className="text-[14px] text-[#374151] leading-relaxed">
-                            Are you sure you want to delete the department <span className="font-semibold text-[#0f172a]">{deleteTarget.department_name}</span>?
+                            Are you sure you want to remove the department <span className="font-semibold text-[#0f172a]">{deleteTarget.department_name}</span>?
                         </p>
                         <p className="text-[13px] text-[#94a3b8] mt-2">
                             This action cannot be undone.

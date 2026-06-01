@@ -212,7 +212,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 conflicts.extend(build_conflict_report(overlapping, request.user))
 
             from .models import SpaceTimetableBlock
-            from datetime import timedelta, time
+            from datetime import time
             days_diff = (end_dt.date() - start_dt.date()).days
             for i in range(days_diff + 1):
                 current_date = start_dt.date() + timedelta(days=i)

@@ -279,12 +279,12 @@ const ApproveModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => 
                     <IconCheck className="w-6 h-6 text-[#15803d]" />
                 </div>
                 <p className="text-[18px] font-bold text-[#0f172a] text-center tracking-tight">Approve Booking?</p>
-                <p className="text-[14.5px] text-[#4b5563] mt-2 text-center leading-relaxed">
-                    {dayCount > 1
-                        ? <>Approve all <span className="font-semibold text-[#0f172a]">{dayCount} recurring slots</span> for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
-                        : <>Approve this booking for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
-                    }
-                </p>
+<p className="text-[14.5px] text-[#4b5563] mt-2 text-center leading-relaxed">
+    {dayCount > 1
+        ? <>Approve all <span className="font-semibold text-[#0f172a]">{dayCount} booking dates</span> for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
+        : <>Approve this booking for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
+    }
+</p>
 
                 {errorMsg && (
                     <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
@@ -320,7 +320,7 @@ const RejectModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => {
 
     const isCancellation = booking?.status === 'APPROVED';
     const title = isCancellation ? 'Cancel Approved Booking?' : 'Reject Request?';
-    const buttonText = isCancellation ? 'Revoke & Cancel' : 'Reject Booking';
+    const buttonText = isCancellation ? 'Cancel' : 'Reject Booking';
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -468,11 +468,11 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         )}
                         {isRecurring ? (
                             <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#4f46e5] bg-[#eff6ff] px-2 py-0.5 rounded-md border border-[#c7d2fe]">
-                                <IconCalendar className="w-3 h-3" /> Recurring ({booking.child_bookings.length} Days)
+                                <IconCalendar className="w-3 h-3" /> Multi-Day Event ({booking.child_bookings.length} Days)
                             </span>
                         ) : isMultiDay ? (
                             <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#0369a1] bg-[#e0f2fe] px-2 py-0.5 rounded-md border border-[#bae6fd]">
-                                <IconCalendar className="w-3 h-3" /> Continuous Multi-day
+                                <IconCalendar className="w-3 h-3" /> Continuous Multi-Day Event
                             </span>
                         ) : null}
                         {attendees > 0 && (
@@ -492,9 +492,9 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                 {/* 3-col info grid */}
                 <div className="grid gap-7 grid-cols-1 md:grid-cols-3">
-                    {/* Space */}
+                    {/* Venue */}
                     <div>
-                        <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2.5">Space</p>
+                        <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2.5">Venue</p>
                         <div className="flex items-start gap-3">
                             <div className="w-10 h-10 rounded-xl bg-[#f0fdf4] border border-[#d1fae5] flex items-center justify-center shrink-0 text-[#15803d]">
                                 <IconBuilding className="w-[20px] h-[20px]" />
@@ -509,7 +509,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                     {/* Schedule */}
                     <div>
                         <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2.5">
-                            {isRecurring ? 'Schedule (Full Range)' : 'When'}
+                            {isRecurring ? 'SBooking Dates' : 'When'}
                         </p>
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center gap-3">
@@ -567,10 +567,10 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                 <IconAlert className="text-[#ea580c] shrink-0 w-5 h-5 mt-0.5" />
                                 <div>
                                     <p className="text-[13.5px] font-bold text-[#9a3412] uppercase tracking-wide">
-                                        Capacity Warning ({attendees} / {capacity} seats)
+                                        Large Venue for Small Group ({attendees} / {capacity} seats)
                                     </p>
                                     <p className="text-[14px] text-[#c2410c] mt-1 leading-relaxed">
-                                        This booking utilizes less than 30% of the hall's capacity. Please read the requester's notes carefully for justification before approving.
+                                        The number of attendees is low compared to the venue capacity. Please review the reason provided before approving.
                                     </p>
                                 </div>
                             </div>
@@ -579,7 +579,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         {/* Recurring slot breakdown */}
                         {isRecurring && (
                             <div className="mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Recurring Slots</p>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Event Dates</p>
                                 <div className="flex flex-wrap gap-2">
                                     {booking.child_bookings.map((child, i) => (
                                         <span key={`${child.domain || 'spaces'}-${child.id}-${i}`} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#4f46e5] bg-[#eff6ff] border border-[#c7d2fe] px-3 py-1.5 rounded-lg">
@@ -593,13 +593,13 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         {booking.is_student_booking && (
                             <div className="mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty Sponsor</p>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty In Charge</p>
                                 <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px]">
                                         {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'F'}
                                     </div>
                                     <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
-                                        Faculty Sponsor: {booking.faculty_sponsor_name || 'Unknown'}
+                                        Faculty In Charge: {booking.faculty_sponsor_name || 'Unknown'}
                                         {['PENDING', 'FACULTY_ESCALATED', 'APPROVED'].includes(booking.status) ? ' (Approved)' : ''}
                                     </p>
                                 </div>
@@ -607,7 +607,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         )}
 
                         <div className="mb-6">
-                            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Purpose of Booking</p>
+                            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Event Purpose</p>
                             <div className="bg-[#f0fdf4] border border-[#d1fae5] rounded-xl px-4 py-3.5">
                                 <p className="text-[14.5px] text-[#14532d] font-medium leading-relaxed">
                                     {booking.purpose_of_booking || booking.purpose || 'No purpose provided.'}
@@ -648,7 +648,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         {['REJECTED', 'CANCELLED'].includes(booking.status) && booking.remarks_by_admin && (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection / Cancellation Reason</p>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection Reason</p>
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">
                                     {booking.remarks_by_admin}
                                 </p>
@@ -688,7 +688,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                         disabled={isActing}
                                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
                                     >
-                                        <IconX /> Revoke & Cancel Booking
+                                        <IconX /> Cancel Booking
                                     </button>
                                 </Tooltip>
                             ) : booking.status === 'APPROVED' ? (
@@ -705,11 +705,11 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-40"
                                     >
                                         <IconX />
-                                        Revoke & Cancel Booking
+                                        Cancel Booking
                                     </button>
                                 </Tooltip>
                             ) : ['REJECTED', 'CANCELLED'].includes(booking.status) ? (<span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
-                                Rejected / Cancelled
+                                Cancelled
                             </span>
                             ) : null}
                         </div>
@@ -734,7 +734,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                 <div className="border-b border-[#e8f5ee]">
                     <div className="flex items-center px-7 py-3 bg-[#fffbeb] border-b border-[#fde68a]">
                         <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#d97706]">
-                            <IconLightning /> Priority Events (External)
+                            <IconLightning /> External Events
                         </span>
                     </div>
                     {priorityBookings.map((booking) => (
@@ -755,7 +755,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                     {priorityBookings.length > 0 && (
                         <div className="flex items-center px-7 py-3 bg-[#f8fafc] border-b border-[#e2e8f0]">
                             <span className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-                                Standard Events (Internal)
+                                Internal Events
                             </span>
                         </div>
                     )}
@@ -1072,7 +1072,7 @@ const AdminDashboard = () => {
     // ── Tabs config ───────────────────────────────────────────────────────────
     const tabs = [
         { id: 'pending', label: 'Pending', count: raw.pending.length },
-        { id: 'upcoming', label: 'Upcoming', count: upcoming.length },
+        { id: 'upcoming', label: 'Approved Events', count: upcoming.length },
         { id: 'history', label: 'History', count: history.length },
         { id: 'resolvedByMe', label: 'Resolved by Me', count: resolvedByMe.length },
     ];
@@ -1170,8 +1170,8 @@ const AdminDashboard = () => {
                 {/* Stat strip */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
                     {[
-                        { value: raw.pending.length, label: 'Waiting for review' },
-                        { value: todayCount, label: 'Happening today' },
+                        { value: raw.pending.length, label: 'Needs Approval' },
+                        { value: todayCount, label: 'Today \'s Events' },
                         { value: totalPeople, label: 'Total people attending' },
                     ].map(({ value, label }) => (
                         <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-6 py-5">
@@ -1213,7 +1213,7 @@ const AdminDashboard = () => {
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                placeholder="Search by name, venue, ref…"
+                                placeholder="Search bookings…"
                                 className="w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-2.5 pl-9 pr-8 text-[13.5px] text-[#0f172a] outline-none transition focus:border-[#15803d] focus:ring-2 focus:ring-[#dcfce7] placeholder:text-[#9ca3af]"
                             />
                             {searchQuery && (

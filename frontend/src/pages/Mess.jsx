@@ -324,8 +324,8 @@ function Mess() {
             <span className="col-span-2 caps-label">From Date</span>
             <span className="col-span-2 caps-label">To Date</span>
             <span className="col-span-3 caps-label">Event</span>
-            <span className="col-span-2 caps-label">Meals · Day 1</span>
-            <span className="col-span-1 caps-label">Number of Days</span>
+            <span className="col-span-2 caps-label">Meals</span>
+            <span className="col-span-1 caps-label">No. of Days</span>
             <span className="col-span-1 caps-label">Status</span>
             <span className="col-span-1 caps-label text-right">·</span>
           </div>

@@ -17,10 +17,10 @@ export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
           <Lightbulb className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-indigo-900 mb-1">
-              Alternative Spaces Suggested
+              Alternative Venues Suggested
             </h4>
             <p className="text-xs text-indigo-700 mb-3 leading-relaxed">
-              Based on your requirements, these spaces might be a better fit.
+              Based on your requirements, these venues might be a better fit.
               Switching can help optimize campus resource utilization.
             </p>
             
