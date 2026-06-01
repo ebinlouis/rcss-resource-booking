@@ -4,7 +4,8 @@ from rest_framework import status
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q
+
+from django.db.models import Q, Sum as _Sum
 
 from apps.users.permissions import IsApprover
 from apps.users.models import Role
@@ -204,19 +205,17 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
 
     Scoping rules:
         IT_ADMIN     → all spaces, no filter
-        HOD          → same-dept bookings in HOD-fallback spaces (CS dept only)
-        RECEPTIONIST → block-scoped (approval_category=GENERAL) or space-scoped
-        LAB_INCHARGE → space- or block-scoped (approval_category=LAB),
-                       excluding CS HOD-fallback bookings still in the fallback
-                       waiting window
-        LIBRARIAN    → block-scoped (approval_category=LIBRARY)
+        HOD          → only their department's bookings (AI Lab / dept-scoped)
+        RECEPTIONIST → spaces in blocks they are assigned to (approval_category=GENERAL)
+        LAB_INCHARGE → specific spaces they are assigned to (approval_category=LAB)
+        LIBRARIAN    → spaces in blocks they are assigned to (approval_category=LIBRARY)
 
     Multiple SpaceApprover rows per user are supported — all scopes are OR-ed.
     All filtering is pushed to the DB via Q objects; no Python booking iteration.
     """
     is_it_admin = Role.Name.IT_ADMIN in effective_roles
-    is_hod      = Role.Name.HOD in effective_roles
-    user_dept   = getattr(user, "department", None)
+    is_hod = Role.Name.HOD in effective_roles
+    user_dept = getattr(user, "department", None)
 
     statuses = [requested_status]
     if requested_status == "PENDING":
@@ -232,123 +231,32 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     if is_it_admin:
         return base_qs
 
-    # One DB query — materialise assignments; avoids the exists() + list() double-hit
-    assignment_list = list(
-        SpaceApprover.objects.filter(user=user, is_active=True)
-        .select_related("block", "space", "role")
-    )
+    # Scoped approvers — build filter from SpaceApprover assignments
+    assignments = SpaceApprover.objects.filter(
+        user=user, is_active=True
+    ).select_related("block", "space", "role")
 
     if not is_hod and not assignment_list:
         return SpaceBooking.objects.none()
 
-    now = timezone.now()
-
-    # ── Reusable sub-expressions — mirror the helper functions exactly ────────
-
-    # _is_cs_department(): normalised code/name match
-    _cs_dept_q = (
-        Q(user__department__department_code__iexact="cs")
-        | Q(user__department__department_code__iexact="cse")
-        | Q(user__department__department_name__iexact="cs")
-        | Q(user__department__department_name__iexact="cse")
-        | Q(user__department__department_name__icontains="computer science")
-    )
-
-    # _uses_hod_fallback_workflow()
-    _hod_fallback_q = Q(
-        space__approval_workflow_type=Space.ApprovalWorkflowType.HOD_FALLBACK
-    )
-
-    # LAB_INCHARGE exclusion zone: CS HOD-fallback bookings that are still
-    # PENDING and haven't yet cleared the AI Lab fallback window.
-    # Mirrors the early-return guard inside _matches_space_approver_assignment.
-    _lab_exclusion_q = (
-        _hod_fallback_q
-        & _cs_dept_q
-        & Q(status="PENDING")
-        & Q(created_at__gt=now - timedelta(hours=AI_LAB_FALLBACK_HOURS))
-    )
-
-    # ── OR-accumulate all visibility grants ───────────────────────────────────
-    scope_q = Q()
-
-    # HOD: sees same-dept bookings in HOD-fallback spaces (CS dept only)
-    if is_hod and user_dept:
-        scope_q |= (
-            Q(user__department_id=user_dept.id)
-            & _hod_fallback_q
-            & _cs_dept_q
+    allowed_ids = []
+    assignment_list = list(assignments)
+    for booking in base_qs:
+        hod_can_see = (
+            is_hod
+            and user_dept
+            and getattr(booking.user, "department_id", None) == user_dept.id
+            and _is_cs_hod_fallback_booking(booking)
+        )
+        assignment_can_see = any(
+            _matches_space_approver_assignment(booking, assignment)
+            for assignment in assignment_list
         )
 
-    for assignment in assignment_list:
-        role_name = assignment.role.name
+        if hod_can_see or assignment_can_see:
+            allowed_ids.append(booking.id)
 
-        if role_name == Role.Name.RECEPTIONIST:
-            if assignment.scope_type == "BLOCK" and assignment.block_id:
-                # Most-specific-wins: exclude spaces that have their own SPACE-scope
-                # RECEPTIONIST assignment — those spaces are handled by the space-specific user.
-                overridden_spaces = list(
-                    SpaceApprover.objects.filter(
-                        scope_type="SPACE",
-                        space__block_id=assignment.block_id,
-                        role__name=role_name,
-                        is_active=True,
-                        user__is_active=True,
-                    ).values_list("space_id", flat=True)
-                )
-                block_q = Q(
-                    space__block_id=assignment.block_id,
-                    space__approval_category="GENERAL",
-                )
-                if overridden_spaces:
-                    block_q &= ~Q(space_id__in=overridden_spaces)
-                scope_q |= block_q
-            elif assignment.scope_type == "SPACE" and assignment.space_id:
-                scope_q |= Q(space_id=assignment.space_id)
-
-        elif role_name == Role.Name.LAB_INCHARGE:
-            if assignment.scope_type == "SPACE" and assignment.space_id:
-                scope_q |= Q(space_id=assignment.space_id) & ~_lab_exclusion_q
-            elif assignment.scope_type == "BLOCK" and assignment.block_id:
-                # Most-specific-wins: exclude LAB spaces that have their own SPACE-scope assignment.
-                overridden_spaces = list(
-                    SpaceApprover.objects.filter(
-                        scope_type="SPACE",
-                        space__block_id=assignment.block_id,
-                        role__name=role_name,
-                        is_active=True,
-                        user__is_active=True,
-                    ).values_list("space_id", flat=True)
-                )
-                block_q = Q(
-                    space__block_id=assignment.block_id,
-                    space__approval_category="LAB",
-                )
-                if overridden_spaces:
-                    block_q &= ~Q(space_id__in=overridden_spaces)
-                scope_q |= block_q & ~_lab_exclusion_q
-
-        elif role_name == Role.Name.LIBRARIAN:
-            if assignment.scope_type == "BLOCK" and assignment.block_id:
-                # Most-specific-wins: exclude LIBRARY spaces that have their own SPACE-scope assignment.
-                overridden_spaces = list(
-                    SpaceApprover.objects.filter(
-                        scope_type="SPACE",
-                        space__block_id=assignment.block_id,
-                        role__name=role_name,
-                        is_active=True,
-                        user__is_active=True,
-                    ).values_list("space_id", flat=True)
-                )
-                block_q = Q(
-                    space__block_id=assignment.block_id,
-                    space__approval_category="LIBRARY",
-                )
-                if overridden_spaces:
-                    block_q &= ~Q(space_id__in=overridden_spaces)
-                scope_q |= block_q
-
-    if not scope_q:
+    if not allowed_ids:
         return SpaceBooking.objects.none()
 
     return base_qs.filter(scope_q)
@@ -382,7 +290,6 @@ def _check_media_equipment_availability(booking):
 
     Returns (True, "") on success, or (False, "<error message>") on failure.
     """
-    from django.db.models import Sum as _Sum
     from apps.media.models import MediaEquipmentRequest
 
     overlapping_bookings = MediaBooking.objects.filter(
