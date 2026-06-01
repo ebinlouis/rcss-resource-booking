@@ -278,6 +278,13 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     booked_by_photo = serializers.SerializerMethodField()
 
     faculty_sponsor_name = serializers.SerializerMethodField()
+    faculty_timed_out = serializers.BooleanField(read_only=True)
+    faculty_phone = serializers.SerializerMethodField()
+
+    def get_faculty_phone(self, obj):
+        if obj.faculty_sponsor:
+            return getattr(obj.faculty_sponsor, 'phone', None)
+        return None
 
     class Meta:
         model = SpaceBooking
@@ -313,6 +320,8 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "faculty_sponsor",
             "faculty_sponsor_name",
             "faculty_response_deadline",
+            "faculty_timed_out",
+            "faculty_phone",
         ]
         read_only_fields = [
             "reference_code",
@@ -322,6 +331,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "user",
             "faculty_sponsor",
             "faculty_response_deadline",
+            "faculty_timed_out",
         ]
 
     def _request(self):

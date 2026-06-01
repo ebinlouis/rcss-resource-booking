@@ -51,7 +51,7 @@ const getAdminDestination = (domain, reference, category, effectiveRoles = []) =
 
   let tab = 'history'
   if (category === 'BOOKING_PENDING') tab = 'pending'
-  else if (category === 'FACULTY_ESCALATED') tab = 'escalated'
+  else if (category === 'FACULTY_ESCALATED') tab = 'pending'
 
   return `${config.base}?tab=${tab}&booking=${encodeURIComponent(reference)}`
 }
@@ -74,7 +74,7 @@ export const getNotificationDestination = (notification, effectiveRoles = []) =>
 
   if ((notification.category === 'BOOKING_PENDING' || notification.category === 'FACULTY_ESCALATED') && reference) {
     const adminBase = ADMIN_PENDING_LINKS[domain] ?? ADMIN_PENDING_LINKS.spaces
-    const tab = notification.category === 'FACULTY_ESCALATED' ? 'escalated' : 'pending'
+    const tab = 'pending'
     return `${adminBase}?tab=${tab}&booking=${encodeURIComponent(reference)}`
   }
 

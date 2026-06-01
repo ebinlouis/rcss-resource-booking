@@ -130,8 +130,10 @@ const getBookingStatusMeta = (booking) => {
 
     case "FACULTY_ESCALATED":
       return {
-        title: "Sent for Final Approval",
-        description: "Faculty has approved this request and sent it for final approval.",
+        title: booking.faculty_timed_out ? "Escalated to Admin" : "Sent for Final Approval",
+        description: booking.faculty_timed_out 
+          ? "Faculty did not respond in time, so this request was automatically escalated for admin review."
+          : "Faculty has approved this request and sent it for final approval.",
         bg: "bg-purple-50",
         border: "border-purple-100",
         icon: <AlertCircle className="w-5 h-5 text-purple-600" />

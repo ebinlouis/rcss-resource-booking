@@ -1213,11 +1213,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         booking.status = 'FACULTY_ESCALATED'
         booking.faculty_response_deadline = None
-        booking.save(update_fields=['status', 'faculty_response_deadline', 'updated_at'])
+        booking.faculty_timed_out = False
+        booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
         
         notify_faculty_approved(booking)
         
-        chain = getattr(booking.space, 'approver_chain', None)
+        workflow_type = getattr(booking.space, 'approval_workflow_type', None)
+        chain = getattr(booking.space, 'approver_chain', None) if workflow_type == 'HOD_FALLBACK' else None
         if chain:
             from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
             from apps.notifications.models import Notification
@@ -1295,12 +1297,67 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         
         qs = SpaceBooking.objects.filter(status='FACULTY_ESCALATED').order_by('start_datetime')
         if not (request.user.is_staff or request.user.is_superuser):
-            roles = set(request.user.space_approver_assignments.filter(is_active=True).values_list('role__name', flat=True))
-            categories = []
-            if Role.Name.LAB_INCHARGE in roles: categories.append(Space.ApprovalCategory.LAB)
-            if Role.Name.LIBRARIAN in roles: categories.append(Space.ApprovalCategory.LIBRARY)
-            if Role.Name.RECEPTIONIST in roles: categories.append(Space.ApprovalCategory.GENERAL)
-            qs = qs.filter(space__approval_category__in=categories)
+            from django.db.models import Q
+            assignments = request.user.space_approver_assignments.filter(
+                is_active=True
+            ).select_related("block", "space", "role")
+            
+            scope_q = Q()
+            for assignment in assignments:
+                role_name = assignment.role.name
+            
+                if role_name == Role.Name.RECEPTIONIST:
+                    if assignment.scope_type == "BLOCK" and assignment.block_id:
+                        overridden = list(SpaceApprover.objects.filter(
+                            scope_type="SPACE",
+                            space__block_id=assignment.block_id,
+                            role__name=role_name,
+                            is_active=True,
+                            user__is_active=True,
+                        ).values_list("space_id", flat=True))
+                        block_q = Q(space__block_id=assignment.block_id, space__approval_category="GENERAL")
+                        if overridden:
+                            block_q &= ~Q(space_id__in=overridden)
+                        scope_q |= block_q
+                    elif assignment.scope_type == "SPACE" and assignment.space_id:
+                        scope_q |= Q(space_id=assignment.space_id)
+            
+                elif role_name == Role.Name.LAB_INCHARGE:
+                    if assignment.scope_type == "SPACE" and assignment.space_id:
+                        scope_q |= Q(space_id=assignment.space_id)
+                    elif assignment.scope_type == "BLOCK" and assignment.block_id:
+                        overridden = list(SpaceApprover.objects.filter(
+                            scope_type="SPACE",
+                            space__block_id=assignment.block_id,
+                            role__name=role_name,
+                            is_active=True,
+                            user__is_active=True,
+                        ).values_list("space_id", flat=True))
+                        block_q = Q(space__block_id=assignment.block_id, space__approval_category="LAB")
+                        if overridden:
+                            block_q &= ~Q(space_id__in=overridden)
+                        scope_q |= block_q
+            
+                elif role_name == Role.Name.LIBRARIAN:
+                    if assignment.scope_type == "BLOCK" and assignment.block_id:
+                        overridden = list(SpaceApprover.objects.filter(
+                            scope_type="SPACE",
+                            space__block_id=assignment.block_id,
+                            role__name=role_name,
+                            is_active=True,
+                            user__is_active=True,
+                        ).values_list("space_id", flat=True))
+                        block_q = Q(space__block_id=assignment.block_id, space__approval_category="LIBRARY")
+                        if overridden:
+                            block_q &= ~Q(space_id__in=overridden)
+                        scope_q |= block_q
+                    elif assignment.scope_type == "SPACE" and assignment.space_id:
+                        scope_q |= Q(space_id=assignment.space_id)
+            
+            if scope_q:
+                qs = qs.filter(scope_q)
+            else:
+                qs = qs.none()
             
         return Response(self.get_serializer(qs, many=True).data)
 
@@ -1316,7 +1373,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             
         booking.status = 'AWAITING_FACULTY'
         booking.faculty_response_deadline = timezone.now() + timedelta(hours=24)
-        booking.save(update_fields=['status', 'faculty_response_deadline', 'updated_at'])
+        booking.faculty_timed_out = False
+        booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
         
         notify_faculty_resent(booking)
         return Response(self.get_serializer(booking).data)
@@ -1332,6 +1390,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             
         SpaceBooking.objects.filter(id__in=stale_ids).update(
             status='FACULTY_ESCALATED',
+            faculty_timed_out=True,
             updated_at=timezone.now()
         )
         

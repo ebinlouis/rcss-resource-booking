@@ -1,5 +1,6 @@
 import Tooltip from '../../components/Tooltip'
 import PageInfo from '../../components/PageInfo'
+import toast from 'react-hot-toast';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
@@ -410,7 +411,7 @@ const SuccessModal = ({ booking, onClose }) => {
 
 // ─── Booking Row ──────────────────────────────────────────────────────────────
 
-const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendingTab, isHighlighted }) => {
+const BookingRow = ({ booking, onApproveClick, onRejectClick, onResendClick, isActing, isPendingTab, isHighlighted }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
@@ -593,16 +594,38 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         {booking.is_student_booking && (
                             <div className="mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty In Charge</p>
-                                <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px]">
-                                        {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'F'}
+                                {booking.faculty_timed_out ? (
+                                    // Faculty did not respond — show warning with contact and resend option
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-4">
+                                        <p className="text-[13px] font-bold text-amber-800 mb-1">
+                                            ⚠️ Faculty member has not responded
+                                        </p>
+                                        <p className="text-[13px] text-amber-700 mb-3">
+                                            This request was sent to <span className="font-semibold">{booking.faculty_sponsor_name || 'the faculty member'}</span> for approval but they did not respond in time.
+                                        </p>
+                                        {booking.faculty_phone && (
+                                            <p className="text-[13px] text-amber-800 mb-3">
+                                                📞 Faculty phone: <a href={`tel:${booking.faculty_phone}`} className="font-semibold underline">{booking.faculty_phone}</a>
+                                            </p>
+                                        )}
+                                        <p className="text-[12px] text-amber-600">
+                                            You can send it back to them to approve, or approve it yourself if you have confirmed with them directly.
+                                        </p>
                                     </div>
-                                    <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
-                                        Faculty In Charge: {booking.faculty_sponsor_name || 'Unknown'}
-                                        {['PENDING', 'FACULTY_ESCALATED', 'APPROVED'].includes(booking.status) ? ' (Approved)' : ''}
-                                    </p>
-                                </div>
+                                ) : (
+                                    // Faculty approved it — show normal approved state
+                                    <div>
+                                        <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Teacher In Charge</p>
+                                        <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px]">
+                                                {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'T'}
+                                            </div>
+                                            <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
+                                                {booking.faculty_sponsor_name || 'Unknown'} — Approved ✓
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -657,26 +680,58 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         <div className="flex items-center justify-end gap-2.5 pt-5 border-t border-[#e8f5ee]">
                             {isPendingTab ? (
-                                <>
-                                    <Tooltip text="Reject this request. You'll be asked to provide a reason which will be shared with the requester." position="top">
+                                booking.faculty_timed_out ? (
+                                    // Timed-out: primary = resend to faculty, secondary = approve yourself
+                                    <div className="flex items-center gap-2.5 flex-wrap">
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
-                                            disabled={isActing}
-                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
-                                        >
-                                            <IconX /> Reject
-                                        </button>
-                                    </Tooltip>
-                                    <Tooltip text="Approve this booking request. The requester will be notified and the venue will be reserved." position="top">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                            onClick={(e) => { e.stopPropagation(); onResendClick(booking); }}
                                             disabled={isActing}
                                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
                                         >
-                                            {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
+                                            {isActing ? 'Sending…' : '📨 Send back to teacher'}
                                         </button>
-                                    </Tooltip>
-                                </>
+                                        <Tooltip text="Only approve yourself if you have already spoken with the teacher and confirmed they are okay with this booking." position="top">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                                disabled={isActing}
+                                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14px] font-medium text-[#374151] bg-white hover:bg-[#f0fdf4] hover:border-[#a7f3d0] transition-all duration-150 disabled:opacity-40"
+                                            >
+                                                Approve myself
+                                            </button>
+                                        </Tooltip>
+                                        <Tooltip text="Reject this request. You'll be asked to provide a reason." position="top">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                                disabled={isActing}
+                                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
+                                            >
+                                                <IconX /> Reject
+                                            </button>
+                                        </Tooltip>
+                                    </div>
+                                ) : (
+                                    // Normal: faculty approved, show standard approve/reject
+                                    <>
+                                        <Tooltip text="Reject this request. You'll be asked to provide a reason which will be shared with the requester." position="top">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onRejectClick(booking); }}
+                                                disabled={isActing}
+                                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#374151] bg-white hover:bg-[#fef2f2] hover:text-[#dc2626] hover:border-[#fca5a5] transition-all duration-150 disabled:opacity-40"
+                                            >
+                                                <IconX /> Reject
+                                            </button>
+                                        </Tooltip>
+                                        <Tooltip text="Approve this booking request. The requester will be notified and the venue will be reserved." position="top">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onApproveClick(booking); }}
+                                                disabled={isActing}
+                                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all duration-150 disabled:opacity-40"
+                                            >
+                                                {isActing ? 'Processing…' : <><IconCheck /> Approve</>}
+                                            </button>
+                                        </Tooltip>
+                                    </>
+                                )
                             ) : isExpired ? (
                                 <span className="text-[13px] font-bold text-gray-500 uppercase tracking-wider px-5 py-2 bg-gray-100 rounded-xl">
                                     Event Completed
@@ -722,7 +777,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
 // ─── Booking List (shared renderer) ──────────────────────────────────────────
 
-function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, actionLoading, highlightedReference }) {
+function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, onResendClick, actionLoading, highlightedReference }) {
     const priorityBookings = bookings.filter(b => b.is_external);
     const standardBookings = bookings.filter(b => !b.is_external);
 
@@ -744,6 +799,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                             isPendingTab={isPendingTab}
                             onApproveClick={onApproveClick}
                             onRejectClick={onRejectClick}
+                            onResendClick={onResendClick}
                             isActing={actionLoading === booking.id}
                             isHighlighted={bookingMatchesReference(booking, highlightedReference)}
                         />
@@ -766,6 +822,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                             isPendingTab={isPendingTab}
                             onApproveClick={onApproveClick}
                             onRejectClick={onRejectClick}
+                            onResendClick={onResendClick}
                             isActing={actionLoading === booking.id}
                             isHighlighted={bookingMatchesReference(booking, highlightedReference)}
                         />
@@ -996,6 +1053,20 @@ const AdminDashboard = () => {
     const resolveMutation = useResolveApproval();
 
     // ── Actions ───────────────────────────────────────────────────────────────
+
+    const handleResendConfirm = async (booking) => {
+        const representativeId = booking.child_bookings?.[0]?.id ?? booking.id;
+        setActionLoading(booking.id);
+        try {
+            await api.post(`spaces/requests/${representativeId}/incharge_resend/`);
+            toast.success('Sent back to the teacher for approval.');
+            pendingQuery.refetch();
+        } catch {
+            toast.error('Could not send it back. Please try again.');
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     const handleApproveConfirm = async () => {
         if (!approveTarget) return;
@@ -1317,6 +1388,7 @@ const AdminDashboard = () => {
                             isPendingTab={activeTab === 'pending'}
                             onApproveClick={setApproveTarget}
                             onRejectClick={setRejectTarget}
+                            onResendClick={handleResendConfirm}
                             actionLoading={actionLoading}
                             highlightedReference={highlightedReference}
                         />
