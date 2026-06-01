@@ -252,7 +252,7 @@ function TeamFluidView({ teamData, dateStr }) {
       >
         <div>
           <p className="text-sm font-semibold text-gray-900">
-            Media Team Availability — {dateLabel}
+            Media Team Availability: {dateLabel}
           </p>
 
           <p
@@ -332,12 +332,12 @@ function TeamFluidView({ teamData, dateStr }) {
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm">
           <p className="flex items-center gap-2 text-sm font-bold text-red-800">
             <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
-            No crew available for new bookings{" "}
+            No team members available for new bookings{" "}
             {isToday ? "today" : `on ${dateLabel}`}
           </p>
 
           <p className="mt-1 text-sm text-red-600">
-            All {total_crew} media crew members are currently assigned to other
+            All {total_crew} media team members are currently assigned to other
             bookings.
           </p>
         </div>

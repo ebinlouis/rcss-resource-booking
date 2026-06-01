@@ -221,8 +221,8 @@ toast.success('Equipment deactivated successfully.');
             <div className="grid grid-cols-3 gap-4 mb-8">
                 {[
                     { label: 'Active Items',  value: totalActive     },
-                    { label: 'Portable Gear', value: totalPortable   },
-                    { label: 'Categories',    value: totalCategories },
+                    { label: 'Portable Items', value: totalPortable   },
+                    { label: 'Equipment Types',    value: totalCategories },
                 ].map(({ label, value }) => (
                     <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
                         <p className="text-2xl font-bold text-gray-900">
@@ -270,8 +270,8 @@ toast.success('Equipment deactivated successfully.');
                                 <th className="px-6 py-4">Name</th>
                                 <th className="px-6 py-4">Category</th>
                                 <th className="px-6 py-4">Description</th>
-                                <th className="px-6 py-4">Qty</th>
-                                <th className="px-6 py-4">Portable</th>
+                                <th className="px-6 py-4">Quantity</th>
+                                <th className="px-6 py-4">Can Be Moved</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -321,7 +321,7 @@ toast.success('Equipment deactivated successfully.');
                                             ) : (
                                                 <span className="inline-flex items-center gap-1 text-gray-400 text-xs font-semibold">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-300 inline-block" />
-                                                    Fixed
+                                                    Fixed Location
                                                 </span>
                                             )}
                                         </td>
@@ -372,8 +372,7 @@ toast.success('Equipment deactivated successfully.');
             </h3>
 
             <p className="text-sm text-gray-500 mt-2">
-                This item will be hidden from venue assignments.
-            </p>
+This equipment will no longer be available for future bookings.            </p>
 
             <div className="flex justify-end gap-3 mt-6">
                 <button
@@ -478,7 +477,7 @@ toast.success('Equipment deactivated successfully.');
                                         checked={formData.is_standard_media_kit}
                                         onChange={() => patchForm({ is_standard_media_kit: !formData.is_standard_media_kit })}
                                         label="Include in Media Team Kit"
-                                        sublabel="Auto-assigns 1 unit to every media team request"
+                                        sublabel="Automatically includes 1 item in media team bookings"
                                     />
                                 </div>
                             </div>

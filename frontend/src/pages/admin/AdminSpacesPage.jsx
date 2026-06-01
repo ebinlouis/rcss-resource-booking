@@ -23,8 +23,8 @@ const SPACE_TYPE_META = {
 const TYPE_FILTERS = ["ALL", "GENERAL_HALL", "LAB", "GUEST_ROOM"]
 const ACTIVE_FILTERS = [
   { value: "ALL",      label: "All" },
-  { value: "ACTIVE",   label: "Active" },
-  { value: "INACTIVE", label: "Inactive" },
+  { value: "ACTIVE",   label: "Available" },
+  { value: "INACTIVE", label: "Unavailable" },
 ]
 
 // ─────────────────────────────────────────────────────────────
@@ -93,12 +93,12 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
               <Icon className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor" strokeWidth={0}>
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </Icon>
-              Special
+              Special Approval Required
             </span>
           )}
           {space.approval_workflow_type === "HOD_FALLBACK" && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-blue-50 text-blue-700 border-blue-200">
-              HOD fallback
+              Department Approval Required
             </span>
           )}
         </div>
@@ -111,7 +111,7 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
         {!space.is_active && (
           <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#94a3b8] bg-white/80 px-3 py-1 rounded-full border border-[#e2e8f0]">
-              Inactive
+              Unavailable
             </span>
           </div>
         )}
@@ -262,8 +262,8 @@ const AdminSpacesPage = () => {
         !s.name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !s.location?.toLowerCase().includes(searchQuery.toLowerCase())) return false
     if (filterType !== "ALL" && s.space_type !== filterType) return false
-    if (filterActive === "ACTIVE"   && !s.is_active) return false
-    if (filterActive === "INACTIVE" &&  s.is_active) return false
+    if (filterActive === "AVAILABLE"   && !s.is_active) return false
+    if (filterActive === "UNAVAILABLE" &&  s.is_active) return false
     if (filterSpecial && !s.is_special_purpose) return false
     return true
   }), [spaces, searchQuery, filterType, filterActive, filterSpecial])
@@ -299,7 +299,7 @@ const AdminSpacesPage = () => {
           <div>
             <p className="caps-label mb-1.5">Rajagiri College · System Admin</p>
             <div className="flex items-center gap-2">
-              <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Venue Management</h1>
+              <h1 className="text-[26px] font-bold text-[#0f172a] tracking-tight leading-none">Manage Venues</h1>
               <PageInfo text="Manage all bookable venues — add new rooms, edit details, set capacity, and control availability." />
             </div>
             <p className="text-[15px] text-[#374151] mt-2">
@@ -358,9 +358,9 @@ const AdminSpacesPage = () => {
         {/* ── Stats ── */}
         <div className="grid grid-cols-3 gap-3 mb-7">
           {[
-            { value: stats.total,   label: "Total venues" },
-            { value: stats.active,  label: "Active" },
-            { value: stats.special, label: "Special purpose" },
+            { value: stats.total,   label: "Total Venues" },
+            { value: stats.active,  label: "Available" },
+            { value: stats.special, label: "Special Approval Required" },
           ].map(({ value, label }) => (
             <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
               <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
@@ -399,7 +399,7 @@ const AdminSpacesPage = () => {
                     ? "bg-[#15803d] text-white border-[#15803d]"
                     : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f0fdf4] hover:border-[#d1fae5]"}`}
               >
-                {type === "ALL" ? "All types" : SPACE_TYPE_META[type]?.label ?? type}
+                {type === "ALL" ? "All Venue Types" : SPACE_TYPE_META[type]?.label ?? type}
               </button>
             ))}
           </div>
@@ -429,7 +429,7 @@ const AdminSpacesPage = () => {
                   ? "bg-amber-500 text-white border-amber-500"
                   : "bg-white text-[#374151] border-[#e2e8f0] hover:border-amber-300"}`}
             >
-              Special only
+              Requires Special Approval
             </button>
           </Tooltip>
         </div>
@@ -472,12 +472,12 @@ const AdminSpacesPage = () => {
               </Icon>
             </div>
             <p className="text-[15px] font-semibold text-[#0f172a]">
-              {spaces.length === 0 ? "No venues yet" : "No venues match your filters"}
+              {spaces.length === 0 ? "No venues yet" : "No venues found"}
             </p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
               {spaces.length === 0
                 ? `Click "Add New Venue" to create the first one.`
-                : "Try adjusting your search or filter options."}
+                : "Try changing your search or filters."}
             </p>
           </div>
         ) : (

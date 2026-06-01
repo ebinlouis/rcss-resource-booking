@@ -45,7 +45,7 @@ const RoleOverridesPage = () => {
 try {
     await roleOverrideService.revokeOverride(id);
 
-    toast.success("Temporary access revoked successfully.");
+    toast.success("Temporary access removed successfully.");
 
     setRefreshTrigger(prev => prev + 1);
 } catch (err) {
@@ -219,14 +219,6 @@ try {
         </div>
     </div>
 )}
-
-<GrantOverrideModal 
-    isOpen={isModalOpen} 
-    onClose={() => setIsModalOpen(false)} 
-    onRefresh={() => {
-        setRefreshTrigger(prev => prev + 1);
-    }} 
-/>
 
             <GrantOverrideModal 
                 isOpen={isModalOpen} 

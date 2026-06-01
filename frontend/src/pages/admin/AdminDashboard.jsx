@@ -279,12 +279,12 @@ const ApproveModal = ({ booking, onConfirm, onCancel, isLoading, errorMsg }) => 
                     <IconCheck className="w-6 h-6 text-[#15803d]" />
                 </div>
                 <p className="text-[18px] font-bold text-[#0f172a] text-center tracking-tight">Approve Booking?</p>
-                <p className="text-[14.5px] text-[#4b5563] mt-2 text-center leading-relaxed">
-                    {dayCount > 1
-                        ? <>Approve all <span className="font-semibold text-[#0f172a]">{dayCount} recurring slots</span> for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
-                        : <>Approve this booking for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
-                    }
-                </p>
+<p className="text-[14.5px] text-[#4b5563] mt-2 text-center leading-relaxed">
+    {dayCount > 1
+        ? <>Approve all <span className="font-semibold text-[#0f172a]">{dayCount} booking dates</span> for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
+        : <>Approve this booking for <span className="font-semibold text-[#0f172a]">{booking.requester || booking.user_name || 'this user'}</span>?</>
+    }
+</p>
 
                 {errorMsg && (
                     <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
@@ -570,7 +570,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                         Large Venue for Small Group ({attendees} / {capacity} seats)
                                     </p>
                                     <p className="text-[14px] text-[#c2410c] mt-1 leading-relaxed">
-                                        This booking utilizes less than 30% of the hall's capacity. Please read the requester's notes carefully for justification before approving.
+                                        The number of attendees is low compared to the venue capacity. Please review the reason provided before approving.
                                     </p>
                                 </div>
                             </div>
@@ -593,13 +593,13 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         {booking.is_student_booking && (
                             <div className="mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty Sponsor</p>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Faculty In Charge</p>
                                 <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px]">
                                         {booking.faculty_sponsor_name?.charAt(0).toUpperCase() || 'F'}
                                     </div>
                                     <p className="text-[14.5px] text-purple-900 leading-relaxed font-medium">
-                                        Faculty Sponsor: {booking.faculty_sponsor_name || 'Unknown'}
+                                        Faculty In Charge: {booking.faculty_sponsor_name || 'Unknown'}
                                         {['PENDING', 'FACULTY_ESCALATED', 'APPROVED'].includes(booking.status) ? ' (Approved)' : ''}
                                     </p>
                                 </div>
@@ -607,7 +607,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                         )}
 
                         <div className="mb-6">
-                            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Purpose of Booking</p>
+                            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Event Purpose</p>
                             <div className="bg-[#f0fdf4] border border-[#d1fae5] rounded-xl px-4 py-3.5">
                                 <p className="text-[14.5px] text-[#14532d] font-medium leading-relaxed">
                                     {booking.purpose_of_booking || booking.purpose || 'No purpose provided.'}
@@ -648,7 +648,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
 
                         {['REJECTED', 'CANCELLED'].includes(booking.status) && booking.remarks_by_admin && (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
-                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection / Cancellation Reason</p>
+                                <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2">Rejection Reason</p>
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">
                                     {booking.remarks_by_admin}
                                 </p>
@@ -709,7 +709,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, isActing, isPendin
                                     </button>
                                 </Tooltip>
                             ) : ['REJECTED', 'CANCELLED'].includes(booking.status) ? (<span className="text-[13px] font-bold text-red-500 uppercase tracking-wider px-5 py-2 bg-red-50 rounded-xl">
-                                Rejected / Cancelled
+                                Cancelled
                             </span>
                             ) : null}
                         </div>
@@ -734,7 +734,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                 <div className="border-b border-[#e8f5ee]">
                     <div className="flex items-center px-7 py-3 bg-[#fffbeb] border-b border-[#fde68a]">
                         <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#d97706]">
-                            <IconLightning /> Priority Events (External)
+                            <IconLightning /> External Events
                         </span>
                     </div>
                     {priorityBookings.map((booking) => (
@@ -755,7 +755,7 @@ function BookingList({ bookings, isPendingTab, onApproveClick, onRejectClick, ac
                     {priorityBookings.length > 0 && (
                         <div className="flex items-center px-7 py-3 bg-[#f8fafc] border-b border-[#e2e8f0]">
                             <span className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-                                Standard Events (Internal)
+                                Internal Events
                             </span>
                         </div>
                     )}
@@ -1072,7 +1072,7 @@ const AdminDashboard = () => {
     // ── Tabs config ───────────────────────────────────────────────────────────
     const tabs = [
         { id: 'pending', label: 'Pending', count: raw.pending.length },
-        { id: 'upcoming', label: 'Upcoming', count: upcoming.length },
+        { id: 'upcoming', label: 'Approved Events', count: upcoming.length },
         { id: 'history', label: 'History', count: history.length },
         { id: 'resolvedByMe', label: 'Resolved by Me', count: resolvedByMe.length },
     ];

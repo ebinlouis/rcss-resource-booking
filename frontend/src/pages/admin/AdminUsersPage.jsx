@@ -30,10 +30,10 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
         const module = new Set(['MESS_MANAGER', 'MEDIA_INCHARGE', 'FLEET_MANAGER']);
 
         return [
-            { title: 'Base Identity', items: roles.filter((role) => ['STUDENT', 'FACULTY', 'STAFF'].includes(role.name)) },
-            { title: 'Scoped Space Badges', items: roles.filter((role) => scoped.has(role.name)) },
+            { title: 'User Type', items: roles.filter((role) => ['STUDENT', 'FACULTY', 'STAFF'].includes(role.name)) },
+            { title: 'Venue Responsibilities', items: roles.filter((role) => scoped.has(role.name)) },
             { title: 'Module Managers', items: roles.filter((role) => module.has(role.name)) },
-            { title: 'Institutional / System', items: roles.filter((role) => ['HOD', 'PRINCIPAL'].includes(role.name) || system.has(role.name)) },
+            { title: 'Institution Roles', items: roles.filter((role) => ['HOD', 'PRINCIPAL'].includes(role.name) || system.has(role.name)) },
         ].filter((group) => group.items.length > 0);
     }, [roles]);
 
@@ -50,7 +50,7 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
             <div className="w-full max-w-2xl rounded-2xl border border-green-100 bg-white shadow-2xl">
                 <div className="flex items-start justify-between border-b border-green-100 px-6 py-5">
                     <div>
-                        <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-green-700">User Badge Management</p>
+                        <p className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-green-700">Manage User Roles</p>
                         <h2 className="mt-1 text-[20px] font-bold text-gray-950">{getUserName(user)}</h2>
                         <p className="mt-1 text-[14px] text-gray-500">{user.email}</p>
                     </div>
@@ -114,14 +114,14 @@ function UserRoleModal({ user, roles, onClose, onSave, isSaving }) {
                         Cancel
                       </button>
                     </Tooltip>
-                    <Tooltip text="Save the selected roles for this user. Changes take effect immediately." position="top">
+                    <Tooltip text="Save these changes. Updates take effect immediately." position="top">
                       <button
                         type="button"
                         onClick={() => onSave(user.id, selectedRoles)}
                         disabled={isSaving}
                         className="rounded-xl bg-green-700 px-5 py-2.5 text-[14px] font-bold text-white transition hover:bg-green-800 disabled:opacity-50"
                       >
-                        {isSaving ? 'Saving...' : 'Save Roles'}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                       </button>
                     </Tooltip>
                 </div>
@@ -148,7 +148,7 @@ function AdminUsersPage() {
                 if (isMounted) setRoles(normalizeList(data));
             } catch (err) {
                 console.error('Failed to load roles', err);
-                if (isMounted) setError('Could not load roles.');
+                if (isMounted) setError('Couldn\'t load user roles. Please try again.');
             }
         };
 
@@ -190,7 +190,7 @@ useEffect(() => {
             }
         } catch (err) {
             console.error('Failed to load users', err);
-            if (isMounted) setError('Could not load users.');
+            if (isMounted) setError('Could not load users. Please try again.');
         } finally {
             if (isMounted) setIsLoading(false);
         }
@@ -212,7 +212,7 @@ useEffect(() => {
             setSelectedUser(null);
         } catch (err) {
             console.error('Failed to update user roles', err);
-            setError(err.response?.data?.roles || 'Could not update user roles.');
+            setError(err.response?.data?.roles || 'Could not update user roles. Please try again.');
         } finally {
             setIsSaving(false);
         }
@@ -240,7 +240,7 @@ useEffect(() => {
                       <PageInfo text="View all registered users and assign or remove system roles like Admin, Faculty, Lab In-Charge, and more." />
                     </div>
                     <p className="mt-2 text-[15px] text-gray-600">
-                        Manage user roles and access for the admin portal.
+Manage user permissions and responsibilities.
                     </p>
                 </div>
                 <div className="relative w-full md:w-[360px]">
@@ -264,7 +264,7 @@ useEffect(() => {
                 <div className="border-b border-green-100 px-6 py-4">
                     <p className="flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.1em] text-gray-950">
                         <ShieldCheck className="h-4 w-4 text-green-700" />
-                        User Badges
+                        User Roles
                     </p>
                 </div>
                 <div className="overflow-x-auto">
@@ -303,11 +303,11 @@ useEffect(() => {
                                         <div className="flex max-w-[360px] flex-wrap gap-2">
                                             {user.role_details?.length > 0
                                                 ? user.role_details.map((role) => <RoleBadge key={role.id} role={role} />)
-                                                : <span className="text-[13px] font-medium text-gray-400">No badges</span>}
+                                                : <span className="text-[13px] font-medium text-gray-400">No roles assigned</span>}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <Tooltip text="Assign or remove system roles for this user (e.g. Admin, Faculty, Lab In-Charge)." position="left">
+                                        <Tooltip text="Assign or remove responsibilities and permissions for this user. (e.g. Admin, Faculty, Lab In-Charge)." position="left">
                                           <button
                                             type="button"
                                             onClick={() => setSelectedUser(user)}

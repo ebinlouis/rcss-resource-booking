@@ -18,8 +18,8 @@ const SpaceApproversManagement = () => {
                 const data = await spaceAdminService.getApprovers();
                 if (isMounted) setApprovers(Array.isArray(data) ? data : data.results || []);
             } catch (error) {
-                console.error('Failed to fetch approvers', error);
-                toast.error('Failed to fetch approvers.');
+                console.error('Failed to load approvers', error);
+                toast.error('Failed to load approvers.');
             } finally {
                 if (isMounted) setIsLoading(false);
             }
@@ -51,10 +51,10 @@ const revokeApprover = async (approver) => {
     try {
         await spaceAdminService.deleteApprover(approver.id);
         await refreshApprovers();
-        toast.success("Assignment revoked successfully.");
+        toast.success("Assignment removed successfully.");
     } catch (error) {
-        console.error("Failed to revoke assignment", error);
-        toast.error("Failed to revoke assignment.");
+        console.error("Failed to remove assignment", error);
+        toast.error("Failed to remove assignment.");
     }
 };
 
@@ -63,9 +63,9 @@ const revokeApprover = async (approver) => {
             return `Block: ${approver.block_name}`;
         }
         if (approver.scope_type === 'SPACE' && approver.space_name) {
-            return `Space: ${approver.space_name}`;
+            return `Venue: ${approver.space_name}`;
         }
-        return 'Unscoped';
+        return 'All Venues';
     };
 
     return (
@@ -89,7 +89,7 @@ const revokeApprover = async (approver) => {
                         <tr className="bg-gray-50 border-b border-gray-100">
                             <th className="caps-label px-6 py-4">User</th>
                             <th className="caps-label px-6 py-4">Assigned Role</th>
-                            <th className="caps-label px-6 py-4">Jurisdiction (Scope)</th>
+                            <th className="caps-label px-6 py-4">Assigned Area</th>
                             <th className="caps-label px-6 py-4 text-right">Status</th>
                         </tr>
                     </thead>
@@ -97,7 +97,7 @@ const revokeApprover = async (approver) => {
                         {isLoading ? (
                             <tr><td colSpan="4" className="text-center py-10 text-gray-500 text-sm">Loading assignments...</td></tr>
                         ) : approvers.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-10 text-gray-500 text-sm">No scoped approvers found.</td></tr>
+                            <tr><td colSpan="4" className="text-center py-10 text-gray-500 text-sm">No venue managers assigned yet.</td></tr>
                         ) : (
                             approvers.map(approver => (
                                 <tr key={approver.id} className="hover:bg-gray-50/50 transition">
@@ -118,7 +118,7 @@ const revokeApprover = async (approver) => {
                                             onClick={() => setApproverToRevoke(approver)}
                                             className="text-xs font-bold px-3 py-1.5 rounded-lg transition bg-red-50 text-red-600 hover:bg-red-100"
                                         >
-                                            Revoke
+                                            Remove
                                         </button>
                                     </td>
                                 </tr>
@@ -132,13 +132,13 @@ const revokeApprover = async (approver) => {
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold">
-                Revoke Assignment?
+                Remove Assignment?
             </h3>
 
             <p className="text-sm text-gray-500 mt-2">
                 {approverToRevoke.is_last_assignment_for_role
-                    ? "This is the user's last active assignment for this role. Revoking it will also remove the role badge from their profile."
-                    : "Revoke this scoped approver assignment?"}
+                    ? "This is the user's last assignment for this role. Removing it will also remove this role from their account."
+                    : "Remove this venue manager assignment?"}
             </p>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -156,7 +156,7 @@ const revokeApprover = async (approver) => {
                     }}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg"
                 >
-                    Revoke
+                    Remove
                 </button>
             </div>
         </div>

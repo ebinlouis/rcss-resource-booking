@@ -439,7 +439,7 @@ function TransportBookingModal({
 
               <p className="text-sm text-white font-semibold mt-1">
 
-                Vehicles auto-filter by capacity
+                Recommended based on the number of people travelling.
 
               </p>
 

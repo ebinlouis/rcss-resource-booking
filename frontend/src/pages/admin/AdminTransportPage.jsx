@@ -78,7 +78,7 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h3 className="text-base font-bold text-gray-900 mb-1">Reject Booking</h3>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Decline Request</h3>
                 <p className="text-xs text-gray-500 mb-4">
                     <span className="font-medium text-gray-700">{booking.reference_code}</span>
                     {' · '}{booking.vehicle_details?.name ?? `Vehicle #${booking.vehicle}`}
@@ -94,7 +94,7 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
                     onChange={e => setRemarks(e.target.value)}
                     autoFocus
                 />
-                <p className="text-[10px] text-gray-400 mt-1">This message will be recorded against the booking.</p>
+                <p className="text-[10px] text-gray-400 mt-1">This reason will be shared with the requester.</p>
                 <div className="flex gap-3 mt-5 justify-end">
                     <button
                         onClick={onCancel}
@@ -169,7 +169,7 @@ function RescheduleModal({ booking, vehicles, onConfirm, onCancel, isLoading }) 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                <h3 className="text-base font-bold text-gray-900 mb-1">Reschedule / Edit Booking</h3>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Update Trip Details</h3>
                 <p className="text-xs text-gray-500 mb-5">
                     <span className="font-medium text-gray-700">{booking.reference_code}</span>
                     {' · '}Requested by {booking.user_email ?? booking.user}
@@ -187,7 +187,7 @@ function RescheduleModal({ booking, vehicles, onConfirm, onCancel, isLoading }) 
                             <option value="">Select vehicle</option>
                             {vehicles.map(v => (
                                 <option key={v.id} value={v.id}>
-                                    {v.name} — {v.registration_number} (cap: {v.capacity})
+                                    {v.name} — {v.registration_number} (Capacity: {v.capacity})
                                 </option>
                             ))}
                         </select>
@@ -255,11 +255,11 @@ function RescheduleModal({ booking, vehicles, onConfirm, onCancel, isLoading }) 
 
                     {/* Admin remark */}
                     <div>
-                        <FieldLabel>Admin remark (optional)</FieldLabel>
+                        <FieldLabel>Notes (optional)</FieldLabel>
                         <textarea
                             rows={2}
                             className={`${inputCls('remarks_by_admin')} resize-none`}
-                            placeholder="Reason for change, operational note…"
+                            placeholder="Reason for the update (optional)"
                             value={form.remarks_by_admin}
                             onChange={e => set('remarks_by_admin', e.target.value)}
                         />
@@ -315,8 +315,8 @@ function ApprovalConfirmCard({ booking, onDismiss }) {
                     </svg>
                 </div>
                 <div>
-                    <p className="text-sm font-semibold text-green-700">Request approved</p>
-                    <p className="text-xs text-green-600/80">This booking has been confirmed and recorded.</p>
+                    <p className="text-sm font-semibold text-green-700">Trip approved</p>
+                    <p className="text-xs text-green-600/80">This transport request has been approved.</p>
                 </div>
             </div>
 
@@ -371,7 +371,7 @@ function BookingRow({ booking, onApprove, onReject, onReschedule, actionLoading,
                     <p className="text-xs text-gray-500 mt-0.5">
                         {booking.vehicle_details?.registration_number ?? ''}
                         {booking.total_passengers
-                            ? ` · ${booking.total_passengers} pax`
+                            ? ` · ${booking.total_passengers} passengers`
                             : ''}
                     </p>
                 </div>
@@ -383,7 +383,7 @@ function BookingRow({ booking, onApprove, onReject, onReschedule, actionLoading,
                 </div>
 
                 <div>
-                    <FieldLabel>Requester</FieldLabel>
+                    <FieldLabel>Requested By</FieldLabel>
                     <p className="text-sm font-medium text-gray-900">{booking.user_email ?? booking.user}</p>
                 </div>
 
@@ -395,7 +395,7 @@ function BookingRow({ booking, onApprove, onReject, onReschedule, actionLoading,
                 </div>
 
                 <div>
-                    <FieldLabel>Window</FieldLabel>
+                    <FieldLabel>Travel Time</FieldLabel>
                     <p className="text-xs text-gray-700">{formatDT(booking.start_datetime)}</p>
                     <p className="text-xs text-gray-400">→ {formatDT(booking.end_datetime)}</p>
                 </div>
@@ -407,7 +407,7 @@ function BookingRow({ booking, onApprove, onReject, onReschedule, actionLoading,
 
                 {booking.remarks_by_admin && (
                     <div className="md:col-span-2 xl:col-span-3">
-                        <FieldLabel>Admin remark</FieldLabel>
+                        <FieldLabel>Admin notes</FieldLabel>
                         <p className="text-sm text-gray-600">{booking.remarks_by_admin}</p>
                     </div>
                 )}
@@ -464,7 +464,7 @@ function BookingRow({ booking, onApprove, onReject, onReschedule, actionLoading,
 const TABS = [
     { key: 'pending',        label: 'Pending Requests' },
     { key: 'resolved_by_me', label: 'Resolved by Me'   },
-    { key: 'active',         label: 'Active Bookings'  },
+    { key: 'active',         label: 'Approved Trips'  },
 ]
 
 // ==========================================
@@ -592,9 +592,9 @@ export default function AdminTransportPage() {
     // ------------------------------------------------------------------
     const currentTab = TABS.find(t => t.key === activeTab)
     const emptyMessages = {
-        pending:        'No pending transport requests. Queue is clear.',
-        resolved_by_me: 'No bookings resolved by you yet.',
-        active:         'No active (approved) fleet bookings.',
+        pending:        'No transport requests need approval.',
+        resolved_by_me: 'You haven\'t reviewed any transport requests yet.',
+        active:         'No approved trips at the moment.',
     }
 
     // ------------------------------------------------------------------
@@ -704,7 +704,7 @@ export default function AdminTransportPage() {
                     </div>
                 ) : isLoading ? (
                     <div className="flex-1 flex items-center justify-center p-12 text-sm text-gray-400 animate-pulse italic">
-                        Loading fleet data…
+Loading transport requests…
                     </div>
                 ) : bookings.length === 0 ? (
                     <EmptyState message={emptyMessages[activeTab]} />

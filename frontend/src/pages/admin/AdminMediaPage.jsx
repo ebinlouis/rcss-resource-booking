@@ -120,7 +120,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
     }
 
     const handleSubmit = async () => {
-        if (selected.size === 0) { setSubmitError('Please select at least one crew member.'); return }
+        if (selected.size === 0) { setSubmitError('Please select at least one team member.'); return }
         setSubmitting(true); setSubmitError('')
         try {
             await onConfirm(Array.from(selected))
@@ -147,7 +147,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                             <Users className="h-5 w-5" />
                         </div>
                         <div>
-                            <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Assign Crew & Approve</p>
+                            <p className="text-[17px] font-bold tracking-tight text-[#0f172a]">Assign Team Members & Approve</p>
                             <p className="text-[13px] text-[#6b7280]">{booking.event_name}</p>
                         </div>
                     </div>
@@ -175,7 +175,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                     ) : fetchError ? (
                         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{fetchError}</p>
                     ) : crew.length === 0 ? (
-                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No crew members found. Please contact IT Admin to assign the MEDIA_INCHARGE role.</p>
+                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No team members found. Please contact IT Admin to assign the MEDIA_INCHARGE role.</p>
                     ) : (
                         <>
                             {/* Free members */}
@@ -192,7 +192,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                             {/* Busy members */}
                             {busyCrew.length > 0 && (
                                 <div>
-                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Busy — Already Assigned ({busyCrew.length})</p>
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Already Assigned Elsewhere ({busyCrew.length})</p>
                                     <div className="space-y-2">
                                         {busyCrew.map((member) => (
                                             <CrewMemberRow key={member.id} member={member} selected={selected.has(member.id)} onToggle={toggleMember} />
@@ -211,7 +211,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                     )}
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-[13px] text-[#6b7280]">
-                            {selected.size === 0 ? 'No crew selected' : `${selected.size} crew member${selected.size > 1 ? 's' : ''} selected`}
+                            {selected.size === 0 ? 'No team members selected' : `${selected.size} team member${selected.size > 1 ? 's' : ''} selected`}
                         </p>
                         <div className="flex gap-2.5">
                             <button onClick={onCancel} disabled={submitting} className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-2.5 text-[14px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40">
@@ -324,7 +324,7 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
     }
 
     const handleSubmit = async () => {
-        if (selected.size === 0) { setSubmitError('Please select at least one crew member.'); return }
+        if (selected.size === 0) { setSubmitError('Please select at least one team member.'); return }
         setSubmitting(true); setSubmitError('')
         try {
             await onConfirm(Array.from(selected))
@@ -361,12 +361,12 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
                     {fetching ? (
                         <div className="flex items-center justify-center py-10">
                             <RefreshCw className="h-6 w-6 animate-spin text-[#1d4ed8]" />
-                            <span className="ml-3 text-[14px] text-[#6b7280]">Loading crew availability…</span>
+                            <span className="ml-3 text-[14px] text-[#6b7280]">Loading team member availability…</span>
                         </div>
                     ) : fetchError ? (
                         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{fetchError}</p>
                     ) : (freeCrew.length === 0 && busyCrew.length === 0) ? (
-                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No crew members found.</p>
+                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No team members found.</p>
                     ) : (
                         <>
                             {freeCrew.length > 0 && (
@@ -419,7 +419,7 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
                     )}
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-[13px] text-[#6b7280]">
-                            {selected.size === 0 ? 'No crew selected' : `${selected.size} crew member${selected.size > 1 ? 's' : ''} selected`}
+                            {selected.size === 0 ? 'No team members selected' : `${selected.size} team member${selected.size > 1 ? 's' : ''} selected`}
                         </p>
                         <div className="flex gap-2.5">
                             <button onClick={onCancel} disabled={submitting} className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-2.5 text-[14px] font-medium text-[#4b5563] hover:bg-[#f6fbf8] disabled:opacity-40">
@@ -476,7 +476,7 @@ function RejectModal({ booking, onConfirm, onCancel, isLoading }) {
                         disabled={isLoading || !remarks.trim()}
                         className="inline-flex items-center gap-2 rounded-xl bg-[#dc2626] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#b91c1c] disabled:opacity-40"
                     >
-                        {isLoading ? 'Processing…' : isCancellation ? 'Revoke & Cancel' : 'Reject Booking'}
+                        {isLoading ? 'Processing…' : isCancellation ? 'Cancel' : 'Reject Booking'}
                     </button>
                 </div>
             </div>
@@ -495,9 +495,9 @@ function SuccessModal({ booking, onClose }) {
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#dcfce7]">
                     <Check className="h-6 w-6 text-[#15803d]" />
                 </div>
-                <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Booking approved!</p>
+                <p className="text-[17px] font-semibold tracking-tight text-[#0f172a]">Request approved!</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-[#6b6b6b]">
-                    <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved with crew assigned.
+                    <span className="font-medium text-[#0f172a]">{booking.event_name}</span> has been approved and team members have been assigned.
                 </p>
                 <button onClick={onClose} className="mt-6 w-full rounded-xl bg-[#15803d] py-3 text-[14px] font-semibold text-white hover:bg-[#166534]">
                     Done
@@ -518,7 +518,7 @@ function MediaTeamRosterCard() {
         let cancelled = false
         mediaApi.getCrewRoster()
             .then((data) => { if (!cancelled) { setRoster(data); setLoading(false) } })
-            .catch(() => { if (!cancelled) { setError('Could not load team roster.'); setLoading(false) } })
+            .catch(() => { if (!cancelled) { setError('Could not load team members.'); setLoading(false) } })
         return () => { cancelled = true }
     }, [])
 
@@ -533,8 +533,8 @@ function MediaTeamRosterCard() {
                     <Clapperboard className="h-4 w-4" />
                 </div>
                 <div>
-                    <p className="text-[15px] font-bold tracking-tight text-[#0f172a]">Media Team Roster</p>
-                    <p className="text-[12px] text-[#6b7280]">All MEDIA_INCHARGE members · Managed by IT Admin</p>
+                    <p className="text-[15px] font-bold tracking-tight text-[#0f172a]">Media Team Members</p>
+                    <p className="text-[12px] text-[#6b7280]">All media team members · Managed by IT Admin</p>
                 </div>
                 {!loading && (
                     <span className="ml-auto rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[12px] font-bold text-[#15803d]">
@@ -548,14 +548,14 @@ function MediaTeamRosterCard() {
                 {loading ? (
                     <div className="flex items-center gap-3 py-4">
                         <RefreshCw className="h-4 w-4 animate-spin text-[#15803d]" />
-                        <span className="text-[13.5px] text-[#6b7280]">Loading roster…</span>
+                        <span className="text-[13.5px] text-[#6b7280]">Loading team members…</span>
                     </div>
                 ) : error ? (
                     <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{error}</p>
                 ) : roster.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[#d1fae5] bg-[#f6fbf8] px-5 py-8 text-center">
                         <Users className="mx-auto mb-3 h-7 w-7 text-[#86efac]" />
-                        <p className="text-[14px] font-semibold text-[#374151]">No media crew assigned yet</p>
+                        <p className="text-[14px] font-semibold text-[#374151]">No media team members assigned yet</p>
                         <p className="mt-1 text-[13px] text-[#6b7280]">Contact an IT Admin to assign the MEDIA_INCHARGE role to team members.</p>
                     </div>
                 ) : (
@@ -728,7 +728,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                     </div>
                                     {hasBuffer && (
                                         <p className="mt-3 text-[13.5px] font-medium text-[#6b7280]">
-                                            Setup starts at {formatTime(booking.setup_start_datetime)} and teardown ends at {formatTime(booking.teardown_end_datetime)}.
+                                            Preparation starts at {formatTime(booking.setup_start_datetime)} and wrap-up ends at {formatTime(booking.teardown_end_datetime)}.
                                         </p>
                                     )}
                                 </div>
@@ -774,15 +774,15 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
 
                         {['REJECTED', 'CANCELLED'].includes(booking.status) && booking.remarks_by_admin && (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
-                                <FieldLabel>Rejection / Cancellation Reason</FieldLabel>
+                                <FieldLabel>Rejection Reason</FieldLabel>
                                 <p className="text-[14.5px] font-semibold leading-relaxed text-red-700">{booking.remarks_by_admin}</p>
                             </div>
                         )}
 
-                        {/* Assigned crew for approved bookings */}
+                        {/* Assigned team members for approved bookings */}
                         {showCrew && (
                             <div className="mb-6 rounded-xl border border-[#d1fae5] bg-[#f0fdf4] px-5 py-4">
-                                <p className="mb-3 text-[12px] font-bold uppercase tracking-[0.1em] text-[#15803d]">Assigned Crew</p>
+                                <p className="mb-3 text-[12px] font-bold uppercase tracking-[0.1em] text-[#15803d]">Assigned Team Members</p>
                                 <div className="grid gap-2 sm:grid-cols-2">
                                     {assignedCrew.map((member) => (
                                         <div key={member.id} className="flex items-center gap-3 rounded-xl border border-[#bbf7d0] bg-white px-3 py-2.5">
@@ -808,18 +808,18 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                     <X className="h-4 w-4" /> Reject
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); onApproveClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-[14.5px] font-semibold hover:bg-[#166534] transition-all disabled:opacity-40">
-                                    {isActing ? 'Processing…' : <><Check className="h-4 w-4" /> Approve & Assign Crew</>}
+                                    {isActing ? 'Processing…' : <><Check className="h-4 w-4" /> Approve & Assign Team Members</>}
                                 </button>
                             </>
                         ) : booking.status === 'APPROVED' ? (
                             <>
                                 {booking.is_team_request && (
                                     <button onClick={(e) => { e.stopPropagation(); onUpdateCrewClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e2e8f0] text-[14.5px] font-medium text-[#1d4ed8] bg-white hover:bg-[#eff6ff] hover:text-[#1e40af] hover:border-[#bfdbfe] transition-all disabled:opacity-40">
-                                        <Users className="h-4 w-4" /> Edit Assigned Crew
+                                        <Users className="h-4 w-4" /> Update Team Members
                                     </button>
                                 )}
                                 <button onClick={(e) => { e.stopPropagation(); onRejectClick(booking) }} disabled={isActing} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-[14.5px] font-medium text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all disabled:opacity-40">
-                                    <X className="h-4 w-4" /> Revoke & Cancel Booking
+                                    <X className="h-4 w-4" /> Cancel Booking
                                 </button>
                             </>
                         ) : booking.status === 'CANCELLED' ? (
@@ -1052,9 +1052,9 @@ function AdminMediaPage() {
                         <p className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Rajagiri College · Admin</p>
                         <div className="flex items-center gap-2">
                           <h1 className="text-[26px] font-bold leading-none tracking-tight text-[#0f172a]">Media Management</h1>
-                          <PageInfo text="Approve media booking requests and assign crew members. The Media Team Roster is managed by IT Admin." />
+                          <PageInfo text="Approve media booking requests and assign team members. The Media Team Members are managed by IT Admin." />
                         </div>
-                        <p className="mt-2 text-[15px] text-[#374151]">Manage media equipment requests and event support bookings.</p>
+                        <p className="mt-2 text-[15px] text-[#374151]">Review media requests and assign team members for events.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={() => fetchData()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#d1fae5] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#4a6b58] transition hover:bg-[#f0fdf4] disabled:opacity-40">
@@ -1067,8 +1067,8 @@ function AdminMediaPage() {
                 <div className="mb-6 grid gap-3 md:grid-cols-3">
                     {[
                         { value: data.pending.length, label: 'Waiting for review'       },
-                        { value: data.active.length,  label: 'Approved active bookings' },
-                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Approved for today' },
+                        { value: data.active.length,  label: 'Approved Events' },
+                        { value: data.active.filter((b) => b.event_start_datetime && new Date(b.event_start_datetime).toLocaleDateString('en-CA') === todayStr).length, label: 'Events Today' },
                     ].map(({ value, label }) => (
                         <div key={label} className="rounded-2xl border border-[#e8f5ee] bg-white px-6 py-5">
                             <p className="text-[30px] font-light leading-none tracking-tight text-[#0f172a]">{value}</p>

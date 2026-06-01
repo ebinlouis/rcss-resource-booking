@@ -462,7 +462,7 @@ export default function AdminFacultiesPage() {
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             <span>
-                                <strong>Faculties:</strong> {regularFaculties.length} total
+                                <strong>Faculty Members:</strong> {regularFaculties.length} total
                             </span>
                         </div>
                     </div>
@@ -577,7 +577,7 @@ export default function AdminFacultiesPage() {
                                         onClick={() => openEditModal(activeHOD)}
                                         className="px-4 py-2 text-[12.5px] font-bold text-[#15803d] border border-[#15803d]/20 bg-white hover:bg-[#15803d]/5 rounded-xl transition"
                                     >
-                                        Edit HOD
+                                        Edit Department Head
                                     </button>
                                     <button
                                         type="button"
@@ -899,7 +899,7 @@ export default function AdminFacultiesPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block caps-label mb-1.5">System Role</label>
+                                    <label className="block caps-label mb-1.5">Role</label>
                                     {(() => {
                                         const hasHOD = faculties.some(f => f.effective_roles?.includes('HOD') && f.is_active);
                                         const isFirstHod = !editingUser && !hasHOD;
@@ -914,7 +914,7 @@ export default function AdminFacultiesPage() {
                                                         Head of Department
                                                     </div>
                                                     <p className="mt-1.5 text-[11px] font-semibold text-[#15803d]">
-                                                        First faculty member is automatically assigned as HOD.
+                                                        First faculty member is automatically assigned as Department Head.
                                                     </p>
                                                 </>
                                             );
@@ -956,10 +956,10 @@ export default function AdminFacultiesPage() {
                                                 <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                 </svg>
-                                                <span>Single HOD Constraint</span>
+                                                <span>Department Head Already Assigned</span>
                                             </div>
                                             <p>This department already has a Head of Department assigned: <strong className="font-semibold">{activeHOD.first_name} {activeHOD.last_name || ''}</strong>.</p>
-                                            <p className="text-[11.5px] text-amber-700/90 mt-0.5">Saving this change will automatically replace the HOD and demote the current HOD to a standard faculty role.</p>
+                                            <p className="text-[11.5px] text-amber-700/90 mt-0.5">Saving this change will make this person the Department Head and change the current Department Head to a Faculty Member.</p>
                                         </div>
                                     );
                                 }
@@ -975,7 +975,7 @@ export default function AdminFacultiesPage() {
                                     className="h-4.5 w-4.5 accent-[#15803d] cursor-pointer"
                                 />
                                 <label htmlFor="is_active" className="text-sm font-semibold text-[#0f172a] cursor-pointer select-none">
-                                    Account Status Active (Enabled)
+                                    Active Account
                                 </label>
                             </div>
 
@@ -1116,7 +1116,7 @@ export default function AdminFacultiesPage() {
                             Reset Password?
                         </h3>
                         <p className="text-[14px] text-slate-600 leading-relaxed">
-                            Are you sure you want to reset the password for <strong className="text-slate-900">{resetTargetUser.first_name} {resetTargetUser.last_name || ''}</strong>? A temporary password/reset link will be generated.
+                            Are you sure you want to reset the password for <strong className="text-slate-900">{resetTargetUser.first_name} {resetTargetUser.last_name || ''}</strong>? The password will be reset to a temporary password that can be changed after login.
                         </p>
                         <p className="text-[13px] text-amber-600 font-medium mt-2 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
                             The password will be reset to the default: <strong>Rajagiri@123</strong>. The user can change this later from their profile.
@@ -1161,7 +1161,7 @@ export default function AdminFacultiesPage() {
                             Are you sure you want to remove this faculty member?
                         </p>
                         <p className="text-[13px] text-slate-400 mt-2 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                            Note: Deleting will remove <strong className="text-slate-700">{actionTargetUser.first_name} {actionTargetUser.last_name || ''}</strong> completely. If they have active bookings or resources assigned, you should choose <strong>Deactivate</strong> instead, which blocks system access but retains booking histories.
+                            Note: Deleting will remove <strong className="text-slate-700">{actionTargetUser.first_name} {actionTargetUser.last_name || ''}</strong> completely. If they have active bookings or resources assigned, you should choose <strong>Deactivate</strong> instead, which blocks system access but keeps previous bookings and records.
                         </p>
 
                         <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
@@ -1187,7 +1187,7 @@ export default function AdminFacultiesPage() {
                                 disabled={isActionSubmitting}
                                 className="px-4 py-2.5 text-[13px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition"
                             >
-                                {isActionSubmitting ? 'Processing...' : 'Delete Completely'}
+                                {isActionSubmitting ? 'Processing...' : 'Remove Permanently'}
                             </button>
                         </div>
                     </div>
@@ -1207,7 +1207,7 @@ export default function AdminFacultiesPage() {
                         {/* Header */}
                         <div className="flex justify-between items-start mb-5">
                             <div>
-                                <p className="caps-label mb-0.5">Bulk Import</p>
+                                <p className="caps-label mb-0.5">Import Faculty List</p>
                                 <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">Upload Faculty CSV</h3>
                             </div>
                             <button
@@ -1317,10 +1317,10 @@ export default function AdminFacultiesPage() {
                         <div className="p-6 border-b border-slate-100 flex justify-between items-start shrink-0">
                             <div>
                                 <p className="caps-label mb-0.5">
-                                    {csvUploadResult._validationErrors ? 'Validation Failed' : 'Import Complete'}
+                                    {csvUploadResult._validationErrors ? 'Some Rows Need Attention' : 'Import Complete'}
                                 </p>
                                 <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
-                                    CSV Upload Results
+                                    Upload Results
                                 </h3>
                                 {csvUploadResult._detail && (
                                     <p className="text-[12.5px] text-red-600 font-medium mt-1">{csvUploadResult._detail}</p>
