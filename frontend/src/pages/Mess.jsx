@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
 import MainLayout from "../layouts/MainLayout"
 import MessBookingForm from "../components/MessBookingForm"
-import messService from "../api/messService"
+import MessMyRequests from "../components/MessMyRequests"
 import { getSubmissionTimestamp } from "../utils/submissionTime"
 import toast from 'react-hot-toast'
 import { useMyMessBookings, useCancelMessBooking } from "../hooks/useMessQueries"
@@ -21,7 +21,7 @@ import {
 
 import {
   Pencil, Trash2, Users, Clock3, X,
-  CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Plus,
+  ChevronRight, AlertCircle, CalendarDays, Layers, Plus,
 } from "lucide-react"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -47,24 +47,58 @@ const formatShortDate = (dateStr) => {
   return `${d} ${months[parseInt(m, 10) - 1]} ${y}`
 }
 
-const getStatusStyle = (status) => {
-  switch (status?.toLowerCase()) {
-    case "approved":
-    case "confirmed": return "bg-blue-50 text-blue-700 border border-blue-200"
-    case "completed": return "bg-slate-100 text-slate-700 border border-slate-300"
-    case "expired":   return "bg-orange-50 text-orange-700 border border-orange-200"
-    case "rejected":  return "bg-red-50 text-red-700 border border-red-200"
-    default:          return "bg-amber-50 text-amber-700 border border-amber-200"
-  }
+// ── Status System ─────────────────────────────────────────────────────────────
+
+const STATUS_STYLES = {
+  APPROVED: {
+    badge: "bg-green-100 text-green-700",
+    card:  "bg-green-50 border-green-100 text-green-700",
+  },
+  PENDING: {
+    badge: "bg-yellow-100 text-yellow-700",
+    card:  "bg-yellow-50 border-yellow-100 text-yellow-700",
+  },
+  COMPLETED: {
+    badge: "bg-blue-100 text-blue-700",
+    card:  "bg-blue-50 border-blue-100 text-blue-700",
+  },
+  EXPIRED: {
+    badge: "bg-orange-100 text-orange-700",
+    card:  "bg-orange-50 border-orange-100 text-orange-700",
+  },
+  REJECTED: {
+    badge: "bg-red-100 text-red-700",
+    card:  "bg-red-50 border-red-100 text-red-700",
+  },
+  CANCELLED: {
+    badge: "bg-slate-100 text-slate-600",
+    card:  "bg-slate-50 border-slate-100 text-slate-600",
+  },
 }
 
-const isEditable = (status) => {
-  const s = status?.toLowerCase()
-  return s === "pending" || s === "confirmed" || s === "approved"
+function StatusBadge({ status }) {
+  const style = STATUS_STYLES[status?.toUpperCase()] ?? STATUS_STYLES.PENDING
+  return (
+    <span className={`caps-label px-2.5 py-1 rounded-md font-semibold ${style.badge}`}>
+      {status}
+    </span>
+  )
 }
+
+const isPastBooking = (booking) => {
+  if (!booking?.end_date) return false
+  return booking.end_date < todayStr
+}
+
+const canEdit = (booking) =>
+  !isPastBooking(booking) &&
+  (booking.status === "PENDING" || booking.status === "APPROVED")
+
+const canCancel = (booking) =>
+  !isPastBooking(booking) &&
+  (booking.status === "PENDING" || booking.status === "APPROVED")
 
 // ── MealTimePills ─────────────────────────────────────────────────────────────
-// Pills stay at text-sm intentionally — they are compact UI chips
 
 const MealTimePills = ({ booking }) => {
   const meals = getRequestedMeals(booking)
@@ -75,38 +109,30 @@ const MealTimePills = ({ booking }) => {
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {MEALS.filter((m) => firstMenu[m.timeKey]).map(({ id, label, timeKey }) => {
-        const raw  = firstMenu[timeKey]
-        const time = raw?.slice(0, 5) ?? null
-        return (
-          <span
-            key={id}
-            className="inline-flex items-center gap-2 text-sm font-medium bg-white text-slate-700 rounded-full px-3 py-1 border border-slate-200 shadow-sm"
-          >
-            {label}
-            {time && (
-              <span className="text-emerald-600 font-semibold tabular-nums text-sm">{time}</span>
-            )}
-          </span>
-        )
-      })}
+      {MEALS.filter((m) => firstMenu[m.timeKey]).map(({ id, label }) => (
+        <span
+          key={id}
+          className="inline-flex items-center text-sm font-medium bg-white text-slate-700 rounded-full px-3 py-1 border border-slate-200 shadow-sm"
+        >
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
 
 // ── DurationBadge ─────────────────────────────────────────────────────────────
-// Badge stays at text-xs — it's a compact indicator
 
 const DurationBadge = ({ booking }) => {
   const multi = isMultiDay(booking)
   const days  = booking.daily_menus?.length ?? 1
   return multi ? (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md px-2.5 py-1">
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md px-2.5 py-1.5">
       <Layers size={12} />
       {days} days
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 rounded-md px-2.5 py-1">
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 rounded-md px-2.5 py-1.5">
       Single day
     </span>
   )
@@ -120,15 +146,21 @@ function Mess() {
   const highlightedReference = searchParams.get("booking") || ""
   const isLinkedFlow = searchParams.get("linked") === "1"
 
-  const { data: bookingsData, isLoading, refetch } = useMyMessBookings();
-  const bookings = bookingsData || [];
+  const { data: bookingsData, isLoading } = useMyMessBookings()
+  const bookings = bookingsData || []
 
   const [selectedDate,            setSelectedDate]            = useState("")
   const [mealFilter,              setMealFilter]              = useState("All")
   const [showAllUpcoming,         setShowAllUpcoming]         = useState(false)
-
   const [selectedViewBooking,     setSelectedViewBooking]     = useState(null)
   const [showForm,                setShowForm]                = useState(false)
+  const [editMode,                setEditMode]                = useState(false)
+  const [selectedEditBooking,     setSelectedEditBooking]     = useState(null)
+  const [showDeleteModal,         setShowDeleteModal]         = useState(false)
+  const [selectedBookingToDelete, setSelectedBookingToDelete] = useState(null)
+  const [isDeleting,              setIsDeleting]              = useState(false)
+  const [detailDay,               setDetailDay]               = useState(0)
+
   const { user } = useAuth()
   const location  = useLocation()
 
@@ -136,13 +168,6 @@ function Mess() {
     if (!user) { navigate("/login", { state: { from: location.pathname } }); return }
     setEditMode(false); setSelectedEditBooking(null); setShowForm(true)
   }
-  const [editMode,                setEditMode]                = useState(false)
-  const [selectedEditBooking,     setSelectedEditBooking]     = useState(null)
-  const [showDeleteModal,         setShowDeleteModal]         = useState(false)
-  const [selectedBookingToDelete, setSelectedBookingToDelete] = useState(null)
-  const [isDeleting,              setIsDeleting]              = useState(false)
-
-  const [detailDay, setDetailDay] = useState(0)
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
@@ -175,9 +200,11 @@ function Mess() {
         return true
       })
     }
-    
+
     return result
   }, [bookings, highlightedReference, selectedDate, showAllUpcoming, mealFilter])
+
+  // ── Panel helpers ────────────────────────────────────────────────────────────
 
   const closeSidePanel = () => { setSelectedViewBooking(null); setDetailDay(0) }
 
@@ -200,8 +227,9 @@ function Mess() {
     setSelectedEditBooking(null)
   }
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
-  const cancelMutation = useCancelMessBooking();
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  const cancelMutation = useCancelMessBooking()
 
   const handleDelete = async () => {
     if (!selectedBookingToDelete) return
@@ -226,7 +254,8 @@ function Mess() {
     if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
   }
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────────
+
   const upcomingCount = bookings.filter((b) => b.end_date >= todayStr).length
 
   useEffect(() => {
@@ -269,227 +298,209 @@ function Mess() {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="flex gap-2 flex-wrap">
-            {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
-              <button
-                key={meal}
-                onClick={() => setMealFilter(meal)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                  mealFilter === meal
-                    ? "bg-green-700 text-white border-green-700 shadow-sm"
-                    : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:text-slate-900"
-                }`}
-              >
-                {meal}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            {selectedDate && (
-              <button onClick={() => setSelectedDate("")} className="text-sm text-green-700 hover:text-green-800 font-medium">
-                Clear
-              </button>
-            )}
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border border-slate-300 rounded-xl px-4 py-2 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-slate-800"
-            />
-          </div>
-        </div>
-
-        {/* List header */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">
-            {selectedDate ? `Bookings on ${selectedDate}` : "Upcoming Bookings"}
-          </h2>
-          {!selectedDate && upcomingCount > 3 && (
+        {/* Meal type filters — left side only, no date picker here */}
+        <div className="flex gap-2 flex-wrap">
+          {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
             <button
-              onClick={() => setShowAllUpcoming(!showAllUpcoming)}
-              className="text-sm text-green-700 font-medium hover:text-green-800 hover:underline underline-offset-2"
+              key={meal}
+              onClick={() => setMealFilter(meal)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                mealFilter === meal
+                  ? "bg-green-700 text-white border-green-700 shadow-sm"
+                  : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:text-slate-900"
+              }`}
             >
-              {showAllUpcoming ? "Show less" : "View all"}
+              {meal}
             </button>
-          )}
+          ))}
         </div>
 
-        {/* Booking table */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {/* Two-column layout: main + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          {/* Table header */}
-          <div className="hidden md:grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
-            <span className="col-span-2 caps-label">From Date</span>
-            <span className="col-span-2 caps-label">To Date</span>
-            <span className="col-span-3 caps-label">Event</span>
-            <span className="col-span-2 caps-label">Meals</span>
-            <span className="col-span-1 caps-label">No. of Days</span>
-            <span className="col-span-1 caps-label">Status</span>
-            <span className="col-span-1 caps-label text-right">·</span>
-          </div>
+          {/* Main content — takes 2/3 */}
+          <div className="lg:col-span-2 space-y-4">
 
-          {!user && (
-            <div className="py-16 text-center space-y-3">
-              <p className="text-base text-slate-500">Sign in to view your food bookings</p>
-              <button
-                onClick={() => navigate("/login", { state: { from: location.pathname } })}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition"
-              >
-                Sign In
-              </button>
+            {/* List header — with date picker inline, mirrors Transport */}
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-slate-800">
+                {selectedDate ? `Bookings on ${formatShortDate(selectedDate)}` : "Upcoming Bookings"}
+              </h2>
+              <div className="flex items-center gap-2">
+                {!selectedDate && upcomingCount > 3 && (
+                  <button
+                    onClick={() => setShowAllUpcoming(!showAllUpcoming)}
+                    className="text-sm text-green-700 font-medium hover:text-green-800 hover:underline underline-offset-2"
+                  >
+                    {showAllUpcoming ? "Show less" : "View all"}
+                  </button>
+                )}
+                {selectedDate && (
+                  <button
+                    onClick={() => setSelectedDate("")}
+                    className="text-sm text-green-700 hover:text-green-800 font-medium"
+                  >
+                    Clear
+                  </button>
+                )}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="border border-slate-300 rounded-xl px-4 py-2 text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-slate-800"
+                />
+              </div>
             </div>
-          )}
 
-          {user && isLoading && (
-            <div className="flex flex-col">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="hidden md:grid grid-cols-12 items-center px-5 py-4 border-b border-slate-100 animate-pulse bg-white">
-                  <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
-                  <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
-                  <div className="col-span-3 pr-4 space-y-2"><div className="h-5 bg-slate-100 rounded w-48"></div><div className="h-4 bg-slate-100 rounded w-32"></div></div>
-                  <div className="col-span-2 pr-4 flex gap-2"><div className="h-6 bg-slate-100 rounded-full w-16"></div><div className="h-6 bg-slate-100 rounded-full w-16"></div></div>
-                  <div className="col-span-1 pr-4"><div className="h-6 bg-slate-100 rounded w-20"></div></div>
-                  <div className="col-span-1 pr-4"><div className="h-6 bg-slate-100 rounded w-20"></div></div>
-                  <div className="col-span-1 flex justify-end"><div className="h-4 w-4 bg-slate-100 rounded"></div></div>
+            {/* Booking table */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+
+              {/* Table header */}
+              <div className="hidden md:grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
+                <span className="col-span-2 caps-label">From Date</span>
+                <span className="col-span-2 caps-label">To Date</span>
+                <span className="col-span-4 caps-label">Event</span>
+                <span className="col-span-2 caps-label">Meals</span>
+                <span className="col-span-1 caps-label">Status</span>
+                <span className="col-span-1 caps-label text-right">·</span>
+              </div>
+
+              {!user && (
+                <div className="py-16 text-center space-y-3">
+                  <p className="text-base text-slate-500">Sign in to view your food bookings</p>
+                  <button
+                    onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition"
+                  >
+                    Sign In
+                  </button>
                 </div>
+              )}
+
+              {user && isLoading && (
+                <div className="flex flex-col">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="hidden md:grid grid-cols-12 items-center px-5 py-5 border-b border-slate-100 animate-pulse bg-white">
+                      <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
+                      <div className="col-span-2 pr-4"><div className="h-5 bg-slate-100 rounded w-24"></div></div>
+                      <div className="col-span-4 pr-4 space-y-2"><div className="h-5 bg-slate-100 rounded w-48"></div><div className="h-4 bg-slate-100 rounded w-32"></div></div>
+                      <div className="col-span-2 pr-4 flex gap-2"><div className="h-6 bg-slate-100 rounded-full w-16"></div><div className="h-6 bg-slate-100 rounded-full w-16"></div></div>
+                      <div className="col-span-1 pr-4"><div className="h-6 bg-slate-100 rounded w-20"></div></div>
+                      <div className="col-span-1 flex justify-end"><div className="h-4 w-4 bg-slate-100 rounded"></div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {user && !isLoading && filteredBookings.length === 0 && (
+                <div className="py-16 text-center text-base text-slate-500">
+                  No bookings match the selected filters.
+                </div>
+              )}
+
+              {user && !isLoading && filteredBookings.map((b, idx) => (
+                <React.Fragment key={b.id}>
+
+                  {/* MOBILE CARD */}
+                  <div
+                    data-booking-reference={b.reference_code || ""}
+                    onClick={() => { setSelectedViewBooking(b); setDetailDay(0) }}
+                    className={`md:hidden mx-3 my-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 cursor-pointer transition ${
+                      normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+                        ? "ring-2 ring-emerald-300" : ""
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-slate-900 truncate">{b.purpose_of_programme}</h3>
+                        <p className="text-sm text-slate-500 mt-1">{formatDateRange(b.start_date, b.end_date)}</p>
+                      </div>
+                      <StatusBadge status={b.status} />
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">Meals</p>
+                        <MealTimePills booking={b} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">Starts</p>
+                          <p className="text-sm font-semibold text-emerald-600">{getEarliestTime(b)}</p>
+                        </div>
+                        <DurationBadge booking={b} />
+                      </div>
+                      {getSubmissionTimestamp(b) && (
+                        <p className="text-xs text-slate-400">Submitted {timeAgo(getSubmissionTimestamp(b))}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* DESKTOP TABLE ROW */}
+                  <div
+                    data-booking-reference={b.reference_code || ""}
+                    onClick={() => { setSelectedViewBooking(b); setDetailDay(0) }}
+                    className={[
+                      "hidden md:grid grid-cols-12 items-center px-5 py-5 cursor-pointer transition-colors",
+                      idx !== filteredBookings.length - 1 ? "border-b border-slate-100" : "",
+                      "hover:bg-slate-50/70",
+                      normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
+                        ? "bg-emerald-50 ring-2 ring-emerald-300 ring-inset" : "",
+                    ].join(" ")}
+                  >
+                    {/* From Date */}
+                    <div className="col-span-2">
+                      <p className="text-sm font-semibold text-slate-800 tabular-nums leading-tight">
+                        {formatShortDate(b.start_date).replace(/(\d{4})$/, '')}<br />
+                        <span className="text-slate-500 font-medium">{b.start_date?.slice(0, 4)}</span>
+                      </p>
+                    </div>
+
+                    {/* To Date */}
+                    <div className="col-span-2">
+                      <p className="text-sm font-semibold text-slate-800 tabular-nums leading-tight">
+                        {formatShortDate(b.end_date).replace(/(\d{4})$/, '')}<br />
+                        <span className="text-slate-500 font-medium">{b.end_date?.slice(0, 4)}</span>
+                      </p>
+                    </div>
+
+                    {/* Event */}
+                    <div className="col-span-4 pr-4">
+                      <p className="text-base font-semibold text-slate-900 truncate">{b.purpose_of_programme}</p>
+                      <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
+                        <Clock3 size={12} className="text-emerald-500 shrink-0" />
+                        Starts {getEarliestTime(b)}
+                      </p>
+                      {getSubmissionTimestamp(b) && (
+                        <p className="text-xs text-slate-400 mt-0.5">Submitted {timeAgo(getSubmissionTimestamp(b))}</p>
+                      )}
+                    </div>
+
+                    {/* Meals */}
+                    <div className="col-span-2 pr-3">
+                      <MealTimePills booking={b} />
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-1">
+                      <StatusBadge status={b.status} />
+                    </div>
+
+                    {/* Chevron */}
+                    <div className="col-span-1 flex justify-end">
+                      <ChevronRight size={16} className="text-slate-400" />
+                    </div>
+                  </div>
+
+                </React.Fragment>
               ))}
             </div>
-          )}
-
-          {user && !isLoading && filteredBookings.length === 0 && (
-            <div className="py-16 text-center text-base text-slate-500">
-              No bookings match the selected filters.
-            </div>
-          )}
-
-{user && !isLoading && filteredBookings.map((b, idx) => (
-  <React.Fragment key={b.id}>
-
-    {/* MOBILE CARD */}
-    <div
-      data-booking-reference={b.reference_code || ""}
-      onClick={() => {
-        setSelectedViewBooking(b)
-        setDetailDay(0)
-      }}
-      className={`md:hidden mx-3 my-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 cursor-pointer transition ${
-        normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
-          ? "ring-2 ring-emerald-300"
-          : ""
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-base font-bold text-slate-900 truncate">
-            {b.purpose_of_programme}
-          </h3>
-          <p className="text-sm text-slate-500 mt-1">
-            {formatDateRange(b.start_date, b.end_date)}
-          </p>
-        </div>
-
-        <span className={`text-[11px] px-2.5 py-1 rounded-full font-semibold ${getStatusStyle(b.status)}`}>
-          {b.status}
-        </span>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">
-            Meals
-          </p>
-          <MealTimePills booking={b} />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">
-              Starts
-            </p>
-            <p className="text-sm font-semibold text-emerald-600">
-              {getEarliestTime(b)}
-            </p>
           </div>
 
-          <DurationBadge booking={b} />
-        </div>
+          {/* Sidebar — My Requests */}
+          <div className="lg:col-span-1">
+            <MessMyRequests />
+          </div>
 
-        {getSubmissionTimestamp(b) && (
-          <p className="text-xs text-slate-400">
-            Submitted {timeAgo(getSubmissionTimestamp(b))}
-          </p>
-        )}
-      </div>
-    </div>
-
-    {/* DESKTOP TABLE */}
-    <div
-      data-booking-reference={b.reference_code || ""}
-      onClick={() => {
-        setSelectedViewBooking(b)
-        setDetailDay(0)
-      }}
-      className={[
-        "hidden md:grid grid-cols-12 items-center px-5 py-4 cursor-pointer transition-colors",
-        idx !== filteredBookings.length - 1 ? "border-b border-slate-100" : "",
-        "hover:bg-slate-50/70",
-        normaliseReference(b.reference_code) === normaliseReference(highlightedReference)
-          ? "bg-emerald-50 ring-2 ring-emerald-300 ring-inset"
-          : "",
-      ].join(" ")}
-    >
-      <div className="col-span-2">
-        <p className="text-base font-semibold text-slate-800 tabular-nums">
-          {formatShortDate(b.start_date)}
-        </p>
-      </div>
-
-      <div className="col-span-2">
-        <p className="text-base font-semibold text-slate-800 tabular-nums">
-          {formatShortDate(b.end_date)}
-        </p>
-      </div>
-
-      <div className="col-span-3 pr-4">
-        <p className="text-base font-semibold text-slate-900 truncate">
-          {b.purpose_of_programme}
-        </p>
-
-        <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
-          <Clock3 size={12} className="text-emerald-500 shrink-0" />
-          Starts {getEarliestTime(b)}
-        </p>
-
-        {getSubmissionTimestamp(b) && (
-          <p className="text-xs text-slate-400 mt-0.5">
-            Submitted {timeAgo(getSubmissionTimestamp(b))}
-          </p>
-        )}
-      </div>
-
-      <div className="col-span-2 pr-4">
-        <MealTimePills booking={b} />
-      </div>
-
-      <div className="col-span-1">
-        <DurationBadge booking={b} />
-      </div>
-
-      <div className="col-span-1">
-        <span className={`caps-label px-2 py-1 rounded-md ${getStatusStyle(b.status)}`}>
-          {b.status}
-        </span>
-      </div>
-
-      <div className="col-span-1 flex justify-end">
-        <ChevronRight size={16} className="text-slate-400" />
-      </div>
-    </div>
-
-  </React.Fragment>
-))}
         </div>
       </div>
 
@@ -498,12 +509,12 @@ function Mess() {
         const b       = selectedViewBooking
         const menus   = b.daily_menus ?? []
         const dayMenu = menus[detailDay] ?? {}
+        const showActions = canEdit(b) || canCancel(b)
 
         return (
           <div className="fixed inset-0 z-50 flex justify-end bg-black/25 backdrop-blur-sm">
             <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-200">
 
-              {/* Panel header */}
               <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/60">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Booking Details</h2>
@@ -515,17 +526,13 @@ function Mess() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-
-                {/* General info */}
                 <section className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-lg font-semibold text-slate-900 leading-snug">{b.purpose_of_programme}</p>
-                    <span className={`caps-label shrink-0 px-2.5 py-1 rounded-md ${getStatusStyle(b.status)}`}>
-                      {b.status}
-                    </span>
+                    <StatusBadge status={b.status} />
                   </div>
 
-                  {b.status?.toLowerCase() === "rejected" && b.rejection_remark && (
+                  {b.status?.toUpperCase() === "REJECTED" && b.rejection_remark && (
                     <div className="flex gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                       <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
                       <div>
@@ -547,6 +554,9 @@ function Mess() {
                           </span>
                         )}
                       </p>
+                      <div className="mt-2">
+                        <DurationBadge booking={b} />
+                      </div>
                     </div>
                     <div>
                       <p className="caps-label mb-1">First Meal Time</p>
@@ -563,9 +573,7 @@ function Mess() {
                       <p className="text-base font-medium text-slate-800 flex items-center gap-2">
                         <Users size={15} className="text-slate-500 shrink-0" />
                         {getTotalPersons(b)} total
-                        <span className="text-slate-600 text-sm">
-                          ({getTotalVeg(b)} veg · {getTotalNonVeg(b)} non-veg)
-                        </span>
+                        <span className="text-slate-600 text-sm">({getTotalVeg(b)} veg · {getTotalNonVeg(b)} non-veg)</span>
                       </p>
                     </div>
                   </div>
@@ -573,7 +581,6 @@ function Mess() {
 
                 <hr className="border-slate-100" />
 
-                {/* Day tabs — stays text-xs, they're compact nav chips */}
                 {menus.length > 1 && (
                   <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                     {menus.map((m, i) => (
@@ -592,16 +599,13 @@ function Mess() {
                   </div>
                 )}
 
-                {/* Headcount */}
                 <section>
-                  <p className="caps-label mb-3">
-                    {menus.length > 1 ? `Day ${detailDay + 1} Headcount` : "Headcount"}
-                  </p>
+                  <p className="caps-label mb-3">{menus.length > 1 ? `Day ${detailDay + 1} Headcount` : "Headcount"}</p>
                   <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     {[
-                      { value: dayMenu.veg_persons,    label: "Veg",     color: "text-emerald-600" },
-                      { value: dayMenu.nonveg_persons,  label: "Non-Veg", color: "text-red-500"     },
-                      { value: dayMenu.total_persons,   label: "Total",   color: "text-slate-900"   },
+                      { value: dayMenu.veg_persons,   label: "Veg",     color: "text-emerald-600" },
+                      { value: dayMenu.nonveg_persons, label: "Non-Veg", color: "text-red-500"     },
+                      { value: dayMenu.total_persons,  label: "Total",   color: "text-slate-900"   },
                     ].map(({ value, label, color }, i, arr) => (
                       <React.Fragment key={label}>
                         <div className="flex-1 text-center py-4">
@@ -614,11 +618,8 @@ function Mess() {
                   </div>
                 </section>
 
-                {/* Menu */}
                 <section>
-                  <p className="caps-label mb-3">
-                    {menus.length > 1 ? `Day ${detailDay + 1} Menu` : "Food Menu"}
-                  </p>
+                  <p className="caps-label mb-3">{menus.length > 1 ? `Day ${detailDay + 1} Menu` : "Food Menu"}</p>
                   <div className="space-y-2.5">
                     {MEALS.filter((m) => dayMenu[m.timeKey]).map(({ id, label, menuKey, timeKey }) => {
                       const time = dayMenu[timeKey]?.slice(0, 5) ?? null
@@ -640,31 +641,33 @@ function Mess() {
                       )
                     })}
                     {!MEALS.some((m) => dayMenu[m.timeKey]) && (
-                      <p className="text-base text-slate-500 italic text-center py-6">
-                        No meals selected for this day.
-                      </p>
+                      <p className="text-base text-slate-500 italic text-center py-6">No meals selected for this day.</p>
                     )}
                   </div>
                 </section>
               </div>
 
-              {/* Footer */}
-              {(b.can_modify ?? isEditable(b.status)) && isEditable(b.status) && (
+              {showActions && (
                 <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-2">
-                  <button
-                    onClick={() => openDeleteModal(b)}
-                    className="px-4 py-2 text-sm border border-slate-200 text-red-600 rounded-xl hover:bg-red-50 hover:border-red-200 transition-colors font-medium flex items-center gap-1.5"
-                  >
-                    <Trash2 size={14} /> Cancel
-                  </button>
-                  <button
-                    onClick={() => openEditModal(b)}
-                    className="px-5 py-2 text-sm bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-1.5"
-                  >
-                    <Pencil size={14} /> Edit Booking
-                  </button>
+                  {canCancel(b) && (
+                    <button
+                      onClick={() => openDeleteModal(b)}
+                      className="px-4 py-2 text-sm border border-slate-200 text-red-600 rounded-xl hover:bg-red-50 hover:border-red-200 transition-colors font-medium flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} /> Cancel
+                    </button>
+                  )}
+                  {canEdit(b) && (
+                    <button
+                      onClick={() => openEditModal(b)}
+                      className="px-5 py-2 text-sm bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-1.5"
+                    >
+                      <Pencil size={14} /> Edit Booking
+                    </button>
+                  )}
                 </div>
               )}
+
             </div>
           </div>
         )
@@ -694,9 +697,7 @@ function Mess() {
               <Trash2 size={22} className="text-red-500" />
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-1">Cancel Booking?</h2>
-            <p className="text-base text-slate-600 leading-relaxed mb-4">
-              You're about to cancel this food request for:
-            </p>
+            <p className="text-base text-slate-600 leading-relaxed mb-4">You're about to cancel this food request for:</p>
             <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200 mb-4">
               <p className="text-base font-semibold text-slate-800">{selectedBookingToDelete.purpose_of_programme}</p>
               <p className="text-sm text-slate-500 mt-1 tabular-nums">
