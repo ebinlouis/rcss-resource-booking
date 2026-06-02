@@ -655,17 +655,41 @@ const filteredBookings = useMemo(() => {
       }
 
       if (statusFilter === "ACTIVE") {
+        const endDate = new Date(
+          booking.end_datetime || booking.end_time || booking.end
+        )
         return (
-          booking.status === "APPROVED" &&
-          new Date(booking.end_datetime) > now
+          [
+            "APPROVED",
+            "CONFIRMED",
+            "ACTIVE"
+          ].includes(booking.status) &&
+          endDate > now
         )
       }
 
       if (statusFilter === "COMPLETED") {
-        return booking.status === "COMPLETED" || (
-          booking.status === "APPROVED" &&
-          new Date(booking.end_datetime) < now
+        const endDate = new Date(
+          booking.end_datetime || booking.end_time || booking.end
         )
+        return (
+          [
+            "APPROVED",
+            "CONFIRMED",
+            "ACTIVE",
+            "COMPLETED"
+          ].includes(booking.status) &&
+          endDate < now
+        )
+      }
+
+      if (statusFilter === "REJECTED") {
+        return [
+          "REJECTED",
+          "DECLINED",
+          "FACULTY_REJECTED",
+          "VENUE_REJECTED"
+        ].includes(booking.status)
       }
 
       return true
@@ -708,20 +732,42 @@ const filteredBookings = useMemo(() => {
       ].includes(booking.status)
     ).length
 
-    const approved = myBookings.filter(
-      (booking) =>
-        booking.status === "APPROVED" &&
-        new Date(booking.end_datetime) > now
-    ).length
+    const approved = myBookings.filter((booking) => {
+      const endDate = new Date(
+        booking.end_datetime || booking.end_time || booking.end
+      )
+      return (
+        [
+          "APPROVED",
+          "CONFIRMED",
+          "ACTIVE"
+        ].includes(booking.status) &&
+        endDate > now
+      )
+    }).length
 
-    const completed = myBookings.filter(
-      (booking) =>
-        booking.status === "COMPLETED" ||
-        (
-          booking.status === "APPROVED" &&
-          booking.end_datetime &&
-          new Date(booking.end_datetime) < now
-        )
+    const completed = myBookings.filter((booking) => {
+      const endDate = new Date(
+        booking.end_datetime || booking.end_time || booking.end
+      )
+      return (
+        [
+          "APPROVED",
+          "CONFIRMED",
+          "ACTIVE",
+          "COMPLETED"
+        ].includes(booking.status) &&
+        endDate < now
+      )
+    }).length
+
+    const rejected = myBookings.filter((booking) =>
+      [
+        "REJECTED",
+        "DECLINED",
+        "FACULTY_REJECTED",
+        "VENUE_REJECTED"
+      ].includes(booking.status)
     ).length
 
     return {
@@ -729,6 +775,7 @@ const filteredBookings = useMemo(() => {
       pending,
       approved,
       completed,
+      rejected,
     }
   }, [myBookings])
 
@@ -990,6 +1037,17 @@ rounded-xl md:rounded-2xl
     }`}
   >
     Completed ({dashboardStats.completed})
+  </button>
+
+  <button
+    onClick={() => setStatusFilter("REJECTED")}
+    className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${
+      statusFilter === "REJECTED"
+        ? "bg-green-600 text-white shadow-sm"
+        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+    }`}
+  >
+    Rejected ({dashboardStats.rejected})
   </button>
 </div>
             </div>
