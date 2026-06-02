@@ -863,9 +863,10 @@ const AdminDashboard = () => {
     const approvedQuery = useApprovals(PAGE_DOMAIN, 'APPROVED');
     const rejectedQuery = useApprovals(PAGE_DOMAIN, 'REJECTED');
     const cancelledQuery = useApprovals(PAGE_DOMAIN, 'CANCELLED');
+    const expiredQuery = useApprovals(PAGE_DOMAIN, 'EXPIRED');
 
-    const isLoading = pendingQuery.isLoading || approvedQuery.isLoading || rejectedQuery.isLoading || cancelledQuery.isLoading;
-    const isFetching = pendingQuery.isFetching || approvedQuery.isFetching || rejectedQuery.isFetching || cancelledQuery.isFetching;
+    const isLoading = pendingQuery.isLoading || approvedQuery.isLoading || rejectedQuery.isLoading || cancelledQuery.isLoading || expiredQuery.isLoading;
+    const isFetching = pendingQuery.isFetching || approvedQuery.isFetching || rejectedQuery.isFetching || cancelledQuery.isFetching || expiredQuery.isFetching;
 
     const raw = useMemo(() => {
         const r = {
@@ -873,13 +874,15 @@ const AdminDashboard = () => {
             approved: groupBookings(approvedQuery.data?.queue || []),
             rejected: groupBookings(rejectedQuery.data?.queue || []),
             cancelled: groupBookings(cancelledQuery.data?.queue || []),
+            expired: groupBookings(expiredQuery.data?.queue || []),
         };
         return r;
     }, [
         pendingQuery.data?.queue,
         approvedQuery.data?.queue,
         rejectedQuery.data?.queue,
-        cancelledQuery.data?.queue
+        cancelledQuery.data?.queue,
+        expiredQuery.data?.queue
     ]);
 
     // ── UI state ──────────────────────────────────────────────────────────────
@@ -916,10 +919,10 @@ const AdminDashboard = () => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
-        const res = [...raw.approved, ...raw.rejected, ...raw.cancelled]
+        const res = [...raw.approved, ...raw.rejected, ...raw.cancelled, ...raw.expired]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         return res;
-    }, [raw.approved, raw.rejected, raw.cancelled]);
+    }, [raw.approved, raw.rejected, raw.cancelled, raw.expired]);
 
     const upcoming = useMemo(() => {
         const res = raw.approved
@@ -944,6 +947,8 @@ const AdminDashboard = () => {
             result = result.filter(b => b.status === 'REJECTED');
         } else if (statusFilter === 'cancelled') {
             result = result.filter(b => b.status === 'CANCELLED');
+        } else if (statusFilter === 'expired') {
+            result = result.filter(b => b.status === 'EXPIRED');
         }
 
         if (timingFilter === 'today') {
@@ -1159,6 +1164,7 @@ const AdminDashboard = () => {
             { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
             { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
             { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
+            { value: 'expired', label: 'Expired', count: baseList.filter(b => b.status === 'EXPIRED').length },
         ];
         return res;
     }, [baseList]);
