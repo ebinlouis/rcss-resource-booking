@@ -148,7 +148,7 @@ class SpaceSerializer(serializers.ModelSerializer):
                     "chain_fallback_approver": "A fallback approver is required for HOD Fallback workflow."
                 })
         return data
-
+  
     def _handle_chain(self, space, validated_data):
         workflow = validated_data.get(
             'approval_workflow_type',

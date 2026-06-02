@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth"
+import { useFacultyApprovalBadge } from "../hooks/useFacultyApprovalBadge"
 import NotificationBell from "./NotificationBell"
 
 import {
@@ -9,45 +10,37 @@ import {
   Clapperboard,
   UtensilsCrossed,
   ShieldCheck,
-
+  ClipboardCheck,
 } from "lucide-react"
 
+/* ─── Static nav tabs (visible to everyone) ──────────────────────────────── */
 const BASE_TABS = [
-  { name: "Venues", path: "/dashboard", icon: LayoutGrid },
-  { name: "Transport", path: "/transport", icon: Bus },
-  { name: "Media", path: "/media", icon: Clapperboard },
-  { name: "Food", path: "/mess", icon: UtensilsCrossed },
-
+  { name: "Venues",    path: "/dashboard", icon: LayoutGrid      },
+  { name: "Transport", path: "/transport", icon: Bus             },
+  { name: "Media",     path: "/media",     icon: Clapperboard    },
+  { name: "Food",      path: "/mess",      icon: UtensilsCrossed },
 ]
 
+/* ─── Role helpers ────────────────────────────────────────────────────────── */
 const ROLE_DISPLAY_MAP = {
-  IT_ADMIN: "IT Admin",
-  PRINCIPAL: "Principal",
-  HOD: "Head of Department",
-  RECEPTIONIST: "Receptionist",
-  LAB_INCHARGE: "Lab In-Charge",
-  LIBRARIAN: "Librarian",
-  MESS_MANAGER: "Mess Manager",
-  MEDIA_INCHARGE: "Media In-Charge",
+  IT_ADMIN:      "IT Admin",
+  PRINCIPAL:     "Principal",
+  HOD:           "Head of Department",
+  RECEPTIONIST:  "Receptionist",
+  LAB_INCHARGE:  "Lab In-Charge",
+  LIBRARIAN:     "Librarian",
+  MESS_MANAGER:  "Mess Manager",
+  MEDIA_INCHARGE:"Media In-Charge",
   FLEET_MANAGER: "Fleet Manager",
-  FACULTY: "Faculty",
-  STAFF: "Staff",
-  STUDENT: "Student",
+  FACULTY:       "Faculty",
+  STAFF:         "Staff",
+  STUDENT:       "Student",
 }
 
 const ROLE_PRIORITY = [
-  "IT_ADMIN",
-  "PRINCIPAL",
-  "HOD",
-  "RECEPTIONIST",
-  "LAB_INCHARGE",
-  "LIBRARIAN",
-  "MESS_MANAGER",
-  "MEDIA_INCHARGE",
-  "FLEET_MANAGER",
-  "FACULTY",
-  "STAFF",
-  "STUDENT",
+  "IT_ADMIN","PRINCIPAL","HOD","RECEPTIONIST","LAB_INCHARGE",
+  "LIBRARIAN","MESS_MANAGER","MEDIA_INCHARGE","FLEET_MANAGER",
+  "FACULTY","STAFF","STUDENT",
 ]
 
 const getRoleLabel = (effectiveRoles = []) => {
@@ -56,14 +49,15 @@ const getRoleLabel = (effectiveRoles = []) => {
   return ROLE_DISPLAY_MAP[top] ?? effectiveRoles[0]
 }
 
+/* ─── Avatar ──────────────────────────────────────────────────────────────── */
 function HeaderAvatar({ user }) {
   const initial = user?.name ? user.name[0].toUpperCase() : "U"
 
   const getProfileImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `http://localhost:8000${path.startsWith('/') ? '' : '/'}${path}`;
-  };
+    if (!path) return ""
+    if (path.startsWith("http://") || path.startsWith("https://")) return path
+    return `http://localhost:8000${path.startsWith("/") ? "" : "/"}${path}`
+  }
 
   return (
     <div
@@ -83,10 +77,32 @@ function HeaderAvatar({ user }) {
   )
 }
 
+/* ─── Approval badge pill ─────────────────────────────────────────────────── */
+function ApprovalBadge({ count, animate }) {
+  if (!count) return null
+  return (
+    <span
+      title={`${count} pending student approval${count !== 1 ? "s" : ""}`}
+      className={`
+        inline-flex items-center justify-center
+        min-w-[18px] h-[18px] px-1
+        rounded-full text-[10px] font-black leading-none
+        text-white ring-2 ring-white
+        transition-transform duration-300
+        bg-red-600
+        ${animate ? "scale-125 animate-bounce" : "scale-100"}
+      `}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  )
+}
+
+/* ─── Main Navbar ─────────────────────────────────────────────────────────── */
 function Navbar({ onTabChange }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const navigate    = useNavigate()
+  const location    = useLocation()
+  const [menuOpen,    setMenuOpen]    = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
 
@@ -99,23 +115,56 @@ function Navbar({ onTabChange }) {
     can_manage_mess,
   } = useAuth()
 
+  /* ── Badge data ── */
+  const { pendingCount, animate, isFaculty } = useFacultyApprovalBadge()
+
+  /* ── Build tab list ── */
+  const tabs = [...BASE_TABS]
+  if (isFaculty) {
+    tabs.push({
+      name:   "My Approvals",
+      path:   "/faculty-approvals",
+      icon:   ClipboardCheck,
+      badge:  pendingCount,
+      badgeAnimate: animate,
+    })
+  }
+
+  /* ── Profile dropdown items (NO "My Approvals") ── */
+  const profileMenuItems = [
+    {
+      label: "My Bookings",
+      path:  "/my-bookings",
+      d:     "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    },
+    {
+      label: "Notifications",
+      path:  "/notifications",
+      d:     "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
+    },
+    {
+      label: "Profile",
+      path:  "/profile",
+      d:     "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    },
+  ]
+
+  /* ── Close profile dropdown on outside click ── */
   useEffect(() => {
     const handler = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false)
       }
     }
-
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
+  /* ── Close mobile menu on any outside click ── */
   useEffect(() => {
     if (!menuOpen) return
-
     const handler = () => setMenuOpen(false)
     setTimeout(() => window.addEventListener("click", handler), 0)
-
     return () => window.removeEventListener("click", handler)
   }, [menuOpen])
 
@@ -127,86 +176,53 @@ function Navbar({ onTabChange }) {
   const handleAdminPortalClick = (e) => {
     e.preventDefault()
     const can_manage_media = user?.capabilities?.can_manage_media
-
-    if (user?.is_superuser || can_manage_system) {
-      navigate("/admin")
-    } else if (can_manage_mess) {
-      navigate("/admin/mess")
-    } else if (can_manage_media) {
-      navigate("/admin/media")
-    } else {
-      navigate("/admin")
-    }
+    if (user?.is_superuser || can_manage_system) navigate("/admin")
+    else if (can_manage_mess)                    navigate("/admin/mess")
+    else if (can_manage_media)                   navigate("/admin/media")
+    else                                          navigate("/admin")
   }
 
   const roleLabel = getRoleLabel(effectiveRoles)
-
-  const tabs = [...BASE_TABS]
-
-if (effectiveRoles.includes("FACULTY")) {
-  tabs.push({
-    name: "Faculty Approval",
-    path: "/faculty-approvals",
-    icon: ShieldCheck,
-  })
-}
-
-  const profileMenuItems = [
-    {
-      label: "My Bookings",
-      path: "/my-bookings",
-      d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-    },
-    effectiveRoles.includes("FACULTY")
-      ? {
-          label: "My Approvals",
-          path: "/faculty-approvals",
-          d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-        }
-      : null,
-    {
-      label: "Notifications",
-      path: "/notifications",
-      d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    },
-    {
-      label: "Profile",
-      path: "/profile",
-      d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-    },
-  ].filter(Boolean)
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/40 bg-white/70 backdrop-blur-xl">
       <div className="w-full px-4 md:px-8 xl:px-10">
         <div className="flex items-center justify-between h-16 md:h-20 gap-4">
+
+          {/* Logo */}
           <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden shrink-0">
-            <img
-              src="/logo.png"
-              alt="RCSS Logo"
-              className="w-full h-full object-contain"
-            />
+            <img src="/logo.png" alt="RCSS Logo" className="w-full h-full object-contain" />
           </div>
 
-          {/* Desktop nav */}
+          {/* ── Desktop nav ── */}
           <nav className="hidden md:flex items-stretch gap-1 self-stretch">
             {tabs.map((tab) => {
               const isActive = location.pathname === tab.path
-              const Icon = tab.icon
+              const Icon     = tab.icon
 
               return (
                 <Link
                   key={tab.name}
                   to={tab.path}
                   onClick={() => onTabChange?.(tab)}
-                  className={`relative px-5 text-sm font-medium transition-all duration-300 flex items-center border-b-2 gap-2 ${
-                    isActive
+                  title={
+                    tab.badge
+                      ? `${tab.badge} pending student approval${tab.badge !== 1 ? "s" : ""}`
+                      : undefined
+                  }
+                  className={`
+                    relative px-5 text-sm font-medium transition-all duration-300
+                    flex items-center border-b-2 gap-2
+                    ${isActive
                       ? "border-green-700 text-green-700"
-                      : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-                  }`}
+                      : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}
+                  `}
                 >
                   <Icon className="w-[16px] h-[16px]" />
                   {tab.name}
+                  {tab.badge != null && (
+                    <ApprovalBadge count={tab.badge} animate={tab.badgeAnimate} />
+                  )}
                 </Link>
               )
             })}
@@ -214,11 +230,13 @@ if (effectiveRoles.includes("FACULTY")) {
             {can_access_admin_portal && (
               <button
                 onClick={handleAdminPortalClick}
-                className={`relative px-5 text-sm font-medium transition-all duration-300 flex items-center border-b-2 gap-2 ${
-                  location.pathname.startsWith("/admin")
+                className={`
+                  relative px-5 text-sm font-medium transition-all duration-300
+                  flex items-center border-b-2 gap-2
+                  ${location.pathname.startsWith("/admin")
                     ? "border-green-700 text-green-700"
-                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
-                }`}
+                    : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}
+                `}
               >
                 <ShieldCheck className="w-[16px] h-[16px]" />
                 Admin Portal
@@ -226,6 +244,7 @@ if (effectiveRoles.includes("FACULTY")) {
             )}
           </nav>
 
+          {/* ── Right side controls ── */}
           <div className="flex items-center gap-2 md:gap-3">
             {user ? (
               <>
@@ -234,49 +253,29 @@ if (effectiveRoles.includes("FACULTY")) {
                 {/* Desktop profile dropdown */}
                 <div className="relative hidden md:block" ref={profileRef}>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setProfileOpen(!profileOpen)
-                    }}
+                    onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen) }}
                     className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition"
                   >
                     <HeaderAvatar user={user} />
-
                     <div className="text-left leading-tight">
-                      <p className="text-sm font-semibold text-gray-800">
-                        {user?.name || "Loading..."}
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800">{user?.name || "Loading..."}</p>
                       <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">
                         {roleLabel}
                       </p>
                     </div>
-
                     <svg
-                      className={`w-3 h-3 text-gray-400 transition-transform ${
-                        profileOpen ? "rotate-180" : ""
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
+                      className={`w-3 h-3 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
                   {profileOpen && (
                     <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
                       <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {user?.name || "User"}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate mt-0.5">
-                          {user?.email || "No email provided"}
-                        </p>
+                        <p className="text-sm font-semibold text-gray-800 truncate">{user?.name || "User"}</p>
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email || "No email provided"}</p>
                       </div>
 
                       <div className="py-1">
@@ -287,13 +286,7 @@ if (effectiveRoles.includes("FACULTY")) {
                             onClick={() => setProfileOpen(false)}
                             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition text-left"
                           >
-                            <svg
-                              className="w-4 h-4 text-gray-400 shrink-0"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.8}
-                            >
+                            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                               <path strokeLinecap="round" strokeLinejoin="round" d={d} />
                             </svg>
                             {label}
@@ -306,18 +299,8 @@ if (effectiveRoles.includes("FACULTY")) {
                           onClick={handleLogout}
                           className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition text-left font-medium"
                         >
-                          <svg
-                            className="w-4 h-4 shrink-0"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={1.8}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                            />
+                          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                           </svg>
                           Sign out
                         </button>
@@ -326,7 +309,7 @@ if (effectiveRoles.includes("FACULTY")) {
                   )}
                 </div>
 
-                {/* Mobile: avatar only (tapping opens menu via hamburger) */}
+                {/* Mobile: avatar only */}
                 <div className="md:hidden">
                   <HeaderAvatar user={user} />
                 </div>
@@ -344,32 +327,22 @@ if (effectiveRoles.includes("FACULTY")) {
             <button
               type="button"
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600"
-              onClick={(e) => {
-                e.stopPropagation()
-                setMenuOpen(!menuOpen)
-              }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen) }}
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
-                />
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
               </svg>
             </button>
           </div>
+
         </div>
       </div>
 
-      {/* Mobile menu panel */}
+      {/* ── Mobile menu panel ── */}
       {menuOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white/95 backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
+
           {/* User info strip */}
           {user && (
             <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 bg-gray-50">
@@ -386,20 +359,23 @@ if (effectiveRoles.includes("FACULTY")) {
           <nav className="px-3 py-2 border-b border-gray-100">
             {tabs.map((tab) => {
               const isActive = location.pathname === tab.path
-              const Icon = tab.icon
+              const Icon     = tab.icon
               return (
                 <Link
                   key={tab.name}
                   to={tab.path}
                   onClick={() => { onTabChange?.(tab); setMenuOpen(false) }}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition ${
-                    isActive
-                      ? "bg-green-50 text-green-700"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`}
+                  className={`
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition
+                    ${isActive ? "bg-green-50 text-green-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}
+                  `}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  {tab.name}
+                  <span className="flex-1">{tab.name}</span>
+                  {/* Mobile badge for My Approvals */}
+                  {tab.badge != null && (
+                    <ApprovalBadge count={tab.badge} animate={tab.badgeAnimate} />
+                  )}
                 </Link>
               )
             })}
@@ -407,11 +383,12 @@ if (effectiveRoles.includes("FACULTY")) {
             {can_access_admin_portal && (
               <button
                 onClick={(e) => { handleAdminPortalClick(e); setMenuOpen(false) }}
-                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition ${
-                  location.pathname.startsWith("/admin")
+                className={`
+                  w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition
+                  ${location.pathname.startsWith("/admin")
                     ? "bg-green-50 text-green-700"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}
+                `}
               >
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 Admin Portal
@@ -419,7 +396,7 @@ if (effectiveRoles.includes("FACULTY")) {
             )}
           </nav>
 
-          {/* Profile links */}
+          {/* Profile links (no My Approvals) */}
           {user && (
             <div className="px-3 py-2">
               {profileMenuItems.map(({ label, path, d }) => (
