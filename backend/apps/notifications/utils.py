@@ -286,9 +286,24 @@ def _booking_reference(booking):
 
 
 def mark_pending_request_notifications_read(booking, domain=""):
+    """
+    Clears all actionable notifications for a booking reference when the
+    booking is resolved — approved, rejected, expired, or cancelled.
+
+    Covers all actionable categories, not just BOOKING_PENDING, so that
+    faculty escalation and resent notifications are also cleared correctly.
+    """
     reference = _booking_reference(booking)
+
+    actionable_categories = [
+        Notification.Category.BOOKING_PENDING,
+        Notification.Category.FACULTY_ESCALATED,
+        Notification.Category.FACULTY_APPROVAL_REQ,
+        Notification.Category.FACULTY_RESENT,
+    ]
+
     queryset = Notification.objects.filter(
-        category=Notification.Category.BOOKING_PENDING,
+        category__in=actionable_categories,
         reference_code=reference,
         is_actionable=True,
     )

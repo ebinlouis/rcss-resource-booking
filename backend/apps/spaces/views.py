@@ -15,7 +15,8 @@ from apps.notifications.utils import (
     notify_booking_status_change, notify_group_status_change, notify_new_request,
     notify_faculty_new_request, notify_faculty_approved, notify_faculty_rejected,
     notify_faculty_details_changed, notify_incharge_escalated, notify_incharge_booking_returned,
-    notify_faculty_resent, notify_student_cancelled_faculty, notify_incharge_booking_edited
+    notify_faculty_resent, notify_student_cancelled_faculty, notify_incharge_booking_edited,
+    mark_pending_request_notifications_read,
 )
 from apps.users.models import Role, CustomUser
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
@@ -1247,6 +1248,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                     reference_code=_booking_reference(booking),
                     is_actionable=True,
                 )
+            mark_pending_request_notifications_read(booking, domain='spaces')
             return
 
         category = booking.space.approval_category
@@ -1263,6 +1265,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             notify_new_request(booking, 'spaces', role)
         
+        mark_pending_request_notifications_read(booking, domain='spaces')
         return Response(self.get_serializer(booking).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -1286,6 +1289,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         
         notify_faculty_rejected(booking)
         cancel_linked_siblings_for_space(booking, reason=remarks)
+        mark_pending_request_notifications_read(booking, domain='spaces')
         return Response(self.get_serializer(booking).data)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
