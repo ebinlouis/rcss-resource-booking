@@ -11,6 +11,12 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.users.permissions import IsAdminOrReadOnly, IsApprover
+from apps.notifications.utils import (
+    mark_pending_request_notifications_read,
+    notify_booking_status_change,
+    notify_incharge_cancelled,
+    notify_comanagers_actioned,
+)
 from apps.fleet.models import Vehicle, FleetBooking
 from apps.fleet.serializers import VehicleSerializer, FleetBookingSerializer
 from apps.users.models import Role
@@ -328,6 +334,21 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
+        mark_pending_request_notifications_read(booking, domain='fleet')
+        notify_booking_status_change(
+            booking=booking,
+            new_status=new_status,
+            domain='fleet',
+            resolved_by=request.user,
+            remarks=remarks,
+        )
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='fleet',
+            actioned_by=request.user,
+            new_status=new_status,
+        )
+
         serializer = self.get_serializer(booking)
         return Response(serializer.data)
 
@@ -368,6 +389,19 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
 
         booking.status = 'CANCELLED'
         booking.save()
+
+        mark_pending_request_notifications_read(booking, domain='fleet')
+        notify_booking_status_change(
+            booking=booking,
+            new_status='CANCELLED',
+            domain='fleet',
+            resolved_by=None,
+        )
+        notify_incharge_cancelled(
+            booking=booking,
+            domain='fleet',
+            role_name='FLEET_MANAGER',
+        )
 
         return Response({
             "message": f"Booking {booking.reference_code} has been cancelled.",

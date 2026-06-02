@@ -1109,6 +1109,16 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 reason=remarks or 'Linked Space booking was rejected.',
             )
 
+        if new_status in ['APPROVED', 'REJECTED'] and updated_bookings:
+            from apps.notifications.utils import notify_comanagers_actioned
+            mark_pending_request_notifications_read(booking, domain='spaces')
+            notify_comanagers_actioned(
+                booking=updated_bookings[0],
+                domain='spaces',
+                actioned_by=user,
+                new_status=new_status,
+            )
+
         booking.refresh_from_db()
         serializer = self.get_serializer(booking)
         return Response(serializer.data, status=status.HTTP_200_OK)

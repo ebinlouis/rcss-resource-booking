@@ -247,6 +247,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             resolved_by=request.user,
         )
 
+        from apps.notifications.utils import notify_comanagers_actioned
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='mess',
+            actioned_by=request.user,
+            new_status='APPROVED',
+        )
+
         return Response({
             "status": "APPROVED",
             "message": "Booking approved."
@@ -317,6 +325,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             domain='mess',
             resolved_by=request.user,
             remarks=remark
+        )
+
+        from apps.notifications.utils import notify_comanagers_actioned
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='mess',
+            actioned_by=request.user,
+            new_status='REJECTED',
         )
 
         return Response({

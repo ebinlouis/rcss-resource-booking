@@ -1051,6 +1051,130 @@ def notify_student_cancelled_faculty(booking):
     )
 
 
+# ==========================================
+# CO-MANAGER ACTIONED NOTIFICATION
+# ==========================================
+
+def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
+    """
+    Notifies all co-managers of a venue/domain that another admin has
+    actioned a booking, so it doesn't silently vanish from their queue.
+    Creates a non-actionable Recent Updates notification for each
+    co-manager excluding the person who actioned it.
+
+    For spaces: uses scoped resolution (most-specific-wins).
+    For fleet/mess/media: notifies all users with the domain role.
+    """
+    reference = _booking_reference(booking)
+    resource = _resource_name(booking, domain)
+    time_str = _format_booking_time(booking, domain)
+    time_context = f" scheduled for {time_str}" if time_str else ""
+    link = _approver_link(domain, reference, tab='history')
+
+    actioned_by_name = (
+        f"{actioned_by.first_name} {actioned_by.last_name}".strip()
+        or actioned_by.email
+    )
+    status_display = new_status.lower()
+
+    title = f"Booking {new_status.title()} by {actioned_by_name}"
+    message = (
+        f"{actioned_by_name} {status_display} the booking for {resource}"
+        f"{time_context}. No action needed."
+    )
+
+    if domain == 'spaces':
+        # Resolve all co-managers for this space using most-specific-wins
+        space = getattr(booking, 'space', None)
+        if not space:
+            return
+
+        # Check chain-based spaces first
+        chain = getattr(space, 'approver_chain', None)
+        if chain:
+            for approver in [chain.primary_approver, chain.fallback_approver]:
+                if approver and approver.id != actioned_by.id:
+                    notify(
+                        approver,
+                        Notification.Category.SYSTEM,
+                        title,
+                        message,
+                        link=link,
+                        domain=domain,
+                        reference_code=reference,
+                        is_actionable=False,
+                    )
+            return
+
+        # Standard scoped spaces
+        approval_category = getattr(space, 'approval_category', None)
+        from apps.spaces.models import Space as SpaceModel
+        if approval_category == SpaceModel.ApprovalCategory.LAB:
+            role_name = Role.Name.LAB_INCHARGE
+        elif approval_category == SpaceModel.ApprovalCategory.LIBRARY:
+            role_name = Role.Name.LIBRARIAN
+        else:
+            role_name = Role.Name.RECEPTIONIST
+
+        recipients = resolve_space_approver_recipients(booking, role_name)
+        for recipient in recipients:
+            if recipient.id != actioned_by.id:
+                notify(
+                    recipient,
+                    Notification.Category.SYSTEM,
+                    title,
+                    message,
+                    link=link,
+                    domain=domain,
+                    reference_code=reference,
+                    is_actionable=False,
+                )
+
+    else:
+        # Fleet, mess, media — notify all role holders except actioned_by
+        role_map = {
+            'fleet': Role.Name.FLEET_MANAGER,
+            'mess': Role.Name.MESS_MANAGER,
+            'media': Role.Name.MEDIA_INCHARGE,
+        }
+        role_name = role_map.get(domain)
+        if not role_name:
+            return
+
+        now = timezone.now()
+        base_ids = list(
+            CustomUser.objects.filter(
+                is_active=True,
+                roles__name=role_name,
+            ).values_list("id", flat=True)
+        )
+        override_ids = list(
+            RoleOverride.objects.filter(
+                role__name=role_name,
+                user__is_active=True,
+                is_active=True,
+                revoked_at__isnull=True,
+            )
+            .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+            .values_list("user_id", flat=True)
+        )
+        recipients = CustomUser.objects.filter(
+            id__in=set(base_ids) | set(override_ids)
+        ).exclude(id=actioned_by.id).order_by("id")
+
+        for recipient in recipients:
+            notify(
+                recipient,
+                Notification.Category.SYSTEM,
+                title,
+                message,
+                link=link,
+                domain=domain,
+                reference_code=reference,
+                is_actionable=False,
+            )
+
+
 def notify_swap_event(swap_request, event):
     """
     Stub for future swap notifications.
