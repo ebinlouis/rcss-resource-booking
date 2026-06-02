@@ -21,7 +21,7 @@ import {
 
 import {
   Pencil, Trash2, Users, Clock3, X,
-  ChevronRight, AlertCircle, CalendarDays, Layers,
+  ChevronRight, AlertCircle, CalendarDays, Layers, Plus,
 } from "lucide-react"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -281,19 +281,19 @@ function Mess() {
 
   return (
     <MainLayout>
-      <div className="space-y-6 p-4 sm:p-6 relative">
+      <div className="mx-auto w-full max-w-[1280px] space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Food Bookings</h1>
-            <p className="text-base text-slate-600 mt-0.5">Manage your food requests</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900">Food Bookings</h1>
+            <p className="mt-2 text-sm text-gray-600">Manage your food requests</p>
           </div>
           <button
             onClick={handleNewBooking}
-            className="inline-flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl shadow-sm text-base font-semibold transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
           >
-            <span className="text-lg leading-none">+</span>
+            <Plus className="h-4 w-4" />
             Book Meal
           </button>
         </div>
