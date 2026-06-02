@@ -14,8 +14,19 @@ const FILTERS = ["All", "Halls", "Labs", "Open Areas"]
 
 const STATUS_STYLES = {
   APPROVED: "bg-green-100 text-green-700",
+  CONFIRMED: "bg-green-100 text-green-700",
   REJECTED: "bg-red-100 text-red-700",
   PENDING:  "bg-amber-100 text-amber-700",
+  AWAITING_FACULTY: "bg-blue-100 text-blue-700",
+  FACULTY_ESCALATED: "bg-purple-100 text-purple-700",
+}
+
+const STATUS_LABELS = {
+  AWAITING_FACULTY: "Faculty Approval Pending",
+  FACULTY_ESCALATED: "Final Approval Pending",
+  REJECTED: "Rejected",
+  CONFIRMED: "Approved",
+  APPROVED: "Approved",
 }
 
 function Home() {
@@ -220,7 +231,7 @@ function Home() {
                           {booking.space_details?.name || "Unknown Space"}
                         </h3>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0 ${STATUS_STYLES[booking.status] ?? "bg-gray-100 text-gray-600"}`}>
-                          {booking.status}
+                          {STATUS_LABELS[booking.status] || booking.status}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 truncate mb-1.5">

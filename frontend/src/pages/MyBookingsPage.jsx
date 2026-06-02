@@ -121,8 +121,8 @@ const getBookingStatusMeta = (booking) => {
 
     case "AWAITING_FACULTY":
       return {
-        title: "Waiting for Faculty Approval",
-        description: "This booking was not approved. See admin comments below",
+        title: "Faculty Approval Pending",
+        description: "Your booking is currently pending review by your faculty sponsor.",
         bg: "bg-blue-50",
         border: "border-blue-100",
         icon: <Clock3 className="w-5 h-5 text-blue-600" />
@@ -130,10 +130,10 @@ const getBookingStatusMeta = (booking) => {
 
     case "FACULTY_ESCALATED":
       return {
-        title: booking.faculty_timed_out ? "Escalated to Admin" : "Sent for Final Approval",
+        title: booking.faculty_timed_out ? "Escalated to Admin" : "Final Approval Pending",
         description: booking.faculty_timed_out 
           ? "Faculty did not respond in time, so this request was automatically escalated for admin review."
-          : "Faculty has approved this request and sent it for final approval.",
+          : "Faculty has approved this request. It is now pending final administrative approval.",
         bg: "bg-purple-50",
         border: "border-purple-100",
         icon: <AlertCircle className="w-5 h-5 text-purple-600" />
@@ -275,7 +275,14 @@ const BookingDetailDrawer = ({
     }
 
     // Default fallback
-    steps.push({ label: booking.status, desc: "", icon: "dot", bg: "bg-gray-400", iconColor: "text-gray-600" })
+    const fallbackLabels = {
+      AWAITING_FACULTY: "Faculty Approval Pending",
+      FACULTY_ESCALATED: "Final Approval Pending",
+      REJECTED: "Rejected",
+      CONFIRMED: "Approved",
+      APPROVED: "Approved"
+    }
+    steps.push({ label: fallbackLabels[booking.status] || booking.status, desc: "", icon: "dot", bg: "bg-gray-400", iconColor: "text-gray-600" })
     return steps
   }
 
@@ -826,6 +833,13 @@ const confirmCancelBooking = async () => {
         label: "Approved",
       },
 
+      CONFIRMED: {
+        classes:
+          "bg-green-50 text-green-700 border-green-200",
+        icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+        label: "Approved",
+      },
+
       REJECTED: {
         classes:
           "bg-red-50 text-red-700 border-red-200",
@@ -864,13 +878,13 @@ const confirmCancelBooking = async () => {
       AWAITING_FACULTY: {
         classes: "bg-blue-50 text-blue-700 border-blue-200",
         icon: <Clock3 className="w-3.5 h-3.5" />,
-        label: "Awaiting Faculty",
+        label: "Faculty Approval Pending",
       },
 
       FACULTY_ESCALATED: {
         classes: "bg-purple-50 text-purple-700 border-purple-200",
         icon: <Clock3 className="w-3.5 h-3.5" />,
-        label: "Escalated",
+        label: "Final Approval Pending",
       },
     }
 
