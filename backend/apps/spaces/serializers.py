@@ -148,7 +148,7 @@ class SpaceSerializer(serializers.ModelSerializer):
                     "chain_fallback_approver": "A fallback approver is required for HOD Fallback workflow."
                 })
         return data
-
+  
     def _handle_chain(self, space, validated_data):
         workflow = validated_data.get(
             'approval_workflow_type',
@@ -278,6 +278,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
     booked_by_photo = serializers.SerializerMethodField()
 
     faculty_sponsor_name = serializers.SerializerMethodField()
+    faculty_sponsor_details = serializers.SerializerMethodField()
     faculty_timed_out = serializers.BooleanField(read_only=True)
     faculty_phone = serializers.SerializerMethodField()
 
@@ -285,6 +286,26 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         if obj.faculty_sponsor:
             return getattr(obj.faculty_sponsor, 'phone', None)
         return None
+
+    def get_faculty_sponsor_details(self, obj):
+        if not obj.faculty_sponsor:
+            return None
+        
+        request = self._request()
+        profile_image = None
+        if getattr(obj.faculty_sponsor, 'profile_image', None):
+            if request:
+                profile_image = request.build_absolute_uri(obj.faculty_sponsor.profile_image.url)
+            else:
+                profile_image = obj.faculty_sponsor.profile_image.url
+
+        return {
+            "id": obj.faculty_sponsor.id,
+            "first_name": getattr(obj.faculty_sponsor, 'first_name', ''),
+            "last_name": getattr(obj.faculty_sponsor, 'last_name', ''),
+            "email": getattr(obj.faculty_sponsor, 'email', ''),
+            "profile_image": profile_image
+        }
 
     class Meta:
         model = SpaceBooking
@@ -319,6 +340,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "remarks_by_admin",
             "faculty_sponsor",
             "faculty_sponsor_name",
+            "faculty_sponsor_details",
             "faculty_response_deadline",
             "faculty_timed_out",
             "faculty_phone",
@@ -330,6 +352,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "updated_at",
             "user",
             "faculty_sponsor",
+            "faculty_sponsor_details",
             "faculty_response_deadline",
             "faculty_timed_out",
         ]
