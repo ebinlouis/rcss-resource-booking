@@ -149,33 +149,297 @@ const getBookingStatusMeta = (booking) => {
       }
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Avatar Component
+// ─────────────────────────────────────────────────────────────
+function initials(name) {
+  if (!name) return '?'
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function avatarColor(name) {
+  const colors = ['bg-blue-600','bg-violet-600','bg-pink-600','bg-teal-600','bg-orange-600','bg-cyan-600','bg-indigo-600']
+  const idx = name ? name.charCodeAt(0) % colors.length : 0
+  return colors[idx]
+}
+
+function Avatar({ name, size = 'md', imageUrl = null }) {
+  const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'sm' ? 'w-[42px] h-[42px] text-sm' : 'w-10 h-10 text-sm'
+  
+  const getProfileImageUrl = (path) => {
+    if (!path) return ""
+    if (path.startsWith("http://") || path.startsWith("https://")) return path
+    return `http://localhost:8000${path.startsWith("/") ? "" : "/"}${path}`
+  }
+
+  return (
+    <div className={`${sz} ${!imageUrl ? avatarColor(name) : 'bg-gray-100'} rounded-full flex items-center justify-center text-white font-bold shrink-0 shadow-sm border border-gray-100 overflow-hidden select-none`}>
+      {imageUrl ? (
+        <img src={getProfileImageUrl(imageUrl)} alt={name || "User"} className="w-full h-full object-cover" />
+      ) : (
+        initials(name)
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Booking Card Component
+// ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Booking Detail Drawer
+// ─────────────────────────────────────────────────────────────
+const SideDetailRow = ({ icon: Icon, label, value }) => {
+  if (!value && value !== 0) return null
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon className="w-4 h-4 text-gray-500" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">{label}</p>
+        <p className="text-sm text-gray-900 font-medium leading-snug break-words">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+const BookingDetailDrawer = ({
+  booking,
+  onClose,
+  onEdit,
+  onCancel,
+  isActionLoading,
+}) => {
+  const isExpired =
+    booking.status === "COMPLETED" ||
+    booking.status === "EXPIRED" ||
+    booking.status === "CANCELLED" ||
+    new Date(booking.end_datetime) < new Date()
+
+  const editableStatuses = [
+    "PENDING",
+    "APPROVED",
+    "AWAITING_FACULTY",
+    "FACULTY_ESCALATED"
+  ]
+
+  const showEditCancel =
+    editableStatuses.includes(booking.status) &&
+    !isExpired
+
+  const getTimelineSteps = () => {
+    const steps = []
+    
+    steps.push({
+      label: "Booking Submitted",
+      desc: formatDateTime(getSubmissionTimestamp(booking)),
+      icon: "check",
+      bg: "bg-green-500",
+      iconColor: "text-green-600"
+    })
+
+    if (booking.status === "CANCELLED") {
+      steps.push({ label: "Cancelled by User", desc: "", icon: "cross", bg: "bg-red-500", iconColor: "text-red-600" })
+      return steps
+    }
+    
+    if (booking.status === "REJECTED") {
+      steps.push({ label: "Rejected", desc: "", icon: "cross", bg: "bg-red-500", iconColor: "text-red-600" })
+      return steps
+    }
+
+    const hasFaculty = !!booking.faculty_sponsor
+
+    if (hasFaculty) {
+      if (booking.status === "AWAITING_FACULTY" || booking.status === "PENDING") {
+        steps.push({ label: "Faculty Review", desc: "Pending", icon: "dot", bg: "bg-yellow-400", iconColor: "text-yellow-600" })
+        steps.push({ label: "Final Venue Approval", desc: "Pending", icon: "dot", bg: "bg-gray-300", iconColor: "text-gray-400" })
+        return steps
+      } else {
+        steps.push({ label: "Faculty Approved", desc: "", icon: "check", bg: "bg-green-500", iconColor: "text-green-600" })
+      }
+    }
+
+    if (booking.status === "FACULTY_ESCALATED" || (!hasFaculty && booking.status === "PENDING")) {
+      steps.push({ label: "Final Venue Approval", desc: "Pending", icon: "dot", bg: "bg-yellow-400", iconColor: "text-yellow-600" })
+      return steps
+    }
+
+    if (booking.status === "APPROVED" || booking.status === "COMPLETED") {
+      steps.push({ label: "Venue Approved", desc: "", icon: "check", bg: "bg-green-500", iconColor: "text-green-600" })
+      steps.push({ label: "Booking Confirmed", desc: "", icon: "check", bg: "bg-green-500", iconColor: "text-green-600" })
+      return steps
+    }
+
+    // Default fallback
+    steps.push({ label: booking.status, desc: "", icon: "dot", bg: "bg-gray-400", iconColor: "text-gray-600" })
+    return steps
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[100] bg-gray-900/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      <div className="fixed inset-y-0 right-0 z-[110] w-full md:w-[500px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Booking Details</h2>
+            <p className="text-xs text-gray-500 mt-1">Ref: {booking.reference_code}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition"
+          >
+            <XIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-white hide-scrollbar pb-10">
+          
+          {/* Status & Timeline */}
+          <section>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2">Approval Timeline</p>
+            <div className="px-2">
+              <div className="relative border-l-2 border-gray-100 pl-6 pb-2 space-y-6">
+                
+                {getTimelineSteps().map((step, idx) => (
+                  <div key={idx} className="relative">
+                    <span className={`absolute -left-[31px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${step.bg}`} />
+                    <p className="text-xs font-bold text-gray-900 uppercase flex items-center">
+                      {step.icon === 'check' && <span className={`${step.iconColor} mr-1.5 text-[14px]`}>✓</span>}
+                      {step.icon === 'cross' && <span className={`${step.iconColor} mr-1.5 text-[14px]`}>✕</span>}
+                      {step.icon === 'dot' && <span className={`${step.iconColor} mr-1.5 text-[14px]`}>●</span>}
+                      {step.label}
+                    </p>
+                    {step.desc && <p className="text-xs text-gray-500 mt-0.5">{step.desc}</p>}
+                  </div>
+                ))}
+
+              </div>
+            </div>
+          </section>
+
+          {/* Details */}
+          <section>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2">Schedule & Venue</p>
+            <div className="space-y-4">
+              <SideDetailRow icon={Building2} label="Venue" value={booking.space_details?.name} />
+              <SideDetailRow icon={CalendarDays} label="Start" value={formatDateTime(booking.start_datetime)} />
+              <SideDetailRow icon={CalendarDays} label="End" value={formatDateTime(booking.end_datetime)} />
+              {booking.setup_buffer_minutes > 0 && <SideDetailRow icon={Clock3} label="Setup Time" value={`${booking.setup_buffer_minutes} mins`} />}
+              {booking.cleanup_buffer_minutes > 0 && <SideDetailRow icon={Clock3} label="Cleanup Time" value={`${booking.cleanup_buffer_minutes} mins`} />}
+            </div>
+          </section>
+
+          <section>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2">Event Info</p>
+            <div className="space-y-4">
+              <SideDetailRow icon={Users} label="Expected Attendees" value={booking.attendee_count} />
+              <SideDetailRow icon={CalendarClock} label="Event Type" value={booking.is_internal ? "Internal Event" : "External Event"} />
+              <SideDetailRow icon={Building2} label="Department" value={booking.department_details?.name || booking.department?.name || booking.booked_by_department || booking.department_name || booking.department || "Not specified"} />
+              
+              {(booking.faculty_sponsor_name || booking.faculty_sponsor) ? (
+                <div className="flex items-center gap-3">
+                  <div className="mt-0.5 shrink-0">
+                    <Avatar 
+                      name={booking.faculty_sponsor_name || booking.faculty_sponsor} 
+                      size="sm" 
+                      imageUrl={
+                        booking?.faculty_sponsor_details?.profile_picture ||
+                        booking?.faculty_sponsor?.profile_picture ||
+                        booking?.faculty_details?.profile_picture ||
+                        booking?.faculty_sponsor_details?.profile_image ||
+                        booking?.faculty_sponsor?.profile_image ||
+                        booking?.faculty_details?.profile_image ||
+                        booking?.faculty_sponsor_profile_image
+                      }
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Faculty Sponsor</p>
+                    <p className="text-sm text-gray-900 font-medium leading-snug break-words">{booking.faculty_sponsor_name || booking.faculty_sponsor}</p>
+                  </div>
+                </div>
+              ) : (
+                <SideDetailRow icon={Users} label="Faculty Sponsor" value="None" />
+              )}
+            </div>
+          </section>
+
+          <section>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2">Purpose & Notes</p>
+            <div className="space-y-4">
+              <SideDetailRow icon={Package} label="Purpose" value={booking.purpose_of_booking || booking.purpose} />
+              <SideDetailRow icon={Package} label="Notes" value={booking.user_notes} />
+              {booking.equipment_requests?.length > 0 && (
+                <SideDetailRow icon={Package} label="Equipment" value={booking.equipment_requests.map(e => `${e.equipment_name} (x${e.quantity})`).join(", ")} />
+              )}
+            </div>
+          </section>
+
+          {booking.remarks_by_admin && (
+             <section>
+               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2">Admin Remarks</p>
+               <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                 <p className="text-sm text-red-900 font-medium">{booking.remarks_by_admin}</p>
+               </div>
+             </section>
+          )}
+
+        </div>
+
+        {/* FOOTER ACTIONS */}
+        <div className="shrink-0 border-t border-gray-100 px-6 py-5 bg-gray-50/80 backdrop-blur-md">
+          {showEditCancel ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { onClose(); onEdit(booking); }}
+                disabled={isActionLoading}
+                className="flex-[2] flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition text-sm shadow-sm"
+              >
+                <Pencil className="w-5 h-5" />
+                Edit Booking Details
+              </button>
+              <button
+                onClick={() => { onClose(); onCancel(booking.id); }}
+                disabled={isActionLoading}
+                className="flex-1 flex items-center justify-center gap-2 border border-red-200 bg-white text-red-700 hover:bg-red-50 font-semibold py-3 rounded-xl transition text-sm shadow-sm"
+              >
+                <Trash2 className="w-5 h-5" />
+                Cancel Request
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-400">
+                {isExpired ? "Booking Completed" : "NO FURTHER ACTIONS"}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────
 // Booking Card Component
 // ─────────────────────────────────────────────────────────────
 
 const BookingCard = ({
   booking,
-  onEdit,
-  onCancel,
-  isActionLoading,
+  onViewDetails,
   getStatusBadge,
   isHighlighted,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  const hasEquipment =
-    booking.equipment_requests && booking.equipment_requests.length > 0
-
-  const hasNotes =
-    booking.user_notes && booking.user_notes.trim().length > 0
-
-  const isExpired = booking.status === "COMPLETED" || new Date(booking.end_datetime) < new Date()
-
-  const showEditCancel =
-    booking.can_modify &&
-    (booking.status === "PENDING" || booking.status === "APPROVED") &&
-    !isExpired
-
   const statusMeta = getBookingStatusMeta(booking)
 
   return (
@@ -186,17 +450,11 @@ const BookingCard = ({
         ${
           isHighlighted
             ? "border-green-400 bg-white shadow-xl ring-4 ring-green-100"
-            : isExpanded
-            ? "border-emerald-200 bg-white shadow-lg ring-2 ring-emerald-50"
             : "border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300"
         }
       `}
     >
-      {/* CLICKABLE HEADER */}
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="cursor-pointer px-4 py-4 md:px-8 md:py-7 select-none"
-      >
+      <div className="px-4 py-4 md:px-8 md:py-7">
         {/* TOP ROW */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
           <div className="flex items-center flex-wrap gap-3">
@@ -218,19 +476,12 @@ const BookingCard = ({
               Submitted {timeAgo(getSubmissionTimestamp(booking))}
             </span>
 
-            <Tooltip text={isExpanded ? "Collapse this booking card." : "Expand to see full details, notes, and actions for this booking."} position="top">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer">
-                <span className="text-[13px] font-medium text-gray-500">
-                  {isExpanded ? "Hide Details" : "View Details"}
-                </span>
-
-                <ChevronDown
-                  className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
-                />
-              </div>
-            </Tooltip>
+            <button
+              onClick={() => onViewDetails(booking)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition text-[13px] font-semibold text-gray-700 shadow-sm"
+            >
+              View Details
+            </button>
           </div>
         </div>
 
@@ -328,137 +579,7 @@ const BookingCard = ({
         </div>
       </div>
 
-      {/* EXPANDED CONTENT */}
-{isExpanded && (
-  <div className="px-4 pb-4 md:px-8 md:pb-5 animate-in fade-in slide-in-from-top-2 duration-200">
-    <div className="border-t border-gray-200 pt-4">
 
-      {/* PURPOSE */}
-      <div className="mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-2">
-          Purpose of Booking
-        </p>
-
-        <div className="rounded-xl border border-green-100 bg-green-50 p-2.5 md:p-3">
-          <p className="text-[14px] text-green-900 font-medium leading-relaxed">
-            {booking.purpose_of_booking ||
-              booking.purpose ||
-              "No purpose provided."}
-          </p>
-        </div>
-      </div>
-
-      {/* EQUIPMENT */}
-      {hasEquipment && (
-        <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-2">
-            Equipment Requested
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {booking.equipment_requests.map((er) => (
-              <div
-                key={er.id}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200"
-              >
-                <Package className="w-3.5 h-3.5 text-gray-600" />
-
-                <span className="text-[13px] font-medium text-gray-800">
-                  {er.equipment_name}
-                </span>
-
-                {er.quantity > 1 && (
-                  <span className="text-[12px] text-gray-500">
-                    × {er.quantity}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* NOTES */}
-      {hasNotes && (
-        <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-2">
-            Additional Notes
-          </p>
-
-          <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-2.5 md:p-3">
-            <p className="text-[13px] text-gray-700 leading-relaxed">
-              {booking.user_notes}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ADMIN FEEDBACK */}
-      {booking.status === "REJECTED" && booking.remarks_by_admin && (
-        <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 mb-2">
-            Admin Feedback
-          </p>
-
-          <div className="rounded-xl border border-red-100 bg-red-50 p-2.5 md:p-3">
-            <p className="text-[13px] italic text-red-900 leading-relaxed">
-              "{booking.remarks_by_admin}"
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ACTIONS */}
-      <div className="border-t border-gray-200 pt-4 flex justify-end flex-wrap gap-3">
-        {!showEditCancel && booking.status !== "REJECTED" && (
-          <p className="mr-auto text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 self-center">
-            {isExpired ? "Booking Completed" : "No Further Actions"}
-          </p>
-        )}
-
-        {showEditCancel && (
-          <Tooltip text="Withdraw this booking request. This cannot be undone." position="top">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onCancel(booking.id)
-              }}
-              disabled={isActionLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-40"
-            >
-              <Trash2 className="w-4 h-4" />
-              {isActionLoading ? "Processing..." : "Cancel Request"}
-            </button>
-          </Tooltip>
-        )}
-
-        {showEditCancel && (
-          <Tooltip
-            text={
-              booking.status === "APPROVED"
-                ? "Change your booking details. Note: edits to an approved booking will need admin re-approval."
-                : "Update the details of this pending booking request."
-            }
-            position="top"
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit(booking)
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-[13px] font-semibold hover:bg-green-700 transition-all"
-            >
-              <Pencil className="w-4 h-4" />
-              {booking.status === "APPROVED"
-                ? "Edit & Re-submit"
-                : "Edit Details"}
-            </button>
-          </Tooltip>
-        )}
-      </div>
-    </div>
-  </div>
-)}
     </div>
   )
 }
@@ -476,6 +597,7 @@ const MyBookingsPage = () => {
   // MODAL STATE
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState(null)
+  const [selectedBookingDetails, setSelectedBookingDetails] = useState(null)
   const [cancelBookingId, setCancelBookingId] = useState(null)
   const [statusFilter, setStatusFilter] = useState("ALL")
 
@@ -525,7 +647,11 @@ const filteredBookings = useMemo(() => {
 
     filtered = filtered.filter((booking) => {
       if (statusFilter === "PENDING") {
-        return booking.status === "PENDING"
+        return [
+          "PENDING",
+          "AWAITING_FACULTY",
+          "FACULTY_ESCALATED"
+        ].includes(booking.status)
       }
 
       if (statusFilter === "ACTIVE") {
@@ -575,7 +701,11 @@ const filteredBookings = useMemo(() => {
     const total = myBookings.length
 
     const pending = myBookings.filter(
-      (booking) => booking.status === "PENDING"
+      (booking) => [
+        "PENDING",
+        "AWAITING_FACULTY",
+        "FACULTY_ESCALATED"
+      ].includes(booking.status)
     ).length
 
     const approved = myBookings.filter(
@@ -965,9 +1095,7 @@ rounded-xl md:rounded-2xl
                     <BookingCard
                       key={booking.id}
                       booking={booking}
-                      onEdit={handleEditClick}
-                      onCancel={handleCancelBooking}
-                      isActionLoading={isActionLoading}
+                      onViewDetails={(b) => setSelectedBookingDetails(b)}
                       getStatusBadge={getStatusBadge}
                       isHighlighted={referenceCode === booking.reference_code}
                     />
@@ -978,6 +1106,17 @@ rounded-xl md:rounded-2xl
           </div>
                   </div>
       </div>
+
+{/* BOOKING DETAILS DRAWER */}
+{selectedBookingDetails && (
+  <BookingDetailDrawer
+    booking={selectedBookingDetails}
+    onClose={() => setSelectedBookingDetails(null)}
+    onEdit={handleEditClick}
+    onCancel={handleCancelBooking}
+    isActionLoading={isActionLoading}
+  />
+)}
 
 {/* EDIT MODAL */}
 {isEditModalOpen && selectedBooking && (
