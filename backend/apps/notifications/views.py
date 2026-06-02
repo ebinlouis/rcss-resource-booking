@@ -84,6 +84,7 @@ class NotificationMarkAllReadAPIView(APIView):
         updated = Notification.objects.filter(
             recipient=request.user,
             is_read=False,
+            is_actionable=False,
         ).update(
             is_read=True,
             read_at=timezone.now(),
