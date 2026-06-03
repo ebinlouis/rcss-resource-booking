@@ -1,7 +1,7 @@
 import Tooltip from '../../components/Tooltip'
 import PageInfo from '../../components/PageInfo'
 import toast from 'react-hot-toast';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
 import approvalService from '../../api/approvalService';
@@ -840,7 +840,7 @@ const PAGE_DOMAIN = 'spaces';
 const AdminDashboard = () => {
     const { can_manage_system, can_manage_mess, user } = useAuth();
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const can_manage_media = user?.capabilities?.can_manage_media;
     const currentUserId = user?.id;
     const requestedTab = searchParams.get('tab');
@@ -854,6 +854,15 @@ const AdminDashboard = () => {
             ? requestedTab
             : 'pending'
     ));
+
+    useEffect(() => {
+        if (!searchParams.get('tab')) return;
+        const booking = searchParams.get('booking');
+        const next = new URLSearchParams();
+        if (booking) next.set('booking', booking);
+        setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Optional date filter (empty string = no filter) ──────────────────────
     const [dateFilter, setDateFilter] = useState('');
@@ -909,13 +918,10 @@ const AdminDashboard = () => {
         setActiveTab(tab);
         setStatusFilter('all');
         setTimingFilter('all');
-    }, []);
+        setSearchParams({}, { replace: true });
+    }, [setSearchParams]);
 
-    useEffect(() => {
-        if (!['pending', 'upcoming', 'history', 'resolvedByMe'].includes(requestedTab)) return undefined;
-        const timer = window.setTimeout(() => handleTabChange(requestedTab), 0);
-        return () => window.clearTimeout(timer);
-    }, [handleTabChange, requestedTab]);
+
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
@@ -1021,21 +1027,31 @@ const AdminDashboard = () => {
         return () => window.clearTimeout(timer);
     }, [highlightedReference, isLoading, listForTab]);
 
-    useEffect(() => {
-        if (!highlightedReference || isLoading || activeTab !== 'pending') return undefined;
-        if (raw.pending.some((booking) => bookingMatchesReference(booking, highlightedReference))) return undefined;
+    const initialHighlightedReference = useRef(highlightedReference);
+    const hasAutoSwitchedTab = useRef(
+        ['pending', 'upcoming', 'history', 'resolvedByMe'].includes(
+            new URLSearchParams(window.location.search).get('tab')
+        )
+    );
 
-        const nextTab = history.some((booking) => bookingMatchesReference(booking, highlightedReference))
+    useEffect(() => {
+        if (hasAutoSwitchedTab.current) return undefined;
+        if (!initialHighlightedReference.current || isLoading) return undefined;
+        if (activeTab !== 'pending') return undefined;
+        if (raw.pending.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))) return undefined;
+
+        const nextTab = history.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))
             ? 'history'
-            : upcoming.some((booking) => bookingMatchesReference(booking, highlightedReference))
+            : upcoming.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))
                 ? 'upcoming'
                 : null;
 
         if (!nextTab) return undefined;
 
+        hasAutoSwitchedTab.current = true;
         const timer = window.setTimeout(() => handleTabChange(nextTab), 0);
         return () => window.clearTimeout(timer);
-    }, [activeTab, handleTabChange, highlightedReference, history, isLoading, raw.pending, upcoming]);
+    }, [activeTab, handleTabChange, history, isLoading, raw.pending, upcoming]);
 
     // ── Auth Redirects ────────────────────────────────────────────────────────
     const can_manage_fleet = user?.capabilities?.can_manage_fleet;
@@ -1354,9 +1370,9 @@ const AdminDashboard = () => {
                     {/* Status/timing pills (history/resolvedByMe only) */}
                     {showFilters && (
                         <div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-[#e8f5ee] px-5 py-3">
-                            <FilterPills label="Status" options={statusOptions} value={statusFilter} onChange={setStatusFilter} />
+                            <FilterPills label="Status" options={statusOptions} value={statusFilter} onChange={(v) => { setStatusFilter(v); setSearchParams({}, { replace: true }); }} />
                             <div className="w-px bg-[#e8f5ee] self-stretch hidden sm:block" />
-                            <FilterPills label="Timing" options={timingOptions} value={timingFilter} onChange={setTimingFilter} />
+                            <FilterPills label="Timing" options={timingOptions} value={timingFilter} onChange={(v) => { setTimingFilter(v); setSearchParams({}, { replace: true }); }} />
                         </div>
                     )}
                 </div>
