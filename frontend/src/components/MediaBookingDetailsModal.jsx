@@ -813,11 +813,11 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
               </div>
 
               {booking.remarks_by_admin && (
-                <div className="px-5 py-4 rounded-xl bg-amber-50 border border-amber-100 mb-2">
-                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
+                <div className="px-5 py-4 rounded-xl bg-yellow-50 border border-yellow-100 mb-2">
+                  <p className="text-xs font-bold text-yellow-800 uppercase tracking-wider mb-1">
                     Admin Remarks
                   </p>
-                  <p className="text-sm text-amber-900 leading-relaxed">
+                  <p className="text-sm text-yellow-900 leading-relaxed">
                     {booking.remarks_by_admin}
                   </p>
                 </div>

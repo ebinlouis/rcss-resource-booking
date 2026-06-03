@@ -19,10 +19,10 @@ const fmtDateTime = (s) => s ? `${fmtDate(s)}, ${fmtTime(s)}` : '—'
 const STATUS_META = {
   APPROVED: { label: 'Approved', cls: 'bg-green-100 text-green-700 border-green-200' },
   REJECTED: { label: 'Rejected', cls: 'bg-red-100 text-red-700 border-red-200' },
-  AWAITING_FACULTY: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  AWAITING_FACULTY: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   FACULTY_ESCALATED: { label: 'Needs Higher Approval', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
   CANCELLED: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-  PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  PENDING: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   EXPIRED: { label: 'Expired', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 }
 
@@ -92,7 +92,7 @@ function TimelineStep({ icon: Icon, label, time, active, done, last }) {
     <div className="flex gap-3">
       <div className="flex flex-col items-center">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-all ${done ? 'bg-green-500 border-green-500 text-white' :
-          active ? 'bg-amber-400 border-amber-400 text-white' :
+          active ? 'bg-yellow-400 border-yellow-400 text-white' :
             'bg-white border-gray-200 text-gray-300'
           }`}>
           <Icon className="w-4 h-4" />
@@ -100,7 +100,7 @@ function TimelineStep({ icon: Icon, label, time, active, done, last }) {
         {!last && <div className={`w-0.5 flex-1 mt-1 mb-1 rounded-full ${done ? 'bg-green-200' : 'bg-gray-100'}`} style={{ minHeight: '20px' }} />}
       </div>
       <div className="pb-4 min-w-0">
-        <p className={`text-sm font-semibold ${done ? 'text-green-700' : active ? 'text-amber-700' : 'text-gray-400'}`}>{label}</p>
+        <p className={`text-sm font-semibold ${done ? 'text-green-700' : active ? 'text-yellow-700' : 'text-gray-400'}`}>{label}</p>
         {time && <p className="text-xs text-gray-500 mt-0.5">{fmtDateTime(time)}</p>}
       </div>
     </div>
@@ -625,7 +625,7 @@ export default function FacultyApprovalPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Pending */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center gap-5 transition hover:shadow-md">
-            <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-12 h-12 rounded-full bg-yellow-50 border border-yellow-100 text-yellow-600 flex items-center justify-center shrink-0 shadow-sm">
               <Clock className="w-6 h-6" />
             </div>
             <div>

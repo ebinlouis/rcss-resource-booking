@@ -16,7 +16,7 @@ const STATUS_STYLES = {
   APPROVED: "bg-green-100 text-green-700",
   CONFIRMED: "bg-green-100 text-green-700",
   REJECTED: "bg-red-100 text-red-700",
-  PENDING:  "bg-amber-100 text-amber-700",
+  PENDING:  "bg-yellow-100 text-yellow-700",
   AWAITING_FACULTY: "bg-blue-100 text-blue-700",
   FACULTY_ESCALATED: "bg-purple-100 text-purple-700",
 }

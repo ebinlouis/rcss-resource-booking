@@ -559,7 +559,7 @@ function Mess() {
                       </div>
                     </div>
                     <div>
-                      <p className="caps-label mb-1">First Meal Time</p>
+                      <p className="caps-label mb-1">Meal Time</p>
                       <p className="text-base font-semibold text-emerald-600 flex items-center gap-1.5">
                         <Clock3 size={14} className="shrink-0" />{getEarliestTime(b)}
                       </p>

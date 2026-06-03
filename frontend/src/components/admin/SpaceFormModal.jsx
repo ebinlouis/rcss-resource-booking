@@ -619,7 +619,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               </div>
 
               {form.is_special_purpose && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-amber-400/10 border-amber-400/30 text-amber-300">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-yellow-400/10 border-yellow-400/30 text-yellow-300">
                   <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
@@ -998,27 +998,27 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
               {/* is_special_purpose toggle */}
               <div className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200
                 ${form.is_special_purpose
-                  ? "border-amber-300 bg-amber-50"
+                  ? "border-yellow-300 bg-yellow-50"
                   : "border-[#e2e8f0] bg-[#f8fafc]"}`}
               >
                 <div className="flex items-start gap-3 pr-4">
                   <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 transition-all
-                    ${form.is_special_purpose ? "bg-amber-100 text-amber-600" : "bg-[#e2e8f0] text-[#94a3b8]"}`}
+                    ${form.is_special_purpose ? "bg-yellow-100 text-yellow-600" : "bg-[#e2e8f0] text-[#94a3b8]"}`}
                   >
                     <svg className="w-4.5 h-4.5 w-[18px] h-[18px]" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <div>
-                    <span className={`text-[14px] font-bold tracking-tight ${form.is_special_purpose ? "text-amber-800" : "text-[#0f172a]"}`}>
+                    <span className={`text-[14px] font-bold tracking-tight ${form.is_special_purpose ? "text-yellow-800" : "text-[#0f172a]"}`}>
                       Special Purpose Venue
                     </span>
-<p className={`text-[12px] mt-0.5 leading-relaxed ${form.is_special_purpose ? "text-amber-700" : "text-[#6b7280]"}`}>
+<p className={`text-[12px] mt-0.5 leading-relaxed ${form.is_special_purpose ? "text-yellow-700" : "text-[#6b7280]"}`}>
   <span className="font-semibold">Prevents this venue from being suggested as an alternative.</span>{" "}
   Use this for special venues such as AI Labs, research rooms, or dedicated facilities that should only be booked intentionally and not suggested automatically.
 </p>
                     {form.is_special_purpose && (
-                      <p className="text-[11.5px] text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
+                      <p className="text-[11.5px] text-yellow-600 font-semibold mt-1.5 flex items-center gap-1">
                         <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
@@ -1033,8 +1033,8 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                   aria-checked={form.is_special_purpose}
                   onClick={() => set("is_special_purpose", !form.is_special_purpose)}
                   className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200
-                    focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
-                    ${form.is_special_purpose ? "bg-amber-500" : "bg-[#e2e8f0]"}`}
+                    focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2
+                    ${form.is_special_purpose ? "bg-yellow-500" : "bg-[#e2e8f0]"}`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200

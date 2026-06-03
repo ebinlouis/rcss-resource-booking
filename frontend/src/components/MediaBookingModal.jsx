@@ -595,7 +595,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               </h2>
 
               {formData.is_external_event && (
-                <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-bold uppercase tracking-wider">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
@@ -643,7 +643,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
                 </div>
                 {needsBuffer && (
                   <div className="pt-3 border-t border-white/10">
-                    <p className="text-[10px] text-amber-300 uppercase font-semibold flex items-center gap-1.5">
+                    <p className="text-[10px] text-yellow-300 uppercase font-semibold flex items-center gap-1.5">
                       <AlertTriangle className="w-3 h-3" />
                       Total Booking Duration
                     </p>
@@ -720,7 +720,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
               )}
 
               {isLinkedBooking && isTeamRequest && bookingSession.mediaCapacity?.limited_capacity && (
-                <div className="p-3 mt-4 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg font-medium flex items-start gap-2">
+                <div className="p-3 mt-4 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm rounded-lg font-medium flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
 Media team availability is limited during this time.
 Your request will still be reviewed.
@@ -989,7 +989,7 @@ Your request will still be reviewed.
                     }))
                   }
                   className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-700 focus:ring-offset-2 ${
-                    formData.is_external_event ? "bg-amber-500" : "bg-gray-200"
+                    formData.is_external_event ? "bg-yellow-500" : "bg-gray-200"
                   }`}
                 >
                   <span

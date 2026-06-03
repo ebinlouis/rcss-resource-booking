@@ -129,7 +129,7 @@ class MessBookingSerializer(serializers.ModelSerializer):
 
         if self.instance and not can_user_modify_booking(self.instance):
             raise serializers.ValidationError({
-                "non_field_errors": "Cannot modify a mess booking whose first meal time has already passed."
+                "non_field_errors": "Cannot modify a booking whose meal time has already passed."
             })
 
         daily_menus = data.get('daily_menus', [])
@@ -186,8 +186,8 @@ class MessBookingSerializer(serializers.ModelSerializer):
             if delivery_dt < timezone.now() + datetime.timedelta(hours=24):
                 raise serializers.ValidationError({
                     "start_date": (
-                        "Mess bookings require at least 24 hours of notice "
-                        "before the first meal delivery."
+                        "Food bookings require at least 24 hours of notice "
+                        "before the delivery."
                     )
                 })
 

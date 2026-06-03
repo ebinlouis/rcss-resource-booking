@@ -102,7 +102,7 @@ function BookingCard({ booking, onSelect, isHighlighted }) {
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-            statusLower === "pending"   ? "bg-amber-50 text-amber-700"    :
+            statusLower === "pending"   ? "bg-yellow-50 text-yellow-700"    :
             statusLower === "confirmed" || statusLower === "approved" ? "bg-emerald-50 text-emerald-700" :
             statusLower === "completed" ? "bg-slate-50 text-slate-700" :
             statusLower === "expired"   ? "bg-orange-50 text-orange-700" :
@@ -463,9 +463,9 @@ function AdminMess() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900">Food Management</h1>
-              <PageInfo text="Review and approve catering requests. Approved bookings are sent to the kitchen for preparation." />
+              <PageInfo text="Review and approve food requests. Approved bookings are sent to the kitchen for preparation." />
             </div>
-            <p className="text-sm text-gray-500 mt-1">Manage catering requests and view meal schedules.</p>
+            <p className="text-sm text-gray-500 mt-1">Manage food requests and view meal schedules.</p>
           </div>
           <button
             onClick={() => setRefreshTrigger((p) => p + 1)}
@@ -565,7 +565,7 @@ function AdminMess() {
             <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Delivery Schedule</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
               {dispatchBookings.length === 0 ? (
-                <p className="text-sm text-gray-400 p-6 text-center">No catering events are scheduled for this date.</p>
+                <p className="text-sm text-gray-400 p-6 text-center">No meal requests are scheduled for this date.</p>
               ) : dispatchBookings.map((b) => {
                 const dayMenu  = getDayMenu(b, dispatchDate);
                 // For the timeline, show the earliest meal time on the specific day
@@ -777,7 +777,7 @@ function AdminMess() {
               {selectedBooking.user_notes && (
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</p>
-                  <p className="text-sm text-gray-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 leading-relaxed">
+                  <p className="text-sm text-gray-700 bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-3 leading-relaxed">
                     {selectedBooking.user_notes}
                   </p>
                 </div>

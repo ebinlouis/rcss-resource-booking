@@ -81,7 +81,7 @@ const formatTime = (timeString) => {
 
 const statusClass = {
   APPROVED: "bg-green-100 text-green-700 border-green-200",
-  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+  PENDING: "bg-yellow-100 text-yellow-700 border-yellow-200",
   REJECTED: "bg-red-100 text-red-700 border-red-200",
   CANCELLED: "bg-gray-100 text-gray-600 border-gray-200",
 }
@@ -165,7 +165,7 @@ function AvailabilityRow({ item }) {
               out
                 ? "text-red-600"
                 : lowStock
-                ? "text-amber-600"
+                ? "text-yellow-600"
                 : "text-green-700"
             }`}
           >
@@ -184,8 +184,8 @@ function AvailabilityRow({ item }) {
             out
               ? "bg-red-500"
               : lowStock
-              ? "bg-amber-500"
-              : "bg-green-600"
+              ? "bg-yellow-500"
+              : "bg-green-700"
           }`}
           style={{ width: `${percent}%` }}
         />
@@ -246,7 +246,7 @@ function TeamFluidView({ teamData, dateStr }) {
           is_full
             ? "border-red-200 bg-red-50"
             : free_crew <= 1
-            ? "border-amber-200 bg-amber-50"
+            ? "border-yellow-200 bg-yellow-50"
             : "border-green-100 bg-white"
         }`}
       >
@@ -260,7 +260,7 @@ function TeamFluidView({ teamData, dateStr }) {
               is_full
                 ? "text-red-600"
                 : free_crew <= 1
-                ? "text-amber-600"
+                ? "text-yellow-600"
                 : "text-green-700"
             }`}
           >
@@ -279,7 +279,7 @@ function TeamFluidView({ teamData, dateStr }) {
             is_full
               ? "bg-red-100 text-red-700"
               : free_crew <= 1
-              ? "bg-amber-100 text-amber-700"
+              ? "bg-yellow-100 text-yellow-700"
               : "bg-green-100 text-green-700"
           }`}
         >
@@ -309,7 +309,7 @@ function TeamFluidView({ teamData, dateStr }) {
                 is_full
                   ? "bg-red-500"
                   : free_crew <= 1
-                  ? "bg-amber-500"
+                  ? "bg-yellow-500"
                   : "bg-green-500"
               }`}
               style={{ width: `${pct}%` }}
@@ -411,7 +411,7 @@ function Media() {
   const [searchParams] = useSearchParams()
   const isLinkedFlow = searchParams.get("linked") === "1"
   const [selectedDate, setSelectedDate] = useState(todayKey())
-  const [availabilityType, setAvailabilityType] = useState("equipment")
+  const [availabilityType, setAvailabilityType] = useState("team")
 
   const { data: availabilityData, isLoading: availabilityLoading, isError: availabilityErrorBool } = useMediaAvailability(selectedDate, availabilityType);
   const availabilityError = availabilityErrorBool ? "Could not load availability." : "";
@@ -502,9 +502,9 @@ function Media() {
                 <div>
                   <div className="flex items-center gap-2">
                     {availabilityType === "equipment" ? (
-                      <Package className="h-5 w-5 text-green-600" />
+                      <Package className="h-5 w-5 text-green-700" />
                     ) : (
-                      <Clapperboard className="h-5 w-5 text-green-600" />
+                      <Clapperboard className="h-5 w-5 text-green-700" />
                     )}
 
                     <h2 className="text-lg font-semibold text-gray-900">
@@ -530,7 +530,7 @@ function Media() {
                   type="date"
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
                 />
               </div>
 
@@ -608,7 +608,7 @@ function Media() {
                       onClick={() => setAvailabilityType(item.id)}
                       className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                         availabilityType === item.id
-                          ? "bg-green-600 text-white"
+                          ? "bg-green-700 text-white"
                           : "text-gray-600 hover:bg-gray-50"
                       }`}
                     >
@@ -627,7 +627,7 @@ function Media() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search cameras, microphones, lights..."
-                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
                   />
                 </div>
               )}
@@ -722,7 +722,7 @@ function Media() {
               <>
                 <button
                   onClick={() => navigate("/media/my-bookings")}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800"
                 >
                   View All Bookings
                   <ChevronRight className="h-4 w-4" />

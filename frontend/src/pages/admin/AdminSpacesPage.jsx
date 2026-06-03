@@ -89,7 +89,7 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
             {typeMeta.label}
           </span>
           {space.is_special_purpose && (
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-200">
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-yellow-50 text-yellow-700 border-yellow-200">
               <Icon className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor" strokeWidth={0}>
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </Icon>
@@ -426,8 +426,8 @@ const AdminSpacesPage = () => {
               onClick={() => setFilterSpecial((v) => !v)}
               className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
                 ${filterSpecial
-                  ? "bg-amber-500 text-white border-amber-500"
-                  : "bg-white text-[#374151] border-[#e2e8f0] hover:border-amber-300"}`}
+                  ? "bg-yellow-500 text-white border-yellow-500"
+                  : "bg-white text-[#374151] border-[#e2e8f0] hover:border-yellow-300"}`}
             >
               Requires Special Approval
             </button>

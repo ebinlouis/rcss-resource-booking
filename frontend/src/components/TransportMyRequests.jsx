@@ -4,7 +4,7 @@ import { Bus, CalendarClock } from "lucide-react"
 
 const STATUS_STYLES = {
   APPROVED:  "bg-green-100 text-green-700",
-  PENDING:   "bg-amber-100 text-amber-700",
+  PENDING:   "bg-yellow-100 text-yellow-700",
   REJECTED:  "bg-red-100 text-red-700",
   COMPLETED: "bg-blue-100 text-blue-700",
   EXPIRED:   "bg-orange-100 text-orange-700",
@@ -82,7 +82,7 @@ function TransportMyRequests() {
       {/* View all button */}
       <button
         onClick={() => navigate("/transport/my-bookings")}
-        className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition"
+        className="mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-700 hover:bg-green-700 rounded-lg transition"
       >
         View all bookings
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

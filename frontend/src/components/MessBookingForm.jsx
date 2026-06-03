@@ -170,7 +170,7 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
               </p>
             </div>
             {remaining > 0 && !exceeds && (
-              <p className="text-xs text-orange-500 mt-1.5">Please assign meal preference for everyone.</p>
+              <p className="text-xs text-orange-500 mt-1.5">Please assign food preference for everyone.</p>
             )}
             {exceeds && (
               <p className="text-xs text-red-500 mt-1.5">Vegetarian + Non-Vegetarian count cannot exceed total attendees.</p>
@@ -182,7 +182,7 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
       {/* Meals */}
       <SectionLabel>Meals Required</SectionLabel>
       <p className="text-xs text-gray-500 -mt-2">
-        Select the meals needed for this day and add the time and menu.
+        Select the food preferences needed for this day and add the time and menu.
       </p>
 
       <div className="space-y-3">
@@ -386,7 +386,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       if (veg + nonveg !== total) return `${label}: Veg (${veg}) + Non-Veg (${nonveg}) must equal Total (${total}).`
 
       const mealTimes = MEALS.map((meal) => m[meal.timeKey]).filter(Boolean)
-      if (mealTimes.length === 0) return `${label}: At least one meal must be selected.`
+      if (mealTimes.length === 0) return `${label}: At least one food preference must be selected.`
 
       for (const meal of MEALS) {
         const time = m[meal.timeKey]
@@ -407,7 +407,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       const earliest = new Date(Math.min(...allDateTimes))
       const deadline = new Date(now + 24 * 60 * 60 * 1000)
       if (earliest < deadline)
-        return "Booking too late: Mess bookings require strictly 24 hours notice before the first meal."
+        return "Booking too late: Mess bookings require strictly 24 hours notice before the meal."
     }
 
     return null
@@ -511,7 +511,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
             </p>
             <h2 className="text-2xl font-bold text-white">Food Request</h2>
             <p className="text-sm text-green-200/75 mt-3">
-              Request meals for your event.
+              Request food services for your event.
             </p>
           </div>
 
@@ -683,7 +683,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                   <div className={`rounded-xl px-4 py-3 text-sm font-medium border ${
                     countdown.expired
                       ? "bg-red-50 border-red-200 text-red-700"
-                      : "bg-amber-50 border-amber-200 text-amber-700"
+                      : "bg-yellow-50 border-yellow-200 text-yellow-700"
                   }`}>
                     {countdown.expired ? "⚠️" : "⏳"} {countdown.message}
                   </div>

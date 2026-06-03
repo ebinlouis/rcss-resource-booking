@@ -446,7 +446,7 @@ export default function AdminFacultiesPage() {
                             <span>{deptInfo?.department_name || 'Loading details...'}</span>
                             {!activeHOD && !loading && (
                                 <span 
-                                    className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full select-none cursor-help"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-full select-none cursor-help"
                                     title="This department is not configured yet. Please add a Head of Department using the button above."
                                 >
                                     No faculty members found
@@ -582,7 +582,7 @@ export default function AdminFacultiesPage() {
                                     <button
                                         type="button"
                                         onClick={() => { setResetTargetUser(activeHOD); }}
-                                        className="px-4 py-2 text-[12.5px] font-bold text-amber-700 border border-amber-200 bg-white hover:bg-amber-50 rounded-xl transition"
+                                        className="px-4 py-2 text-[12.5px] font-bold text-yellow-700 border border-yellow-200 bg-white hover:bg-yellow-50 rounded-xl transition"
                                     >
                                         Reset Password
                                     </button>
@@ -957,15 +957,15 @@ export default function AdminFacultiesPage() {
                                 
                                 if (activeHOD && isSelectingHOD && (!editingUser || editingUser.id !== activeHOD.id)) {
                                     return (
-                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-800 font-medium space-y-1">
+                                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-[12.5px] text-yellow-800 font-medium space-y-1">
                                             <div className="flex items-center gap-1.5 font-bold">
-                                                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                <svg className="w-4 h-4 text-yellow-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                 </svg>
                                                 <span>Department Head Already Assigned</span>
                                             </div>
                                             <p>This department already has a Head of Department assigned: <strong className="font-semibold">{activeHOD.first_name} {activeHOD.last_name || ''}</strong>.</p>
-                                            <p className="text-[11.5px] text-amber-700/90 mt-0.5">Saving this change will make this person the Department Head and change the current Department Head to a Faculty Member.</p>
+                                            <p className="text-[11.5px] text-yellow-700/90 mt-0.5">Saving this change will make this person the Department Head and change the current Department Head to a Faculty Member.</p>
                                         </div>
                                     );
                                 }
@@ -1124,7 +1124,7 @@ export default function AdminFacultiesPage() {
                         <p className="text-[14px] text-slate-600 leading-relaxed">
                             Are you sure you want to reset the password for <strong className="text-slate-900">{resetTargetUser.first_name} {resetTargetUser.last_name || ''}</strong>? The password will be reset to a temporary password that can be changed after login.
                         </p>
-                        <p className="text-[13px] text-amber-600 font-medium mt-2 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                        <p className="text-[13px] text-yellow-600 font-medium mt-2 bg-yellow-50 border border-yellow-200 p-2.5 rounded-xl">
                             The password will be reset to the default: <strong>Rajagiri@123</strong>. The user can change this later from their profile.
                         </p>
 
@@ -1141,7 +1141,7 @@ export default function AdminFacultiesPage() {
                                 type="button"
                                 onClick={handleResetPassword}
                                 disabled={isResetting}
-                                className="px-4 py-2.5 text-[13px] font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition disabled:opacity-50"
+                                className="px-4 py-2.5 text-[13px] font-semibold text-white bg-yellow-600 hover:bg-yellow-700 rounded-xl transition disabled:opacity-50"
                             >
                                 {isResetting ? 'Resetting...' : 'Confirm Reset'}
                             </button>

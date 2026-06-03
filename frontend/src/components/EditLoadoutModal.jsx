@@ -349,9 +349,9 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
               <span className="text-sm">Loading live inventory…</span>
             </div>
           ) : inventoryError ? (
-            <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
-              <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-              <p className="text-sm text-amber-800">{inventoryError}</p>
+            <div className="flex items-start gap-3 rounded-xl bg-yellow-50 border border-yellow-200 px-4 py-3">
+              <AlertCircle className="h-4 w-4 shrink-0 text-yellow-600 mt-0.5" />
+              <p className="text-sm text-yellow-800">{inventoryError}</p>
             </div>
           ) : (
             <>

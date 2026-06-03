@@ -63,7 +63,7 @@ const STATUS_BADGE = {
   completed: "bg-slate-100 text-slate-600 border-slate-200",
   expired:   "bg-orange-100 text-orange-700 border-orange-200",
   rejected:  "bg-red-100 text-red-700 border-red-200",
-  pending:   "bg-amber-100 text-amber-700 border-amber-200",
+  pending:   "bg-yellow-100 text-yellow-700 border-yellow-200",
   cancelled: "bg-gray-100 text-gray-600 border-gray-200",
 }
 
@@ -285,7 +285,7 @@ function BookingCard({ booking, onEdit, onCancel, isHighlighted }) {
             {/* Day tabs for multi-day */}
             {menus.length > 1 && (
               <div className="mb-4">
-                <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-amber-500 inline-block">
+                <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-yellow-500 inline-block">
                   Daily Menu
                 </p>
                 <div className="flex gap-1.5 overflow-x-auto pb-1 mt-2">

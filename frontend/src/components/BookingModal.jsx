@@ -150,7 +150,7 @@ function BookingModal({
               ? "updated and sent for review."
               : "submitted for review."}
             {form.isExternal && (
-              <span className="block mt-1 text-xs text-amber-600 font-medium">
+              <span className="block mt-1 text-xs text-yellow-600 font-medium">
                 Marked as an external event.
               </span>
             )}
@@ -374,7 +374,7 @@ These bookings may need additional review.
             aria-checked={form.isExternal}
             onClick={() => set("isExternal", !form.isExternal)}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-700 focus:ring-offset-2 ${
-              form.isExternal ? "bg-amber-500" : "bg-gray-200"
+              form.isExternal ? "bg-yellow-500" : "bg-gray-200"
             }`}
           >
             <span
@@ -503,19 +503,19 @@ These bookings may need additional review.
         )}
 
         {isLowOccupancy && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 mb-2">
+          <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3.5 mb-2">
             <div className="flex items-start gap-3">
-              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800">Low occupancy for {activeSpaceName}</p>
-                <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                <p className="text-sm font-semibold text-yellow-800">Low occupancy for {activeSpaceName}</p>
+                <p className="text-xs text-yellow-700 mt-0.5 leading-relaxed">
                   {attendeeCount} attendees fills only {Math.round((attendeeCount / activeSpaceCap) * 100)}% of this venue.
                   Consider a smaller venue, or explain below why this venue is needed.
                 </p>
                 {!isFetchingSuggestions && suggestedHalls.length === 0 && Number.isFinite(attendeeCount) && (
-                  <p className="text-xs text-amber-600 mt-2">No smaller venues available — please explain in Notes below.</p>
+                  <p className="text-xs text-yellow-600 mt-2">No smaller venues available — please explain in Notes below.</p>
                 )}
               </div>
             </div>
@@ -614,11 +614,11 @@ These bookings may need additional review.
         )}
 
         {isEdit && initialData?.status === "APPROVED" && (
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+            <svg className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
-            <p className="text-xs text-amber-800 leading-relaxed">
+            <p className="text-xs text-yellow-800 leading-relaxed">
               This booking is currently approved. Saving changes will move it back to{" "}
               <span className="font-semibold">Pending Review</span> and notify the team.
             </p>
@@ -654,7 +654,7 @@ These bookings may need additional review.
             <h2 className="text-2xl font-bold text-white leading-tight">{activeSpaceName}</h2>
 
             {form.isExternal && (
-              <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-bold uppercase tracking-wider">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                 </svg>
@@ -676,7 +676,7 @@ These bookings may need additional review.
                   <div className="mt-2">
                     <div className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${isLowOccupancy ? "bg-amber-400" : "bg-green-400"}`}
+                        className={`h-full rounded-full transition-all duration-500 ${isLowOccupancy ? "bg-yellow-400" : "bg-green-400"}`}
                         style={{ width: `${Math.min(100, (attendeeCount / activeSpaceCap) * 100)}%` }}
                       />
                     </div>
@@ -785,11 +785,11 @@ These bookings may need additional review.
 
           {/* RE-APPROVAL NOTICE */}
           {isEdit && initialData?.status === "APPROVED" && (
-            <div className="mx-7 mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 shrink-0">
-              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="mx-7 mt-4 flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 shrink-0">
+              <svg className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
-              <p className="text-xs text-amber-800 leading-relaxed">
+              <p className="text-xs text-yellow-800 leading-relaxed">
                 This booking is currently approved. Saving changes will move it back to{" "}
                 <span className="font-semibold">Pending Review</span> and notify the admin.
               </p>

@@ -236,7 +236,7 @@ const SpaceDraftStep = forwardRef(function SpaceDraftStep(_, ref) {
     if (!form.purpose.trim()) nextErrors.purpose = "Please describe the purpose."
     if (!form.department) nextErrors.department = "Select your department."
     if (!form.attendees || Number(form.attendees) < 1) nextErrors.attendees = "Enter a valid number."
-    if (exceedsCapacity) nextErrors.attendees = `Capacity exceeded. Maximum allowed is ${spaceCap}.`
+    if (exceedsCapacity) nextErrors.attendees = `"This venue can accommodate up to ${spaceCap} people."`
     if (isLowOccupancy && !form.notes.trim()) {
       nextErrors.notes = "Please explain why this venue is needed for a small group."
     }
@@ -375,8 +375,8 @@ const SpaceDraftStep = forwardRef(function SpaceDraftStep(_, ref) {
       </div>
 
       {isLowOccupancy && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          This is a low-occupancy booking for the selected venue. Add a short note for reviewers.
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          This is a low-occupancy booking for the selected venue. Please tell us why this venue is needed for a small group.
         </div>
       )}
 
@@ -422,7 +422,7 @@ const SpaceDraftStep = forwardRef(function SpaceDraftStep(_, ref) {
         <label className="mt-4 flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
           <span>
             <span className="block text-sm font-semibold text-gray-800">External event</span>
-            <span className="text-xs text-gray-500">Flag for priority admin review.</span>
+            <span className="text-xs text-gray-500">This request may need additional approval.</span>
           </span>
           <input
             type="checkbox"
@@ -496,7 +496,7 @@ function DayMenuPanel({ dayMenu, onChange }) {
         </Field>
       </div>
       {total > 0 && (
-        <p className={`text-sm font-semibold ${remaining === 0 ? "text-green-700" : "text-amber-600"}`}>
+        <p className={`text-sm font-semibold ${remaining === 0 ? "text-green-700" : "text-yellow-600"}`}>
           Remaining allocation: {remaining}
         </p>
       )}
@@ -621,7 +621,7 @@ const MessDraftStep = forwardRef(function MessDraftStep({ mediaInSequence, onAdd
       const earliest = new Date(Math.min(...allDateTimes))
       const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000)
       if (earliest < deadline) {
-        return "Mess bookings require strictly 24 hours notice before the first meal."
+        return "Food bookings require strictly 24 hours notice before the request."
       }
     }
 
@@ -684,24 +684,24 @@ const MessDraftStep = forwardRef(function MessDraftStep({ mediaInSequence, onAdd
     <div className="mx-auto w-full max-w-2xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-green-700">Mess</p>
-        <h2 className="mt-1 text-2xl font-bold text-gray-950">Add catering details</h2>
+        <h2 className="mt-1 text-2xl font-bold text-gray-950">Add meal details</h2>
         <p className="mt-2 text-sm text-gray-500">
-          Configure headcount and meals for each day in the linked event.
+          Provide headcount and meals for each day in the linked event.
         </p>
       </div>
 
       {!mediaInSequence && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-amber-900">Need Media for the same event?</p>
-            <p className="mt-1 text-xs font-medium text-amber-800">
+            <p className="text-sm font-bold text-yellow-900">Need Media for the same event?</p>
+            <p className="mt-1 text-xs font-medium text-yellow-800">
               Add a Media step after Mess and review everything together.
             </p>
           </div>
           <button
             type="button"
             onClick={onAddMedia}
-            className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+            className="rounded-lg bg-yellow-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-yellow-700"
           >
             Add Media
           </button>
@@ -942,7 +942,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
     }
     if (teardownDate && endDate && teardownDate < endDate) {
       nextErrors.teardown_end_datetime = "Must be after event ends"
-      nextErrors.timeError = "Teardown time cannot end before the event ends."
+      nextErrors.timeError = "Wrap-up time cannot end before the event ends."
     }
     if (setupDate && setupDate < new Date()) {
       nextErrors.timeError = "You cannot select a time block that has already passed."
@@ -979,7 +979,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
         teardown_end_datetime: new Date(actualTeardown).toISOString(),
         is_team_request: isTeamRequest,
         is_external_event: formData.is_external_event,
-        requested_services: isTeamRequest ? "Media team coverage" : formData.requested_services,
+        requested_services: isTeamRequest ? "Media team support" : formData.requested_services,
         user_notes: formData.user_notes,
       }
 
@@ -1007,7 +1007,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
         needsBuffer,
         payload,
         spaceName: selectedSpace?.name || linkedSpace.spaceName || "Selected venue",
-        requestSummary: isTeamRequest ? "Media team coverage" : selectedEquipment.join(", ") || "Equipment request",
+        requestSummary: isTeamRequest ? "Media team support" : selectedEquipment.join(", ") || "Equipment request",
       })
       bookingSessionActions.setMediaRequestMode(requestMode)
       return true
@@ -1020,24 +1020,22 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
         <p className="text-xs font-bold uppercase tracking-wide text-green-700">Media</p>
         <h2 className="mt-1 text-2xl font-bold text-gray-950">Add media support</h2>
         <p className="mt-2 text-sm text-gray-500">
-          Request team coverage or borrow media equipment for the linked event.
-        </p>
+Need a photographer, videographer, or equipment for this event? Add your requirements here.        </p>
       </div>
 
       {!messInSequence && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-amber-900">Need Mess for the same event?</p>
-            <p className="mt-1 text-xs font-medium text-amber-800">
-              Add a Mess step after Media and review everything together.
-            </p>
+            <p className="text-sm font-bold text-yellow-900">Need food arrangements for this event?</p>
+            <p className="mt-1 text-xs font-medium text-yellow-800">
+Add a Food Service step after Media and review everything together.            </p>
           </div>
           <button
             type="button"
             onClick={onAddMess}
-            className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+            className="rounded-lg bg-yellow-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-yellow-700"
           >
-            Add Mess
+            Add Food Services
           </button>
         </div>
       )}
@@ -1050,9 +1048,9 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
       )}
 
       {session.mediaCapacity?.limited_capacity && isTeamRequest && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+        <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-semibold text-yellow-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          Media team has limited capacity for this slot.
+          The media team may not be fully available at this time.
         </div>
       )}
 
@@ -1108,7 +1106,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
             checked={needsBuffer}
             onChange={(event) => setNeedsBuffer(event.target.checked)}
           />
-          Add setup and wrap-up time for the media team
+          Add preparation and pack-up time
         </label>
 
         {needsBuffer && (
@@ -1121,7 +1119,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
                 onChange={(event) => setField("setup_start_datetime", event.target.value)}
               />
             </Field>
-            <Field label="Teardown ends" required error={errors.teardown_end_datetime}>
+            <Field label="Wrap-up ends" required error={errors.teardown_end_datetime}>
               <input
                 type="datetime-local"
                 className={inputCls(errors.teardown_end_datetime)}
@@ -1140,14 +1138,14 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
             {checkingInventory && (
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Checking
+                Checking availability
               </span>
             )}
           </div>
 
           {availableEquipment.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center text-sm font-medium text-gray-500">
-              Set a valid time to load the equipmemt list.
+              Choose the event time to see available equipment.
             </div>
           ) : (
             <div className="space-y-3">
@@ -1234,7 +1232,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
           </select>
         </Field>
         {!isTeamRequest && (
-          <Field label="Human resources" hint="Optional support request for media staff.">
+          <Field label="Additional Staff Needed" hint="Optional support request for media staff.">
             <input
               className={inputCls()}
               value={formData.requested_services}

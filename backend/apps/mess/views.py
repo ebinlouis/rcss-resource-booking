@@ -100,7 +100,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         if not can_user_modify_booking(instance):
             raise ValidationError({
                 "detail":
-                "Cannot cancel a mess booking whose first meal time has already passed."
+                "Cannot cancel a mess booking whose meal time has already passed."
             })
 
         instance.status = 'CANCELLED'

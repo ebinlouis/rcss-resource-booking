@@ -63,7 +63,7 @@ const StatusBadge = ({ status }) => (
 )
 
 const EventTypeBadge = ({ isExternal }) => isExternal ? (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-amber-700">
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-yellow-700">
         <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
         </svg>
@@ -192,7 +192,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                             {/* Busy members */}
                             {busyCrew.length > 0 && (
                                 <div>
-                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Already Assigned Elsewhere ({busyCrew.length})</p>
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-yellow-600">Already Assigned Elsewhere ({busyCrew.length})</p>
                                     <div className="space-y-2">
                                         {busyCrew.map((member) => (
                                             <CrewMemberRow key={member.id} member={member} selected={selected.has(member.id)} onToggle={toggleMember} />
@@ -241,7 +241,7 @@ function CrewMemberRow({ member, selected, onToggle }) {
                 selected
                     ? 'border-[#15803d] bg-[#f0fdf4] ring-1 ring-[#15803d]'
                     : member.is_busy
-                    ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+                    ? 'border-yellow-200 bg-yellow-50/50 hover:border-yellow-300'
                     : 'border-[#e8f5ee] bg-white hover:border-[#15803d]/40 hover:bg-[#f9fdfb]'
             }`}
         >
@@ -258,7 +258,7 @@ function CrewMemberRow({ member, selected, onToggle }) {
                     <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-[14px] font-semibold text-[#0f172a]">{member.name}</p>
                         {member.is_busy ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-bold text-yellow-700">
                                 <AlertTriangle className="h-3 w-3" /> Busy
                             </span>
                         ) : (
@@ -279,7 +279,7 @@ function CrewMemberRow({ member, selected, onToggle }) {
                     {member.is_busy && member.busy_bookings?.length > 0 && (
                         <div className="mt-2 space-y-1">
                             {member.busy_bookings.map((b, i) => (
-                                <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                <p key={i} className="rounded-lg bg-yellow-100/60 px-2.5 py-1.5 text-[11.5px] text-yellow-800 flex items-center gap-1.5">
                                     <Clock className="w-3 h-3 shrink-0" /> {b.event_name} on {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)} to {formatTime(b.teardown_end_datetime)}
                                 </p>
                             ))}
@@ -381,15 +381,15 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
                             )}
                             {busyCrew.length > 0 && (
                                 <div>
-                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-600">Currently Assigned but Busy ({busyCrew.length})</p>
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-yellow-600">Currently Assigned but Busy ({busyCrew.length})</p>
                                     <div className="space-y-2">
                                         {busyCrew.map((member) => (
-                                            <div key={member.id} className="w-full rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3 opacity-75">
+                                            <div key={member.id} className="w-full rounded-xl border border-yellow-200 bg-yellow-50/50 px-4 py-3 opacity-75">
                                                 <div className="flex items-start gap-3">
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <p className="text-[14px] font-semibold text-[#0f172a]">{member.name}</p>
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-bold text-yellow-700">
                                                                 <AlertTriangle className="h-3 w-3" /> Busy
                                                             </span>
                                                         </div>
@@ -397,7 +397,7 @@ function UpdateCrewModal({ booking, onConfirm, onCancel }) {
                                                         {member.busy_bookings?.length > 0 && (
                                                             <div className="mt-2 space-y-1">
                                                                 {member.busy_bookings.map((b, i) => (
-                                                                    <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
+                                                                    <p key={i} className="rounded-lg bg-yellow-100/60 px-2.5 py-1.5 text-[11.5px] text-yellow-800 flex items-center gap-1.5">
                                                                         <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
                                                                     </p>
                                                                 ))}
@@ -628,7 +628,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     return (
         <article
             data-booking-reference={booking.reference_code || ''}
-            className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-amber-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'} ${isHighlighted ? 'ring-2 ring-[#22c55e] bg-[#f0fdf4]' : ''}`}
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${booking.is_external_event ? 'border-yellow-200' : 'border-[#e8f5ee]'} ${isExpanded ? 'shadow-md' : 'hover:bg-[#fbfefc] hover:shadow-md'} ${isHighlighted ? 'ring-2 ring-[#22c55e] bg-[#f0fdf4]' : ''}`}
         >
             {/* ── Collapsed header ── */}
             <div className="block w-full cursor-pointer px-6 py-5 text-left" onClick={toggle}>

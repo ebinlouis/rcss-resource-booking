@@ -79,7 +79,7 @@ function BookingDetailPanel({ booking, onClose, user, onLoginRedirect }) {
 
   const statusStyles = {
     confirmed: "bg-green-100 text-green-700",
-    pending:   "bg-amber-100 text-amber-700",
+    pending:   "bg-yellow-100 text-yellow-700",
     rejected:  "bg-red-100 text-red-700",
   }
 
@@ -238,9 +238,9 @@ const STATUS_STYLES = {
     dot:   "bg-green-500",
   },
   pending: {
-    row:   "bg-amber-50/100",
-    badge: "bg-amber-100 text-amber-700",
-    dot:   "bg-amber-500",
+    row:   "bg-yellow-50/100",
+    badge: "bg-yellow-100 text-yellow-700",
+    dot:   "bg-yellow-500",
   },
   rejected: {
     row:   "bg-red-50/100",

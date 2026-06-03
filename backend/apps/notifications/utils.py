@@ -494,7 +494,7 @@ def _format_booking_time(booking, domain=""):
 
             first_meal = _mess_first_meal_time(booking)
             if first_meal:
-                return f"{date_str} (first meal {first_meal.strftime('%I:%M %p')})"
+                return f"{date_str} (meal {first_meal.strftime('%I:%M %p')})"
             return date_str
 
     # 1. Try to get Datetime objects (Spaces, Fleet)
@@ -772,7 +772,7 @@ def notify_new_request(booking, domain, role_name):
         first_meal = _mess_first_meal_time(booking)
         title = "New Catering Request"
         if date_range and first_meal:
-            message = f"{requester} requested catering for {date_range}, first meal at {_format_time_value(first_meal)}."
+            message = f"{requester} requested catering for {date_range}, meal at {_format_time_value(first_meal)}."
         elif date_range:
             message = f"{requester} requested catering for {date_range}."
         else:
@@ -840,7 +840,7 @@ def notify_incharge_expired(booking, domain):
         first_meal = _mess_first_meal_time(booking)
         title = "Catering Request Expired"
         if date_range and first_meal:
-            message = f"A catering request from {requester} for {date_range} (first meal at {_format_time_value(first_meal)}) has automatically expired."
+            message = f"A catering request from {requester} for {date_range} (meal at {_format_time_value(first_meal)}) has automatically expired."
         elif date_range:
             message = f"A catering request from {requester} for {date_range} has automatically expired."
         else:

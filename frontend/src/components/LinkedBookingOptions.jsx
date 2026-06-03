@@ -52,14 +52,14 @@ function LinkedBookingOptions({
   const mediaIsFull = mediaCapacity?.is_full
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+    <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-4">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-amber-900">
+          <p className="text-sm font-bold text-yellow-900">
             You can also book Food or Media for this event.
           </p>
-          <p className="mt-1 text-xs text-amber-800">
+          <p className="mt-1 text-xs text-yellow-800">
             Finish the linked request, return here, and submit the venue request last.
           </p>
 
@@ -67,10 +67,10 @@ function LinkedBookingOptions({
             <button
               type="button"
               onClick={onAddMess}
-              className="flex items-center justify-between rounded-xl border border-amber-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-amber-300 hover:bg-amber-50"
+              className="flex items-center justify-between rounded-xl border border-yellow-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-yellow-300 hover:bg-yellow-50"
             >
               <span className="inline-flex items-center gap-2">
-                <Utensils className="h-4 w-4 text-amber-600" />
+                <Utensils className="h-4 w-4 text-yellow-600" />
                 {messDone ? "Mess selected" : "Add Mess"}
               </span>
               {messDone && <CheckCircle2 className="h-4 w-4 text-green-600" />}
@@ -80,16 +80,16 @@ function LinkedBookingOptions({
               <button
                 type="button"
                 onClick={onAddMedia}
-                className="flex w-full items-center justify-between rounded-xl border border-amber-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-amber-300 hover:bg-amber-50"
+                className="flex w-full items-center justify-between rounded-xl border border-yellow-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-yellow-300 hover:bg-yellow-50"
               >
                 <span className="inline-flex items-center gap-2">
-                  <Clapperboard className="h-4 w-4 text-amber-600" />
+                  <Clapperboard className="h-4 w-4 text-yellow-600" />
                   {mediaDone ? "Media selected" : "Add Media"}
                 </span>
                 {mediaDone && <CheckCircle2 className="h-4 w-4 text-green-600" />}
               </button>
               {isCheckingMedia && (
-                <p className="mt-1.5 text-xs font-medium text-amber-700">
+                <p className="mt-1.5 text-xs font-medium text-yellow-700">
                   Checking media team capacity...
                 </p>
               )}

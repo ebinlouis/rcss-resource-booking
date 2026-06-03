@@ -585,19 +585,19 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, onResendClick, isA
                             <div className="mb-6">
                                 {booking.faculty_timed_out ? (
                                     // Faculty did not respond — show warning with contact and resend option
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-4">
-                                        <p className="text-[13px] font-bold text-amber-800 mb-1">
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-4">
+                                        <p className="text-[13px] font-bold text-yellow-800 mb-1">
                                             ⚠️ Faculty member has not responded
                                         </p>
-                                        <p className="text-[13px] text-amber-700 mb-3">
+                                        <p className="text-[13px] text-yellow-700 mb-3">
                                             This request was sent to <span className="font-semibold">{booking.faculty_sponsor_name || 'the faculty member'}</span> for approval but they did not respond in time.
                                         </p>
                                         {booking.faculty_phone && (
-                                            <p className="text-[13px] text-amber-800 mb-3">
+                                            <p className="text-[13px] text-yellow-800 mb-3">
                                                 📞 Faculty phone: <a href={`tel:${booking.faculty_phone}`} className="font-semibold underline">{booking.faculty_phone}</a>
                                             </p>
                                         )}
-                                        <p className="text-[12px] text-amber-600">
+                                        <p className="text-[12px] text-yellow-600">
                                             You can send it back to them to approve, or approve it yourself if you have confirmed with them directly.
                                         </p>
                                     </div>

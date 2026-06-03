@@ -200,7 +200,7 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
           )}
           {multiDay && (
             <span className={`ml-auto text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 ${
-              selected ? "bg-emerald-200 text-emerald-800" : "bg-amber-100 text-amber-700"
+              selected ? "bg-emerald-200 text-emerald-800" : "bg-yellow-100 text-yellow-700"
             }`}>
               Multi-day
             </span>
@@ -306,11 +306,11 @@ function EventCard({ booking, selected, expanded, onSelect, onToggleExpand, page
 
           {/* Notes */}
           {booking.user_notes && (
-            <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 flex items-start gap-2">
-              <StickyNote className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="rounded-lg bg-yellow-50 border border-yellow-100 px-3 py-2 flex items-start gap-2">
+              <StickyNote className="h-3.5 w-3.5 text-yellow-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-[10.5px] font-bold uppercase tracking-wide text-amber-600 mb-0.5">Notes</p>
-                <p className="text-[12.5px] text-amber-900">{booking.user_notes}</p>
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-yellow-600 mb-0.5">Notes</p>
+                <p className="text-[12.5px] text-yellow-900">{booking.user_notes}</p>
               </div>
             </div>
           )}
@@ -454,9 +454,9 @@ function LoadoutPanel({ booking, canEdit, onEditClick }) {
           </div>
         )}
         {booking.user_notes && (
-          <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-amber-600 mb-1">Event Notes</p>
-            <p className="text-[13.5px] text-amber-900">{booking.user_notes}</p>
+          <div className="rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-yellow-600 mb-1">Event Notes</p>
+            <p className="text-[13.5px] text-yellow-900">{booking.user_notes}</p>
           </div>
         )}
       </div>

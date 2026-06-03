@@ -9,7 +9,7 @@ const getStatusStyle = (status) => {
     case "completed": return "bg-slate-100 text-slate-600"
     case "expired":   return "bg-orange-100 text-orange-700"
     case "rejected":  return "bg-red-100 text-red-700"
-    default:          return "bg-amber-100 text-amber-700"
+    default:          return "bg-yellow-100 text-yellow-700"
   }
 }
 

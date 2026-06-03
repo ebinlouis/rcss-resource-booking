@@ -255,7 +255,7 @@ export default function AdminDepartmentsPage() {
                                             </td>
                                             <td className="px-6 py-4 text-[14px] font-semibold text-[#374151]">
                                                 {(dept.faculty_count ?? 0) === 0 ? (
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold uppercase tracking-wide">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-[11px] font-bold uppercase tracking-wide">
                                                         No faculties assigned
                                                     </span>
                                                 ) : (

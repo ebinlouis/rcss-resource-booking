@@ -74,7 +74,7 @@ function RoomCard({ room, onOpenAvailability }) {
             className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
               isActive
                 ? "bg-green-50 text-green-700 border border-green-100"
-                : "bg-amber-50 text-amber-700 border border-amber-100"
+                : "bg-yellow-50 text-yellow-700 border border-yellow-100"
             }`}
           >
             {isActive ? "Available" : "Maintenance"}
