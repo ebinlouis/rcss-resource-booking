@@ -130,6 +130,10 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
         next_status = EXPIRED
         booking.resolved_at = now
         update_fields.append('resolved_at')
+    elif current_status == AWAITING_FACULTY and getattr(booking, 'faculty_response_deadline', None) and booking.faculty_response_deadline < now:
+        next_status = FACULTY_ESCALATED
+        booking.faculty_timed_out = True
+        update_fields.append('faculty_timed_out')
 
     if not next_status:
         return False
@@ -164,6 +168,26 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
                 "start time passed before it could be approved."
             ),
         )
+    elif next_status == FACULTY_ESCALATED:
+        domain = _get_booking_domain(booking)
+        
+        from apps.notifications.utils import mark_pending_request_notifications_read
+        mark_pending_request_notifications_read(booking, domain=domain)
+        
+        if domain == 'spaces':
+            from apps.notifications.utils import notify_incharge_escalated
+            from apps.spaces.models import Space
+            from apps.users.models import Role
+            
+            category = booking.space.approval_category
+            if category == Space.ApprovalCategory.LAB:
+                role = Role.Name.LAB_INCHARGE
+            elif category == Space.ApprovalCategory.LIBRARY:
+                role = Role.Name.LIBRARIAN
+            else:
+                role = Role.Name.RECEPTIONIST
+                
+            notify_incharge_escalated(booking, role)
 
     return True
 
@@ -214,7 +238,15 @@ def refresh_queryset_lifecycle(queryset):
     else:
         completion_q = Q(status=APPROVED)
 
-    candidates = queryset.filter(expiry_q | completion_q)
+    # ── Build escalation filter (AWAITING_FACULTY) ────────────────────────────
+    # A spaces booking with a faculty sponsor escalates if they don't respond
+    # within 24 hours of booking creation.
+    if 'faculty_response_deadline' in field_names:
+        escalation_q = Q(status=AWAITING_FACULTY, faculty_response_deadline__lt=now)
+    else:
+        escalation_q = Q(pk__in=[])
+
+    candidates = queryset.filter(expiry_q | completion_q | escalation_q)
 
     for booking in candidates:
         if refresh_booking_lifecycle(booking, now=now):
