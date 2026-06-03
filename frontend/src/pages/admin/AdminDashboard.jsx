@@ -1,10 +1,10 @@
 import Tooltip from '../../components/Tooltip'
 import PageInfo from '../../components/PageInfo'
 import toast from 'react-hot-toast';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
-import approvalService from '../../api/approvalService';
+
 import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime';
@@ -16,25 +16,14 @@ import { useSpaceCatalog } from '../../hooks/useSpaceQueries';
 
 // ─── Calendar date helpers (mirrors Media.jsx pattern) ───────────────────────
 
-const todayDateKey = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
+
 
 const dateKeyFromDate = (date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-const addCalDays = (dateString, days) => {
-    const date = new Date(`${dateString}T00:00:00`);
-    date.setDate(date.getDate() + days);
-    return dateKeyFromDate(date);
-};
 
-const getCalWeekStart = (dateString) => {
-    const date = new Date(`${dateString}T00:00:00`);
-    date.setDate(date.getDate() - date.getDay()); // rewind to Sunday
-    return dateKeyFromDate(date);
-};
+
+
 
 const formatCalDate = (dateString, options = {}) => {
     if (!dateString) return '';
@@ -840,7 +829,7 @@ const PAGE_DOMAIN = 'spaces';
 const AdminDashboard = () => {
     const { can_manage_system, can_manage_mess, user } = useAuth();
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const can_manage_media = user?.capabilities?.can_manage_media;
     const currentUserId = user?.id;
     const requestedTab = searchParams.get('tab');
@@ -855,6 +844,15 @@ const AdminDashboard = () => {
             : 'pending'
     ));
 
+    useEffect(() => {
+        if (!searchParams.get('tab')) return;
+        const booking = searchParams.get('booking');
+        const next = new URLSearchParams();
+        if (booking) next.set('booking', booking);
+        setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // ── Optional date filter (empty string = no filter) ──────────────────────
     const [dateFilter, setDateFilter] = useState('');
 
@@ -863,9 +861,10 @@ const AdminDashboard = () => {
     const approvedQuery = useApprovals(PAGE_DOMAIN, 'APPROVED');
     const rejectedQuery = useApprovals(PAGE_DOMAIN, 'REJECTED');
     const cancelledQuery = useApprovals(PAGE_DOMAIN, 'CANCELLED');
+    const expiredQuery = useApprovals(PAGE_DOMAIN, 'EXPIRED');
 
-    const isLoading = pendingQuery.isLoading || approvedQuery.isLoading || rejectedQuery.isLoading || cancelledQuery.isLoading;
-    const isFetching = pendingQuery.isFetching || approvedQuery.isFetching || rejectedQuery.isFetching || cancelledQuery.isFetching;
+    const isLoading = pendingQuery.isLoading || approvedQuery.isLoading || rejectedQuery.isLoading || cancelledQuery.isLoading || expiredQuery.isLoading;
+    const isFetching = pendingQuery.isFetching || approvedQuery.isFetching || rejectedQuery.isFetching || cancelledQuery.isFetching || expiredQuery.isFetching;
 
     const raw = useMemo(() => {
         const r = {
@@ -873,19 +872,21 @@ const AdminDashboard = () => {
             approved: groupBookings(approvedQuery.data?.queue || []),
             rejected: groupBookings(rejectedQuery.data?.queue || []),
             cancelled: groupBookings(cancelledQuery.data?.queue || []),
+            expired: groupBookings(expiredQuery.data?.queue || []),
         };
         return r;
     }, [
         pendingQuery.data?.queue,
         approvedQuery.data?.queue,
         rejectedQuery.data?.queue,
-        cancelledQuery.data?.queue
+        cancelledQuery.data?.queue,
+        expiredQuery.data?.queue
     ]);
 
     // ── UI state ──────────────────────────────────────────────────────────────
     const [actionLoading, setActionLoading] = useState(null);
     const [actionError, setActionError] = useState(null);
-    const [error, setError] = useState(null);
+    const [error] = useState(null);
     const [rejectTarget, setRejectTarget] = useState(null);
     const [approveTarget, setApproveTarget] = useState(null);
     const [successTarget, setSuccessTarget] = useState(null);
@@ -906,20 +907,17 @@ const AdminDashboard = () => {
         setActiveTab(tab);
         setStatusFilter('all');
         setTimingFilter('all');
-    }, []);
+        setSearchParams({}, { replace: true });
+    }, [setSearchParams]);
 
-    useEffect(() => {
-        if (!['pending', 'upcoming', 'history', 'resolvedByMe'].includes(requestedTab)) return undefined;
-        const timer = window.setTimeout(() => handleTabChange(requestedTab), 0);
-        return () => window.clearTimeout(timer);
-    }, [handleTabChange, requestedTab]);
+
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const history = useMemo(() => {
-        const res = [...raw.approved, ...raw.rejected, ...raw.cancelled]
+        const res = [...raw.approved, ...raw.rejected, ...raw.cancelled, ...raw.expired]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         return res;
-    }, [raw.approved, raw.rejected, raw.cancelled]);
+    }, [raw.approved, raw.rejected, raw.cancelled, raw.expired]);
 
     const upcoming = useMemo(() => {
         const res = raw.approved
@@ -944,6 +942,8 @@ const AdminDashboard = () => {
             result = result.filter(b => b.status === 'REJECTED');
         } else if (statusFilter === 'cancelled') {
             result = result.filter(b => b.status === 'CANCELLED');
+        } else if (statusFilter === 'expired') {
+            result = result.filter(b => b.status === 'EXPIRED');
         }
 
         if (timingFilter === 'today') {
@@ -1016,21 +1016,31 @@ const AdminDashboard = () => {
         return () => window.clearTimeout(timer);
     }, [highlightedReference, isLoading, listForTab]);
 
-    useEffect(() => {
-        if (!highlightedReference || isLoading || activeTab !== 'pending') return undefined;
-        if (raw.pending.some((booking) => bookingMatchesReference(booking, highlightedReference))) return undefined;
+    const initialHighlightedReference = useRef(highlightedReference);
+    const hasAutoSwitchedTab = useRef(
+        ['pending', 'upcoming', 'history', 'resolvedByMe'].includes(
+            new URLSearchParams(window.location.search).get('tab')
+        )
+    );
 
-        const nextTab = history.some((booking) => bookingMatchesReference(booking, highlightedReference))
+    useEffect(() => {
+        if (hasAutoSwitchedTab.current) return undefined;
+        if (!initialHighlightedReference.current || isLoading) return undefined;
+        if (activeTab !== 'pending') return undefined;
+        if (raw.pending.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))) return undefined;
+
+        const nextTab = history.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))
             ? 'history'
-            : upcoming.some((booking) => bookingMatchesReference(booking, highlightedReference))
+            : upcoming.some((booking) => bookingMatchesReference(booking, initialHighlightedReference.current))
                 ? 'upcoming'
                 : null;
 
         if (!nextTab) return undefined;
 
+        hasAutoSwitchedTab.current = true;
         const timer = window.setTimeout(() => handleTabChange(nextTab), 0);
         return () => window.clearTimeout(timer);
-    }, [activeTab, handleTabChange, highlightedReference, history, isLoading, raw.pending, upcoming]);
+    }, [activeTab, handleTabChange, history, isLoading, raw.pending, upcoming]);
 
     // ── Auth Redirects ────────────────────────────────────────────────────────
     const can_manage_fleet = user?.capabilities?.can_manage_fleet;
@@ -1159,6 +1169,7 @@ const AdminDashboard = () => {
             { value: 'approved', label: 'Approved', count: baseList.filter(b => b.status === 'APPROVED').length },
             { value: 'rejected', label: 'Rejected', count: baseList.filter(b => b.status === 'REJECTED').length },
             { value: 'cancelled', label: 'Cancelled', count: baseList.filter(b => b.status === 'CANCELLED').length },
+            { value: 'expired', label: 'Expired', count: baseList.filter(b => b.status === 'EXPIRED').length },
         ];
         return res;
     }, [baseList]);
@@ -1348,9 +1359,9 @@ const AdminDashboard = () => {
                     {/* Status/timing pills (history/resolvedByMe only) */}
                     {showFilters && (
                         <div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-[#e8f5ee] px-5 py-3">
-                            <FilterPills label="Status" options={statusOptions} value={statusFilter} onChange={setStatusFilter} />
+                            <FilterPills label="Status" options={statusOptions} value={statusFilter} onChange={(v) => { setStatusFilter(v); setSearchParams({}, { replace: true }); }} />
                             <div className="w-px bg-[#e8f5ee] self-stretch hidden sm:block" />
-                            <FilterPills label="Timing" options={timingOptions} value={timingFilter} onChange={setTimingFilter} />
+                            <FilterPills label="Timing" options={timingOptions} value={timingFilter} onChange={(v) => { setTimingFilter(v); setSearchParams({}, { replace: true }); }} />
                         </div>
                     )}
                 </div>

@@ -784,9 +784,11 @@ function AdminMess() {
               )}
 
               {/* Rejection/cancellation remark */}
-              {["rejected", "cancelled"].includes(selectedBooking.status?.toLowerCase()) && (selectedBooking.rejection_remark || selectedBooking.remarks_by_admin) && (
+              {["rejected", "cancelled", "expired"].includes(selectedBooking.status?.toLowerCase()) && (selectedBooking.rejection_remark || selectedBooking.remarks_by_admin) && (
                 <div>
-                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Cancellation Reason</p>
+                  <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">
+                    {selectedBooking.status?.toLowerCase() === "expired" ? "Expiry Reason" : "Cancellation Reason"}
+                  </p>
                   <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 leading-relaxed">
                     {selectedBooking.rejection_remark || selectedBooking.remarks_by_admin}
                   </p>

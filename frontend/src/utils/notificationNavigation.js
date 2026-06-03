@@ -14,16 +14,20 @@ const REQUESTER_LINKS = {
 
 const ADMIN_ROLE_LINKS = {
   spaces: {
-    roles: ['RECEPTIONIST', 'LAB_INCHARGE', 'PRINCIPAL'],
+    roles: ['RECEPTIONIST', 'LAB_INCHARGE', 'PRINCIPAL', 'HOD', 'IT_ADMIN', 'LIBRARIAN'],
     base: '/admin',
   },
   media: {
-    roles: ['MEDIA_INCHARGE'],
+    roles: ['MEDIA_INCHARGE', 'IT_ADMIN'],
     base: '/admin/media',
   },
   mess: {
-    roles: ['MESS_MANAGER'],
+    roles: ['MESS_MANAGER', 'IT_ADMIN'],
     base: '/admin/mess',
+  },
+  fleet: {
+    roles: ['FLEET_MANAGER', 'IT_ADMIN'],
+    base: '/admin/transport',
   },
 }
 
@@ -52,6 +56,7 @@ const getAdminDestination = (domain, reference, category, effectiveRoles = []) =
   let tab = 'history'
   if (category === 'BOOKING_PENDING') tab = 'pending'
   else if (category === 'FACULTY_ESCALATED') tab = 'pending'
+  else if (category === 'SYSTEM') tab = 'history'
 
   return `${config.base}?tab=${tab}&booking=${encodeURIComponent(reference)}`
 }
