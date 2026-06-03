@@ -225,7 +225,7 @@ toast.success('Equipment deactivated successfully.');
                     { label: 'Equipment Types',    value: totalCategories },
                 ].map(({ label, value }) => (
                     <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl font-bold text-gray-900">
                             {isLoading ? <span className="animate-pulse text-gray-300">—</span> : value}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5 font-medium">{label}</p>
@@ -233,37 +233,49 @@ toast.success('Equipment deactivated successfully.');
                 ))}
             </div>
 
-            {/* Search + filter */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-5">
-                <div className="relative flex-1">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round"
-                            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                    </svg>
-                    <input
-                        type="text"
-                        placeholder="Search by name or description…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                </div>
-                <select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                >
-                    <option value="ALL">All Categories</option>
-                    {EQUIPMENT_CATEGORIES.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                </select>
-            </div>
+{/* Search + Filter */}
+<div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+    <div className="relative w-full sm:max-w-md">
+        <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+            />
+        </svg>
+
+        <input
+            type="text"
+            placeholder="Search equipment..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+    </div>
+
+    <select
+        value={filterCategory}
+        onChange={(e) => setFilterCategory(e.target.value)}
+        className="w-full sm:w-52 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white shrink-0"
+    >
+        <option value="ALL">All Categories</option>
+        {EQUIPMENT_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+                {c.label}
+            </option>
+        ))}
+    </select>
+</div>
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+<div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
                             <tr>

@@ -268,6 +268,8 @@ function TeamFluidView({ teamData, dateStr }) {
             <span className="ml-2 text-sm font-normal text-gray-500">
               {free_crew === 1 ? "member available" : "members available"}{" "}
               {isToday ? "today" : `on ${dateLabel}`}
+              <br></br>
+              All {total_crew} media team members are currently assigned to other bookings.
             </span>
           </p>
         </div>
@@ -325,21 +327,6 @@ function TeamFluidView({ teamData, dateStr }) {
               {busyCrew} busy
             </span>
           </div>
-        </div>
-      )}
-
-      {is_full && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm">
-          <p className="flex items-center gap-2 text-sm font-bold text-red-800">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
-            No team members available for new bookings{" "}
-            {isToday ? "today" : `on ${dateLabel}`}
-          </p>
-
-          <p className="mt-1 text-sm text-red-600">
-            All {total_crew} media team members are currently assigned to other
-            bookings.
-          </p>
         </div>
       )}
 

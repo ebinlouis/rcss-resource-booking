@@ -789,11 +789,17 @@ export default function AdminFacultiesPage() {
                     >
                         <div className="flex justify-between items-start mb-5">
                             <div>
-                                <p className="text-[10.5px] font-bold text-[#15803d] uppercase tracking-[0.12em] mb-0.5">
-                                    {editingUser ? 'Faculty Update' : (isBlockingHodSetup ? 'Onboarding Guided Step' : (!activeHOD ? 'Onboarding Guided Step' : 'New Faculty Assignment'))}
-                                </p>
+<p className="text-[10.5px] font-bold text-[#15803d] uppercase tracking-[0.12em] mb-0.5">
+  {editingUser
+    ? 'Update Faculty Details'
+    : (isBlockingHodSetup
+        ? 'Getting Started'
+        : (!activeHOD
+            ? 'Department Setup'
+            : 'Add Faculty Member'))}
+</p>
                                 <h3 className="text-[20px] font-bold text-[#0f172a] tracking-tight">
-                                    {editingUser ? 'Edit Faculty Details' : (isBlockingHodSetup ? 'Setup Head of Department' : (!activeHOD ? 'Setup Head of Department' : 'Add New Faculty'))}
+                                    {editingUser ? 'Edit Faculty Details' : (isBlockingHodSetup ? 'Add Head of Department' : (!activeHOD ? 'Setup Head of Department' : 'Add New Faculty'))}
                                 </h3>
                             </div>
                             <button
@@ -914,7 +920,7 @@ export default function AdminFacultiesPage() {
                                                         Head of Department
                                                     </div>
                                                     <p className="mt-1.5 text-[11px] font-semibold text-[#15803d]">
-                                                        First faculty member is automatically assigned as Department Head.
+                                                        This person will be assigned as the Department Head for this department.
                                                     </p>
                                                 </>
                                             );
@@ -1002,7 +1008,7 @@ export default function AdminFacultiesPage() {
                                         : editingUser
                                             ? 'Save Changes'
                                             : isBlockingHodSetup
-                                                ? 'Setup Head of Department'
+                                                ? 'Add Head of Department'
                                                 : 'Save Faculty'}
                                 </button>
                             </div>
@@ -1057,7 +1063,7 @@ export default function AdminFacultiesPage() {
                                     <p className="font-semibold text-slate-800 mt-0.5">{viewingUser.department_name || '—'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">System Badges</p>
+                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Role</p>
                                     <p className="font-semibold text-slate-800 mt-0.5">
                                         {viewingUser.effective_roles?.includes('HOD') ? 'Head of Department' : 'Faculty'}
                                     </p>
@@ -1071,7 +1077,7 @@ export default function AdminFacultiesPage() {
                                     <p className="font-semibold text-slate-800 mt-0.5">{viewingUser.phone || '—'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Date Joined</p>
+                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Added On</p>
                                     <p className="font-semibold text-slate-800 mt-0.5">
                                         {viewingUser.date_joined ? new Date(viewingUser.date_joined).toLocaleDateString() : '—'}
                                     </p>

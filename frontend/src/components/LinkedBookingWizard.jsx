@@ -1147,7 +1147,7 @@ const MediaDraftStep = forwardRef(function MediaDraftStep({ messInSequence, onAd
 
           {availableEquipment.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center text-sm font-medium text-gray-500">
-              Set a valid time window to load the gear catalog.
+              Set a valid time to load the equipmemt list.
             </div>
           ) : (
             <div className="space-y-3">

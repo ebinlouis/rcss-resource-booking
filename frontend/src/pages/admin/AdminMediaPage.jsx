@@ -160,7 +160,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                 {crewData && (
                     <div className="px-7 pt-4 pb-2">
                         <p className="text-[12px] font-semibold text-[#6b7280]">
-                            Time window: {formatDate(crewData.window_start)} {formatTime(crewData.window_start)} — {formatTime(crewData.window_end)}
+                            Schedule : {formatDate(crewData.window_start)} {formatTime(crewData.window_start)} to {formatTime(crewData.window_end)}
                         </p>
                     </div>
                 )}
@@ -175,7 +175,7 @@ function CrewApprovalModal({ booking, onConfirm, onCancel }) {
                     ) : fetchError ? (
                         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] font-medium text-red-700">{fetchError}</p>
                     ) : crew.length === 0 ? (
-                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No team members found. Please contact IT Admin to assign the MEDIA_INCHARGE role.</p>
+                        <p className="py-8 text-center text-[14px] text-[#6b7280]">No team members found. Please contact IT Admin to assign the media team.</p>
                     ) : (
                         <>
                             {/* Free members */}
@@ -280,7 +280,7 @@ function CrewMemberRow({ member, selected, onToggle }) {
                         <div className="mt-2 space-y-1">
                             {member.busy_bookings.map((b, i) => (
                                 <p key={i} className="rounded-lg bg-amber-100/60 px-2.5 py-1.5 text-[11.5px] text-amber-800 flex items-center gap-1.5">
-                                    <Clock className="w-3 h-3 shrink-0" /> {b.event_name} — {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)}–{formatTime(b.teardown_end_datetime)}
+                                    <Clock className="w-3 h-3 shrink-0" /> {b.event_name} on {formatDate(b.setup_start_datetime)} {formatTime(b.setup_start_datetime)} to {formatTime(b.teardown_end_datetime)}
                                 </p>
                             ))}
                         </div>
@@ -616,7 +616,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
     const user          = booking.user_details ?? {}
     const requesterName = user.name || `User #${booking.user}`
     const dept          = user.department || user.department_code || 'Department not provided'
-    const spaceName     = booking.space_details?.name || 'Any suitable space'
+    const spaceName     = booking.space_details?.name || 'Any suitable venue'
     const location      = booking.space_details?.location || 'Location not specified'
 
     // Assigned crew (visible on non-pending approved bookings)
@@ -661,7 +661,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                 {/* Info grid */}
                 <div className="grid gap-6 md:grid-cols-[1.5fr_1.35fr_2.15fr]">
                     <div>
-                        <FieldLabel>Space / Location</FieldLabel>
+                        <FieldLabel>Venue</FieldLabel>
                         <div className="flex items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d1fae5] bg-[#f0fdf4] text-[#15803d]">
                                 <Building2 className="h-5 w-5" />
@@ -723,7 +723,7 @@ function BookingCard({ booking, isPendingTab, isActing, onApproveClick, onReject
                                             Event: {formatTime(booking.event_start_datetime)} – {formatTime(booking.event_end_datetime)}
                                         </p>
                                         <p className="rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-[#4b5563]">
-                                            {hasBuffer ? 'Buffer included' : 'No extra buffer'}
+                                            {hasBuffer ? 'Additional Setup Time' : 'Regular Schedule'}
                                         </p>
                                     </div>
                                     {hasBuffer && (

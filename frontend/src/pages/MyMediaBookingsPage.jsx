@@ -270,7 +270,7 @@ const BookingCard = ({ booking, onEdit, onCancel, isActionLoading, getStatusBadg
             {booking.status === "APPROVED" && (booking.assigned_crew ?? []).length > 0 && (
               <div className="mb-6">
                 <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-emerald-600 inline-block">
-                  Assigned Media Crew
+                  Assigned Media Team
                 </p>
                 <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
                   {booking.assigned_crew.map((member) => (
