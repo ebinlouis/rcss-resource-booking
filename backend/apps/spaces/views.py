@@ -1065,7 +1065,9 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         # Fire a single grouped notification instead of one per booking
         if updated_bookings:
             if new_status == 'PENDING':
+                from apps.notifications.utils import mark_pending_request_notifications_read
                 for b in updated_bookings:
+                    mark_pending_request_notifications_read(b, domain='spaces')
                     chain = getattr(b.space, 'approver_chain', None)
                     if chain:
                         continue # Chain approvals are handled via notify_new_request manually if needed, but 'PENDING' transition for chain spaces usually shouldn't happen via this bulk review method from ESCALATED.
@@ -1222,10 +1224,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if booking.updated_at and booking.created_at:
             is_edited = (booking.updated_at - booking.created_at).total_seconds() > 60
 
-        booking.status = 'FACULTY_ESCALATED'
+        booking.status = 'PENDING'
         booking.faculty_response_deadline = None
         booking.faculty_timed_out = False
         booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
+        
+        from apps.notifications.utils import mark_pending_request_notifications_read
+        mark_pending_request_notifications_read(booking, domain='spaces')
         
         notify_faculty_approved(booking)
         
@@ -1234,8 +1239,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if chain:
             from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
             from apps.notifications.models import Notification
-            booking.status = 'PENDING'
-            booking.save(update_fields=['status'])
             if chain.primary_approver:
                 notify(
                     chain.primary_approver,
@@ -1258,7 +1261,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                     reference_code=_booking_reference(booking),
                     is_actionable=True,
                 )
-            mark_pending_request_notifications_read(booking, domain='spaces')
             return
 
         category = booking.space.approval_category
@@ -1275,7 +1277,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             notify_new_request(booking, 'spaces', role)
         
-        mark_pending_request_notifications_read(booking, domain='spaces')
         return Response(self.get_serializer(booking).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -1307,8 +1308,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if not (request.user.is_staff or request.user.is_superuser or request.user.space_approver_assignments.filter(is_active=True).exists()):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
             
-        self._run_lazy_escalation()
-        
         qs = SpaceBooking.objects.filter(status='FACULTY_ESCALATED').order_by('start_datetime')
         if not (request.user.is_staff or request.user.is_superuser):
             from django.db.models import Q
@@ -1390,34 +1389,12 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking.faculty_timed_out = False
         booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
         
+        from apps.notifications.utils import mark_pending_request_notifications_read
+        mark_pending_request_notifications_read(booking, domain='spaces')
+        
         notify_faculty_resent(booking)
         return Response(self.get_serializer(booking).data)
 
-    def _run_lazy_escalation(self):
-        stale = SpaceBooking.objects.filter(
-            status='AWAITING_FACULTY',
-            faculty_response_deadline__lt=timezone.now()
-        )
-        stale_ids = list(stale.values_list('id', flat=True))
-        if not stale_ids:
-            return
-            
-        SpaceBooking.objects.filter(id__in=stale_ids).update(
-            status='FACULTY_ESCALATED',
-            faculty_timed_out=True,
-            updated_at=timezone.now()
-        )
-        
-        updated_bookings = SpaceBooking.objects.filter(id__in=stale_ids)
-        for booking in updated_bookings:
-            category = booking.space.approval_category
-            if category == Space.ApprovalCategory.LAB:
-                role = Role.Name.LAB_INCHARGE
-            elif category == Space.ApprovalCategory.LIBRARY:
-                role = Role.Name.LIBRARIAN
-            else:
-                role = Role.Name.RECEPTIONIST
-            notify_incharge_escalated(booking, role)
 
 
 
