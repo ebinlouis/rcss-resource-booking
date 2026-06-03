@@ -904,21 +904,20 @@ const confirmCancelBooking = async () => {
       
     <MainLayout>
       
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
-        <div className="max-w-[1450px] mx-auto w-full px-3 md:px-6 py-4 md:py-8">
+      <div className="mx-auto w-full max-w-[1280px] space-y-6">
 
-          {/* PAGE HEADER */}
-          <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 md:gap-6 mb-5 md:mb-8">
-            {/* LEFT */}
-            <div>
-              <h1 className="text-[24px] md:text-[34px] font-bold tracking-tight text-gray-900 leading-none">
-                My Bookings
-              </h1>
+        {/* PAGE HEADER */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* LEFT */}
+          <div>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900">
+              My Bookings
+            </h1>
 
-              <p className="text-[13px] md:text-[15px] text-gray-600 mt-2 md:mt-3 max-w-2xl">
-                View and manage all your venue bookings in one place.
-              </p>
-            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              View and manage all your venue bookings in one place.
+            </p>
+          </div>
 
             {/* RIGHT CONTROLS */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3 w-full xl:w-auto">
@@ -1176,7 +1175,6 @@ rounded-xl md:rounded-2xl
               </div>
             )}
           </div>
-                  </div>
       </div>
 
 {/* BOOKING DETAILS DRAWER */}

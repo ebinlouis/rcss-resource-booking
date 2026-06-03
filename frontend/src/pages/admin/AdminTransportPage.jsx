@@ -39,6 +39,7 @@ const STATUS_STYLES = {
     PENDING:   { badge: 'bg-yellow-100 text-yellow-700' },
     REJECTED:  { badge: 'bg-blue-100 text-blue-700' },
     CANCELLED: { badge: 'bg-gray-100 text-gray-500' },
+    EXPIRED:   { badge: 'bg-orange-100 text-orange-700' },
 }
 
 function StatusBadge({ status }) {

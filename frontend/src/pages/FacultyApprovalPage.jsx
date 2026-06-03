@@ -17,13 +17,13 @@ const fmtTime = (s) => s ? new Date(s).toLocaleTimeString('en-IN', { hour: 'nume
 const fmtDateTime = (s) => s ? `${fmtDate(s)}, ${fmtTime(s)}` : '—'
 
 const STATUS_META = {
-  APPROVED:          { label: 'Approved',              cls: 'bg-green-100 text-green-700 border-green-200' },
-  REJECTED:          { label: 'Rejected',              cls: 'bg-red-100 text-red-700 border-red-200'       },
-  AWAITING_FACULTY:  { label: 'Pending',               cls: 'bg-amber-100 text-amber-700 border-amber-200' },
-  FACULTY_ESCALATED: { label: 'Needs Higher Approval', cls: 'bg-purple-100 text-purple-700 border-purple-200'},
-  CANCELLED:         { label: 'Cancelled',             cls: 'bg-gray-100 text-gray-600 border-gray-200'    },
-  PENDING:           { label: 'Pending',               cls: 'bg-amber-100 text-amber-700 border-amber-200' },
-  EXPIRED:           { label: 'Expired',               cls: 'bg-gray-100 text-gray-500 border-gray-200'    },
+  APPROVED: { label: 'Approved', cls: 'bg-green-100 text-green-700 border-green-200' },
+  REJECTED: { label: 'Rejected', cls: 'bg-red-100 text-red-700 border-red-200' },
+  AWAITING_FACULTY: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  FACULTY_ESCALATED: { label: 'Needs Higher Approval', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+  CANCELLED: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  EXPIRED: { label: 'Expired', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 }
 
 const getStatusMeta = (s) => STATUS_META[s?.toUpperCase()] || { label: s || 'Unknown', cls: 'bg-gray-100 text-gray-500 border border-gray-200' }
@@ -34,7 +34,7 @@ function initials(name) {
 }
 
 function avatarColor(name) {
-  const colors = ['bg-blue-600','bg-violet-600','bg-pink-600','bg-teal-600','bg-orange-600','bg-cyan-600','bg-indigo-600']
+  const colors = ['bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-teal-600', 'bg-orange-600', 'bg-cyan-600', 'bg-indigo-600']
   const idx = name ? name.charCodeAt(0) % colors.length : 0
   return colors[idx]
 }
@@ -52,7 +52,7 @@ function StatusBadge({ status }) {
 /* ── Avatar ──────────────────────────────────────────────── */
 function Avatar({ name, size = 'md', imageUrl = null }) {
   const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
-  
+
   const getProfileImageUrl = (path) => {
     if (!path) return ""
     if (path.startsWith("http://") || path.startsWith("https://")) return path
@@ -91,14 +91,13 @@ function TimelineStep({ icon: Icon, label, time, active, done, last }) {
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-all ${
-          done ? 'bg-green-500 border-green-500 text-white' :
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition-all ${done ? 'bg-green-500 border-green-500 text-white' :
           active ? 'bg-amber-400 border-amber-400 text-white' :
-          'bg-white border-gray-200 text-gray-300'
-        }`}>
+            'bg-white border-gray-200 text-gray-300'
+          }`}>
           <Icon className="w-4 h-4" />
         </div>
-        {!last && <div className={`w-0.5 flex-1 mt-1 mb-1 rounded-full ${done ? 'bg-green-200' : 'bg-gray-100'}`} style={{minHeight: '20px'}} />}
+        {!last && <div className={`w-0.5 flex-1 mt-1 mb-1 rounded-full ${done ? 'bg-green-200' : 'bg-gray-100'}`} style={{ minHeight: '20px' }} />}
       </div>
       <div className="pb-4 min-w-0">
         <p className={`text-sm font-semibold ${done ? 'text-green-700' : active ? 'text-amber-700' : 'text-gray-400'}`}>{label}</p>
@@ -115,7 +114,7 @@ function DetailSidebar({ booking, onClose, onApprove, onReject, isActing, curren
   const [isRejecting, setIsRejecting] = useState(false)
   const isPending = ['AWAITING_FACULTY', 'PENDING'].includes(booking?.status?.toUpperCase())
 
-  useEffect(() => { 
+  useEffect(() => {
     setNote(''); setNoteErr(''); setIsRejecting(false);
   }, [booking?.id])
 
@@ -180,12 +179,12 @@ function DetailSidebar({ booking, onClose, onApprove, onReject, isActing, curren
           <section>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 border-b border-gray-100 pb-2">Booking Details</p>
             <div className="space-y-4">
-              <SideDetailRow icon={MapPin}       label="Venue"       value={booking.space_details?.name} />
-              <SideDetailRow icon={CalendarDays} label="Date"        value={fmtDate(booking.start_datetime)} />
-              <SideDetailRow icon={Clock}        label="Time"        value={`${fmtTime(booking.start_datetime)} – ${fmtTime(booking.end_datetime)}`} />
-              <SideDetailRow icon={BookOpen}     label="Purpose"     value={booking.purpose_of_booking} />
-              <SideDetailRow icon={Users}        label="Attendees"   value={booking.attendee_count} />
-              <SideDetailRow icon={Briefcase}    label="Event Type"  value={booking.is_external_event ? 'External Event' : 'Internal / Departmental'} />
+              <SideDetailRow icon={MapPin} label="Venue" value={booking.space_details?.name} />
+              <SideDetailRow icon={CalendarDays} label="Date" value={fmtDate(booking.start_datetime)} />
+              <SideDetailRow icon={Clock} label="Time" value={`${fmtTime(booking.start_datetime)} – ${fmtTime(booking.end_datetime)}`} />
+              <SideDetailRow icon={BookOpen} label="Purpose" value={booking.purpose_of_booking} />
+              <SideDetailRow icon={Users} label="Attendees" value={booking.attendee_count} />
+              <SideDetailRow icon={Briefcase} label="Event Type" value={booking.is_external_event ? 'External Event' : 'Internal / Departmental'} />
             </div>
           </section>
 
@@ -193,9 +192,9 @@ function DetailSidebar({ booking, onClose, onApprove, onReject, isActing, curren
           <section>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 border-b border-gray-100 pb-2">Student Info</p>
             <div className="space-y-4">
-              <SideDetailRow icon={User}      label="Name"       value={booking.booked_by_name} />
-              <SideDetailRow icon={Mail}      label="Email"      value={booking.booked_by_email} />
-              <SideDetailRow icon={Phone}     label="Phone"      value={booking.booked_by_phone} />
+              <SideDetailRow icon={User} label="Name" value={booking.booked_by_name} />
+              <SideDetailRow icon={Mail} label="Email" value={booking.booked_by_email} />
+              <SideDetailRow icon={Phone} label="Phone" value={booking.booked_by_phone} />
               <SideDetailRow icon={Building2} label="Department" value={booking.booked_by_department} />
             </div>
           </section>
@@ -226,20 +225,20 @@ function DetailSidebar({ booking, onClose, onApprove, onReject, isActing, curren
               {(booking.faculty_sponsor_name || booking.faculty_sponsor) && (
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">
-                    <Avatar 
-                      name={booking.faculty_sponsor_name || booking.faculty_sponsor} 
-                      size="sm" 
+                    <Avatar
+                      name={booking.faculty_sponsor_name || booking.faculty_sponsor}
+                      size="sm"
                       imageUrl={currentUser?.profile_image}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Faculty Sponsor</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Faculty In-Charge</p>
                     <p className="text-sm text-gray-900 font-medium leading-snug break-words">{booking.faculty_sponsor_name || booking.faculty_sponsor}</p>
                   </div>
                 </div>
               )}
-              <SideDetailRow icon={FileText}  label="Notes"           value={booking.user_notes} />
-              <SideDetailRow icon={Info}      label="Booking ID"      value={`#${booking.id}`} />
+              <SideDetailRow icon={FileText} label="Notes" value={booking.user_notes} />
+              <SideDetailRow icon={Info} label="Booking ID" value={`#${booking.id}`} />
               <SideDetailRow icon={CalendarDays} label="Submitted On" value={fmtDateTime(booking.created_at)} />
             </div>
           </section>
@@ -298,9 +297,8 @@ function DetailSidebar({ booking, onClose, onApprove, onReject, isActing, curren
                   placeholder="Enter rejection reason..."
                   value={note}
                   onChange={e => { setNote(e.target.value); setNoteErr('') }}
-                  className={`w-full text-sm border rounded-xl p-4 resize-y min-h-[100px] outline-none transition focus:ring-2 shadow-sm ${
-                    noteErr ? 'border-red-300 bg-red-50 focus:ring-red-100' : 'border-gray-200 bg-white focus:ring-red-100 focus:border-red-400'
-                  }`}
+                  className={`w-full text-sm border rounded-xl p-4 resize-y min-h-[100px] outline-none transition focus:ring-2 shadow-sm ${noteErr ? 'border-red-300 bg-red-50 focus:ring-red-100' : 'border-gray-200 bg-white focus:ring-red-100 focus:border-red-400'
+                    }`}
                 />
                 {noteErr && <p className="text-[11px] text-red-600 uppercase font-bold tracking-wide -mt-2">{noteErr}</p>}
                 <div className="flex items-center gap-3">
@@ -389,9 +387,8 @@ function RequestRow({ booking, onSelect, onApprove, onReject, isActing }) {
     <>
       <div
         onClick={() => !isRejecting && onSelect(booking)}
-        className={`group flex flex-col md:grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_120px_100px_40px] items-center gap-4 px-6 py-4 transition-all border-b border-gray-100 last:border-none ${
-          isRejecting ? 'bg-gray-50/50' : 'hover:bg-gray-50 cursor-pointer bg-white'
-        }`}
+        className={`group flex flex-col md:grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_120px_100px_40px] items-center gap-4 px-6 py-4 transition-all border-b border-gray-100 last:border-none ${isRejecting ? 'bg-gray-50/50' : 'hover:bg-gray-50 cursor-pointer bg-white'
+          }`}
       >
         {/* Student */}
         <div className="flex items-center gap-4 w-full min-w-0">
@@ -421,26 +418,26 @@ function RequestRow({ booking, onSelect, onApprove, onReject, isActing }) {
         {/* Actions */}
         <div className="w-full md:w-auto md:justify-self-end flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
           {isPending ? (
-             <>
-                <button
-                  onClick={handleApproveClick}
-                  disabled={isActing || isRejecting}
-                  title="Approve Request"
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 transition disabled:opacity-50 shadow-sm"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleRejectInit}
-                  disabled={isActing || isRejecting}
-                  title="Reject Request"
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition disabled:opacity-50 shadow-sm"
-                >
-                  <XCircle className="w-4 h-4" />
-                </button>
-             </>
+            <>
+              <button
+                onClick={handleApproveClick}
+                disabled={isActing || isRejecting}
+                title="Approve Request"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 transition disabled:opacity-50 shadow-sm"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleRejectInit}
+                disabled={isActing || isRejecting}
+                title="Reject Request"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition disabled:opacity-50 shadow-sm"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </>
           ) : (
-             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Resolved</span>
+            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Resolved</span>
           )}
         </div>
 
@@ -459,20 +456,19 @@ function RequestRow({ booking, onSelect, onApprove, onReject, isActing }) {
               placeholder="Enter rejection reason..."
               value={note}
               onChange={e => { setNote(e.target.value); setNoteErr('') }}
-              className={`w-full text-sm border rounded-xl p-4 resize-y min-h-[100px] outline-none transition focus:ring-2 shadow-sm ${
-                noteErr ? 'border-red-300 bg-white focus:ring-red-100' : 'border-gray-200 focus:ring-gray-100 focus:border-red-400 bg-white'
-              }`}
+              className={`w-full text-sm border rounded-xl p-4 resize-y min-h-[100px] outline-none transition focus:ring-2 shadow-sm ${noteErr ? 'border-red-300 bg-white focus:ring-red-100' : 'border-gray-200 focus:ring-gray-100 focus:border-red-400 bg-white'
+                }`}
             />
             {noteErr && <p className="text-[10px] text-red-600 font-bold uppercase mt-1.5">{noteErr}</p>}
           </div>
           <div className="flex items-center justify-end gap-3 w-full md:w-auto self-end shrink-0">
-             <button onClick={handleRejectCancel} className="px-6 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition shadow-sm">
-               Cancel
-             </button>
-             <button onClick={handleRejectConfirm} disabled={isActing} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50 shadow-sm">
-               <XCircle className="w-4 h-4" />
-               Confirm Reject
-             </button>
+            <button onClick={handleRejectCancel} className="px-6 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition shadow-sm">
+              Cancel
+            </button>
+            <button onClick={handleRejectConfirm} disabled={isActing} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50 shadow-sm">
+              <XCircle className="w-4 h-4" />
+              Confirm Reject
+            </button>
           </div>
         </div>
       )}
@@ -482,26 +478,26 @@ function RequestRow({ booking, onSelect, onApprove, onReject, isActing }) {
 
 /* ── Filter Tabs ─────────────────────────────────────────── */
 const TABS = [
-  { key: 'PENDING',  label: 'Pending' },
+  { key: 'PENDING', label: 'Pending' },
   { key: 'APPROVED', label: 'Approved' },
   { key: 'REJECTED', label: 'Rejected' },
-  { key: 'EXPIRED',  label: 'Expired' },
-  { key: 'ALL',      label: 'All' },
+  { key: 'EXPIRED', label: 'Expired' },
+  { key: 'ALL', label: 'All' },
 ]
 
 /* ── Main Page ───────────────────────────────────────────── */
 export default function FacultyApprovalPage() {
-  const { user }     = useAuth()
+  const { user } = useAuth()
   const { data: facultyData, isLoading: loading, isError: loadError, refetch: fetchData } = useFacultyPending()
   const { data: spacesData } = useSpaceCatalog()
-  
+
   const pending = facultyData?.pending || []
   const history = facultyData?.history || []
   const allItems = useMemo(() => [...pending, ...history], [pending, history])
 
-  const [activeTab, setActiveTab]   = useState('PENDING')
+  const [activeTab, setActiveTab] = useState('PENDING')
   const [selectedBooking, setSelectedBooking] = useState(null)
-  const [actingId, setActingId]     = useState(null)
+  const [actingId, setActingId] = useState(null)
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -546,27 +542,27 @@ export default function FacultyApprovalPage() {
   }
 
   const tabCounts = useMemo(() => ({
-    PENDING:  pending.length,
+    PENDING: pending.length,
     APPROVED: history.filter(h => h.status?.toUpperCase() === 'APPROVED').length,
     REJECTED: history.filter(h => h.status?.toUpperCase() === 'REJECTED').length,
-    EXPIRED:  history.filter(h => h.status?.toUpperCase() === 'EXPIRED').length,
-    ALL:      allItems.length,
+    EXPIRED: history.filter(h => h.status?.toUpperCase() === 'EXPIRED').length,
+    ALL: allItems.length,
   }), [pending, history, allItems])
 
   const visibleItems = useMemo(() => {
     let items = []
     if (activeTab === 'ALL') {
-       items = allItems
+      items = allItems
     } else if (activeTab === 'PENDING') {
-       items = pending
+      items = pending
     } else {
-       items = history.filter(h => h.status?.toUpperCase() === activeTab)
+      items = history.filter(h => h.status?.toUpperCase() === activeTab)
     }
 
     // Apply toolbar filters
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
-      items = items.filter(b => 
+      items = items.filter(b =>
         b.booked_by_name?.toLowerCase().includes(q) ||
         b.purpose_of_booking?.toLowerCase().includes(q) ||
         b.booked_by_email?.toLowerCase().includes(q) ||
@@ -667,17 +663,15 @@ export default function FacultyApprovalPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2.5 px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap border ${
-                  isActive
-                    ? 'bg-green-700 text-white border-green-700 shadow-sm'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm'
-                }`}
+                className={`flex items-center gap-2.5 px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap border ${isActive
+                  ? 'bg-green-700 text-white border-green-700 shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm'
+                  }`}
               >
                 {tab.label}
-                <span className={`inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 text-[11px] font-bold rounded-full transition-colors ${
-                  isActive ? 'bg-green-600 text-white shadow-inner' : 'bg-gray-100 text-gray-500'
-                }`}>
-                    {tabCounts[tab.key]}
+                <span className={`inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 text-[11px] font-bold rounded-full transition-colors ${isActive ? 'bg-green-600 text-white shadow-inner' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                  {tabCounts[tab.key]}
                 </span>
               </button>
             )

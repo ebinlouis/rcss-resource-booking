@@ -345,6 +345,13 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             resolved_by=request.user,
             remarks=remarks,
         )
+        from apps.notifications.utils import notify_comanagers_actioned
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='media',
+            actioned_by=request.user,
+            new_status=new_status,
+        )
 
         return Response(self.get_serializer(booking).data)
 

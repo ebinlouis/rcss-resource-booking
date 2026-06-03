@@ -27,6 +27,7 @@ const Media = lazy(() => import("./pages/Media"));
 const MediaSchedule = lazy(() => import("./pages/MediaSchedule"));
 const MyMediaBookingsPage = lazy(() => import("./pages/MyMediaBookingsPage"));
 const MyTransportBookingsPage = lazy(() => import("./pages/MyTransportBookingsPage"));
+const MyMessBookingsPage = lazy(() => import("./pages/Mymessbookingspage")); // ✅ NEW
 const MyBookingsPage = lazy(() => import("./pages/MyBookingsPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -130,12 +131,19 @@ const router = createBrowserRouter([
               queryKey: ['media', 'bookings', 'mine'], queryFn: () => mediaApi.getMyBookings()
             })
           },
-          // ✅ NEW: Transport history page
           {
             path: "/transport/my-bookings",
             element: <MyTransportBookingsPage />,
             loader: () => prefetchProtectedQuery({
               queryKey: ['fleet', 'bookings', 'mine'], queryFn: () => getMyBookings()
+            })
+          },
+          // ✅ NEW: Mess history page
+          {
+            path: "/mess/my-bookings",
+            element: <MyMessBookingsPage />,
+            loader: () => prefetchProtectedQuery({
+              queryKey: ['mess', 'bookings', 'mine'], queryFn: () => messService.getMyBookings()
             })
           },
           {
@@ -226,8 +234,8 @@ const router = createBrowserRouter([
               {
                 element: <ProtectedRoute requiredCapabilities={["can_manage_system", "can_manage_spaces"]} />,
                 children: [
-                  { 
-                    path: "/admin/spaces", 
+                  {
+                    path: "/admin/spaces",
                     element: <AdminSpacesPage />,
                     loader: () => {
                       prefetchProtectedQuery({ queryKey: ['spaces', 'catalog', 'manage'], queryFn: () => api.get('/spaces/catalog/?manage=true').then(res => res.data) });

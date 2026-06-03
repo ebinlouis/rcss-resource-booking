@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'drf_spectacular',
+    'django_celery_beat',
 
     # Local Apps
     'apps.users',
@@ -144,14 +145,14 @@ NOTIFICATION_EMAIL_STUB = True
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
 ]
 
 # Tells Django to accept requests from these origins even with CSRF protection on
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
 ]
 
 # Must be False so the axios interceptor can read the csrftoken cookie
@@ -187,4 +188,24 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Master API for Spaces, Fleet, Mess, and Media bookings.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+}
+
+# ==========================================
+# CELERY CONFIGURATION
+# ==========================================
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_TASK_ALWAYS_EAGER = False
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+
+CELERY_BEAT_SCHEDULE = {
+    'run-booking-lifecycle-every-5-minutes': {
+        'task': 'apps.notifications.tasks.run_booking_lifecycle',
+        'schedule': 300.0,
+    },
 }

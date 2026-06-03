@@ -9,6 +9,7 @@ from rest_framework.exceptions import ValidationError
 from apps.approvals.lifecycle import (
     can_user_modify_booking,
     refresh_booking_lifecycle,
+    refresh_queryset_lifecycle,         # ✅ NEW import
 )
 from apps.mess.models import MessBooking, DailyMessMenu
 from apps.mess.serializers import MessBookingSerializer
@@ -131,6 +132,20 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             .order_by('-updated_at')
         )
 
+        # ✅ Expire/complete any stale bookings before serializing.
+        # This ensures the frontend always sees accurate statuses —
+        # PENDING bookings whose meal time has passed become EXPIRED,
+        # APPROVED bookings whose last meal has passed become COMPLETED.
+        refresh_queryset_lifecycle(bookings)
+
+        # Re-fetch after lifecycle refresh so updated statuses are returned
+        bookings = (
+            MessBooking.objects
+            .prefetch_related('daily_menus')
+            .filter(user=request.user)
+            .order_by('-updated_at')
+        )
+
         serializer = self.get_serializer(
             bookings,
             many=True
@@ -232,6 +247,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             resolved_by=request.user,
         )
 
+        from apps.notifications.utils import notify_comanagers_actioned
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='mess',
+            actioned_by=request.user,
+            new_status='APPROVED',
+        )
+
         return Response({
             "status": "APPROVED",
             "message": "Booking approved."
@@ -302,6 +325,14 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             domain='mess',
             resolved_by=request.user,
             remarks=remark
+        )
+
+        from apps.notifications.utils import notify_comanagers_actioned
+        notify_comanagers_actioned(
+            booking=booking,
+            domain='mess',
+            actioned_by=request.user,
+            new_status='REJECTED',
         )
 
         return Response({
