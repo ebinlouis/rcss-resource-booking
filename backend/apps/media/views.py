@@ -7,7 +7,7 @@ from django.db.models import Count, Q, Sum
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
@@ -269,7 +269,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             )
         if new_status == 'REJECTED' and not remarks.strip():
             return Response(
-                {"error": "Remarks are required when rejecting a booking."},
+                {"error": "Please provide a reason before declining this request."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if new_status == 'APPROVED' and booking.status != 'PENDING':
@@ -287,7 +287,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             # -- Crew assignment validation --
             if not crew_ids:
                 return Response(
-                    {"error": "At least one crew member must be assigned before approving."},
+                    {"error": "At least one team member must be assigned before approving."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -297,7 +297,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             invalid_ids    = set(crew_ids) - valid_crew_ids
             if invalid_ids:
                 return Response(
-                    {"error": f"The following user IDs are not valid media crew members: {sorted(invalid_ids)}"},
+                    {"error": f"The following user IDs are not valid media team members: {sorted(invalid_ids)}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -312,7 +312,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             )
             if free_count == 0:
                 return Response(
-                    {"error": "All crew members are occupied during this booking's time slot. Cannot approve."},
+                    {"error": "This request cannot be approved because no media team members are available at the scheduled time."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -434,12 +434,12 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         if booking.status != 'APPROVED':
             return Response(
-                {"error": "Loadout can only be edited on APPROVED bookings."},
+                {"error": "Equipment can only be updated for approved requests."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not booking.is_team_request:
             return Response(
-                {"error": "Loadout editing is only available for team-request bookings."},
+                {"error": "Equipment can only be updated for requests that require media team support."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -467,7 +467,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             try:
                 equipment = Equipment.objects.get(pk=eq_id, is_active=True, is_portable=True)
             except Equipment.DoesNotExist:
-                return Response({"error": f"Row {row}: Equipment id {eq_id} not found or not available."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": f"Row {row}: Equipment id {eq_id} no longer available."}, status=status.HTTP_400_BAD_REQUEST)
             resolved_items.append({'equipment': equipment, 'quantity': quantity})
 
         used_map = get_equipment_used_map_for_booking(booking)
@@ -505,7 +505,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         if not all([req_start_str, req_end_str]):
             return Response(
-                {"error": "start and end parameters are required."},
+                {"error": "Please select a start and end time."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -513,7 +513,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         req_end   = parse_datetime(req_end_str)
 
         if not req_start or not req_end:
-            return Response({"error": "Invalid datetime format."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "The selected date or time is invalid."}, status=status.HTTP_400_BAD_REQUEST)
 
         overlapping = MediaBooking.objects.filter(
             setup_start_datetime__lt=req_end,
@@ -632,30 +632,42 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         )
         return Response(counts)
 
-
     # ------------------------------------------------------------------
     # Daily availability (equipment + team views)
     # ------------------------------------------------------------------
 
-    @action(detail=False, methods=['get'])
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[AllowAny]
+    )
     def daily_availability(self, request):
-        date_param   = request.query_params.get('date')
-        view_type    = request.query_params.get('type', 'equipment')
+        date_param = request.query_params.get('date')
+        view_type = request.query_params.get('type', 'equipment')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
 
         if not booking_date:
-            return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid date. Expected YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if view_type == 'team':
             data = get_daily_team_availability(booking_date)
             return Response(data)
 
         if view_type != 'equipment':
-            return Response({"error": "Invalid type. Expected 'equipment' or 'team'."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid type. Expected 'equipment' or 'team'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # -- Equipment view (unchanged) --
-        day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
-        day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
+        day_start = timezone.make_aware(
+            datetime.datetime.combine(booking_date, datetime.time.min)
+        )
+        day_end = timezone.make_aware(
+            datetime.datetime.combine(booking_date, datetime.time.max)
+        )
 
         approved = MediaBooking.objects.filter(
             status__in=['APPROVED', 'COMPLETED'],
@@ -664,45 +676,67 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         ).prefetch_related('equipment_requests')
 
         eq_slots = {}
+
         for b in approved:
             s_clamp = max(b.setup_start_datetime, day_start)
             e_clamp = min(b.teardown_end_datetime, day_end)
+
             s_local = timezone.localtime(s_clamp)
             e_local = timezone.localtime(e_clamp)
-            s_str   = s_local.strftime('%H:%M')
-            e_str   = '23:59' if e_clamp >= day_end else e_local.strftime('%H:%M')
+
+            s_str = s_local.strftime('%H:%M')
+            e_str = '23:59' if e_clamp >= day_end else e_local.strftime('%H:%M')
+
             for req in b.equipment_requests.all():
                 eq_slots.setdefault(req.equipment_id, []).append({
                     'start_time': s_str,
-                    'end_time':   e_str,
-                    'quantity':   req.quantity,
+                    'end_time': e_str,
+                    'quantity': req.quantity,
                     'event_name': b.event_name,
                 })
 
         availability = []
-        for item in Equipment.objects.filter(is_active=True, is_portable=True).order_by('category', 'name'):
-            slots       = eq_slots.get(item.id, [])
+
+        for item in Equipment.objects.filter(
+            is_active=True,
+            is_portable=True
+        ).order_by('category', 'name'):
+
+            slots = eq_slots.get(item.id, [])
+
             time_points = []
             for s in slots:
-                time_points += [(s['start_time'], s['quantity']), (s['end_time'], -s['quantity'])]
+                time_points += [
+                    (s['start_time'], s['quantity']),
+                    (s['end_time'], -s['quantity'])
+                ]
+
             time_points.sort(key=lambda x: (x[0], x[1]))
-            current_used = max_used = 0
+
+            current_used = 0
+            max_used = 0
+
             for _, delta in time_points:
                 current_used += delta
-                max_used      = max(max_used, current_used)
+                max_used = max(max_used, current_used)
+
             availability.append({
-                'id':                    item.id,
-                'name':                  item.name,
-                'category':              item.category,
-                'category_display':      item.get_category_display(),
-                'total_owned':           item.total_owned,
-                'booked_quantity':       max_used,
-                'available_quantity':    max(0, item.total_owned - max_used),
-                'booked_slots':          sorted(slots, key=lambda x: x['start_time']),
+                'id': item.id,
+                'name': item.name,
+                'category': item.category,
+                'category_display': item.get_category_display(),
+                'total_owned': item.total_owned,
+                'booked_quantity': max_used,
+                'available_quantity': max(0, item.total_owned - max_used),
+                'booked_slots': sorted(slots, key=lambda x: x['start_time']),
                 'is_standard_media_kit': item.is_standard_media_kit,
             })
 
-        return Response({'date': booking_date.isoformat(), 'type': 'equipment', 'items': availability})
+        return Response({
+            'date': booking_date.isoformat(),
+            'type': 'equipment',
+            'items': availability
+        })
 
     # ------------------------------------------------------------------
     # Runsheet
@@ -710,13 +744,23 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def runsheet(self, request):
-        date_param   = request.query_params.get('date')
+        date_param = request.query_params.get('date')
         booking_date = parse_date(date_param) if date_param else timezone.localdate()
+
         if not booking_date:
-            return Response({"error": "Invalid date. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
-        day_start = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.min))
-        day_end   = timezone.make_aware(datetime.datetime.combine(booking_date, datetime.time.max))
-        bookings  = MediaBooking.objects.filter(
+            return Response(
+                {"error": "Invalid date. Expected YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        day_start = timezone.make_aware(
+            datetime.datetime.combine(booking_date, datetime.time.min)
+        )
+        day_end = timezone.make_aware(
+            datetime.datetime.combine(booking_date, datetime.time.max)
+        )
+
+        bookings = MediaBooking.objects.filter(
             status__in=['APPROVED', 'COMPLETED'],
             is_team_request=True,
             setup_start_datetime__lt=day_end,
@@ -727,8 +771,8 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             'equipment_requests__equipment',
             'assigned_crew',
         ).order_by('event_start_datetime')
-        return Response(self.get_serializer(bookings, many=True).data)
 
+        return Response(self.get_serializer(bookings, many=True).data)
     # ------------------------------------------------------------------
     # My bookings
     # ------------------------------------------------------------------
@@ -759,14 +803,14 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         if booking.status != 'APPROVED':
             return Response(
-                {"error": "Crew can only be updated on APPROVED bookings."},
+                {"error": "Media team assignments can only be updated for approved requests."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         crew_ids = request.data.get('assigned_crew', [])
         if not crew_ids:
             return Response(
-                {"error": "At least one crew member must remain assigned."},
+                {"error": "Please assign at least one media team member."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -775,7 +819,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         invalid_ids = set(crew_ids) - valid_crew_ids
         if invalid_ids:
             return Response(
-                {"error": f"The following user IDs are not valid media crew members: {sorted(invalid_ids)}"},
+                {"error": f"The following user IDs are not valid media team members: {sorted(invalid_ids)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -805,7 +849,7 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
 
         if booking.status != 'APPROVED':
             return Response(
-                {"error": "Crew availability can only be checked on APPROVED bookings."},
+                {"error": "Availability can only be viewed for approved requests."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
