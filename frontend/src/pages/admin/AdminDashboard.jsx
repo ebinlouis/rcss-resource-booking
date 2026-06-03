@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Phone, Mail } from 'lucide-react';
-import approvalService from '../../api/approvalService';
+
 import notificationService from '../../api/notificationService';
 import { useAuth } from '../../hooks/useAuth';
 import { compareSubmissionTimeDesc, getSubmissionTimestamp } from '../../utils/submissionTime';
@@ -16,25 +16,14 @@ import { useSpaceCatalog } from '../../hooks/useSpaceQueries';
 
 // ─── Calendar date helpers (mirrors Media.jsx pattern) ───────────────────────
 
-const todayDateKey = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
+
 
 const dateKeyFromDate = (date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-const addCalDays = (dateString, days) => {
-    const date = new Date(`${dateString}T00:00:00`);
-    date.setDate(date.getDate() + days);
-    return dateKeyFromDate(date);
-};
 
-const getCalWeekStart = (dateString) => {
-    const date = new Date(`${dateString}T00:00:00`);
-    date.setDate(date.getDate() - date.getDay()); // rewind to Sunday
-    return dateKeyFromDate(date);
-};
+
+
 
 const formatCalDate = (dateString, options = {}) => {
     if (!dateString) return '';
@@ -897,7 +886,7 @@ const AdminDashboard = () => {
     // ── UI state ──────────────────────────────────────────────────────────────
     const [actionLoading, setActionLoading] = useState(null);
     const [actionError, setActionError] = useState(null);
-    const [error, setError] = useState(null);
+    const [error] = useState(null);
     const [rejectTarget, setRejectTarget] = useState(null);
     const [approveTarget, setApproveTarget] = useState(null);
     const [successTarget, setSuccessTarget] = useState(null);
