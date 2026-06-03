@@ -236,10 +236,10 @@ function BookingCard({ booking, onEdit, onCancel, isActionLoading, isHighlighted
             {/* User notes */}
             {booking.user_notes && (
               <div className="mb-6">
-                <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-amber-500 inline-block">
+                <p className="text-[13px] font-bold text-gray-900 mb-3 pb-1.5 border-b-2 border-yellow-500 inline-block">
                   Additional Notes
                 </p>
-                <div className="mt-1 bg-amber-50/50 border border-amber-100 rounded-xl px-4 py-3.5">
+                <div className="mt-1 bg-yellow-50/50 border border-yellow-100 rounded-xl px-4 py-3.5">
                   <p className="text-[14.5px] text-gray-700 leading-relaxed">{booking.user_notes}</p>
                 </div>
               </div>
