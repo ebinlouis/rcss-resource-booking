@@ -14,7 +14,7 @@ def run_booking_lifecycle(self):
     source of truth for expiry logic across all domains.
     """
     try:
-        from apps.notifications.lifecycle import refresh_queryset_lifecycle
+        from apps.approvals.lifecycle import refresh_queryset_lifecycle
 
         total_expired = 0
         total_expired += _run_domain(refresh_queryset_lifecycle, 'spaces')

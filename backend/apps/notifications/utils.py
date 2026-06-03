@@ -832,8 +832,8 @@ def notify_incharge_expired(booking, domain):
     time_str = _format_booking_time(booking, domain)
     time_context = f" scheduled for {time_str}" if time_str else ""
 
-    title = f"{domain.capitalize()} Request Expired"
-    message = f"A {domain} request from {requester} for {resource}{time_context} has automatically expired."
+    title = f"{resource} Request Expired"
+    message = f"A venue request from {requester} for {resource}{time_context} has automatically expired."
 
     if domain == "mess":
         date_range = _format_mess_date_range(booking)
