@@ -368,14 +368,22 @@ export function useBookingForm({
       return
     }
 
-    let updatedSeen = seenSpaceIds;
+    // Build the exclude list locally so the fetch can proceed in the same
+    // effect run without waiting for a setState + re-render cycle (fixes Bug 1).
+    let updatedSeen = seenSpaceIds
     if (isUnavailable || exceedsCapacity) {
       if (!seenSpaceIds.includes(activeSpaceId)) {
-        updatedSeen = [...seenSpaceIds, activeSpaceId];
-        setTimeout(() => setSeenSpaceIds(updatedSeen), 0);
-        return;
+        updatedSeen = [...seenSpaceIds, activeSpaceId]
+        setSeenSpaceIds(updatedSeen)
       }
     }
+
+    // Determine trigger reason; priority: unavailable > low_occupancy > exceeds_capacity.
+    const triggerReason = isUnavailable
+      ? 'unavailable'
+      : isLowOccupancy
+      ? 'low_occupancy'
+      : 'exceeds_capacity'
 
     debounceTimer.current = setTimeout(async () => {
       setIsFetchingSuggestions(true)
@@ -387,8 +395,13 @@ export function useBookingForm({
           date: form.start_date,
           start_time: form.start_time,
           end_time: form.end_time,
-          exclude_ids: updatedSeen.join(',')
+          exclude_ids: updatedSeen.join(','),
+          trigger_reason: triggerReason,
+          booking_type: form.bookingType,
         })
+        if (form.bookingType === 'RECURRING' && form.end_date) {
+          queryParams.set('end_date', form.end_date)
+        }
         const res = await api.get(`/spaces/catalog/suggestions/?${queryParams.toString()}`)
         const suggestions = res.data.results ?? res.data ?? []
         setSuggestedHalls(suggestions.slice(0, 3))
@@ -400,7 +413,7 @@ export function useBookingForm({
     }, 500)
 
     return () => clearTimeout(debounceTimer.current)
-  }, [isLowOccupancy, isAvailable, exceedsCapacity, activeSpaceId, attendeeCount, form.start_date, form.start_time, form.end_time, activeSpaceCap, seenSpaceIds])
+  }, [isLowOccupancy, isAvailable, exceedsCapacity, activeSpaceId, attendeeCount, form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, activeSpaceCap, seenSpaceIds])
 
   const notesRequired = isLowOccupancy
   const linkedEndDate = form.end_date || form.start_date
