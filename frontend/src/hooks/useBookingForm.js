@@ -140,11 +140,14 @@ export function useBookingForm({
     }))
   }
 
+  const justSwitchedRef = useRef(false)
+
   const switchHall = (space) => {
     setActiveSpaceId(space.id)
     setActiveSpaceName(space.name)
     setActiveSpaceCap(space.capacity_hard)
     setSuggestedHalls([])
+    justSwitchedRef.current = true
   }
 
   const [isAvailable, setIsAvailable] = useState(null)
@@ -153,6 +156,7 @@ export function useBookingForm({
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
 
   const [suggestedHalls, setSuggestedHalls] = useState([])
+  const [hasMoreSuggestions, setHasMoreSuggestions] = useState(false)
   const [seenSpaceIds, setSeenSpaceIds] = useState([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
   const debounceTimer = useRef(null)
@@ -174,6 +178,12 @@ export function useBookingForm({
 
   const isMultiDay =
     form.start_date && form.end_date && form.start_date !== form.end_date
+
+  const triggerReason = isAvailable === false
+    ? 'unavailable'
+    : isLowOccupancy
+    ? 'low_occupancy'
+    : 'exceeds_capacity'
 
   // Auto-set attendees to 1 for AI Lab single bookings
   useEffect(() => {
@@ -223,6 +233,14 @@ export function useBookingForm({
       setTimeout(() => setSeenSpaceIds([]), 0)
     }
   }, [initialSpaceId, activeSpaceId])
+
+  // Bug 6 fix: reset suggestion state when the booking time context changes so
+  // previously excluded spaces are eligible again for the new time slot.
+  useEffect(() => {
+    setSeenSpaceIds([])
+    setSuggestedHalls([])
+    setHasMoreSuggestions(false)
+  }, [form.start_date, form.start_time, form.end_time])
 
   useEffect(() => {
     clearTimeout(availabilityTimer.current)
@@ -356,51 +374,82 @@ export function useBookingForm({
     return () => clearTimeout(availabilityTimer.current)
   }, [form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, isMultiDay, activeSpaceId, isEdit, initialData])
 
-  useEffect(() => {
-    clearTimeout(debounceTimer.current)
+  // Stable fetch function shared by the suggestion effect and showMoreSuggestions.
+  // append=false replaces the list; append=true adds to the end ("show more").
+  const fetchSuggestions = useCallback(async (append = false) => {
+    const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0
+      ? attendeeCount
+      : (isLowOccupancy ? activeSpaceCap : 1)
+    const queryParams = new URLSearchParams({
+      space_id: activeSpaceId,
+      attendee_count: countToUse,
+      date: form.start_date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      exclude_ids: seenSpaceIds.join(','),
+      trigger_reason: triggerReason,
+      booking_type: form.bookingType,
+    })
+    if (form.bookingType === 'RECURRING' && form.end_date) {
+      queryParams.set('end_date', form.end_date)
+    }
 
-    const isUnavailable = isAvailable === false
-    
-    if (!isLowOccupancy && !isUnavailable && !exceedsCapacity) {
-      debounceTimer.current = setTimeout(() => {
-        setSuggestedHalls((prev) => (prev.length > 0 ? [] : prev))
-      }, 0)
+    setIsFetchingSuggestions(true)
+    try {
+      const res = await api.get(`/spaces/catalog/suggestions/?${queryParams.toString()}`)
+      const suggestions = res.data.results ?? res.data ?? []
+      if (append) {
+        setSuggestedHalls((prev) => [...prev, ...suggestions.slice(0, 3)])
+      } else {
+        setSuggestedHalls(suggestions.slice(0, 3))
+      }
+      setHasMoreSuggestions(suggestions.length === 3)
+    } catch {
+      if (!append) {
+        setSuggestedHalls([])
+        setHasMoreSuggestions(false)
+      }
+    } finally {
+      setIsFetchingSuggestions(false)
+    }
+  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isLowOccupancy, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
+
+  const showMoreSuggestions = useCallback(() => {
+    fetchSuggestions(true)
+  }, [fetchSuggestions])
+
+  useEffect(() => {
+    // Bug 7 fix: skip exactly one effect run immediately after the user switches
+    // halls so we don't fire a new suggestion fetch for the newly selected hall.
+    if (justSwitchedRef.current === true) {
+      justSwitchedRef.current = false
       return
     }
 
-    let updatedSeen = seenSpaceIds;
+    clearTimeout(debounceTimer.current)
+
+    const isUnavailable = isAvailable === false
+
+    // Bug 2 fix: clear suggestions synchronously — no setTimeout, no debounce.
+    if (!isLowOccupancy && !isUnavailable && !exceedsCapacity) {
+      setSuggestedHalls([])
+      setHasMoreSuggestions(false)
+      return
+    }
+
+    // Build the exclude list locally so the fetch can proceed in the same
+    // effect run without waiting for a setState + re-render cycle (fixes Bug 1).
     if (isUnavailable || exceedsCapacity) {
       if (!seenSpaceIds.includes(activeSpaceId)) {
-        updatedSeen = [...seenSpaceIds, activeSpaceId];
-        setTimeout(() => setSeenSpaceIds(updatedSeen), 0);
-        return;
+        const updatedSeen = [...seenSpaceIds, activeSpaceId]
+        setSeenSpaceIds(updatedSeen)
       }
     }
 
-    debounceTimer.current = setTimeout(async () => {
-      setIsFetchingSuggestions(true)
-      try {
-        const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0 ? attendeeCount : activeSpaceCap
-        const queryParams = new URLSearchParams({
-          space_id: activeSpaceId,
-          attendee_count: countToUse,
-          date: form.start_date,
-          start_time: form.start_time,
-          end_time: form.end_time,
-          exclude_ids: updatedSeen.join(',')
-        })
-        const res = await api.get(`/spaces/catalog/suggestions/?${queryParams.toString()}`)
-        const suggestions = res.data.results ?? res.data ?? []
-        setSuggestedHalls(suggestions.slice(0, 3))
-      } catch {
-        setSuggestedHalls([])
-      } finally {
-        setIsFetchingSuggestions(false)
-      }
-    }, 500)
+    debounceTimer.current = setTimeout(() => fetchSuggestions(false), 500)
 
     return () => clearTimeout(debounceTimer.current)
-  }, [isLowOccupancy, isAvailable, exceedsCapacity, activeSpaceId, attendeeCount, form.start_date, form.start_time, form.end_time, activeSpaceCap, seenSpaceIds])
+  }, [isLowOccupancy, isAvailable, exceedsCapacity, activeSpaceId, attendeeCount, form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, activeSpaceCap, seenSpaceIds, fetchSuggestions])
 
   const notesRequired = isLowOccupancy
   const linkedEndDate = form.end_date || form.start_date
@@ -650,9 +699,9 @@ export function useBookingForm({
     activeSpaceId, activeSpaceName, activeSpaceCap, form, setForm, set, toggleReq, switchHall,
     dynamicDepartments, dynamicEquipment, errors, submitted, isSubmitting,
     isAvailable, availabilityMsg, availabilityConflicts, isCheckingAvailability,
-    suggestedHalls, isFetchingSuggestions, attendeeCount, exceedsCapacity,
+    suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedEndDate, linkedStartIso,
     linkedEndIso, hasLinkedBookings, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, sessionDraft, isStudent, isAiLab,
+    handleSubmit, isEdit, sessionDraft, isStudent, isAiLab, triggerReason,
   }
 }
