@@ -594,7 +594,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
             {form.approval_workflow_type === "HOD_FALLBACK" && primaryApproverDisplay && (
                 <div className="mt-3 bg-white/10 rounded-xl px-4 py-3 border border-white/10 space-y-1.5">
                     <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#86efac]/60">
-                        Approver Chain
+                        Approver Route
                     </p>
                     <div className="flex flex-col gap-1">
                         <span className="text-[11px] text-white font-semibold">
@@ -602,7 +602,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                         </span>
                         {fallbackApproverDisplay && (
                             <span className="text-[11px] text-[#86efac]/70">
-                                ↳ {fallbackApproverDisplay} (fallback)
+                                ↳ {fallbackApproverDisplay} (backup)
                             </span>
                         )}
                     </div>
@@ -624,7 +624,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
                   <span className="text-[11px] font-semibold uppercase tracking-wide">
-                    Special Purpose
+                    Not Auto-Suggested
                   </span>
                 </div>
               )}
@@ -790,7 +790,7 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
                 <p className="text-[12px] font-semibold text-blue-800">
                   Configure who approves student bookings for this venue.
                   The main approver (e.g. HOD) acts first. If they don't respond within
-                  the escalation window, the fallback approver (e.g. Lab In-Charge) is notified.
+                  the given time period, the backup approver (e.g. Lab In-Charge) is notified.
                 </p>
 
                 <div className="grid grid-cols-2 gap-4">

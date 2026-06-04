@@ -164,6 +164,7 @@ async function loadBookings(spaceId) {
         status: b.status,
         isMultiDay,
         isContinue: cursor !== startKey,
+        bookingType: b.booking_type || "SINGLE",
         bookedByName: b.booked_by_name,
         bookedByDesignation: b.booked_by_designation,
         bookedByDepartment: b.booked_by_department,
@@ -461,9 +462,15 @@ const AvailabilityModal = memo(function AvailabilityModal({
                 if (block.type === "booked") {
                   const isPending = ["PENDING", "AWAITING_FACULTY", "FACULTY_ESCALATED"].includes(block.status)
                   const timeLabel = block.isMultiDay ? null : `${block.start} – ${block.end}`
-                  const titleLabel = block.isMultiDay
-                    ? block.isContinue ? "Multi-day booking (continues)" : "Multi-day booking"
-                    : block.title
+const titleLabel = block.isMultiDay
+  ? block.bookingType === "RECURRING"
+    ? block.isContinue
+      ? "Multiple College Hours (Continues)"
+      : "Multiple College Hours"
+    : block.isContinue
+      ? "24-Hour Reservation (Continues)"
+      : "24-Hour Reservation"
+  : block.title
 
 return (
   <div
