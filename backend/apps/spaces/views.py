@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -35,6 +36,9 @@ from .linked_bookings import (
     capture_space_anchor,
     sync_linked_siblings_after_space_edit,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 # ==========================================
@@ -324,10 +328,21 @@ class SpaceViewSet(viewsets.ModelViewSet):
         if not all([space_id, attendee_count, date_str, start_time_str, end_time_str]):
             return Response([])
 
+        # Trigger reason controls which capacity band to search.
+        # Accepted values: "unavailable", "low_occupancy", "exceeds_capacity".
+        # Any unrecognised value falls back to "unavailable".
+        VALID_REASONS = {'unavailable', 'low_occupancy', 'exceeds_capacity'}
+        trigger_reason = request.query_params.get('trigger_reason', 'unavailable')
+        if trigger_reason not in VALID_REASONS:
+            trigger_reason = 'unavailable'
+
+        # booking_type is used to decide whether to check all dates in a range.
+        booking_type = request.query_params.get('booking_type', 'SINGLE')
+
         try:
             attendee_count = int(attendee_count)
             from datetime import datetime
-            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            start_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             start_time = datetime.strptime(start_time_str, '%H:%M').time()
             end_time = datetime.strptime(end_time_str, '%H:%M').time()
         except ValueError:
@@ -341,10 +356,21 @@ class SpaceViewSet(viewsets.ModelViewSet):
 
         affinity = SpaceCategoryAffinity.objects.filter(from_category=requested_space.space_type).first()
         if not affinity or not affinity.allowed_categories:
-            return Response([])
+            logger.warning(
+                "suggestions: no SpaceCategoryAffinity found for space_type=%s (space_id=%s)",
+                requested_space.space_type,
+                space_id,
+            )
+            return Response({'no_affinity': True, 'results': []})
 
-        min_capacity = attendee_count
-        max_capacity = int(attendee_count * 1.5)
+        # Capacity bands differ by trigger reason.
+        if trigger_reason == 'low_occupancy':
+            min_capacity = attendee_count
+            max_capacity = min(int(attendee_count * 3), requested_space.capacity_hard - 1)
+        else:
+            # 'unavailable' and 'exceeds_capacity' both use the same ×1.5 ceiling.
+            min_capacity = attendee_count
+            max_capacity = int(attendee_count * 1.5)
 
         exclude_ids_raw = request.query_params.get('exclude_ids', '')
         exclude_ids = [
@@ -362,33 +388,53 @@ class SpaceViewSet(viewsets.ModelViewSet):
             capacity_hard__lte=max_capacity
         ).exclude(id__in=exclude_ids)
 
+        # Build the list of dates to check.
+        # For RECURRING bookings the end_date query param is expected alongside date (the start).
+        # For SINGLE (or unspecified) only start_date is checked.
+        from django.utils import timezone as tz
+        import datetime as dt
+        from .utils import get_overlapping_bookings
+
+        if booking_type == 'RECURRING':
+            end_date_str = request.query_params.get('end_date', date_str)
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                end_date = start_date
+            days_diff = (end_date - start_date).days
+            dates_to_check = [
+                start_date + dt.timedelta(days=i)
+                for i in range(max(days_diff, 0) + 1)
+            ]
+        else:
+            dates_to_check = [start_date]
+
         available_spaces = []
         for space in candidate_spaces:
-            # Check for bookings
-            from .utils import get_overlapping_bookings
-            from django.utils import timezone as tz
-            import datetime as dt
-            
-            slot_start = tz.make_aware(dt.datetime.combine(date, start_time))
-            slot_end   = tz.make_aware(dt.datetime.combine(date, end_time))
-            
-            overlaps = get_overlapping_bookings(space, slot_start, slot_end)
-            if overlaps.filter(
-                status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED']
-            ).exists():
-                continue
+            space_is_free = True
+            for check_date in dates_to_check:
+                slot_start = tz.make_aware(dt.datetime.combine(check_date, start_time))
+                slot_end   = tz.make_aware(dt.datetime.combine(check_date, end_time))
 
-            # Check for timetable
-            timetable_conflicts = SpaceTimetableBlock.objects.filter(
-                space=space,
-                date=date,
-                start_time__lt=end_time,
-                end_time__gt=start_time
-            ).exists()
-            if timetable_conflicts:
-                continue
+                overlaps = get_overlapping_bookings(space, slot_start, slot_end)
+                if overlaps.filter(
+                    status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED']
+                ).exists():
+                    space_is_free = False
+                    break
 
-            available_spaces.append(space)
+                timetable_conflict = SpaceTimetableBlock.objects.filter(
+                    space=space,
+                    date=check_date,
+                    start_time__lt=end_time,
+                    end_time__gt=start_time
+                ).exists()
+                if timetable_conflict:
+                    space_is_free = False
+                    break
+
+            if space_is_free:
+                available_spaces.append(space)
 
         available_spaces.sort(key=lambda s: abs(s.capacity_hard - attendee_count))
         available_spaces = available_spaces[:5]
