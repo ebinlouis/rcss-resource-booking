@@ -179,6 +179,12 @@ export function useBookingForm({
   const isMultiDay =
     form.start_date && form.end_date && form.start_date !== form.end_date
 
+  const triggerReason = isAvailable === false
+    ? 'unavailable'
+    : isLowOccupancy
+    ? 'low_occupancy'
+    : 'exceeds_capacity'
+
   // Auto-set attendees to 1 for AI Lab single bookings
   useEffect(() => {
     if (isAiLab && form.aiBookingSize === 'SINGLE' && !form.attendees) {
@@ -371,14 +377,9 @@ export function useBookingForm({
   // Stable fetch function shared by the suggestion effect and showMoreSuggestions.
   // append=false replaces the list; append=true adds to the end ("show more").
   const fetchSuggestions = useCallback(async (append = false) => {
-    const isUnavailable = isAvailable === false
-    const triggerReason = isUnavailable
-      ? 'unavailable'
-      : isLowOccupancy
-      ? 'low_occupancy'
-      : 'exceeds_capacity'
-
-    const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0 ? attendeeCount : activeSpaceCap
+    const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0
+      ? attendeeCount
+      : (isLowOccupancy ? activeSpaceCap : 1)
     const queryParams = new URLSearchParams({
       space_id: activeSpaceId,
       attendee_count: countToUse,
@@ -411,7 +412,7 @@ export function useBookingForm({
     } finally {
       setIsFetchingSuggestions(false)
     }
-  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isLowOccupancy, isAvailable, exceedsCapacity, seenSpaceIds])
+  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isLowOccupancy, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
 
   const showMoreSuggestions = useCallback(() => {
     fetchSuggestions(true)
@@ -701,6 +702,6 @@ export function useBookingForm({
     suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedEndDate, linkedStartIso,
     linkedEndIso, hasLinkedBookings, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, sessionDraft, isStudent, isAiLab,
+    handleSubmit, isEdit, sessionDraft, isStudent, isAiLab, triggerReason,
   }
 }

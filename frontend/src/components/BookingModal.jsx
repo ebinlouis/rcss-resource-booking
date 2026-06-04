@@ -103,7 +103,7 @@ function BookingModal({
     suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedStartIso,
     linkedEndIso, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, isStudent, isAiLab
+    handleSubmit, isEdit, isStudent, isAiLab, triggerReason
   } = useBookingForm({
     initialSpaceId, initialSpaceName, initialSpaceCap, initialData,
     prefillDate, prefillStart, prefillEnd, isStandalone, onClose, onLinkedIntent
@@ -345,7 +345,7 @@ function BookingModal({
         )}
         {!isFetchingSuggestions && suggestedHalls.length > 0 && (
           <div className="mt-2 mb-4">
-            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} hasMoreSuggestions={hasMoreSuggestions} onShowMore={showMoreSuggestions} isFetchingSuggestions={isFetchingSuggestions} />
+            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} hasMoreSuggestions={hasMoreSuggestions} onShowMore={showMoreSuggestions} isFetchingSuggestions={isFetchingSuggestions} triggerReason={triggerReason} />
           </div>
         )}
       </div>
