@@ -123,22 +123,36 @@ async function loadBookings(spaceId) {
     if (b.status === "REJECTED") return
 
     if (b.is_timetable) {
-      const cursor = b.start_datetime.split("T")[0]
-      if (!grouped[cursor]) grouped[cursor] = []
-      grouped[cursor].push({
-        start: b.start_datetime.slice(11, 16),
-        end:   b.end_datetime.slice(11, 16),
-        title: b.purpose_of_booking || "Class Timetable",
-        status: "APPROVED",
-        isMultiDay: false,
-        isContinue: false,
-        bookedByName: "Timetable",
-        bookedByDesignation: "Scheduled Class",
-        bookedByDepartment: "Admin",
-        bookedByPhone: "",
-        bookedByPhoto: "",
-        purpose: b.purpose_of_booking,
-      })
+      const ttStartD = new Date(b.start_datetime)
+      const ttEndD   = new Date(b.end_datetime)
+      const ttStartKey = formatDateKey(ttStartD.getFullYear(), ttStartD.getMonth(), ttStartD.getDate())
+      const ttEndKey   = formatDateKey(ttEndD.getFullYear(), ttEndD.getMonth(), ttEndD.getDate())
+      const ttStartStr = `${String(ttStartD.getHours()).padStart(2, "0")}:${String(ttStartD.getMinutes()).padStart(2, "0")}`
+      const ttEndStr   = `${String(ttEndD.getHours()).padStart(2, "0")}:${String(ttEndD.getMinutes()).padStart(2, "0")}`
+
+      const MAX_SPAN = 366
+      let ttCursor = ttStartKey
+      let ttIterations = 0
+      while (ttCursor <= ttEndKey && ttIterations < MAX_SPAN) {
+        if (!grouped[ttCursor]) grouped[ttCursor] = []
+        grouped[ttCursor].push({
+          start: ttStartStr,
+          end:   ttEndStr,
+          title: b.purpose_of_booking || "Class Timetable",
+          status: "APPROVED",
+          isMultiDay: ttStartKey !== ttEndKey,
+          isContinue: ttCursor !== ttStartKey,
+          bookedByName: "Timetable",
+          bookedByDesignation: "Scheduled Class",
+          bookedByDepartment: "Admin",
+          bookedByPhone: "",
+          bookedByPhoto: "",
+          purpose: b.purpose_of_booking,
+        })
+        if (ttCursor === ttEndKey) break
+        ttCursor = nextDateKey(ttCursor)
+        ttIterations++
+      }
       return
     }
 
