@@ -100,7 +100,7 @@ function BookingModal({
     activeSpaceName, activeSpaceCap, form, set, toggleReq, switchHall,
     dynamicDepartments, dynamicEquipment, errors, submitted, isSubmitting,
     isAvailable, availabilityMsg, availabilityConflicts, isCheckingAvailability,
-    suggestedHalls, isFetchingSuggestions, attendeeCount, exceedsCapacity,
+    suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedStartIso,
     linkedEndIso, linkedOptionsReady, continueLinkedBooking,
     handleSubmit, isEdit, isStudent, isAiLab
@@ -345,7 +345,7 @@ function BookingModal({
         )}
         {!isFetchingSuggestions && suggestedHalls.length > 0 && (
           <div className="mt-2 mb-4">
-            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} />
+            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} hasMoreSuggestions={hasMoreSuggestions} onShowMore={showMoreSuggestions} isFetchingSuggestions={isFetchingSuggestions} />
           </div>
         )}
       </div>

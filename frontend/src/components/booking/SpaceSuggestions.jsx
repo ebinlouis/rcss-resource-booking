@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { Users, Info, Lightbulb } from "lucide-react"
 
-export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
+export default function SpaceSuggestions({ suggestedHalls = [], onSwitch, hasMoreSuggestions, onShowMore, isFetchingSuggestions }) {
   if (suggestedHalls.length === 0) return null
 
   return (
@@ -56,6 +56,16 @@ export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
                 </div>
               ))}
             </div>
+
+            {hasMoreSuggestions && (
+              <button
+                onClick={onShowMore}
+                disabled={isFetchingSuggestions}
+                className="mt-3 w-full text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors"
+              >
+                {isFetchingSuggestions ? "Looking for more venues..." : "Show more options"}
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
