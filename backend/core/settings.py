@@ -129,15 +129,48 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Temporary fallback window until the notification/leave workflow is implemented.
 AI_LAB_HOD_FALLBACK_HOURS = env.int('AI_LAB_HOD_FALLBACK_HOURS', default=24)
 
-# Notification email delivery
-NOTIFICATION_EMAIL_STUB = True
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = env('EMAIL_HOST', default='')
-# EMAIL_PORT = env.int('EMAIL_PORT', default=587)
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
-# EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
-# DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='')
+# ==========================================
+# EMAIL CONFIGURATION
+# ==========================================
+#
+# Stage 1 — Mailpit (local dev, current):
+#   EMAIL_HOST=localhost
+#   EMAIL_PORT=1025
+#   EMAIL_USE_TLS=False
+#   EMAIL_HOST_USER=        (leave blank)
+#   EMAIL_HOST_PASSWORD=    (leave blank)
+#   DEFAULT_FROM_EMAIL=RCSS Notifications <notifications@rcss.local>
+#   NOTIFICATION_EMAIL_STUB=False
+#
+# Stage 2 — Dummy Gmail (team demo/staging):
+#   EMAIL_HOST=smtp.gmail.com
+#   EMAIL_PORT=587
+#   EMAIL_USE_TLS=True
+#   EMAIL_HOST_USER=your-dummy-account@gmail.com
+#   EMAIL_HOST_PASSWORD=your-16-char-app-password
+#   DEFAULT_FROM_EMAIL=RCSS Notifications <your-dummy-account@gmail.com>
+#   NOTIFICATION_EMAIL_STUB=False
+#
+# Stage 3 — Official college email (production):
+#   Update the four EMAIL_* vars above to college SMTP values.
+#   No code changes needed anywhere.
+#
+# To disable all email sending without touching anything else:
+#   NOTIFICATION_EMAIL_STUB=True
+
+# When True, notify() skips all email sending (in-app notifications still fire).
+NOTIFICATION_EMAIL_STUB = env.bool('NOTIFICATION_EMAIL_STUB', default=True)
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = env('EMAIL_HOST', default='localhost')
+EMAIL_PORT = env.int('EMAIL_PORT', default=1025)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env(
+    'DEFAULT_FROM_EMAIL',
+    default='RCSS Notifications <notifications@rcss.local>'
+)
 
 # ==========================================
 # CORS & CSRF CONFIGURATION
