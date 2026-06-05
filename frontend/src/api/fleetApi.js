@@ -181,3 +181,37 @@ export const rescheduleBooking = async (id, payload) => {
   const res = await api.patch(`/fleet/bookings/${id}/reschedule/`, payload)
   return res.data
 }
+
+// ==========================================
+// VEHICLES — ADMIN MANAGEMENT
+// Add these functions to your existing fleetApi.js
+// below the existing getVehicles() function
+// ==========================================
+
+/**
+ * POST /api/fleet/vehicles/
+ * Admin-only: create a new vehicle.
+ * Payload: { name, registration_number, capacity, is_active }
+ */
+export const createVehicle = async (payload) => {
+  const res = await api.post("/fleet/vehicles/", payload)
+  return res.data
+}
+
+/**
+ * PATCH /api/fleet/vehicles/<id>/
+ * Admin-only: update a vehicle.
+ */
+export const updateVehicle = async (id, payload) => {
+  const res = await api.patch(`/fleet/vehicles/${id}/`, payload)
+  return res.data
+}
+
+/**
+ * DELETE /api/fleet/vehicles/<id>/
+ * Admin-only: delete a vehicle.
+ */
+export const deleteVehicle = async (id) => {
+  const res = await api.delete(`/fleet/vehicles/${id}/`)
+  return res.data
+}

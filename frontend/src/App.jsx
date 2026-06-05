@@ -27,7 +27,7 @@ const Media = lazy(() => import("./pages/Media"));
 const MediaSchedule = lazy(() => import("./pages/MediaSchedule"));
 const MyMediaBookingsPage = lazy(() => import("./pages/MyMediaBookingsPage"));
 const MyTransportBookingsPage = lazy(() => import("./pages/MyTransportBookingsPage"));
-const MyMessBookingsPage = lazy(() => import("./pages/Mymessbookingspage")); // ✅ NEW
+const MyMessBookingsPage = lazy(() => import("./pages/Mymessbookingspage"));
 const MyBookingsPage = lazy(() => import("./pages/MyBookingsPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -47,6 +47,7 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const BlocksManagement = lazy(() => import("./pages/admin/BlocksManagement"));
 const SpaceApproversManagement = lazy(() => import("./pages/admin/SpaceApproversManagement"));
 const AdminFacultiesPage = lazy(() => import("./pages/admin/AdminFacultiesPage"));
+const AdminVehiclesPage = lazy(() => import("./pages/admin/AdminVehiclesPage"));
 
 const AppRoot = () => (
   <AuthProvider>
@@ -60,16 +61,10 @@ const AppRoot = () => (
           padding: '14px 18px',
         },
         success: {
-          iconTheme: {
-            primary: '#16a34a',
-            secondary: '#fff',
-          },
+          iconTheme: { primary: '#16a34a', secondary: '#fff' },
         },
         error: {
-          iconTheme: {
-            primary: '#dc2626',
-            secondary: '#fff',
-          },
+          iconTheme: { primary: '#dc2626', secondary: '#fff' },
         },
       }}
     />
@@ -138,7 +133,6 @@ const router = createBrowserRouter([
               queryKey: ['fleet', 'bookings', 'mine'], queryFn: () => getMyBookings()
             })
           },
-          // ✅ NEW: Mess history page
           {
             path: "/mess/my-bookings",
             element: <MyMessBookingsPage />,
@@ -226,9 +220,11 @@ const router = createBrowserRouter([
                 ]
               },
               {
+                // ✅ Fleet manager sees both Transport Management AND Vehicle Management
                 element: <ProtectedRoute requiredCapability="can_manage_fleet" />,
                 children: [
-                  { path: "/admin/transport", element: <AdminTransportPage /> }
+                  { path: "/admin/transport", element: <AdminTransportPage /> },
+                  { path: "/admin/vehicles", element: <AdminVehiclesPage /> },
                 ]
               },
               {
