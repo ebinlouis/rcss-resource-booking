@@ -1,8 +1,25 @@
+import logging
+
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db.models import Q
 from django.utils import timezone
 
 from apps.notifications.models import Notification
 from apps.users.models import CustomUser, Role, RoleOverride
+
+logger = logging.getLogger(__name__)
+
+EMAIL_CATEGORIES = {
+    Notification.Category.BOOKING_APPROVED,
+    Notification.Category.BOOKING_REJECTED,
+    Notification.Category.BOOKING_CANCELLED,
+    Notification.Category.BOOKING_PENDING,
+    Notification.Category.FACULTY_APPROVAL_REQ,
+    Notification.Category.FACULTY_REJECTED,
+    Notification.Category.FACULTY_ESCALATED,
+    Notification.Category.SYSTEM,
+}
 
 
 def notify(
@@ -11,7 +28,7 @@ def notify(
     title,
     message,
     link=None,
-    send_email=False,
+    email_override=None,
     domain="",
     reference_code="",
     is_actionable=False,
@@ -33,25 +50,39 @@ def notify(
         is_actionable=is_actionable,
     )
 
-    if send_email:
-        # TODO: Enable email sending after these .env variables are configured:
-        # EMAIL_HOST=smtp.example.com
-        # EMAIL_HOST_USER=notifications@example.com
-        # EMAIL_HOST_PASSWORD=your-smtp-password
-        # DEFAULT_FROM_EMAIL=RCSS Notifications <notifications@example.com>
-        #
-        # from django.conf import settings
-        # from django.core.mail import send_mail
-        #
-        # if not getattr(settings, 'NOTIFICATION_EMAIL_STUB', True):
-        #     send_mail(
-        #         subject=title,
-        #         message=message,
-        #         from_email=settings.DEFAULT_FROM_EMAIL,
-        #         recipient_list=[recipient.email],
-        #         fail_silently=False,
-        #     )
-        pass
+    try:
+        # Determine whether to send an email for this notification.
+        # email_override=False  → skip always
+        # email_override=True   → send always (regardless of category)
+        # email_override=None   → send only for categories in EMAIL_CATEGORIES
+        if email_override is False:
+            should_email = False
+        elif email_override is True:
+            should_email = True
+        else:
+            should_email = notification.category in EMAIL_CATEGORIES
+
+        if should_email:
+            # Honour the stub flag — set NOTIFICATION_EMAIL_STUB=False in
+            # settings/env when the SMTP backend is properly configured.
+            if getattr(settings, 'NOTIFICATION_EMAIL_STUB', True):
+                pass  # Email sending is stubbed out
+            elif not recipient.email:
+                pass  # No email address on file — skip silently
+            else:
+                send_mail(
+                    subject=title,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[recipient.email],
+                    fail_silently=True,
+                )
+    except Exception:
+        logger.exception(
+            "Failed to send email notification to %s (category=%s)",
+            getattr(recipient, 'email', '<unknown>'),
+            category,
+        )
 
     return notification
 
@@ -1045,6 +1076,7 @@ def notify_student_cancelled_faculty(booking):
         "Booking Cancelled",
         f"{student_name} cancelled their booking for {space_name}. No action needed.",
         link=None,
+        email_override=False,
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=False,
@@ -1100,6 +1132,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                         title,
                         message,
                         link=link,
+                        email_override=False,
                         domain=domain,
                         reference_code=reference,
                         is_actionable=False,
@@ -1125,6 +1158,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                     title,
                     message,
                     link=link,
+                    email_override=False,
                     domain=domain,
                     reference_code=reference,
                     is_actionable=False,
@@ -1169,6 +1203,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                 title,
                 message,
                 link=link,
+                email_override=False,
                 domain=domain,
                 reference_code=reference,
                 is_actionable=False,
