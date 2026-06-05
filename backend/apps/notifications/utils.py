@@ -1,7 +1,6 @@
 import logging
 
 from django.conf import settings
-from django.core.mail import send_mail
 from django.db.models import Q
 from django.utils import timezone
 
@@ -70,12 +69,12 @@ def notify(
             elif not recipient.email:
                 pass  # No email address on file — skip silently
             else:
-                send_mail(
+                from apps.notifications.tasks import send_notification_email
+                send_notification_email.delay(
+                    recipient_email=recipient.email,
                     subject=title,
                     message=message,
                     from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[recipient.email],
-                    fail_silently=True,
                 )
     except Exception:
         logger.exception(
