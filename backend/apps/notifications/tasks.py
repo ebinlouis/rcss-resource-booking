@@ -64,3 +64,24 @@ def _run_domain(refresh_fn, domain):
     except Exception as exc:
         logger.exception('_run_domain failed for %s: %s', domain, exc)
         return 0
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def send_notification_email(self, recipient_email, subject, message, from_email):
+    """
+    Sends a single notification email asynchronously.
+    Retries up to 3 times with a 30-second delay on failure.
+    """
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[recipient_email],
+            fail_silently=False,
+        )
+        logger.info('Notification email sent to %s | subject: %s', recipient_email, subject)
+    except Exception as exc:
+        logger.exception('send_notification_email failed for %s: %s', recipient_email, exc)
+        raise self.retry(exc=exc)
