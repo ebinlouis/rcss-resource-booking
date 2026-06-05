@@ -47,6 +47,8 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const BlocksManagement = lazy(() => import("./pages/admin/BlocksManagement"));
 const SpaceApproversManagement = lazy(() => import("./pages/admin/SpaceApproversManagement"));
 const AdminFacultiesPage = lazy(() => import("./pages/admin/AdminFacultiesPage"));
+const VenueDetailPage = lazy(() => import("./pages/admin/VenueDetailPage"));
+const VenueManagerAssignPage = lazy(() => import("./pages/admin/VenueManagerAssignPage"));
 
 const AppRoot = () => (
   <AuthProvider>
@@ -237,6 +239,24 @@ const router = createBrowserRouter([
                   {
                     path: "/admin/spaces",
                     element: <AdminSpacesPage />,
+                    loader: () => {
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'catalog', 'manage'], queryFn: () => api.get('/spaces/catalog/?manage=true').then(res => res.data) });
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'blocks'], queryFn: () => spaceAdminService.getBlocks() });
+                      return null;
+                    }
+                  },
+                  {
+                    path: "/admin/spaces/venues/:venueId",
+                    element: <VenueDetailPage />,
+                    loader: () => {
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'catalog', 'manage'], queryFn: () => api.get('/spaces/catalog/?manage=true').then(res => res.data) });
+                      prefetchProtectedQuery({ queryKey: ['spaces', 'blocks'], queryFn: () => spaceAdminService.getBlocks() });
+                      return null;
+                    }
+                  },
+                  {
+                    path: "/admin/spaces/venues/:venueId/assign-manager",
+                    element: <VenueManagerAssignPage />,
                     loader: () => {
                       prefetchProtectedQuery({ queryKey: ['spaces', 'catalog', 'manage'], queryFn: () => api.get('/spaces/catalog/?manage=true').then(res => res.data) });
                       prefetchProtectedQuery({ queryKey: ['spaces', 'blocks'], queryFn: () => spaceAdminService.getBlocks() });

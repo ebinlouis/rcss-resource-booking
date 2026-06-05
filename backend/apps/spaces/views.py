@@ -763,6 +763,30 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if self.action in ('incharge_resend',):
             return SpaceBooking.objects.all().select_related('space', 'user')
 
+        # ── Admin: full booking history for a specific venue ──────────────
+        # Used by VenueDetailPage "Booking History" tab.
+        # Returns ALL statuses (PENDING, APPROVED, REJECTED, CANCELLED, etc.)
+        # No models, serializers, or approval logic are changed.
+        if view_param == 'venue_history':
+            if not (user.is_authenticated and (user.is_staff or user.is_superuser)):
+                return SpaceBooking.objects.none()
+            space_id = self.request.query_params.get('space')
+            if not space_id:
+                return SpaceBooking.objects.none()
+            return (
+                SpaceBooking.objects
+                .filter(space_id=space_id)
+                .select_related(
+                    'space', 'user', 'department',
+                    'space__block', 'faculty_sponsor',
+                )
+                .prefetch_related(
+                    'requested_equipment__equipment',
+                    'user__roles',
+                )
+                .order_by('-created_at')
+            )
+
         if view_param == 'general':
             space_id = self.request.query_params.get('space')
             qs = (
@@ -1497,6 +1521,7 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
         user_id      = self.request.query_params.get('user')
         role_name    = self.request.query_params.get('role')
         block_id     = self.request.query_params.get('block')
+        space_id     = self.request.query_params.get('space')
         active_param = self.request.query_params.get('active')
 
         if user_id:
@@ -1505,6 +1530,8 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
             qs = qs.filter(role__name=role_name.upper())
         if block_id:
             qs = qs.filter(block_id=block_id)
+        if space_id:
+            qs = qs.filter(space_id=space_id)
         if active_param is not None:
             qs = qs.filter(is_active=active_param.lower() == 'true')
 
