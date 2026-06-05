@@ -100,10 +100,10 @@ function BookingModal({
     activeSpaceName, activeSpaceCap, form, set, toggleReq, switchHall,
     dynamicDepartments, dynamicEquipment, errors, submitted, isSubmitting,
     isAvailable, availabilityMsg, availabilityConflicts, isCheckingAvailability,
-    suggestedHalls, isFetchingSuggestions, attendeeCount, exceedsCapacity,
+    suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedStartIso,
     linkedEndIso, linkedOptionsReady, continueLinkedBooking,
-    handleSubmit, isEdit, isStudent, isAiLab
+    handleSubmit, isEdit, isStudent, isAiLab, triggerReason
   } = useBookingForm({
     initialSpaceId, initialSpaceName, initialSpaceCap, initialData,
     prefillDate, prefillStart, prefillEnd, isStandalone, onClose, onLinkedIntent
@@ -188,6 +188,19 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
   // Shared form body (used in both wizard and normal modal)
   // ─────────────────────────────────────────────────────────────
+
+  const suggestionCard = !isFetchingSuggestions && suggestedHalls.length > 0 && (
+    <div className="mt-2 mb-4">
+      <SpaceSuggestions
+        suggestedHalls={suggestedHalls}
+        onSwitch={switchHall}
+        hasMoreSuggestions={hasMoreSuggestions}
+        onShowMore={showMoreSuggestions}
+        isFetchingSuggestions={isFetchingSuggestions}
+        triggerReason={triggerReason}
+      />
+    </div>
+  )
 
   const formBody = (
     <div className="space-y-6">
@@ -340,14 +353,10 @@ function BookingModal({
           </div>
         ) : null}
 
-        {isFetchingSuggestions && (
+        {isFetchingSuggestions && triggerReason === 'unavailable' && (
           <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
         )}
-        {!isFetchingSuggestions && suggestedHalls.length > 0 && (
-          <div className="mt-2 mb-4">
-            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} />
-          </div>
-        )}
+        {triggerReason === 'unavailable' && suggestionCard}
       </div>
 
       {/* ── STEP 2: EVENT DETAILS ── */}
@@ -435,6 +444,11 @@ These bookings may need additional review.
           </div>
         )}
 
+        {triggerReason === 'exceeds_capacity' && isFetchingSuggestions && (
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
+        )}
+        {triggerReason === 'exceeds_capacity' && suggestionCard}
+
         {activeSpaceName?.toLowerCase().includes("ai lab") ? (
           <div className="space-y-4">
             <div className="flex gap-6 mt-1 mb-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
@@ -521,6 +535,11 @@ These bookings may need additional review.
             </div>
           </div>
         )}
+
+        {triggerReason === 'low_occupancy' && isFetchingSuggestions && (
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
+        )}
+        {triggerReason === 'low_occupancy' && suggestionCard}
 
         <SectionLabel>Requirements</SectionLabel>
         <div className="grid grid-cols-3 gap-2">

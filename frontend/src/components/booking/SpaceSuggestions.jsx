@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { Users, Info, Lightbulb } from "lucide-react"
 
-export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
+export default function SpaceSuggestions({ suggestedHalls = [], onSwitch, hasMoreSuggestions, onShowMore, isFetchingSuggestions, triggerReason }) {
   if (suggestedHalls.length === 0) return null
 
   return (
@@ -20,8 +20,11 @@ export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
               Alternative Venues Suggested
             </h4>
             <p className="text-xs text-indigo-700 mb-3 leading-relaxed">
-              Based on your requirements, these venues might be a better fit.
-              Switching can help optimize campus resource utilization.
+              {triggerReason === 'unavailable'
+                ? "This venue isn't free at your chosen time. Here are similar venues that are available."
+                : triggerReason === 'low_occupancy'
+                ? "Your group size is small for this venue. These venues might be a better fit."
+                : "Your group is too large for this venue. Here are larger venues that are available."}
             </p>
             
             <div className="space-y-2">
@@ -56,6 +59,16 @@ export default function SpaceSuggestions({ suggestedHalls = [], onSwitch }) {
                 </div>
               ))}
             </div>
+
+            {hasMoreSuggestions && (
+              <button
+                onClick={onShowMore}
+                disabled={isFetchingSuggestions}
+                className="mt-3 w-full text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors"
+              >
+                {isFetchingSuggestions ? "Looking for more venues..." : "Show more options"}
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
