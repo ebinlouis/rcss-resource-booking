@@ -148,7 +148,8 @@ const buildMealSummary = (dailyMenus) => {
   const mealNames = MEALS.filter((meal) => first[meal.timeKey]).map((meal) => meal.label)
   const veg = parseInt(first.veg_persons || 0, 10)
   const nonveg = parseInt(first.nonveg_persons || 0, 10)
-  return `${mealNames.join(" + ") || "No meals"} - ${veg} veg, ${nonveg} non-veg`
+  const suffix = dailyMenus.length > 1 ? ` · ${dailyMenus.length} days` : ""
+  return `${mealNames.join(" + ") || "No meals"} - ${veg} veg, ${nonveg} non-veg${suffix}`
 }
 
 const SpaceDraftStep = forwardRef(function SpaceDraftStep(_, ref) {
@@ -1328,6 +1329,7 @@ function LinkedBookingWizard() {
   const navigate = useNavigate()
   const { user, isLoading } = useAuth()
   const stepRef = useRef(null)
+  const spaceAvailabilityRef = useRef({ isAvailable: null, isCheckingAvailability: false, exceedsCapacity: false })
   const [activeStep, setActiveStep] = useState(null)
   const [direction, setDirection] = useState(1)
   const [returnToReview, setReturnToReview] = useState(false)
@@ -1385,6 +1387,19 @@ function LinkedBookingWizard() {
 
   const saveSpaceDraft = useCallback(() => {
     const draft = session.spaceFormData || {}
+    const { isAvailable: spaceIsAvailable, isCheckingAvailability: spaceIsChecking, exceedsCapacity: spaceExceeds } = spaceAvailabilityRef.current
+    if (spaceIsChecking) {
+      setSpaceError("Still checking availability — please wait a moment.")
+      return false
+    }
+    if (spaceIsAvailable !== true) {
+      setSpaceError("Please confirm the time slot is available before continuing.")
+      return false
+    }
+    if (spaceExceeds) {
+      setSpaceError("Attendee count exceeds venue capacity.")
+      return false
+    }
     const validationError = buildSpaceError(draft)
     if (validationError) {
       setSpaceError(validationError)
@@ -1392,8 +1407,8 @@ function LinkedBookingWizard() {
     }
 
     const endDate = draft.end_date || draft.start_date
-    const start_datetime = draft.start_datetime || toLocalISO(draft.start_date, draft.start_time)
-    const end_datetime = draft.end_datetime || toLocalISO(endDate, draft.end_time)
+    const start_datetime = toLocalISO(draft.start_date, draft.start_time)
+    const end_datetime = toLocalISO(endDate, draft.end_time)
     const requirements = draft.requirements || []
 
     const payload = {
@@ -1470,9 +1485,16 @@ function LinkedBookingWizard() {
   }
 
   const isReview = activeStep === "review"
-  const nextLabel = isReview ? "Confirm and Submit" : returnToReview ? "Save and Review" : "Next"
+  const spaceIsChecking = activeStep === "space" && spaceAvailabilityRef.current.isCheckingAvailability
+  const nextLabel = isReview
+    ? "Confirm and Submit"
+    : returnToReview
+    ? "Save and Review"
+    : spaceIsChecking
+    ? "Checking availability…"
+    : "Next"
   const hasSubmittedSpace = Boolean(session.submittedBookings?.space)
-  const nextDisabled = submitting || (activeStep === "space" && !spaceDraftReady)
+  const nextDisabled = submitting || spaceIsChecking || (activeStep === "space" && !spaceDraftReady)
 
   return (
     <AnimatePresence>
@@ -1530,6 +1552,7 @@ function LinkedBookingWizard() {
                         )}
                         <BookingModal
                           wizardMode={true}
+                          onAvailabilityChange={(state) => { spaceAvailabilityRef.current = state }}
                           onWizardNext={handleNext}
                           onLinkedIntent={(service) => {
                             addServiceToFlow(service)
@@ -1596,7 +1619,7 @@ function LinkedBookingWizard() {
                   disabled={nextDisabled}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-5 py-2 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {(submitting || spaceIsChecking) && <Loader2 className="h-4 w-4 animate-spin" />}
                   {nextLabel}
                 </button>
               </footer>

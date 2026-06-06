@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import Tooltip from "./Tooltip"
 import { createPortal } from "react-dom"
 import LinkedBookingOptions from "./LinkedBookingOptions"
@@ -95,6 +96,7 @@ function BookingModal({
   wizardMode = false,
   isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
   onLinkedIntent,
+  onAvailabilityChange = null,
 }) {
   const {
     activeSpaceName, activeSpaceCap, form, set, toggleReq, switchHall,
@@ -110,6 +112,11 @@ function BookingModal({
   });
 
   const bookingSession = useBookingSession();
+
+  useEffect(() => {
+    if (!wizardMode || !onAvailabilityChange) return
+    onAvailabilityChange({ isAvailable, isCheckingAvailability, exceedsCapacity })
+  }, [wizardMode, onAvailabilityChange, isAvailable, isCheckingAvailability, exceedsCapacity])
 
   const handleClose = () => {
     bookingSessionActions.clearSession()
