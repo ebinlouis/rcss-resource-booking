@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 
 from django.conf import settings
 from django.db.models import Q
@@ -69,11 +71,59 @@ def notify(
             elif not recipient.email:
                 pass  # No email address on file — skip silently
             else:
+                # Build email body — append one-click approve link for actionable approver notifications
+                email_body = message
+                EMAIL_DOMAINS_WITH_TOKEN = {'spaces', 'fleet', 'mess'}
+                should_attach_token = (
+                    is_actionable
+                    and email_override is not False
+                    and (domain or '') in EMAIL_DOMAINS_WITH_TOKEN
+                    and notification.category in {
+                        Notification.Category.BOOKING_PENDING,
+                        Notification.Category.FACULTY_APPROVAL_REQ,
+                        Notification.Category.FACULTY_ESCALATED,
+                        Notification.Category.FACULTY_RESENT,
+                    }
+                    and recipient.email
+                )
+
+                if should_attach_token:
+                    from apps.approvals.lifecycle import get_approval_deadline
+                    # Dynamically look up the booking to get its approval deadline
+                    booking_obj = _resolve_booking_by_ref(reference_code, domain or '')
+                    if booking_obj is not None:
+                        token_expires_at = get_approval_deadline(booking_obj)
+                        if token_expires_at:
+                            # Faculty approval categories use a separate domain key
+                            token_domain = domain or ''
+                            if token_domain == 'spaces' and notification.category in {
+                                Notification.Category.FACULTY_APPROVAL_REQ,
+                                Notification.Category.FACULTY_RESENT,
+                            }:
+                                token_domain = 'spaces_faculty'
+                            raw_token = _generate_approval_token(
+                                recipient=recipient,
+                                domain=token_domain,
+                                booking_ref=reference_code,
+                                expires_at=token_expires_at,
+                            )
+                            if raw_token:
+                                base_url = getattr(settings, 'SITE_BASE_URL', 'http://localhost:8000')
+                                approve_url = f"{base_url}/api/notifications/action/?token={raw_token}"
+                                email_body = (
+                                    f"{message}\n\n"
+                                    f"--- One-Click Approval ---\n"
+                                    f"Approve this request directly from your email:\n"
+                                    f"{approve_url}\n\n"
+                                    f"This link expires when the booking's scheduled time passes.\n"
+                                    f"If the booking has already been actioned, this link will be invalid."
+                                )
+
                 from apps.notifications.tasks import send_notification_email
                 send_notification_email.delay(
                     recipient_email=recipient.email,
                     subject=title,
-                    message=message,
+                    message=email_body,
                     from_email=settings.DEFAULT_FROM_EMAIL,
                 )
     except Exception:
@@ -1217,6 +1267,54 @@ def notify_swap_event(swap_request, event):
     values: 'requested', 'accepted', 'declined', 'expired', 'cancelled'.
     """
     return None
+
+
+def _resolve_booking_by_ref(reference_code, domain):
+    """
+    Looks up a booking by reference_code and domain.
+    Returns the booking object or None if not found.
+    Used internally to fetch the approval deadline for token generation.
+    """
+    if not reference_code or not domain:
+        return None
+    try:
+        if domain == 'spaces':
+            from apps.spaces.models import SpaceBooking
+            return SpaceBooking.objects.filter(reference_code=reference_code).first()
+        if domain == 'fleet':
+            from apps.fleet.models import FleetBooking
+            return FleetBooking.objects.filter(reference_code=reference_code).first()
+        if domain == 'mess':
+            from apps.mess.models import MessBooking
+            return MessBooking.objects.filter(reference_code=reference_code).first()
+    except Exception:
+        logger.exception('_resolve_booking_by_ref failed for %s/%s', domain, reference_code)
+    return None
+
+
+def _generate_approval_token(recipient, domain, booking_ref, expires_at):
+    """
+    Generates a one-click approval token, stores its SHA-256 hash in the DB,
+    and returns the raw token string to embed in the email URL.
+    Only called for actionable approver-facing notifications on non-media domains.
+    Returns None if token creation fails for any reason.
+    """
+    from apps.notifications.models import ApprovalToken
+    try:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        ApprovalToken.objects.create(
+            token_hash=token_hash,
+            domain=domain,
+            booking_ref=booking_ref,
+            action=ApprovalToken.Action.APPROVE,
+            issued_to=recipient,
+            expires_at=expires_at,
+        )
+        return raw_token
+    except Exception:
+        logger.exception('Failed to generate approval token for %s/%s', domain, booking_ref)
+        return None
 
 
 # ==========================================
