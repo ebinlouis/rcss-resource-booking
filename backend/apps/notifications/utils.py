@@ -71,8 +71,7 @@ def notify(
             elif not recipient.email:
                 pass  # No email address on file — skip silently
             else:
-                # Build email body — append one-click approve link for actionable approver notifications
-                email_body = message
+                # Token generation — unchanged
                 EMAIL_DOMAINS_WITH_TOKEN = {'spaces', 'fleet', 'mess'}
                 should_attach_token = (
                     is_actionable
@@ -87,6 +86,8 @@ def notify(
                     and recipient.email
                 )
 
+                booking_obj = None
+                raw_token = None
                 if should_attach_token:
                     from apps.approvals.lifecycle import get_approval_deadline
                     # Dynamically look up the booking to get its approval deadline
@@ -107,24 +108,39 @@ def notify(
                                 booking_ref=reference_code,
                                 expires_at=token_expires_at,
                             )
-                            if raw_token:
-                                base_url = getattr(settings, 'SITE_BASE_URL', 'http://localhost:8000')
-                                approve_url = f"{base_url}/api/notifications/action/?token={raw_token}"
-                                email_body = (
-                                    f"{message}\n\n"
-                                    f"--- One-Click Approval ---\n"
-                                    f"Approve this request directly from your email:\n"
-                                    f"{approve_url}\n\n"
-                                    f"This link expires when the booking's scheduled time passes.\n"
-                                    f"If the booking has already been actioned, this link will be invalid."
-                                )
+
+                # Build rich email content via email_builder
+                from apps.notifications.email_builder import build_email
+
+                # Reuse already-fetched booking_obj if available, otherwise resolve now
+                _email_booking = booking_obj if booking_obj is not None else _resolve_booking_by_ref(reference_code, domain or '')
+
+                # Build approve URL if a token was generated
+                _approve_url = None
+                if should_attach_token and raw_token:
+                    base_url = getattr(settings, 'SITE_BASE_URL', 'http://localhost:8000')
+                    _approve_url = f"{base_url}/api/notifications/action/?token={raw_token}"
+
+                try:
+                    subject, plain_text, html_message = build_email(
+                        notification=notification,
+                        booking=_email_booking,
+                        domain=domain or '',
+                        approve_url=_approve_url,
+                    )
+                except Exception:
+                    logger.exception('build_email failed for %s/%s — falling back to plain text', domain, reference_code)
+                    subject = title
+                    plain_text = message
+                    html_message = None
 
                 from apps.notifications.tasks import send_notification_email
                 send_notification_email.delay(
                     recipient_email=recipient.email,
-                    subject=title,
-                    message=email_body,
+                    subject=subject,
+                    plain_text=plain_text,
                     from_email=settings.DEFAULT_FROM_EMAIL,
+                    html_message=html_message,
                 )
     except Exception:
         logger.exception(
@@ -670,15 +686,25 @@ def notify_booking_status_change(
             is_actionable=False,
         )
 
-    title = f"{resource} booking {status_display}"
-
     # Generate the schedule string
     time_str = _format_booking_time(booking, domain)
     time_context = f" scheduled for {time_str}" if time_str else ""
 
-    message = (
-        f"Your booking for {resource}{time_context} was {status_display} by {resolver}."
-    )
+    if domain == 'spaces':
+        title = f"Venue Booking {status_value.title()} - {resource}"
+        message = (
+            f"Your venue booking for {resource}{time_context} was {status_display} by {resolver}."
+        )
+    elif domain == 'fleet':
+        title = f"Transport Booking {status_value.title()} - {resource}"
+        message = (
+            f"Your booking for {resource}{time_context} was {status_display} by {resolver}."
+        )
+    else:
+        title = f"{resource} booking {status_display}"
+        message = (
+            f"Your booking for {resource}{time_context} was {status_display} by {resolver}."
+        )
     if remarks:
         message = f"{message} Remarks: {remarks}"
 
@@ -761,7 +787,8 @@ def notify_incharge_booking_edited(booking, domain, role_name):
     link = _approver_link(domain, reference)
     requester = getattr(booking.user, "first_name", None) or "A user"
 
-    title = f"{domain.capitalize()} Booking Updated"
+    _domain_display = {'spaces': 'Venue', 'fleet': 'Transport', 'mess': 'Catering', 'media': 'Media'}.get(domain, domain.capitalize())
+    title = f"{_domain_display} Booking Updated"
     message = f"{requester} updated their approved booking for {resource}. Please review the changes."
 
     if domain == "spaces":
@@ -799,7 +826,8 @@ def notify_incharge_cancelled(booking, domain, role_name):
     link = _approver_link(domain, reference)
     requester = getattr(booking.user, "first_name", None) or "A user"
 
-    title = f"{domain.capitalize()} Booking Cancelled"
+    _domain_display = {'spaces': 'Venue', 'fleet': 'Transport', 'mess': 'Catering', 'media': 'Media'}.get(domain, domain.capitalize())
+    title = f"{_domain_display} Booking Cancelled"
     message = f"{requester} cancelled their booking for {resource}."
 
     if domain == "spaces":
@@ -842,7 +870,10 @@ def notify_new_request(booking, domain, role_name):
 
     requester = getattr(booking.user, "first_name", None) or "A user"
 
-    title = f"New {domain} request"
+    if domain == 'spaces':
+        title = f"New Venue Request - {resource}"
+    else:
+        title = f"New {domain} request"
     message = (
         f"{requester} requested {resource}{time_context}. It requires your approval."
     )
@@ -912,7 +943,7 @@ def notify_incharge_expired(booking, domain):
     time_str = _format_booking_time(booking, domain)
     time_context = f" scheduled for {time_str}" if time_str else ""
 
-    title = f"{resource} Request Expired"
+    title = f"Venue Request Expired - {resource}"
     message = f"A venue request from {requester} for {resource}{time_context} has automatically expired."
 
     if domain == "mess":
@@ -925,6 +956,10 @@ def notify_incharge_expired(booking, domain):
             message = f"A catering request from {requester} for {date_range} has automatically expired."
         else:
             message = f"A catering request from {requester} has automatically expired."
+
+    elif domain == "fleet":
+        title = f"Transport Request Expired - {resource}"
+        message = f"A transport request from {requester} for {resource}{time_context} has automatically expired."
 
     elif domain == "media":
         event_name = getattr(booking, "event_name", None) or "the event"
@@ -1006,7 +1041,7 @@ def notify_faculty_new_request(booking):
         booking.faculty_sponsor,
         Notification.Category.FACULTY_APPROVAL_REQ,
         "Faculty Approval Required",
-        f"{student_name} is requesting your approval to book {space_name} on {date_str}.",
+        f"{student_name} is requesting your approval to book the venue {space_name} on {date_str}.",
         link=f"/faculty-approvals?booking={_booking_reference(booking)}",
         domain="spaces",
         reference_code=_booking_reference(booking),
@@ -1023,7 +1058,7 @@ def notify_faculty_approved(booking):
         booking.user,
         Notification.Category.FACULTY_APPROVED,
         "Faculty Approved",
-        f"Your booking for {space_name} was approved by {faculty_name} and sent to the next approver.",
+        f"Your venue booking for {space_name} was approved by {faculty_name} and sent to the next approver.",
         link=_requester_link("spaces", _booking_reference(booking)),
         domain="spaces",
         reference_code=_booking_reference(booking),
@@ -1037,7 +1072,7 @@ def notify_faculty_rejected(booking):
         booking.faculty_sponsor, "first_name", "Your faculty sponsor"
     )
     remarks = getattr(booking, "remarks_by_admin", "")
-    msg = f"{faculty_name} did not approve your booking for {space_name}."
+    msg = f"{faculty_name} did not approve your venue booking for {space_name}."
     if remarks:
         msg += f" Remarks: {remarks}"
     notify(
@@ -1058,7 +1093,7 @@ def notify_faculty_details_changed(booking):
         booking.faculty_sponsor,
         Notification.Category.FACULTY_APPROVAL_REQ,
         "Booking Details Changed",
-        f"The booking you approved for {space_name} has been changed. Please review and approve again.",
+        f"The venue booking you approved for {space_name} has been changed. Please review and approve again.",
         link=f"/faculty-approvals?booking={_booking_reference(booking)}",
         domain="spaces",
         reference_code=_booking_reference(booking),
@@ -1273,23 +1308,51 @@ def _resolve_booking_by_ref(reference_code, domain):
     """
     Looks up a booking by reference_code and domain.
     Returns the booking object or None if not found.
-    Used internally to fetch the approval deadline for token generation.
+    Used internally to fetch the approval deadline for token generation
+    and to provide booking data to email_builder.
     """
     if not reference_code or not domain:
         return None
     try:
-        if domain == 'spaces':
+        if domain in ('spaces', 'spaces_faculty'):
             from apps.spaces.models import SpaceBooking
-            return SpaceBooking.objects.filter(reference_code=reference_code).first()
+            return (
+                SpaceBooking.objects
+                .filter(reference_code=reference_code)
+                .select_related('space', 'space__block', 'user', 'user__department')
+                .prefetch_related('requested_equipment__equipment')
+                .first()
+            )
         if domain == 'fleet':
             from apps.fleet.models import FleetBooking
-            return FleetBooking.objects.filter(reference_code=reference_code).first()
+            return (
+                FleetBooking.objects
+                .filter(reference_code=reference_code)
+                .select_related('vehicle', 'user', 'user__department')
+                .first()
+            )
         if domain == 'mess':
             from apps.mess.models import MessBooking
-            return MessBooking.objects.filter(reference_code=reference_code).first()
+            return (
+                MessBooking.objects
+                .filter(reference_code=reference_code)
+                .select_related('user', 'user__department')
+                .prefetch_related('daily_menus')
+                .first()
+            )
+        if domain == 'media':
+            from apps.media.models import MediaBooking
+            return (
+                MediaBooking.objects
+                .filter(reference_code=reference_code)
+                .select_related('space', 'user', 'user__department')
+                .prefetch_related('equipment_requests__equipment', 'assigned_crew')
+                .first()
+            )
     except Exception:
         logger.exception('_resolve_booking_by_ref failed for %s/%s', domain, reference_code)
     return None
+
 
 
 def _generate_approval_token(recipient, domain, booking_ref, expires_at):
@@ -1329,7 +1392,7 @@ def notify_chain_approved_primary(booking):
         booking.user,
         Notification.Category.BOOKING_APPROVED,
         "Booking Approved",
-        f"Your booking for {space_name} was approved by the primary approver.",
+        f"Your venue booking for {space_name} was approved by the primary approver.",
         link=_requester_link('spaces', _booking_reference(booking)),
         domain='spaces',
         reference_code=_booking_reference(booking),
@@ -1343,7 +1406,7 @@ def notify_chain_approved_primary(booking):
             chain.fallback_approver,
             Notification.Category.BOOKING_APPROVED,
             "Booking Approved",
-            f"A booking for {space_name} was approved by the primary approver.",
+            f"A venue booking for {space_name} was approved by the primary approver.",
             link=_approver_link('spaces', _booking_reference(booking), tab='history'),
             domain='spaces',
             reference_code=_booking_reference(booking),
@@ -1353,7 +1416,7 @@ def notify_chain_approved_primary(booking):
 def notify_chain_rejected(booking):
     space_name = _resource_name(booking, 'spaces')
     remarks = getattr(booking, 'remarks_by_admin', '')
-    msg = f"Your booking for {space_name} was rejected."
+    msg = f"Your venue booking for {space_name} was rejected."
     if remarks:
         msg += f" Remarks: {remarks}"
     notify(
@@ -1390,7 +1453,7 @@ def notify_chain_approved_fallback(booking):
         booking.user,
         Notification.Category.BOOKING_APPROVED,
         "Booking Approved",
-        f"Your booking for {space_name} was approved by the fallback approver.",
+        f"Your venue booking for {space_name} was approved by the fallback approver.",
         link=_requester_link('spaces', _booking_reference(booking)),
         domain='spaces',
         reference_code=_booking_reference(booking),
