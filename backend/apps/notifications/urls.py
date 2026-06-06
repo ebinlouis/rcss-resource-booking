@@ -6,6 +6,7 @@ from apps.notifications.views import (
     NotificationMarkBookingReadAPIView,
     NotificationMarkReadAPIView,
     NotificationUnreadCountAPIView,
+    TokenApprovalView,
 )
 
 
@@ -15,4 +16,5 @@ urlpatterns = [
     path('mark-all-read/', NotificationMarkAllReadAPIView.as_view(), name='notification-mark-all-read'),
     path('booking/<str:reference>/read/', NotificationMarkBookingReadAPIView.as_view(), name='notification-mark-booking-read'),
     path('<int:pk>/read/', NotificationMarkReadAPIView.as_view(), name='notification-mark-read'),
+    path('action/', TokenApprovalView.as_view(), name='token-approval'),
 ]

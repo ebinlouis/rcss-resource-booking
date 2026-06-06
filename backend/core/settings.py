@@ -171,6 +171,8 @@ DEFAULT_FROM_EMAIL = env(
     'DEFAULT_FROM_EMAIL',
     default='RCSS Notifications <notifications@rcss.local>'
 )
+SITE_BASE_URL = env('SITE_BASE_URL', default='http://localhost:8000')       # Django backend
+FRONTEND_BASE_URL = env('FRONTEND_BASE_URL', default='http://localhost:5173')  # React frontend
 
 # ==========================================
 # CORS & CSRF CONFIGURATION

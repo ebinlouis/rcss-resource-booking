@@ -57,3 +57,31 @@ class Notification(models.Model):
             self.is_read = True
             self.read_at = timezone.now()
             self.save(update_fields=['is_read', 'read_at'])
+
+
+class ApprovalToken(models.Model):
+    class Action(models.TextChoices):
+        APPROVE = 'APPROVE', 'Approve'
+
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    domain = models.CharField(max_length=20)
+    booking_ref = models.CharField(max_length=50)
+    action = models.CharField(max_length=20, choices=Action.choices, default=Action.APPROVE)
+    issued_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='approval_tokens',
+    )
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['token_hash']),
+            models.Index(fields=['booking_ref', 'domain']),
+        ]
+
+    def __str__(self):
+        return f"ApprovalToken({self.domain}/{self.booking_ref} → {self.issued_to})"
