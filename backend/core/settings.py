@@ -171,6 +171,8 @@ DEFAULT_FROM_EMAIL = env(
     'DEFAULT_FROM_EMAIL',
     default='RCSS Notifications <notifications@rcss.local>'
 )
+SITE_BASE_URL = env('SITE_BASE_URL', default='http://localhost:8000')       # Django backend
+FRONTEND_BASE_URL = env('FRONTEND_BASE_URL', default='http://localhost:5173')  # React frontend
 
 # ==========================================
 # CORS & CSRF CONFIGURATION
@@ -178,14 +180,14 @@ DEFAULT_FROM_EMAIL = env(
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
 ]
 
 # Tells Django to accept requests from these origins even with CSRF protection on
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
 ]
 
 # Must be False so the axios interceptor can read the csrftoken cookie
