@@ -649,36 +649,35 @@ const filteredBookings = useMemo(() => {
   // ── Collapse RECURRING siblings into one representative booking ──
   // Each RECURRING group shares the same group_id. We show it as one card
   // spanning from the first day's start to the last day's end.
-  const collapseGroups = (bookings) => {
-    const groups = {}
-    const singles = []
+const collapseGroups = (bookings) => {
+  const groups = new Map()
 
-    bookings.forEach((b) => {
-      if (b.booking_type === "RECURRING" && b.group_id) {
-        if (!groups[b.group_id]) groups[b.group_id] = []
-        groups[b.group_id].push(b)
-      } else {
-        singles.push(b)
-      }
-    })
+  bookings.forEach((b) => {
+    const key = b.group_id || `single-${b.id}`
 
-    const collapsed = Object.values(groups).map((siblings) => {
-      const sorted = [...siblings].sort(
-        (a, b) => new Date(a.start_datetime) - new Date(b.start_datetime)
-      )
-      const first = sorted[0]
-      const last = sorted[sorted.length - 1]
-      // Representative: first row with end patched to last row's end
-      return {
-        ...first,
-        end_datetime: last.end_datetime,
-        _recurring_siblings: sorted,
-        _recurring_day_count: sorted.length,
-      }
-    })
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
 
-    return [...singles, ...collapsed]
-  }
+    groups.get(key).push(b)
+  })
+
+  return Array.from(groups.values()).map((siblings) => {
+    const sorted = [...siblings].sort(
+      (a, b) => new Date(a.start_datetime) - new Date(b.start_datetime)
+    )
+
+    const first = sorted[0]
+    const last = sorted[sorted.length - 1]
+
+    return {
+      ...first,
+      end_datetime: last.end_datetime,
+      _recurring_siblings: sorted,
+      _recurring_day_count: sorted.length,
+    }
+  })
+}
 
   let filtered = collapseGroups(myBookings)
 
@@ -782,17 +781,41 @@ const filteredBookings = useMemo(() => {
   const dashboardStats = useMemo(() => {
     const now = new Date()
 
-    // Count RECURRING groups as one booking each
-  const seenGroups = new Set()
-  const total = myBookings.filter((b) => {
-    if (b.booking_type === "RECURRING" && b.group_id) {
-      if (seenGroups.has(b.group_id)) return false
-      seenGroups.add(b.group_id)
-    }
-    return true
-  }).length
+    // Operate on the already-collapsed list so RECURRING groups count as one.
+    // filteredBookings can't be used here (it changes with the active filter),
+    // so we re-collapse just for counting.
+    const groups = {}
+    const singles = []
+    const STATUS_PRIORITY_STATS = [
+      'AWAITING_FACULTY', 'FACULTY_ESCALATED', 'PENDING',
+      'APPROVED', 'CONFIRMED', 'ACTIVE',
+      'COMPLETED', 'EXPIRED', 'REJECTED', 'CANCELLED',
+    ]
+    myBookings.forEach((b) => {
+      if (b.booking_type === "RECURRING" && b.group_id) {
+        if (!groups[b.group_id]) groups[b.group_id] = []
+        groups[b.group_id].push(b)
+      } else {
+        singles.push(b)
+      }
+    })
+    const collapsedForStats = [
+      ...singles,
+      ...Object.values(groups).map((sibs) => {
+        const sorted = [...sibs].sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime))
+        const last = sorted[sorted.length - 1]
+        const repStatus = sibs.reduce((best, sib) => {
+          const si = STATUS_PRIORITY_STATS.indexOf(sib.status)
+          const bi = STATUS_PRIORITY_STATS.indexOf(best)
+          return (si !== -1 && (bi === -1 || si < bi)) ? sib.status : best
+        }, sorted[0].status)
+        return { ...sorted[0], status: repStatus, end_datetime: last.end_datetime }
+      }),
+    ]
 
-    const pending = myBookings.filter(
+    const total = collapsedForStats.length
+
+    const pending = collapsedForStats.filter(
       (booking) => [
         "PENDING",
         "AWAITING_FACULTY",
@@ -800,7 +823,7 @@ const filteredBookings = useMemo(() => {
       ].includes(booking.status)
     ).length
 
-    const approved = myBookings.filter((booking) => {
+    const approved = collapsedForStats.filter((booking) => {
       const endDate = new Date(
         booking.end_datetime || booking.end_time || booking.end
       )
@@ -814,7 +837,7 @@ const filteredBookings = useMemo(() => {
       )
     }).length
 
-    const completed = myBookings.filter((booking) => {
+    const completed = collapsedForStats.filter((booking) => {
       const endDate = new Date(
         booking.end_datetime || booking.end_time || booking.end
       )
@@ -829,7 +852,7 @@ const filteredBookings = useMemo(() => {
       )
     }).length
 
-    const rejected = myBookings.filter((booking) =>
+    const rejected = collapsedForStats.filter((booking) =>
       [
         "REJECTED",
         "DECLINED",
@@ -1077,7 +1100,7 @@ rounded-xl md:rounded-2xl
         : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
     }`}
   >
-    All ({myBookings.length})
+    All ({dashboardStats.total})
   </button>
 
   <button
