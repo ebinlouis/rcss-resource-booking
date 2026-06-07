@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import Tooltip from "./Tooltip"
 import { createPortal } from "react-dom"
 import LinkedBookingOptions from "./LinkedBookingOptions"
@@ -95,6 +96,7 @@ function BookingModal({
   wizardMode = false,
   isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
   onLinkedIntent,
+  onAvailabilityChange = null,
 }) {
   const {
     activeSpaceName, activeSpaceCap, form, set, toggleReq, switchHall,
@@ -110,6 +112,11 @@ function BookingModal({
   });
 
   const bookingSession = useBookingSession();
+
+  useEffect(() => {
+    if (!wizardMode || !onAvailabilityChange) return
+    onAvailabilityChange({ isAvailable, isCheckingAvailability, exceedsCapacity })
+  }, [wizardMode, onAvailabilityChange, isAvailable, isCheckingAvailability, exceedsCapacity])
 
   const handleClose = () => {
     bookingSessionActions.clearSession()
@@ -188,6 +195,19 @@ function BookingModal({
   // ─────────────────────────────────────────────────────────────
   // Shared form body (used in both wizard and normal modal)
   // ─────────────────────────────────────────────────────────────
+
+  const suggestionCard = !isFetchingSuggestions && suggestedHalls.length > 0 && (
+    <div className="mt-2 mb-4">
+      <SpaceSuggestions
+        suggestedHalls={suggestedHalls}
+        onSwitch={switchHall}
+        hasMoreSuggestions={hasMoreSuggestions}
+        onShowMore={showMoreSuggestions}
+        isFetchingSuggestions={isFetchingSuggestions}
+        triggerReason={triggerReason}
+      />
+    </div>
+  )
 
   const formBody = (
     <div className="space-y-6">
@@ -340,14 +360,10 @@ function BookingModal({
           </div>
         ) : null}
 
-        {isFetchingSuggestions && (
+        {isFetchingSuggestions && triggerReason === 'unavailable' && (
           <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
         )}
-        {!isFetchingSuggestions && suggestedHalls.length > 0 && (
-          <div className="mt-2 mb-4">
-            <SpaceSuggestions suggestedHalls={suggestedHalls} onSwitch={switchHall} hasMoreSuggestions={hasMoreSuggestions} onShowMore={showMoreSuggestions} isFetchingSuggestions={isFetchingSuggestions} triggerReason={triggerReason} />
-          </div>
-        )}
+        {triggerReason === 'unavailable' && suggestionCard}
       </div>
 
       {/* ── STEP 2: EVENT DETAILS ── */}
@@ -435,6 +451,11 @@ These bookings may need additional review.
           </div>
         )}
 
+        {triggerReason === 'exceeds_capacity' && isFetchingSuggestions && (
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
+        )}
+        {triggerReason === 'exceeds_capacity' && suggestionCard}
+
         {activeSpaceName?.toLowerCase().includes("ai lab") ? (
           <div className="space-y-4">
             <div className="flex gap-6 mt-1 mb-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
@@ -521,6 +542,11 @@ These bookings may need additional review.
             </div>
           </div>
         )}
+
+        {triggerReason === 'low_occupancy' && isFetchingSuggestions && (
+          <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
+        )}
+        {triggerReason === 'low_occupancy' && suggestionCard}
 
         <SectionLabel>Requirements</SectionLabel>
         <div className="grid grid-cols-3 gap-2">

@@ -379,7 +379,7 @@ export function useBookingForm({
   const fetchSuggestions = useCallback(async (append = false) => {
     const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0
       ? attendeeCount
-      : (isLowOccupancy ? activeSpaceCap : 1)
+      : activeSpaceCap
     const queryParams = new URLSearchParams({
       space_id: activeSpaceId,
       attendee_count: countToUse,
@@ -412,7 +412,7 @@ export function useBookingForm({
     } finally {
       setIsFetchingSuggestions(false)
     }
-  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isLowOccupancy, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
+  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
 
   const showMoreSuggestions = useCallback(() => {
     fetchSuggestions(true)
