@@ -252,8 +252,8 @@ function BookingModal({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Continuous Event (e.g. Hackathon)</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Blocks the venue completely from the start day to the end day, including overnight.</span>
+                  <span className="text-sm font-semibold text-gray-900">24-Hour Reservation (e.g. Hackathon)</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Blocks the venue continuously from the start day to the end day, including overnight.</span>
                 </div>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
@@ -268,8 +268,8 @@ function BookingModal({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Full-Time Booking (e.g. Hackathon)</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Reserves the venue only during the selected hours each day.</span>
+                  <span className="text-sm font-semibold text-gray-900">Multiple College Hours (e.g. Placement Talk)</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Reserves the venue only during the selected hours on each day.</span>
                 </div>
               </label>
             </div>
@@ -744,8 +744,8 @@ These bookings may need additional review.
                     {numDays !== null && (
                       <p className="text-green-300/80 text-xs mt-3 font-medium">
                         {numDays} {numDays === 1 ? "day" : "days"}
-                        {form.bookingType === "RECURRING" && hrsPerDay ? ` · ${hrsPerDay}` : ""}
-                        {form.bookingType === "SINGLE" ? ` · Continuous Event` : ""}
+                        {form.bookingType === "RECURRING" && hrsPerDay ? ` · ${hrsPerDay} / day` : ""}
+                        {form.bookingType === "SINGLE" ? ` · 24-Hour Reservation` : ""}
                       </p>
                     )}
                   </div>
