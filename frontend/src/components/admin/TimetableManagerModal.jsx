@@ -46,7 +46,7 @@ export default function TimetableManagerModal({ space, onClose }) {
       if (!preserveError) setError(null)
     } catch (err) {
       if (err.response?.status === 403) {
-        setError("You don't have permission to manage timetables for this space.")
+        setError("You don't have permission to manage timetables for this venue.")
       } else {
         setError("Failed to load timetables.")
       }

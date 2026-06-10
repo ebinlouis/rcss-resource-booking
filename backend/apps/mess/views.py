@@ -100,7 +100,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         if not can_user_modify_booking(instance):
             raise ValidationError({
                 "detail":
-                "Cannot cancel a mess booking whose meal time has already passed."
+                "Cannot cancel a mess booking whose food time has already passed."
             })
 
         instance.status = 'CANCELLED'
@@ -204,7 +204,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     "detail":
-                    "Only the Mess administrator can approve catering requests."
+                    "Only the Mess administrator can approve food requests."
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -267,7 +267,7 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     "detail":
-                    "Only the Mess administrator can reject catering requests."
+                    "Only the Mess administrator can reject food requests."
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
