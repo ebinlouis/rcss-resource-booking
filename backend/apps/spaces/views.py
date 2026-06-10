@@ -395,26 +395,39 @@ class SpaceViewSet(viewsets.ModelViewSet):
         import datetime as dt
         from .utils import get_overlapping_bookings
 
-        if booking_type == 'RECURRING':
-            end_date_str = request.query_params.get('end_date', date_str)
-            try:
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                end_date = start_date
-            days_diff = (end_date - start_date).days
-            dates_to_check = [
-                start_date + dt.timedelta(days=i)
-                for i in range(max(days_diff, 0) + 1)
-            ]
-        else:
-            dates_to_check = [start_date]
+        end_date_str = request.query_params.get('end_date', date_str)
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            end_date = start_date
+        days_diff = (end_date - start_date).days
+        dates_to_check = [
+            start_date + dt.timedelta(days=i)
+            for i in range(max(days_diff, 0) + 1)
+        ]
 
         available_spaces = []
         for space in candidate_spaces:
             space_is_free = True
-            for check_date in dates_to_check:
-                slot_start = tz.make_aware(dt.datetime.combine(check_date, start_time))
-                slot_end   = tz.make_aware(dt.datetime.combine(check_date, end_time))
+            for i, check_date in enumerate(dates_to_check):
+                if booking_type == 'RECURRING':
+                    slot_start = tz.make_aware(dt.datetime.combine(check_date, start_time))
+                    slot_end   = tz.make_aware(dt.datetime.combine(check_date, end_time))
+                else:
+                    if i == 0 and len(dates_to_check) == 1:
+                        s_time = start_time
+                        e_time = end_time
+                    elif i == 0:
+                        s_time = start_time
+                        e_time = dt.time(23, 59, 59)
+                    elif i == len(dates_to_check) - 1:
+                        s_time = dt.time(0, 0)
+                        e_time = end_time
+                    else:
+                        s_time = dt.time(0, 0)
+                        e_time = dt.time(23, 59, 59)
+                    slot_start = tz.make_aware(dt.datetime.combine(check_date, s_time))
+                    slot_end   = tz.make_aware(dt.datetime.combine(check_date, e_time))
 
                 overlaps = get_overlapping_bookings(space, slot_start, slot_end)
                 if overlaps.filter(
@@ -426,8 +439,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 timetable_conflict = SpaceTimetableBlock.objects.filter(
                     space=space,
                     date=check_date,
-                    start_time__lt=end_time,
-                    end_time__gt=start_time
+                    start_time__lt=slot_end.time(),
+                    end_time__gt=slot_start.time()
                 ).exists()
                 if timetable_conflict:
                     space_is_free = False

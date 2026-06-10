@@ -596,6 +596,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
                 new_booking = SpaceBooking.objects.create(
                     group_id=instance.group_id,
+                    event_group_id=instance.event_group_id,
                     booking_type=new_type,
                     space=instance.space,
                     user=instance.user,
@@ -604,9 +605,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                     end_datetime=slot_end,
                     attendee_count=instance.attendee_count,
                     purpose_of_booking=instance.purpose_of_booking,
+                    user_notes=instance.user_notes,
                     is_external=instance.is_external,
                     status=instance.status,
                     remarks_by_admin=instance.remarks_by_admin,
+                    faculty_sponsor_id=instance.faculty_sponsor_id,
                 )
 
                 if equipment_data:

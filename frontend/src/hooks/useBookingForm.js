@@ -390,7 +390,7 @@ export function useBookingForm({
       trigger_reason: triggerReason,
       booking_type: form.bookingType,
     })
-    if (form.bookingType === 'RECURRING' && form.end_date) {
+    if (form.end_date && (form.bookingType === 'RECURRING' || form.bookingType === 'SINGLE')) {
       queryParams.set('end_date', form.end_date)
     }
 
