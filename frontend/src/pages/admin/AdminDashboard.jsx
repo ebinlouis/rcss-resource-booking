@@ -499,7 +499,7 @@ const BookingRow = ({ booking, onApproveClick, onRejectClick, onResendClick, isA
                     {/* Schedule */}
                     <div>
                         <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7280] mb-2.5">
-                            {isRecurring ? 'SBooking Dates' : 'When'}
+                            {isRecurring ? 'Booking Dates' : 'When'}
                         </p>
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center gap-3">

@@ -278,8 +278,7 @@ class SpaceBooking(BaseBooking):
     faculty_response_deadline = models.DateTimeField(null=True, blank=True)
     faculty_timed_out = models.BooleanField(
         default=False,
-        help_text="True when this booking escalated because faculty did not respond within the deadline. False when faculty manually approved it."
-    )
+help_text="Indicates that approval was escalated after faculty non-response."    )
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [

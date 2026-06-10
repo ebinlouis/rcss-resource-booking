@@ -97,12 +97,12 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
               <Icon className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor" strokeWidth={0}>
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </Icon>
-              Special Approval Required
+              Not Auto-Suggested
             </span>
           )}
           {space.approval_workflow_type === "HOD_FALLBACK" && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-blue-50 text-blue-700 border-blue-200">
-              Department Approval Required
+              HOD Approval Required
             </span>
           )}
         </div>

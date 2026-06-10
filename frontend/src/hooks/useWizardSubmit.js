@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import api from "../api/axios"
 import mediaApi from "../api/mediaApi"
 import messService from "../api/messService"
@@ -36,6 +36,12 @@ function useWizardSubmit() {
   const [statuses, setStatuses] = useState(INITIAL_STATUSES)
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!session.eventGroupId) return
+    setStatuses(INITIAL_STATUSES)
+    setErrors({})
+  }, [session.eventGroupId])
 
   const activeServices = useMemo(
     () => serviceOrder.filter((service) => session.wizardSequence?.includes(service)),

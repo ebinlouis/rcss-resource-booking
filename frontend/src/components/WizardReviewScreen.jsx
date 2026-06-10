@@ -154,6 +154,11 @@ function WizardReviewScreen({
     <div className="flex w-full flex-col gap-4">
       {sequence.map((service) => {
         if (service === "space") {
+          const isMultiDay = space.end_date && space.end_date !== space.start_date
+          const dayCount = isMultiDay
+            ? Math.round((new Date(space.end_date + "T00:00:00") - new Date(space.start_date + "T00:00:00")) / 86400000) + 1
+            : null
+
           return (
             <ReviewCard
               key={service}
@@ -164,8 +169,21 @@ function WizardReviewScreen({
               onRetry={onRetry}
             >
               <Detail label="Venue" value={space.spaceName} />
-              <Detail label="Date" value={formatDate(space.start_date)} />
-              <Detail label="Time" value={formatTimeRange(space.start_time, space.end_time)} />
+              {isMultiDay ? (
+                <>
+                  <Detail label="Start" value={`${formatDate(space.start_date)}${space.start_time ? ` · ${space.start_time}` : ""}`} />
+                  <Detail label="End" value={`${formatDate(space.end_date)}${space.end_time ? ` · ${space.end_time}` : ""}`} />
+                  <Detail
+                    label="Duration"
+                    value={`${dayCount} ${dayCount === 1 ? "day" : "days"} · ${space.bookingType === "SINGLE" ? "Continuous" : "Daily recurring"}`}
+                  />
+                </>
+              ) : (
+                <>
+                  <Detail label="Date" value={formatDate(space.start_date)} />
+                  <Detail label="Time" value={formatTimeRange(space.start_time, space.end_time)} />
+                </>
+              )}
               <Detail label="Attendees" value={space.attendees} />
               <Detail label="Purpose" value={space.purpose} />
               <Detail label="Equipment" value={space.equipmentSummary || "None selected"} />
