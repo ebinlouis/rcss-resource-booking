@@ -120,12 +120,15 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
         # Convert to local-aware strings for the frontend
         start_local = booking.start_datetime.astimezone()
         end_local   = booking.end_datetime.astimezone()
+        is_multi_day = start_local.date() != end_local.date()
 
         entry = {
-            "date":  start_local.strftime("%Y-%m-%d"),
-            "start": start_local.strftime("%H:%M"),
-            "end":   end_local.strftime("%H:%M"),
-            "label": label,
+            "date":         start_local.strftime("%Y-%m-%d"),
+            "end_date":     end_local.strftime("%Y-%m-%d") if is_multi_day else None,
+            "start":        start_local.strftime("%H:%M"),
+            "end":          end_local.strftime("%H:%M"),
+            "is_multi_day": is_multi_day,
+            "label":        label,
         }
         if ref:
             entry["reference_code"] = ref

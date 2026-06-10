@@ -336,8 +336,16 @@ function BookingModal({
                     <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                    <span className="text-xs font-semibold text-red-800 w-28 shrink-0">{formatConflictDate(conflict.date)}</span>
-                    <span className="text-xs text-red-700">{formatAMPM(conflict.start)} – {formatAMPM(conflict.end)}</span>
+                    {conflict.is_multi_day ? (
+                      <span className="text-xs text-red-700">
+                        <span className="font-semibold text-red-800">{formatConflictDate(conflict.date)}</span> {formatAMPM(conflict.start)} → <span className="font-semibold text-red-800">{formatConflictDate(conflict.end_date)}</span> {formatAMPM(conflict.end)}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-red-800 w-28 shrink-0">{formatConflictDate(conflict.date)}</span>
+                        <span className="text-xs text-red-700">{formatAMPM(conflict.start)} – {formatAMPM(conflict.end)}</span>
+                      </>
+                    )}
                     <span className="ml-auto text-[11px] text-red-500 font-medium shrink-0 truncate max-w-[120px]">{conflict.label}</span>
                   </div>
                 ))}
