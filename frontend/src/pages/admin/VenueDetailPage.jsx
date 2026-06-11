@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { useAdminSpacesCatalog, useAdminBlocks } from "../../hooks/useSpaceQueries"
 import spaceAdminService from "../../api/spaceAdminService"
 import roleOverrideService from "../../api/roleOverrideService"
@@ -80,10 +80,17 @@ function CompactInfoTile({ label, value, icon }) {
   )
 }
 
+const getProfileImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `http://localhost:8000${url}`;
+};
+
 function Avatar({ name, photo }) {
   const initials = (name || "?").split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("")
-  if (photo) {
-    return <img src={photo} alt={name} className="w-11 h-11 rounded-full object-cover ring-2 ring-[#e8f5ee] shrink-0" />
+  const imageUrl = getProfileImageUrl(photo)
+  if (imageUrl) {
+    return <img src={imageUrl} alt={name} className="w-11 h-11 rounded-full object-cover ring-2 ring-[#e8f5ee] shrink-0" />
   }
   return (
     <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#15803d] to-[#059669] text-white
@@ -219,22 +226,35 @@ function EditManagerDialog({ approver, roles, onCancel, onConfirm, isSubmitting 
 // Manager Card
 // ─────────────────────────────────────────────────────────────
 
-function ManagerCard({ approver, onEdit, onRemove }) {
-  const roleKey = String(approver.role || "").toUpperCase()
+function ManagerCard({ approver, onEdit, onRemove, onViewProfile }) {
+  const roleKey = String(approver.role_display || approver.role || "").toUpperCase()
   const roleColor = ROLE_COLOR[roleKey] ?? "bg-gray-50 text-gray-600 border-gray-200"
+  const isBlockLevel = !!approver._isBlockLevel
 
-  const scopeLabel =
-    approver.scope_type === "BLOCK"   ? `Block: ${approver.block_name || "—"}` :
-    approver.scope_type === "SPACE"   ? "Venue Specific" : "—"
+  const scopeLabel = isBlockLevel
+    ? `Block: ${approver.block_name || "—"} (inherited)`
+    : approver.scope_type === "SPACE"
+      ? "Venue Specific"
+      : approver.scope_type === "BLOCK"
+        ? `Block: ${approver.block_name || "—"}`
+        : "—"
 
   return (
-    <div className="flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border border-[#e8f5ee]
-      hover:shadow-sm transition group">
+    <div className={`flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border hover:shadow-sm transition group ${
+      isBlockLevel ? "border-blue-100 bg-blue-50/20" : "border-[#e8f5ee]"
+    }`}>
       <Avatar name={approver.user_name || approver.user_email} photo={approver.profile_image} />
       <div className="flex-1 min-w-0">
-        <p className="text-[14.5px] font-bold text-[#0f172a] leading-tight truncate">
-          {approver.user_name || "Unknown"}
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-[14.5px] font-bold text-[#0f172a] leading-tight truncate">
+            {approver.user_name || "Unknown"}
+          </p>
+          {isBlockLevel && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 shrink-0">
+              Block Level
+            </span>
+          )}
+        </div>
         <p className="text-[12.5px] text-[#6b7280] truncate">{approver.user_email}</p>
         {approver.department_name && (
           <p className="text-[12px] text-[#94a3b8] mt-0.5">{approver.department_name}</p>
@@ -252,17 +272,27 @@ function ManagerCard({ approver, onEdit, onRemove }) {
         <p className="text-[11px] text-[#94a3b8]">Since {formatDate(approver.created_at)}</p>
       </div>
       <div className="opacity-0 group-hover:opacity-100 transition ml-2 flex gap-1.5 shrink-0">
+        {!isBlockLevel && (
+          <>
+            <button
+              onClick={() => onEdit(approver)}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 text-[12px] font-bold hover:bg-slate-100 border border-slate-100 transition"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onRemove(approver)}
+              className="px-3 py-1.5 rounded-xl bg-red-50 text-red-600 text-[12px] font-bold hover:bg-red-100 border border-red-100 transition"
+            >
+              Remove
+            </button>
+          </>
+        )}
         <button
-          onClick={() => onEdit(approver)}
-          className="px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 text-[12px] font-bold hover:bg-slate-100 border border-slate-100 transition"
+          onClick={() => onViewProfile && onViewProfile(approver.user)}
+          className="px-3 py-1.5 rounded-xl bg-green-50 text-green-700 text-[12px] font-bold hover:bg-green-100 border border-green-100 transition"
         >
-          Edit
-        </button>
-        <button
-          onClick={() => onRemove(approver)}
-          className="px-3 py-1.5 rounded-xl bg-red-50 text-red-600 text-[12px] font-bold hover:bg-red-100 border border-red-100 transition"
-        >
-          Remove
+          View Profile
         </button>
       </div>
     </div>
@@ -278,6 +308,9 @@ const EMPTY_ARRAY = []
 export default function VenueDetailPage() {
   const { venueId } = useParams()
   const navigate    = useNavigate()
+  const location    = useLocation()
+  const backRoute   = location.state?.from || "/admin/spaces"
+  const backLabel   = location.state?.fromLabel || "Venue Management"
 
   // ── Data ──────────────────────────────────────────────────────
   const { data: spacesData, isLoading: spacesLoading } = useAdminSpacesCatalog()
@@ -299,7 +332,7 @@ export default function VenueDetailPage() {
   const [rolesLoading, setRolesLoading]       = useState(true)
 
   // ── Booking history state ─────────────────────────────────────────
-  const [activeTab, setActiveTab]             = useState("managers")
+  const [activeTab, setActiveTab]             = useState("details")
   const [bookings, setBookings]               = useState(EMPTY_ARRAY)
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsFetched, setBookingsFetched] = useState(false)
@@ -331,14 +364,37 @@ export default function VenueDetailPage() {
     if (!venueId) return
     setLoading(true)
     try {
-      const data = await spaceAdminService.getApprovers({ space: venueId })
-      setApprovers(normalise(data))
+      // Always fetch venue-specific approvers
+      const venuePromise = spaceAdminService.getApprovers({ space: venueId })
+
+      // Also fetch block-level approvers if this venue belongs to a block
+      const { blockId } = space
+        ? parseSpaceLocation(space.location, blocks)
+        : { blockId: "" }
+
+      const blockPromise = blockId
+        ? spaceAdminService.getApprovers({ block: blockId })
+        : Promise.resolve([])
+
+      const [venueData, blockData] = await Promise.all([venuePromise, blockPromise])
+
+      const venueApprovers = normalise(venueData)
+      const blockApprovers = normalise(blockData)
+
+      // Tag block-level entries and deduplicate (venue-specific takes priority)
+      const venueUserIds = new Set(venueApprovers.map(a => String(a.user)))
+      const inheritedBlockApprovers = blockApprovers
+        .filter(a => !venueUserIds.has(String(a.user)))  // exclude if already assigned directly
+        .map(a => ({ ...a, _isBlockLevel: true }))
+
+      // Venue-specific first, then inherited block managers
+      setApprovers([...venueApprovers, ...inheritedBlockApprovers])
     } catch {
       toast.error("Could not load venue managers.")
     } finally {
       setLoading(false)
     }
-  }, [venueId])
+  }, [venueId, space, blocks])
 
   useEffect(() => { fetchApprovers() }, [fetchApprovers])
 
@@ -526,193 +582,108 @@ export default function VenueDetailPage() {
         />
       )}
 
-      <div className="max-w-[1100px] mx-auto space-y-6">
+      <div className="max-w-[1100px] mx-auto space-y-4">
 
         {/* ── Back breadcrumb ── */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate("/admin/spaces")}
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#6b7280]
-              hover:text-[#15803d] transition"
+            onClick={() => navigate(backRoute)}
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#6b7280] hover:text-[#15803d] transition"
           >
             <Svg d="M15 18l-6-6 6-6" className="w-4 h-4" />
-            Venue Management
+            {backLabel}
           </button>
           <span className="text-[#d1d5db]">/</span>
-          <span className="text-[13px] font-semibold text-[#0f172a] truncate max-w-[260px]">
-            {space.name}
-          </span>
+          <span className="text-[13px] font-semibold text-[#0f172a] truncate max-w-[260px]">{space.name}</span>
         </div>
 
-        {/* ── Top Hero Section ── */}
-        <div className="bg-white rounded-2xl border border-[#e8f5ee] p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#f1f5f9]">
-            {/* Left side: Image and details */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="relative w-36 h-24 bg-[#e8f5ee] rounded-xl overflow-hidden shrink-0 border border-[#d1fae5]">
-                {space.image_1 ? (
-                  <img src={space.image_1} alt={space.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[#90d7ad]">
-                    <Svg d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" className="w-10 h-10" />
+        {/* ── Persistent Venue Header (always visible) ── */}
+        <div className="bg-white rounded-2xl border border-[#e8f5ee] px-6 py-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* Venue image */}
+            <div className="w-20 h-14 bg-[#e8f5ee] rounded-xl overflow-hidden shrink-0 border border-[#d1fae5]">
+              {space.image_1
+                ? <img src={space.image_1} alt={space.name} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-[#90d7ad]">
+                    <Svg d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" className="w-7 h-7" />
                   </div>
+              }
+            </div>
+            {/* Identity */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap gap-1.5 items-center mb-1">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${typeMeta.color}`}>{typeMeta.label}</span>
+                {space.is_special_purpose && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-yellow-50 text-yellow-700 border-yellow-200">Special Approval</span>
                 )}
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${space.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                  {space.is_active ? "Available" : "Unavailable"}
+                </span>
               </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${typeMeta.color}`}>
-                    {typeMeta.label}
-                  </span>
-                  {space.is_special_purpose && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-yellow-50 text-yellow-700 border-yellow-200">
-                      Special Approval
-                    </span>
-                  )}
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                    space.is_active
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-gray-100 text-gray-500 border-gray-200"
-                  }`}>
-                    {space.is_active ? "Available" : "Unavailable"}
-                  </span>
-                </div>
-                <h1 className="text-[24px] font-extrabold text-[#0f172a] leading-tight tracking-tight">{space.name}</h1>
-                <div className="flex items-center gap-1.5 text-[13px] text-[#475569] font-medium">
-                  <Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                  <span>{blockName || "—"}</span>
-                  <span className="text-gray-300">•</span>
-                  <Svg d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0zM12 7a3 3 0 100 6 3 3 0 000-6z" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                  <span>{locationDetails || "—"}</span>
-                </div>
+              <h1 className="text-[20px] font-extrabold text-[#0f172a] leading-tight truncate">{space.name}</h1>
+              <div className="flex items-center gap-1.5 text-[12.5px] text-[#475569] mt-0.5">
+                <Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-3.5 h-3.5 text-[#94a3b8]" />
+                <span>{blockName || "—"}</span>
+                <span className="text-gray-300">•</span>
+                <Svg d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0zM12 7a3 3 0 100 6 3 3 0 000-6z" className="w-3.5 h-3.5 text-[#94a3b8]" />
+                <span>{locationDetails || "—"}</span>
               </div>
             </div>
-
-            {/* Right side: Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {/* Actions */}
+            <div className="flex gap-2 shrink-0">
               <button
                 onClick={() => navigate(`/admin/spaces`, { state: { editId: space.id } })}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
-                  border border-[#e2e8f0] text-[13.5px] font-bold text-[#374151] bg-white
-                  hover:bg-gray-50 hover:border-gray-300 transition"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#e2e8f0] text-[13px] font-bold text-[#374151] bg-white hover:bg-gray-50 transition"
               >
-                <Svg d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" className="w-4 h-4 text-gray-500" />
+                <Svg d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828A2 2 0 0110 16.414H8v-2a2 2 0 01.586-1.414z" className="w-3.5 h-3.5 text-gray-500" />
                 Edit Venue
               </button>
               <button
                 onClick={() => navigate(`/admin/spaces/venues/${space.id}/assign-manager`)}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d]
-                  hover:bg-[#166534] text-white text-[13.5px] font-bold transition shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13px] font-bold transition"
               >
-                <Svg d="M12 4v16m8-8H4" className="w-4 h-4" strokeWidth={2.5} />
+                <Svg d="M12 4v16m8-8H4" className="w-3.5 h-3.5" strokeWidth={2.5} />
                 Assign Manager
               </button>
             </div>
           </div>
-
-          {/* Quick Statistics Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-[#15803d] border border-green-100 shrink-0">
-                <Svg d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#94a3b8] mb-0.5">Capacity</p>
-                <p className="text-[18px] font-black text-[#0f172a] leading-tight">{space.capacity_hard ? `${space.capacity_hard} seats` : "—"}</p>
-              </div>
-            </div>
-
-            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 shrink-0">
-                <Svg d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#94a3b8] mb-0.5">Managers</p>
-                <p className="text-[18px] font-black text-[#0f172a] leading-tight">
-                  {approversLoading ? (
-                    <span className="inline-block w-4 h-4 rounded-full border-2 border-[#15803d]/20 border-t-[#15803d] animate-spin" />
-                  ) : approvers.length}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
-                <Svg d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#94a3b8] mb-0.5">Total Bookings</p>
-                <p className="text-[18px] font-black text-[#0f172a] leading-tight">
-                  {bookingsLoading ? (
-                    <span className="inline-block w-4 h-4 rounded-full border-2 border-amber-500/20 border-t-amber-500 animate-spin" />
-                  ) : bookings.length}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100 shrink-0">
-                <Svg d="M9 12l2 2 4-4" className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#94a3b8] mb-0.5">Current Status</p>
-                <p className="text-[18px] font-black text-[#0f172a] leading-tight">{space.is_active ? "Available" : "Unavailable"}</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* ── Venue Details Section ── */}
-        <div className="bg-white rounded-2xl border border-[#e8f5ee] p-6 shadow-sm">
-          <h2 className="text-[16px] font-bold text-[#0f172a] mb-4">Venue Details</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <CompactInfoTile label="Venue Type" value={typeMeta.label} icon={<Svg d="M4 6h16M4 12h16M4 18h16" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Block" value={blockName} icon={<Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Location" value={locationDetails} icon={<Svg d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0zM12 7a3 3 0 100 6 3 3 0 000-6z" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Capacity" value={space.capacity_hard ? `${space.capacity_hard} seats` : "—"} icon={<Svg d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Approval Workflow" value={space.approval_workflow_type === "HOD_FALLBACK" ? "HOD with Fallback" : "Direct Approver"} icon={<Svg d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Status" value={space.is_active ? "Available" : "Unavailable"} icon={<Svg d="M9 12l2 2 4-4" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Created Date" value={formatDate(space.created_at)} icon={<Svg d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" className="w-4.5 h-4.5" />} />
-            <CompactInfoTile label="Updated Date" value={formatDate(space.updated_at)} icon={<Svg d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" className="w-4.5 h-4.5" />} />
-          </div>
-          
-          {space.description && (
-            <div className="mt-4 p-3.5 bg-[#f8fafc] rounded-xl border border-gray-100 text-[13px] text-[#475569]">
-              <span className="font-bold text-[#334155] block mb-1 text-[11px] uppercase tracking-wider">Description</span>
-              {space.description}
-            </div>
-          )}
-
-          {equipment.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-[#f1f5f9]">
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#94a3b8] mb-2.5">
-                Facilities & Equipment
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {equipment.map((eq) => (
-                  <span key={eq.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#d1fae5]
-                      bg-[#f0fdf4] text-[12.5px] font-semibold text-[#15803d]">
-                    <Svg d="M5 13l4 4L19 7" className="w-3.5 h-3.5" />
-                    {eq.equipment_name} × {eq.quantity}
-                  </span>
-                ))}
+        {/* ── Statistics Row (always visible) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z", color: "bg-green-50 text-[#15803d] border-green-100", label: "Capacity", value: space.capacity_hard ? `${space.capacity_hard} seats` : "—" },
+            { icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75", color: "bg-blue-50 text-blue-600 border-blue-100", label: "Managers", value: approversLoading ? null : approvers.length },
+            { icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2", color: "bg-amber-50 text-amber-600 border-amber-100", label: "Total Bookings", value: bookingsLoading ? null : bookings.length },
+            { icon: "M9 12l2 2 4-4", color: "bg-purple-50 text-purple-600 border-purple-100", label: "Status", value: space.is_active ? "Available" : "Unavailable" },
+          ].map((s, i) => (
+            <div key={i} className="bg-white border border-[#e8f5ee] rounded-xl p-3.5 flex items-center gap-3 shadow-sm">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${s.color}`}>
+                <Svg d={s.icon} className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-[#94a3b8] mb-0.5">{s.label}</p>
+                {s.value === null
+                  ? <span className="inline-block w-4 h-4 rounded-full border-2 border-[#15803d]/20 border-t-[#15803d] animate-spin" />
+                  : <p className="text-[16px] font-black text-[#0f172a] leading-tight">{s.value}</p>
+                }
               </div>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* ── Tabbed Section (Managers + Booking History) ── */}
+        {/* ── Three-Tab Navigation ── */}
         <div>
-          {/* ── Tab bar ── */}
           <div className="flex bg-white rounded-t-2xl border border-[#e8f5ee] overflow-hidden">
             {[
+              { id: "details",  label: "Venue Details",   icon: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" },
               { id: "managers", label: "Venue Managers",  icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" },
               { id: "history",  label: "Booking History", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-5 py-4
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3.5
                   text-[13px] font-bold transition border-b-2
                   ${ activeTab === tab.id
                     ? "border-[#15803d] text-[#15803d] bg-white"
@@ -722,14 +693,12 @@ export default function VenueDetailPage() {
                 <Svg d={tab.icon} className="w-4 h-4" />
                 {tab.label}
                 {tab.id === "managers" && approvers.length > 0 && !approversLoading && (
-                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full
-                    bg-[#15803d] text-white text-[10px] font-bold">
+                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#15803d] text-white text-[10px] font-bold">
                     {approvers.length}
                   </span>
                 )}
                 {tab.id === "history" && bookings.length > 0 && !bookingsLoading && (
-                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full
-                    bg-[#475569] text-white text-[10px] font-bold">
+                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#475569] text-white text-[10px] font-bold">
                     {bookings.length}
                   </span>
                 )}
@@ -739,6 +708,48 @@ export default function VenueDetailPage() {
 
           {/* ── Tab content wrapper ── */}
           <div className="bg-white rounded-b-2xl border border-[#e8f5ee] border-t-0 overflow-hidden shadow-sm">
+
+            {/* ── VENUE DETAILS TAB ── */}
+            {activeTab === "details" && (
+              <div className="p-6 space-y-5">
+                {/* Info grid */}
+                <div>
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#94a3b8] mb-3">Overview</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <CompactInfoTile label="Venue Type" value={typeMeta.label} icon={<Svg d="M4 6h16M4 12h16M4 18h16" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Block" value={blockName} icon={<Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Location" value={locationDetails} icon={<Svg d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0zM12 7a3 3 0 100 6 3 3 0 000-6z" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Capacity" value={space.capacity_hard ? `${space.capacity_hard} seats` : "—"} icon={<Svg d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Approval Workflow" value={space.approval_workflow_type === "HOD_FALLBACK" ? "HOD with Fallback" : "Direct Approver"} icon={<Svg d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Status" value={space.is_active ? "Available" : "Unavailable"} icon={<Svg d="M9 12l2 2 4-4" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Created" value={formatDate(space.created_at)} icon={<Svg d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" className="w-4 h-4" />} />
+                    <CompactInfoTile label="Updated" value={formatDate(space.updated_at)} icon={<Svg d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" className="w-4 h-4" />} />
+                  </div>
+                </div>
+
+                {space.description && (
+                  <div className="p-3.5 bg-[#f8fafc] rounded-xl border border-gray-100 text-[13px] text-[#475569]">
+                    <span className="font-bold text-[#334155] block mb-1 text-[11px] uppercase tracking-wider">Description</span>
+                    {space.description}
+                  </div>
+                )}
+
+                {equipment.length > 0 && (
+                  <div className="pt-4 border-t border-[#f1f5f9]">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#94a3b8] mb-2.5">Facilities &amp; Equipment</p>
+                    <div className="flex flex-wrap gap-2">
+                      {equipment.map((eq) => (
+                        <span key={eq.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#d1fae5] bg-[#f0fdf4] text-[12.5px] font-semibold text-[#15803d]">
+                          <Svg d="M5 13l4 4L19 7" className="w-3.5 h-3.5" />
+                          {eq.equipment_name} × {eq.quantity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── MANAGERS TAB ── */}
             {activeTab === "managers" && (
@@ -755,7 +766,7 @@ export default function VenueDetailPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => navigate(`/admin/spaces/venues/${space.id}/assign-manager`)}
+                    onClick={() => navigate(`/admin/spaces/venues/${space.id}/assign-manager`, { state: { from: window.location.pathname + window.location.search, fromLabel: space.name } })}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#15803d]
                       hover:bg-[#166534] text-white text-[13px] font-bold transition shadow-sm shrink-0"
                   >
@@ -782,7 +793,7 @@ export default function VenueDetailPage() {
                         Click <strong className="text-[#15803d]">Add Venue Manager</strong> to assign staff who can approve bookings at this venue.
                       </p>
                       <button
-                        onClick={() => navigate(`/admin/spaces/venues/${space.id}/assign-manager`)}
+                        onClick={() => navigate(`/admin/spaces/venues/${space.id}/assign-manager`, { state: { from: window.location.pathname + window.location.search, fromLabel: space.name } })}
                         className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d]
                           hover:bg-[#166534] text-white text-[13.5px] font-bold transition"
                       >
@@ -799,6 +810,7 @@ export default function VenueDetailPage() {
                             approver={approver}
                             onEdit={setEditingApprover}
                             onRemove={setRemoving}
+                            onViewProfile={(uid) => navigate(`/admin/users/${uid}`, { state: { from: window.location.pathname + window.location.search, fromLabel: space.name } })}
                           />
                         ))}
                       </div>
@@ -912,61 +924,61 @@ export default function VenueDetailPage() {
                           const sm = STATUS_META[booking.status] ?? { label: booking.status, color: "bg-gray-100 text-gray-600 border-gray-200" }
                           return (
                             <div key={booking.id}
-                              className="rounded-2xl border border-[#e8f5ee] bg-[#f6fbf8] px-5 py-4 hover:border-[#c7e8d5] transition"
+                              className="rounded-xl border border-[#e8f5ee] bg-white px-4 py-3.5 hover:border-[#c7e8d5] hover:shadow-sm transition"
                             >
-                              {/* Row 1: reference + status */}
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[11.5px] font-bold text-[#15803d] font-mono tracking-wide">
-                                    {booking.reference_code ?? "—"}
-                                  </span>
-                                  <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full border ${sm.color}`}>
-                                    {sm.label}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-[#94a3b8] shrink-0">
-                                  {formatDate(booking.created_at)}
+                              {/* Header: Booking ID (left) + Status badge (right) */}
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-[11px] font-bold text-[#15803d] font-mono tracking-wide">
+                                  {booking.reference_code ?? "—"}
+                                </span>
+                                <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full border ${sm.color}`}>
+                                  {sm.label}
                                 </span>
                               </div>
 
-                              {/* Row 2: Event Name */}
-                              <p className="text-[13.5px] font-bold text-[#0f172a] leading-snug mb-2 line-clamp-1">
+                              {/* Event name */}
+                              <p className="text-[14px] font-bold text-[#0f172a] leading-snug mb-2.5 line-clamp-2">
                                 {booking.purpose_of_booking || "—"}
                               </p>
 
-                              {/* Row 3: Requestor */}
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#6b7280] mb-2">
-                                <span className="flex items-center gap-1">
-                                  <Svg d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                                  <span className="font-semibold text-[#374151]">{booking.booked_by_name ?? "—"}</span>
-                                </span>
+                              {/* Requestor info – stacked */}
+                              <div className="space-y-0.5 mb-2.5">
+                                <div className="flex items-center gap-1.5 text-[12px] text-[#374151]">
+                                  <Svg d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" className="w-3.5 h-3.5 text-[#94a3b8] shrink-0" />
+                                  <span className="font-semibold">{booking.booked_by_name ?? "—"}</span>
+                                </div>
                                 {booking.booked_by_department && (
-                                  <span className="flex items-center gap-1">
-                                    <Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                                    {booking.booked_by_department}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280]">
+                                    <Svg d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16M9 21V11h6v10" className="w-3.5 h-3.5 text-[#94a3b8] shrink-0" />
+                                    <span>{booking.booked_by_department}</span>
+                                  </div>
                                 )}
                                 {booking.faculty_sponsor_name && (
-                                  <span className="flex items-center gap-1">
-                                    <Svg d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                                    {booking.faculty_sponsor_name}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280]">
+                                    <Svg d="M12 14l9-5-9-5-9 5 9 5z" className="w-3.5 h-3.5 text-[#94a3b8] shrink-0" />
+                                    <span>{booking.faculty_sponsor_name}</span>
+                                  </div>
                                 )}
                               </div>
 
-                              {/* Row 4: Date & Time */}
-                              <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] mb-2">
-                                <Svg d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" className="w-3.5 h-3.5 text-[#94a3b8]" />
-                                <span className="font-medium text-[#374151]">
+                              {/* Event schedule */}
+                              <div className="flex items-start gap-1.5 text-[12px] text-[#475569] mb-2.5 bg-[#f8fafc] rounded-lg px-2.5 py-1.5 border border-[#f1f5f9]">
+                                <Svg d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" className="w-3.5 h-3.5 text-[#94a3b8] shrink-0 mt-0.5" />
+                                <span className="font-medium">
                                   {formatDateTime(booking.start_datetime)}
-                                  {booking.end_datetime && ` – ${formatDateTime(booking.end_datetime)}`}
+                                  {booking.end_datetime && (
+                                    <span className="text-[#94a3b8]"> – {new Date(booking.end_datetime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+                                  )}
                                 </span>
                               </div>
 
-                              {/* Row 5: Approval State */}
-                              <div className="text-[11.5px] text-[#475569] bg-white px-3 py-1.5 rounded-lg border border-[#e8f5ee] inline-block font-semibold">
-                                <span className="text-[#94a3b8] font-bold text-[10px] uppercase tracking-wider block mb-0.5">Approval State</span>
-                                {getApprovalStateText(booking)}
+                              {/* Result + submission date footer */}
+                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#f1f5f9]">
+                                <p className="text-[11.5px] text-[#475569] font-medium">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#94a3b8] mr-1">Result:</span>
+                                  {getApprovalStateText(booking)}
+                                </p>
+                                <span className="text-[10.5px] text-[#94a3b8] shrink-0">{formatDate(booking.created_at)}</span>
                               </div>
                             </div>
                           )

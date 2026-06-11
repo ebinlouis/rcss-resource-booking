@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { useAdminSpacesCatalog, useAdminBlocks } from "../../hooks/useSpaceQueries"
 import spaceAdminService from "../../api/spaceAdminService"
 import roleOverrideService from "../../api/roleOverrideService"
@@ -232,6 +232,9 @@ function UserRow({ user, selectedRole, onAdd }) {
 export default function VenueManagerAssignPage() {
   const { venueId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backRoute = location.state?.from || `/admin/spaces/venues/${venueId}`
+  const backLabel = location.state?.fromLabel || space?.name || "Venue Detail"
 
   // ── Data ──────────────────────────────────────────────────────
   const { data: spacesData } = useAdminSpacesCatalog()
@@ -245,6 +248,9 @@ export default function VenueManagerAssignPage() {
   const [search, setSearch] = useState("")
   const [users, setUsers] = useState([])
   const [usersLoading, setUsersLoading] = useState(false)
+  const [userCount, setUserCount] = useState(null)   // total from API
+  const [userPage, setUserPage] = useState(1)
+  const PAGE_SIZE = 10
   const [selectedRole, setSelectedRole] = useState("")
   const [pendingUser, setPendingUser] = useState(null)   // user to confirm
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -269,14 +275,22 @@ export default function VenueManagerAssignPage() {
     return () => { alive = false }
   }, [])
 
-  // ── Debounced user search ──────────────────────────────────────
+  // Reset to page 1 whenever search changes
+  useEffect(() => { setUserPage(1) }, [search])
+
+  // ── Debounced user fetch (search + page) ──────────────────────
   useEffect(() => {
     let alive = true
     setUsersLoading(true)
     const timer = setTimeout(async () => {
       try {
-        const data = await adminUserService.getUsers(search.trim() ? { q: search.trim() } : {})
-        if (alive) setUsers(normalise(data))
+        const params = { page: userPage, page_size: PAGE_SIZE }
+        if (search.trim()) params.q = search.trim()
+        const data = await adminUserService.getUsers(params)
+        if (alive) {
+          setUsers(normalise(data))
+          setUserCount(typeof data?.count === "number" ? data.count : null)
+        }
       } catch {
         if (alive) toast.error("Failed to load users.")
       } finally {
@@ -284,7 +298,7 @@ export default function VenueManagerAssignPage() {
       }
     }, 250)
     return () => { alive = false; clearTimeout(timer) }
-  }, [search])
+  }, [search, userPage])
 
   // ── Confirm assignment ─────────────────────────────────────────
   const handleConfirm = async () => {
@@ -326,7 +340,7 @@ export default function VenueManagerAssignPage() {
   }
 
   const handleDone = () => {
-    navigate(`/admin/spaces/venues/${venueId}`)
+    navigate(backRoute)
   }
 
   // ── Parsed location ────────────────────────────────────────────
@@ -366,15 +380,10 @@ export default function VenueManagerAssignPage() {
 
         {/* ── Breadcrumb ── */}
         <div className="flex items-center gap-2 mb-6">
-          <button onClick={() => navigate("/admin/spaces")}
+          <button onClick={() => navigate(backRoute)}
             className="text-[13px] font-semibold text-[#6b7280] hover:text-[#15803d] transition flex items-center gap-1.5">
             <Svg d="M15 18l-6-6 6-6" className="w-4 h-4" />
-            Venue Management
-          </button>
-          <span className="text-[#d1d5db]">/</span>
-          <button onClick={() => navigate(`/admin/spaces/venues/${venueId}`)}
-            className="text-[13px] font-semibold text-[#6b7280] hover:text-[#15803d] transition truncate max-w-[180px]">
-            {space.name}
+            {backLabel}
           </button>
           <span className="text-[#d1d5db]">/</span>
           <span className="text-[13px] font-semibold text-[#0f172a]">Add Venue Manager</span>
@@ -452,7 +461,7 @@ export default function VenueManagerAssignPage() {
         {/* ── Step 2: Search users ── */}
         <div className="bg-white rounded-2xl border border-[#e8f5ee] overflow-hidden">
 
-          {/* Table header */}
+          {/* Table header — sticky search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-[#f1f5f9]">
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#94a3b8] mb-0.5">
@@ -480,6 +489,20 @@ export default function VenueManagerAssignPage() {
             </div>
           </div>
 
+          {/* Result count */}
+          <div className="px-6 py-2.5 border-b border-[#f1f5f9] bg-[#fafafa]">
+            {usersLoading ? (
+              <div className="h-4 w-40 rounded bg-gray-200 animate-pulse" />
+            ) : (
+              <p className="text-[12px] font-semibold text-[#6b7280]">
+                {search.trim()
+                  ? <><span className="text-[#0f172a] font-bold">{userCount ?? users.length}</span> result{(userCount ?? users.length) !== 1 ? "s" : ""} for &ldquo;{search}&rdquo;</>
+                  : <>Available Staff <span className="text-[#0f172a] font-bold">({userCount ?? users.length})</span></>
+                }
+              </p>
+            )}
+          </div>
+
           {/* Users table */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left border-collapse">
@@ -493,15 +516,33 @@ export default function VenueManagerAssignPage() {
               </thead>
               <tbody>
                 {usersLoading ? (
-                  <tr>
-                    <td colSpan="4" className="py-12 text-center text-[13.5px] font-medium text-[#94a3b8]">
-                      Loading users…
-                    </td>
-                  </tr>
+                  /* Skeleton rows */
+                  [1,2,3,4,5].map(i => (
+                    <tr key={i} className="border-b border-[#f1f5f9] last:border-0">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-gray-200 animate-pulse shrink-0" />
+                          <div className="space-y-1.5">
+                            <div className="h-3.5 w-32 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-44 rounded bg-gray-100 animate-pulse" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4"><div className="h-3.5 w-24 rounded bg-gray-200 animate-pulse" /></td>
+                      <td className="px-5 py-4"><div className="h-5 w-20 rounded-full bg-gray-200 animate-pulse" /></td>
+                      <td className="px-5 py-4 text-right"><div className="h-8 w-16 rounded-xl bg-gray-200 animate-pulse ml-auto" /></td>
+                    </tr>
+                  ))
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="py-12 text-center text-[13.5px] font-medium text-[#94a3b8]">
-                      {search.trim() ? `No users found for "${search}"` : "No users found."}
+                    <td colSpan="4" className="py-16 text-center">
+                      <div className="w-12 h-12 rounded-full bg-[#f0fdf4] flex items-center justify-center mx-auto mb-3 text-[#15803d]">
+                        <Svg d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" className="w-6 h-6" />
+                      </div>
+                      <p className="text-[14px] font-bold text-[#374151]">
+                        {search.trim() ? `No staff members found for "${search}"` : "No staff members found."}
+                      </p>
+                      <p className="text-[12.5px] text-[#94a3b8] mt-1">Try adjusting your search criteria.</p>
                     </td>
                   </tr>
                 ) : (
@@ -517,6 +558,59 @@ export default function VenueManagerAssignPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {!usersLoading && userCount !== null && userCount > PAGE_SIZE && (() => {
+            const totalPages = Math.ceil(userCount / PAGE_SIZE)
+            const start = (userPage - 1) * PAGE_SIZE + 1
+            const end   = Math.min(userPage * PAGE_SIZE, userCount)
+            // Build visible page numbers: always show first, last, current ±1, with … gaps
+            const range = []
+            for (let p = 1; p <= totalPages; p++) {
+              if (p === 1 || p === totalPages || (p >= userPage - 1 && p <= userPage + 1)) range.push(p)
+              else if (range[range.length - 1] !== "…") range.push("…")
+            }
+            return (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3.5 border-t border-[#f1f5f9] bg-[#fafafa]">
+                <p className="text-[12px] text-[#6b7280] font-medium">
+                  Showing <span className="font-bold text-[#0f172a]">{start}–{end}</span> of <span className="font-bold text-[#0f172a]">{userCount}</span> users
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={userPage === 1}
+                    onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-[#e2e8f0] text-[12px] font-semibold text-[#374151] hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  {range.map((p, i) =>
+                    p === "…" ? (
+                      <span key={`ellipsis-${i}`} className="px-1.5 text-[12px] text-[#94a3b8]">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setUserPage(p)}
+                        className={`w-8 h-8 rounded-lg text-[12px] font-bold transition border ${
+                          userPage === p
+                            ? "bg-[#15803d] text-white border-[#15803d]"
+                            : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-gray-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                  <button
+                    disabled={userPage === totalPages}
+                    onClick={() => setUserPage(p => Math.min(totalPages, p + 1))}
+                    className="px-3 py-1.5 rounded-lg border border-[#e2e8f0] text-[12px] font-semibold text-[#374151] hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Role-not-selected hint */}
           {!selectedRole && users.length > 0 && (
