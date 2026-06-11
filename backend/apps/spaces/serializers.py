@@ -771,6 +771,24 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source="role.get_name_display", read_only=True)
     block_name = serializers.CharField(source="block.name", read_only=True)
     space_name = serializers.CharField(source="space.name", read_only=True)
+    profile_image = serializers.SerializerMethodField()
+    space_image = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        if obj.user and obj.user.profile_image:
+            if request:
+                return request.build_absolute_uri(obj.user.profile_image.url)
+            return obj.user.profile_image.url
+        return None
+
+    def get_space_image(self, obj):
+        request = self.context.get("request")
+        if obj.space and obj.space.image_1:
+            if request:
+                return request.build_absolute_uri(obj.space.image_1.url)
+            return obj.space.image_1.url
+        return None
 
     class Meta:
         model = SpaceApprover
@@ -779,6 +797,7 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
             "user",
             "user_email",
             "user_name",
+            "profile_image",
             "role",
             "role_display",
             "scope_type",
@@ -786,6 +805,7 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
             "block_name",
             "space",
             "space_name",
+            "space_image",
             "is_active",
             "created_at",
             "updated_at",
