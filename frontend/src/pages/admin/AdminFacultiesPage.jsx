@@ -507,7 +507,7 @@ export default function AdminFacultiesPage() {
                 {/* Highlighted HOD Card or Empty State */}
                 {activeHOD ? (
                     <div 
-                        onClick={() => setViewingUser(activeHOD)}
+                        onClick={() => navigate(`/admin/users/${activeHOD.id}`, { state: { from: window.location.pathname + window.location.search, fromLabel: `${activeHOD.first_name} ${activeHOD.last_name || ''}`.trim() + "'s Profile" } })}
                         className="bg-white border border-[#15803d]/20 rounded-2xl p-6 mb-8 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-[#f0fdf4]/25 cursor-pointer hover:border-[#15803d]/45 hover:shadow-md transition duration-300 group"
                     >
                         {/* Decorative corner accent */}
@@ -643,7 +643,11 @@ export default function AdminFacultiesPage() {
                                     </tr>
                                 ) : (
                                     filteredFaculties.map((fac) => (
-                                        <tr key={fac.id} className="hover:bg-[#f0fdf4]/50 transition">
+                                        <tr 
+                                            key={fac.id} 
+                                            onClick={() => navigate(`/admin/users/${fac.id}`, { state: { from: window.location.pathname + window.location.search, fromLabel: `${fac.first_name} ${fac.last_name || ''}`.trim() + "'s Profile" } })}
+                                            className="hover:bg-[#f0fdf4]/50 transition cursor-pointer"
+                                        >
                                             <td className="px-6 py-4">
                                                 <div 
                                                     className="w-10 h-10 rounded-full text-white text-[14px] font-bold flex items-center justify-center shrink-0 shadow-sm overflow-hidden"
@@ -720,7 +724,7 @@ export default function AdminFacultiesPage() {
                                                         >
                                                             <button
                                                                 type="button"
-                                                                onClick={() => { setViewingUser(fac); setOpenMenuUserId(null); }}
+                                                                onClick={() => { navigate(`/admin/users/${fac.id}`, { state: { from: window.location.pathname + window.location.search, fromLabel: `${fac.first_name} ${fac.last_name || ''}`.trim() + "'s Profile" } }); setOpenMenuUserId(null); }}
                                                                 className="w-full flex items-center gap-2 px-4 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50 transition font-medium"
                                                             >
                                                                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

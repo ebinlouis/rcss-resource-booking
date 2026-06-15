@@ -41,6 +41,14 @@ const spaceAdminService = {
         return response.data;
     },
 
+    // --- VENUE BOOKING HISTORY ---
+    getVenueBookings: async (venueId, params = {}) => {
+        const response = await api.get(`${PREFIX}requests/`, {
+            params: { view: 'venue_history', space: venueId, ...params },
+        });
+        return response.data;
+    },
+
     // --- FACULTY ---
     fetchFacultyList: async (departmentId) => {
         const url = departmentId ? `${PREFIX}faculty-list/?department=${departmentId}` : `${PREFIX}faculty-list/`;

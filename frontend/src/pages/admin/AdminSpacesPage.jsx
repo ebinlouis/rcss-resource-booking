@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, memo } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
 import { useAdminSpacesCatalog, useAdminBlocks } from "../../hooks/useSpaceQueries"
@@ -52,7 +52,7 @@ function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", str
 // Space Card
 // ─────────────────────────────────────────────────────────────
 
-const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable }) {
+const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable, onViewDetails }) {
   const { blockName, locationDetails } = parseSpaceLocation(space.location, blocks)
   const typeMeta = SPACE_TYPE_META[space.space_type] ?? {
     label: space.space_type,
@@ -61,8 +61,12 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
 
   const content = (
     <div
+      onClick={() => onViewDetails(space)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onViewDetails(space)}
       className={`bg-white rounded-2xl border overflow-hidden flex flex-col transition-all duration-200
-        hover:shadow-md hover:-translate-y-0.5 group
+        hover:shadow-md hover:-translate-y-0.5 group cursor-pointer
         ${space.is_active ? "border-[#e8f5ee]" : "border-[#e2e8f0] opacity-60"}`}
     >
       {/* Image */}
@@ -93,12 +97,12 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
               <Icon className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor" strokeWidth={0}>
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </Icon>
-              Special Approval Required
+              Not Auto-Suggested
             </span>
           )}
           {space.approval_workflow_type === "HOD_FALLBACK" && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-blue-50 text-blue-700 border-blue-200">
-              Department Approval Required
+              HOD Approval Required
             </span>
           )}
         </div>
@@ -163,7 +167,7 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
 
         <div className="mt-auto pt-1 flex gap-2">
           <button
-            onClick={() => onEdit(space)}
+            onClick={(e) => { e.stopPropagation(); onEdit(space) }}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-[#d1fae5]
               text-[13px] font-semibold text-[#15803d] hover:bg-[#f0fdf4] transition"
           >
@@ -174,7 +178,7 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
           </button>
           {canManageTimetable && (
             <button
-              onClick={() => onManageTimetable(space)}
+              onClick={(e) => { e.stopPropagation(); onManageTimetable(space) }}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-indigo-200
                 text-[13px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
             >
@@ -199,6 +203,7 @@ const EMPTY_ARRAY = []
 
 const AdminSpacesPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { can_manage_system } = useAuth()
   
   const [refreshCount, setRefreshCount] = useState(0)
@@ -243,6 +248,24 @@ const AdminSpacesPage = () => {
     setTimetableTarget(space)
     setTimetableModalOpen(true)
   }, [])
+
+  const openDrawer = useCallback((space) => {
+    navigate(`/admin/spaces/venues/${space.id}`)
+  }, [navigate])
+
+  // ── Wire "Edit Venue Details" button from VenueDetailPage ─────────────
+  // VenueDetailPage navigates here with { state: { editId: space.id } }.
+  // We read that state, find the space object, and open the edit modal.
+  useEffect(() => {
+    const editId = location.state?.editId
+    if (!editId || spaces.length === 0) return
+    const target = spaces.find(s => String(s.id) === String(editId))
+    if (target) {
+      openEdit(target)
+      // Clear state so modal doesn't reopen on future re-renders
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, spaces, openEdit, navigate, location.pathname])
 
   const handleModalClose = () => {
     setModalOpen(false)
@@ -489,7 +512,8 @@ const AdminSpacesPage = () => {
                 blocks={blocks} 
                 onEdit={openEdit}
                 onManageTimetable={openTimetable}
-                canManageTimetable={can_manage_system || space.can_manage_timetable} 
+                canManageTimetable={can_manage_system || space.can_manage_timetable}
+                onViewDetails={openDrawer}
               />
             ))}
           </div>

@@ -596,6 +596,7 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
                 new_booking = SpaceBooking.objects.create(
                     group_id=instance.group_id,
+                    event_group_id=instance.event_group_id,
                     booking_type=new_type,
                     space=instance.space,
                     user=instance.user,
@@ -604,9 +605,11 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                     end_datetime=slot_end,
                     attendee_count=instance.attendee_count,
                     purpose_of_booking=instance.purpose_of_booking,
+                    user_notes=instance.user_notes,
                     is_external=instance.is_external,
                     status=instance.status,
                     remarks_by_admin=instance.remarks_by_admin,
+                    faculty_sponsor_id=instance.faculty_sponsor_id,
                 )
 
                 if equipment_data:
@@ -768,6 +771,24 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source="role.get_name_display", read_only=True)
     block_name = serializers.CharField(source="block.name", read_only=True)
     space_name = serializers.CharField(source="space.name", read_only=True)
+    profile_image = serializers.SerializerMethodField()
+    space_image = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        if obj.user and obj.user.profile_image:
+            if request:
+                return request.build_absolute_uri(obj.user.profile_image.url)
+            return obj.user.profile_image.url
+        return None
+
+    def get_space_image(self, obj):
+        request = self.context.get("request")
+        if obj.space and obj.space.image_1:
+            if request:
+                return request.build_absolute_uri(obj.space.image_1.url)
+            return obj.space.image_1.url
+        return None
 
     class Meta:
         model = SpaceApprover
@@ -776,6 +797,7 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
             "user",
             "user_email",
             "user_name",
+            "profile_image",
             "role",
             "role_display",
             "scope_type",
@@ -783,6 +805,7 @@ class SpaceApproverSerializer(serializers.ModelSerializer):
             "block_name",
             "space",
             "space_name",
+            "space_image",
             "is_active",
             "created_at",
             "updated_at",

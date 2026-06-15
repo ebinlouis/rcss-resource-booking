@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import Tooltip from "./Tooltip"
 import { createPortal } from "react-dom"
 import LinkedBookingOptions from "./LinkedBookingOptions"
@@ -95,6 +96,7 @@ function BookingModal({
   wizardMode = false,
   isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
   onLinkedIntent,
+  onAvailabilityChange = null,
 }) {
   const {
     activeSpaceName, activeSpaceCap, form, set, toggleReq, switchHall,
@@ -110,6 +112,11 @@ function BookingModal({
   });
 
   const bookingSession = useBookingSession();
+
+  useEffect(() => {
+    if (!wizardMode || !onAvailabilityChange) return
+    onAvailabilityChange({ isAvailable, isCheckingAvailability, exceedsCapacity })
+  }, [wizardMode, onAvailabilityChange, isAvailable, isCheckingAvailability, exceedsCapacity])
 
   const handleClose = () => {
     bookingSessionActions.clearSession()
@@ -245,8 +252,8 @@ function BookingModal({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Continuous Event (e.g. Hackathon)</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Blocks the venue completely from the start day to the end day, including overnight.</span>
+                  <span className="text-sm font-semibold text-gray-900">24-Hour Reservation (e.g. Hackathon)</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Blocks the venue continuously from the start day to the end day, including overnight.</span>
                 </div>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
@@ -261,8 +268,8 @@ function BookingModal({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">Full-Time Booking (e.g. Hackathon)</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Reserves the venue only during the selected hours each day.</span>
+                  <span className="text-sm font-semibold text-gray-900">Multiple College Hours (e.g. Placement Talk)</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Reserves the venue only during the selected hours on each day.</span>
                 </div>
               </label>
             </div>
@@ -329,8 +336,16 @@ function BookingModal({
                     <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                    <span className="text-xs font-semibold text-red-800 w-28 shrink-0">{formatConflictDate(conflict.date)}</span>
-                    <span className="text-xs text-red-700">{formatAMPM(conflict.start)} – {formatAMPM(conflict.end)}</span>
+                    {conflict.is_multi_day ? (
+                      <span className="text-xs text-red-700">
+                        <span className="font-semibold text-red-800">{formatConflictDate(conflict.date)}</span> {formatAMPM(conflict.start)} → <span className="font-semibold text-red-800">{formatConflictDate(conflict.end_date)}</span> {formatAMPM(conflict.end)}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-red-800 w-28 shrink-0">{formatConflictDate(conflict.date)}</span>
+                        <span className="text-xs text-red-700">{formatAMPM(conflict.start)} – {formatAMPM(conflict.end)}</span>
+                      </>
+                    )}
                     <span className="ml-auto text-[11px] text-red-500 font-medium shrink-0 truncate max-w-[120px]">{conflict.label}</span>
                   </div>
                 ))}
@@ -737,8 +752,8 @@ These bookings may need additional review.
                     {numDays !== null && (
                       <p className="text-green-300/80 text-xs mt-3 font-medium">
                         {numDays} {numDays === 1 ? "day" : "days"}
-                        {form.bookingType === "RECURRING" && hrsPerDay ? ` · ${hrsPerDay}` : ""}
-                        {form.bookingType === "SINGLE" ? ` · Continuous Event` : ""}
+                        {form.bookingType === "RECURRING" && hrsPerDay ? ` · ${hrsPerDay} / day` : ""}
+                        {form.bookingType === "SINGLE" ? ` · 24-Hour Reservation` : ""}
                       </p>
                     )}
                   </div>

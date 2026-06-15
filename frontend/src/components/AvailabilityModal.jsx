@@ -34,9 +34,20 @@ function buildTimeline(bookings) {
   let cursor = dayStart
 
   for (const bk of sorted) {
-    // Multi-day blocks occupy the whole day
-    const bStart = bk.isMultiDay ? dayStart : toMins(bk.start)
-    const bEnd   = bk.isMultiDay ? dayEnd   : toMins(bk.end)
+    let bStart, bEnd
+    if (!bk.isMultiDay) {
+      bStart = toMins(bk.start)
+      bEnd   = toMins(bk.end)
+    } else if (!bk.isContinue) {
+      bStart = toMins(bk.start)
+      bEnd   = dayEnd
+    } else if (bk.isLastDay) {
+      bStart = dayStart
+      bEnd   = toMins(bk.end)
+    } else {
+      bStart = dayStart
+      bEnd   = dayEnd
+    }
 
     const s = Math.max(bStart, dayStart)
     const e = Math.min(bEnd,   dayEnd)
@@ -100,8 +111,23 @@ function getDayStatus(bookings) {
   let hasGap = false
 
   for (const bk of sorted) {
-    const s = Math.max(toMins(bk.start), dayStart)
-    const e = Math.min(toMins(bk.end),   dayEnd)
+    let bStart, bEnd
+    if (!bk.isMultiDay) {
+      bStart = toMins(bk.start)
+      bEnd   = toMins(bk.end)
+    } else if (!bk.isContinue) {
+      bStart = toMins(bk.start)
+      bEnd   = dayEnd
+    } else if (bk.isLastDay) {
+      bStart = dayStart
+      bEnd   = toMins(bk.end)
+    } else {
+      bStart = dayStart
+      bEnd   = dayEnd
+    }
+
+    const s = Math.max(bStart, dayStart)
+    const e = Math.min(bEnd,   dayEnd)
     if (s > cursor) { hasGap = true; break }
     if (e > cursor)  cursor = e
   }
@@ -142,6 +168,7 @@ async function loadBookings(spaceId) {
           status: "APPROVED",
           isMultiDay: ttStartKey !== ttEndKey,
           isContinue: ttCursor !== ttStartKey,
+          isLastDay: ttCursor === ttEndKey && ttCursor !== ttStartKey,
           bookedByName: "Timetable",
           bookedByDesignation: "Scheduled Class",
           bookedByDepartment: "Admin",
@@ -178,6 +205,8 @@ async function loadBookings(spaceId) {
         status: b.status,
         isMultiDay,
         isContinue: cursor !== startKey,
+        isLastDay: cursor === endKey && cursor !== startKey,
+        bookingType: b.booking_type || "SINGLE",
         bookedByName: b.booked_by_name,
         bookedByDesignation: b.booked_by_designation,
         bookedByDepartment: b.booked_by_department,
@@ -475,9 +504,15 @@ const AvailabilityModal = memo(function AvailabilityModal({
                 if (block.type === "booked") {
                   const isPending = ["PENDING", "AWAITING_FACULTY", "FACULTY_ESCALATED"].includes(block.status)
                   const timeLabel = block.isMultiDay ? null : `${block.start} – ${block.end}`
-                  const titleLabel = block.isMultiDay
-                    ? block.isContinue ? "Multi-day booking (continues)" : "Multi-day booking"
-                    : block.title
+const titleLabel = block.isMultiDay
+  ? block.bookingType === "RECURRING"
+    ? block.isContinue
+      ? "Multiple College Hours (Continues)"
+      : "Multiple College Hours"
+    : block.isContinue
+      ? "24-Hour Reservation (Continues)"
+      : "24-Hour Reservation"
+  : block.title
 
 return (
   <div

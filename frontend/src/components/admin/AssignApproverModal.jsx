@@ -8,17 +8,17 @@ const getRoleValue = (role) => String(role.id ?? role.value ?? role.name ?? role
 const getRoleName = (role) => String(role.name ?? role.value ?? role);
 const getRoleLabel = (role) => role.display_name || role.label || role.name || role;
 
-const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
-    const [selectedUser, setSelectedUser] = useState(null); 
+const AssignApproverModal = ({ isOpen, onClose, onRefresh, defaultScopeType, defaultSpaceId }) => {
+    const [selectedUser, setSelectedUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
 
     const [selectedRole, setSelectedRole] = useState('');
-    const [scopeType, setScopeType] = useState('BLOCK');
+    const [scopeType, setScopeType] = useState(defaultScopeType || 'BLOCK');
     const [selectedBlockId, setSelectedBlockId] = useState('');
-    const [selectedSpaceId, setSelectedSpaceId] = useState('');
-    
+    const [selectedSpaceId, setSelectedSpaceId] = useState(defaultSpaceId ? String(defaultSpaceId) : '');
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
@@ -60,7 +60,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
 
     useEffect(() => {
         let isMounted = true;
-        if (!isOpen || selectedUser) return; 
+        if (!isOpen || selectedUser) return;
 
         const timer = setTimeout(async () => {
             if (searchTerm.trim().length < 2) {
@@ -72,7 +72,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
             }
 
             if (isMounted) setIsSearching(true);
-            
+
             try {
                 const results = await roleOverrideService.searchUsers(searchTerm);
                 if (isMounted) setSearchResults(results);
@@ -85,15 +85,18 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
 
         return () => {
             isMounted = false;
-            clearTimeout(timer); 
+            clearTimeout(timer);
         };
     }, [searchTerm, isOpen, selectedUser]);
 
     const handleRoleChange = (e) => {
         setSelectedRole(e.target.value);
-        setScopeType('BLOCK');
-        setSelectedBlockId('');
-        setSelectedSpaceId('');
+        // Only reset scope if not pre-locked by a parent context
+        if (!defaultScopeType) {
+            setScopeType('BLOCK');
+            setSelectedBlockId('');
+            setSelectedSpaceId('');
+        }
     };
 
     const handleCloseModal = () => {
@@ -101,11 +104,11 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
         setSearchTerm('');
         setSearchResults([]);
         setSelectedRole('');
-        setScopeType('BLOCK');
+        setScopeType(defaultScopeType || 'BLOCK');
         setSelectedBlockId('');
-        setSelectedSpaceId('');
+        setSelectedSpaceId(defaultSpaceId ? String(defaultSpaceId) : '');
         setError(null);
-        onClose(); 
+        onClose();
     };
 
     if (!isOpen) return null;
@@ -117,8 +120,8 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
 
         try {
             const payload = {
-                user: selectedUser.id, 
-                role: selectedRole,
+                user: selectedUser.id,
+                role: parseInt(selectedRole, 10),
             };
 
             if (scopeType === 'BLOCK') {
@@ -131,12 +134,12 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
 
             await spaceAdminService.createApprover(payload);
             onRefresh();
-            handleCloseModal(); 
+            handleCloseModal();
         } catch (err) {
             // Clean up Django's raw constraint errors
             let errorMsg = 'Failed to assign role. Ensure user does not already have this exact assignment.';
             const data = err.response?.data;
-            
+
             if (data) {
                 const rawError = data.non_field_errors?.[0] || data.user?.[0] || data.error;
                 if (rawError && rawError.includes('unique set')) {
@@ -145,9 +148,9 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                     errorMsg = rawError;
                 }
             }
-            
+
             setError(errorMsg);
-            setIsSubmitting(false); 
+            setIsSubmitting(false);
         }
     };
 
@@ -156,10 +159,10 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 overflow-visible max-h-[90vh] overflow-y-auto">
-                
+
                 <h3 className="text-base font-bold text-gray-900 mb-1">Assign Venue Approver</h3>
                 <p className="text-xs text-gray-500 mb-5">
-                   Choose a user and assign approval access for selected venues. Role permissions will be applied automatically.
+                    Choose a user and assign approval access for selected venues. Role permissions will be applied automatically.
                 </p>
 
                 {error && (
@@ -169,21 +172,21 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    
+
                     {/* TARGET USER AUTOCOMPLETE */}
                     <div className="relative">
                         <label className="block caps-label mb-1.5">
                             Select User <span className="text-red-500">*</span>
                         </label>
-                        
+
                         {selectedUser ? (
                             <div className="flex items-center justify-between w-full border border-green-200 bg-green-50 rounded-lg px-3 py-2">
                                 <div>
                                     <p className="text-sm font-semibold text-green-900">{selectedUser.first_name || selectedUser.name}</p>
                                     <p className="text-[10px] text-green-700">{selectedUser.email}</p>
                                 </div>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => { setSelectedUser(null); setSearchTerm(''); }}
                                     className="p-1.5 hover:bg-green-100 rounded-md text-green-700 transition"
                                 >
@@ -192,15 +195,15 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                             </div>
                         ) : (
                             <>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition placeholder:text-gray-400"
                                     placeholder="Search by name, email, or ID..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     autoComplete="off"
                                 />
-                                
+
                                 {isSearching && searchTerm.length >= 2 && (
                                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-lg px-3 py-4 text-center text-xs text-gray-500">
                                         Searching...
@@ -240,7 +243,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                         <label className="block caps-label mb-1.5">
                             Approval Role <span className="text-red-500">*</span>
                         </label>
-                        <select 
+                        <select
                             required
                             disabled={isLoadingData}
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition disabled:opacity-50"
@@ -265,18 +268,28 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                 <label className="block caps-label mb-1.5">
                                     Scope Type <span className="text-red-500">*</span>
                                 </label>
-                                <select 
-                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition"
-                                    value={scopeType}
-                                    onChange={(e) => {
-                                        setScopeType(e.target.value);
-                                        setSelectedBlockId('');
-                                        setSelectedSpaceId('');
-                                    }}
-                                >
-                                    <option value="BLOCK">Block Specific</option>
-                                    <option value="SPACE">Venue Specific</option>
-                                </select>
+                                {defaultScopeType ? (
+                                    /* Locked — pre-filled from Venue Details drawer */
+                                    <div className="flex items-center gap-2 w-full border border-green-200 bg-green-50 rounded-lg px-3 py-2">
+                                        <span className="text-sm font-semibold text-green-900">
+                                            {defaultScopeType === 'SPACE' ? 'Venue Specific' : 'Block Specific'}
+                                        </span>
+                                        <span className="ml-auto text-[10px] font-bold text-green-600 uppercase tracking-wide">Prefilled</span>
+                                    </div>
+                                ) : (
+                                    <select
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition"
+                                        value={scopeType}
+                                        onChange={(e) => {
+                                            setScopeType(e.target.value);
+                                            setSelectedBlockId('');
+                                            setSelectedSpaceId('');
+                                        }}
+                                    >
+                                        <option value="BLOCK">Block Specific</option>
+                                        <option value="SPACE">Venue Specific</option>
+                                    </select>
+                                )}
                             </div>
 
                             {scopeType === 'BLOCK' && (
@@ -284,7 +297,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                     <label className="block caps-label mb-1.5">
                                         Select Block <span className="text-red-500">*</span>
                                     </label>
-                                    <select 
+                                    <select
                                         required
                                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition"
                                         value={selectedBlockId}
@@ -303,38 +316,48 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh }) => {
                                     <label className="block caps-label mb-1.5">
                                         Select Venue <span className="text-red-500">*</span>
                                     </label>
-                                    <select 
-                                        required
-                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition"
-                                        value={selectedSpaceId}
-                                        onChange={(e) => setSelectedSpaceId(e.target.value)}
-                                    >
-                                        <option value="" disabled>-- Select Venue --</option>
-                                        {spaces.map(s => {
-                                            const suffix = s.room_number ? ` (${s.room_number})` : '';
-                                            return <option key={s.id} value={s.id}>{s.name}{suffix}</option>;
-                                        })}
-                                    </select>
+                                    {defaultSpaceId ? (
+                                        /* Locked — pre-filled from Venue Details drawer */
+                                        <div className="flex items-center gap-2 w-full border border-green-200 bg-green-50 rounded-lg px-3 py-2">
+                                            <span className="text-sm font-semibold text-green-900">
+                                                {spaces.find(s => String(s.id) === String(defaultSpaceId))?.name || 'Current Venue'}
+                                            </span>
+                                            <span className="ml-auto text-[10px] font-bold text-green-600 uppercase tracking-wide">Prefilled</span>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            required
+                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition"
+                                            value={selectedSpaceId}
+                                            onChange={(e) => setSelectedSpaceId(e.target.value)}
+                                        >
+                                            <option value="" disabled>-- Select Venue --</option>
+                                            {spaces.map(s => {
+                                                const suffix = s.room_number ? ` (${s.room_number})` : '';
+                                                return <option key={s.id} value={s.id}>{s.name}{suffix}</option>;
+                                            })}
+                                        </select>
+                                    )}
                                 </div>
                             )}
                         </div>
                     )}
 
                     <div className="flex gap-3 mt-6 justify-end pt-2">
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             onClick={handleCloseModal}
                             className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
                         >
                             Cancel
                         </button>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={
-                                isSubmitting || 
-                                !selectedUser || 
-                                !selectedRole || 
-                                (scopeType === 'BLOCK' && !selectedBlockId) || 
+                                isSubmitting ||
+                                !selectedUser ||
+                                !selectedRole ||
+                                (scopeType === 'BLOCK' && !selectedBlockId) ||
                                 (scopeType === 'SPACE' && !selectedSpaceId)
                             }
                             className="px-4 py-2 text-sm font-semibold text-white bg-[#15803d] hover:bg-[#166534] rounded-lg transition disabled:opacity-50 shadow-sm"
