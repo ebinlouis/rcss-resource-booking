@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { createVehicle, deleteVehicle } from "../../api/fleetApi"
+import { createVehicle } from "../../api/fleetApi"
 import {
   Plus, Search, Pencil, Trash2, X, Bus,
-  CheckCircle2, XCircle, RefreshCw, PowerOff,
+  CheckCircle2, XCircle, PowerOff,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import api from "../../api/axios"
@@ -27,7 +27,6 @@ function Field({ label, required, children, error }) {
   )
 }
 
-// Admin API helpers — use api directly so we control the exact URL
 const getAllVehiclesAdmin = async () => {
   const res = await api.get("/fleet/vehicles/?all=true")
   return res.data
@@ -38,7 +37,7 @@ const patchVehicle = async (id, payload) => {
   return res.data
 }
 
-// ── Vehicle Form Modal ─────────────────────────────────────────────────────────
+// ── Vehicle Form Modal ────────────────────────────────────────────────────────
 
 function VehicleFormModal({ vehicle, onClose, onSaved }) {
   const isEdit = Boolean(vehicle)
@@ -107,7 +106,6 @@ function VehicleFormModal({ vehicle, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
       <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl">
-
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
@@ -127,17 +125,14 @@ function VehicleFormModal({ vehicle, onClose, onSaved }) {
             <input type="text" name="name" className={inputCls(errors.name)}
               placeholder="e.g., Bus, Mini Van" value={form.name} onChange={handleChange} />
           </Field>
-
           <Field label="Registration Number" required error={errors.registration_number}>
             <input type="text" name="registration_number" className={inputCls(errors.registration_number)}
               placeholder="e.g., KL07 CL 4106" value={form.registration_number} onChange={handleChange} />
           </Field>
-
           <Field label="Capacity" required error={errors.capacity}>
             <input type="number" name="capacity" min="1" className={inputCls(errors.capacity)}
               placeholder="Number of seats" value={form.capacity} onChange={handleChange} />
           </Field>
-
           <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60">
             <div>
               <p className="text-sm font-semibold text-gray-700">Active</p>
@@ -174,7 +169,7 @@ function VehicleFormModal({ vehicle, onClose, onSaved }) {
   )
 }
 
-// ── Deactivate Confirm Modal ───────────────────────────────────────────────────
+// ── Deactivate Confirm Modal ──────────────────────────────────────────────────
 
 function DeactivateModal({ vehicle, onConfirm, onClose, loading }) {
   return (
@@ -211,7 +206,7 @@ function DeactivateModal({ vehicle, onConfirm, onClose, loading }) {
   )
 }
 
-// ── Delete Confirm Modal ───────────────────────────────────────────────────────
+// ── Delete Confirm Modal ──────────────────────────────────────────────────────
 
 function DeleteModal({ vehicle, onConfirm, onClose, loading }) {
   return (
@@ -251,33 +246,24 @@ function RowActions({ vehicle, onEdit, onDelete, onReactivate, reactivatingId })
   const isReactivating = reactivatingId === vehicle.id
 
   if (vehicle.is_active) {
-    // Active vehicle: Edit + Delete
     return (
       <div className="flex items-center justify-end gap-2">
-        <button
-          onClick={() => onEdit(vehicle)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-medium hover:border-green-200 hover:bg-green-50 hover:text-green-700 transition"
-        >
+        <button onClick={() => onEdit(vehicle)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-medium hover:border-green-200 hover:bg-green-50 hover:text-green-700 transition">
           <Pencil className="w-3.5 h-3.5" /> Edit
         </button>
-        <button
-          onClick={() => onDelete(vehicle)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 text-red-500 text-xs font-medium hover:bg-red-50 transition"
-        >
+        <button onClick={() => onDelete(vehicle)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 text-red-500 text-xs font-medium hover:bg-red-50 transition">
           <Trash2 className="w-3.5 h-3.5" /> Delete
         </button>
       </div>
     )
   }
 
-  // Inactive vehicle: only Reactivate
   return (
     <div className="flex items-center justify-end gap-2">
-      <button
-        onClick={() => onReactivate(vehicle)}
-        disabled={isReactivating}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition disabled:opacity-50"
-      >
+      <button onClick={() => onReactivate(vehicle)} disabled={isReactivating}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition disabled:opacity-50">
         {isReactivating
           ? <><span className="w-3 h-3 border-2 border-green-600/30 border-t-green-600 rounded-full animate-spin" /> Reactivating…</>
           : <><CheckCircle2 className="w-3.5 h-3.5" /> Reactivate</>
@@ -292,10 +278,11 @@ function RowActions({ vehicle, onEdit, onDelete, onReactivate, reactivatingId })
 export default function AdminVehiclesPage() {
   const queryClient = useQueryClient()
 
-  const { data: vehicles = [], isLoading, isError, refetch } = useQuery({
+  const { data: vehicles = [], isLoading, isError } = useQuery({
     queryKey: ["fleet", "vehicles", "admin"],
     queryFn:  getAllVehiclesAdmin,
     staleTime: 0,
+    gcTime: 0,
   })
 
   const [search,           setSearch]           = useState("")
@@ -307,14 +294,11 @@ export default function AdminVehiclesPage() {
   const [actionLoading,    setActionLoading]    = useState(false)
   const [reactivatingId,   setReactivatingId]   = useState(null)
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-
+  // ── Stats — only Total and Active ─────────────────────────────────────────
   const totalVehicles  = vehicles.length
   const activeVehicles = vehicles.filter((v) => v.is_active).length
-  const totalCapacity  = vehicles.filter((v) => v.is_active).reduce((sum, v) => sum + (v.capacity || 0), 0)
 
-  // ── Filtered list ──────────────────────────────────────────────────────────
-
+  // ── Filtered list ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = [...vehicles]
     if (filterStatus === "active")   result = result.filter((v) => v.is_active)
@@ -329,8 +313,8 @@ export default function AdminVehiclesPage() {
     return result
   }, [vehicles, search, filterStatus])
 
-  // ── Delete (try hard delete, fallback to deactivate) ──────────────────────
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const handleDeleteAttempt = async () => {
     if (!deleteTarget) return
     setActionLoading(true)
@@ -342,7 +326,6 @@ export default function AdminVehiclesPage() {
       queryClient.invalidateQueries({ queryKey: ["fleet", "vehicles"] })
       toast.success("Vehicle deleted.")
     } catch {
-      // Backend blocked — offer deactivate instead
       setDeactivateTarget(target)
     } finally {
       setActionLoading(false)
@@ -350,7 +333,6 @@ export default function AdminVehiclesPage() {
   }
 
   // ── Deactivate ────────────────────────────────────────────────────────────
-
   const handleDeactivate = async () => {
     if (!deactivateTarget) return
     setActionLoading(true)
@@ -368,7 +350,6 @@ export default function AdminVehiclesPage() {
   }
 
   // ── Reactivate ────────────────────────────────────────────────────────────
-
   const handleReactivate = async (vehicle) => {
     setReactivatingId(vehicle.id)
     try {
@@ -385,7 +366,6 @@ export default function AdminVehiclesPage() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div className="p-6 space-y-6 max-w-[1200px] mx-auto">
 
@@ -396,10 +376,6 @@ export default function AdminVehiclesPage() {
           <p className="text-sm text-gray-500 mt-0.5">Track and manage fleet vehicles and their availability.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-green-700 hover:bg-green-50 transition" title="Refresh">
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
             className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition shadow-sm"
@@ -409,12 +385,11 @@ export default function AdminVehiclesPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Stats — ✅ only Total and Active, no capacity */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
-          { label: "Total Vehicles",       value: totalVehicles            },
-          { label: "Active Vehicles",      value: activeVehicles           },
-          { label: "Active Seat Capacity", value: `${totalCapacity} seats` },
+          { label: "Total Vehicles",  value: totalVehicles  },
+          { label: "Active Vehicles", value: activeVehicles },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
             <p className="text-3xl font-bold text-gray-900">{value}</p>
@@ -454,7 +429,6 @@ export default function AdminVehiclesPage() {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-        {/* Header row */}
         <div className="hidden md:grid grid-cols-12 bg-gray-50 border-b border-gray-100 px-6 py-3">
           <span className="col-span-3 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">Name</span>
           <span className="col-span-3 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">Registration</span>
@@ -463,7 +437,6 @@ export default function AdminVehiclesPage() {
           <span className="col-span-2 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500 text-right">Actions</span>
         </div>
 
-        {/* Loading */}
         {isLoading && (
           <div className="flex flex-col">
             {[1, 2, 3].map((i) => (
@@ -481,15 +454,13 @@ export default function AdminVehiclesPage() {
           </div>
         )}
 
-        {/* Error */}
         {!isLoading && isError && (
           <div className="py-16 text-center px-6">
             <p className="text-sm font-semibold text-gray-700 mb-2">Failed to load vehicles.</p>
-            <button onClick={() => refetch()} className="text-green-700 text-sm font-medium hover:underline">Try again</button>
+            <button onClick={() => window.location.reload()} className="text-green-700 text-sm font-medium hover:underline">Try again</button>
           </div>
         )}
 
-        {/* Empty */}
         {!isLoading && !isError && filtered.length === 0 && (
           <div className="py-16 text-center px-6">
             <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
@@ -504,11 +475,8 @@ export default function AdminVehiclesPage() {
           </div>
         )}
 
-        {/* Rows */}
         {!isLoading && !isError && filtered.map((vehicle, idx) => (
           <div key={vehicle.id}>
-
-            {/* Desktop row */}
             <div className={`hidden md:grid grid-cols-12 items-center px-6 py-4 transition ${
               !vehicle.is_active ? "bg-gray-50/80" : "hover:bg-gray-50/60"
             } ${idx !== filtered.length - 1 ? "border-b border-gray-100" : ""}`}>
@@ -592,28 +560,20 @@ export default function AdminVehiclesPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500 mb-3">{vehicle.capacity} passenger seats</p>
-
               {vehicle.is_active ? (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => { setEditTarget(vehicle); setShowForm(true) }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:border-green-200 hover:bg-green-50 hover:text-green-700 transition"
-                  >
+                  <button onClick={() => { setEditTarget(vehicle); setShowForm(true) }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:border-green-200 hover:bg-green-50 hover:text-green-700 transition">
                     <Pencil className="w-3.5 h-3.5" /> Edit
                   </button>
-                  <button
-                    onClick={() => setDeleteTarget(vehicle)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-red-100 text-xs font-semibold text-red-500 hover:bg-red-50 transition"
-                  >
+                  <button onClick={() => setDeleteTarget(vehicle)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-red-100 text-xs font-semibold text-red-500 hover:bg-red-50 transition">
                     <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => handleReactivate(vehicle)}
-                  disabled={reactivatingId === vehicle.id}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-green-200 text-xs font-semibold text-green-700 hover:bg-green-50 transition disabled:opacity-50"
-                >
+                <button onClick={() => handleReactivate(vehicle)} disabled={reactivatingId === vehicle.id}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-green-200 text-xs font-semibold text-green-700 hover:bg-green-50 transition disabled:opacity-50">
                   {reactivatingId === vehicle.id
                     ? <><span className="w-3 h-3 border-2 border-green-600/30 border-t-green-600 rounded-full animate-spin" /> Reactivating…</>
                     : <><CheckCircle2 className="w-3.5 h-3.5" /> Reactivate</>
@@ -621,7 +581,6 @@ export default function AdminVehiclesPage() {
                 </button>
               )}
             </div>
-
           </div>
         ))}
       </div>
@@ -634,7 +593,6 @@ export default function AdminVehiclesPage() {
           onSaved={() => { setShowForm(false); setEditTarget(null) }}
         />
       )}
-
       {deleteTarget && (
         <DeleteModal
           vehicle={deleteTarget}
@@ -643,7 +601,6 @@ export default function AdminVehiclesPage() {
           loading={actionLoading}
         />
       )}
-
       {deactivateTarget && (
         <DeactivateModal
           vehicle={deactivateTarget}
