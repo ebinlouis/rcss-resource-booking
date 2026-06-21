@@ -233,6 +233,8 @@ def _user_can_resolve_space_booking(user, effective_roles, booking):
     # HOD_FALLBACK: check the space's approver chain directly.
     # Only the explicitly assigned primary or fallback approver can resolve.
     if _uses_hod_fallback_workflow(booking.space):
+        if Role.Name.HOD in effective_roles:
+            return True
         try:
             chain = booking.space.approver_chain
             if user.id in (chain.primary_approver_id, chain.fallback_approver_id):
@@ -305,7 +307,9 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
         Q(primary_approver=user) | Q(fallback_approver=user)
     ).exists()
 
-    if not is_chain_approver and not assignment_list and not override_list:
+    is_hod = Role.Name.HOD in effective_roles
+
+    if not is_chain_approver and not assignment_list and not override_list and not is_hod:
         return SpaceBooking.objects.none()
 
     # _uses_hod_fallback_workflow()
@@ -331,6 +335,12 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
             Q(space__approver_chain__primary_approver=user)
             | Q(space__approver_chain__fallback_approver=user)
         )
+
+    # HOD: sees ALL bookings on HOD_FALLBACK spaces immediately,
+    # regardless of whether a SpaceApproverChain row exists for that
+    # space, and regardless of the booker's department.
+    if is_hod:
+        scope_q |= _hod_fallback_q
 
     for assignment in assignment_list:
         role_name = assignment.role.name
