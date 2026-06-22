@@ -86,21 +86,6 @@ def _uses_hod_fallback_workflow(space):
     )
 
 
-def _is_cs_department(department):
-    if not department:
-        return False
-
-    code = _normalise(getattr(department, "department_code", ""))
-    name = _normalise(getattr(department, "department_name", ""))
-    return code in {"cs", "cse"} or name in {"cs", "cse"} or "computer science" in name
-
-
-def _is_cs_hod_fallback_booking(booking):
-    return _uses_hod_fallback_workflow(booking.space) and _is_cs_department(
-        getattr(booking.user, "department", None)
-    )
-
-
 def _ai_lab_fallback_ready(booking):
     fallback_at = booking.created_at + timedelta(hours=AI_LAB_FALLBACK_HOURS)
     return timezone.now() >= fallback_at
@@ -189,7 +174,7 @@ def _matches_space_approver_assignment(booking, assignment):
 
     if role_name == Role.Name.LAB_INCHARGE:
         if (
-            _is_cs_hod_fallback_booking(booking)
+            _uses_hod_fallback_workflow(booking.space)
             and booking.status == "PENDING"
             and not _ai_lab_fallback_ready(booking)
         ):

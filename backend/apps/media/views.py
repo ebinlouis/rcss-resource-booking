@@ -169,10 +169,23 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         if booking.is_team_request:
             reserve_standard_team_kit(booking)
 
+        from apps.notifications.utils import get_raw_global_approvers
+        
+        eligible_set = get_raw_global_approvers(Role.Name.MEDIA_INCHARGE)
+        
+        if len(eligible_set) == 1 and user in eligible_set:
+            booking.status = 'APPROVED'
+            booking.resolved_by = user
+            booking.resolved_at = timezone.now()
+            booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+            booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+            return
+
         notify_new_request(
             booking=booking,
             domain='media',
             role_name=Role.Name.MEDIA_INCHARGE,
+            exclude_user=user
         )
 
     @transaction.atomic
