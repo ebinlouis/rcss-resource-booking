@@ -73,10 +73,23 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             **({"department": user_dept} if user_dept else {})
         )
 
+        from apps.notifications.utils import get_raw_global_approvers
+        
+        eligible_set = get_raw_global_approvers(Role.Name.MESS_MANAGER)
+        
+        if len(eligible_set) == 1 and user in eligible_set:
+            booking.status = 'APPROVED'
+            booking.resolved_by = user
+            booking.resolved_at = timezone.now()
+            booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+            booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+            return
+
         notify_new_request(
             booking=booking,
             domain='mess',
-            role_name=Role.Name.MESS_MANAGER
+            role_name=Role.Name.MESS_MANAGER,
+            exclude_user=user
         )
 
     @transaction.atomic

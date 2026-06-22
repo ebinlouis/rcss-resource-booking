@@ -937,8 +937,20 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         # ── Approver-chain notification (specific primary/fallback user) ──
         chain = getattr(booking.space, 'approver_chain', None)
         if chain:
-            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
+            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link, notify_auto_approved_informational
             from apps.notifications.models import Notification
+
+            if self.request.user == chain.primary_approver:
+                booking.status = 'APPROVED'
+                booking.resolved_by = self.request.user
+                booking.resolved_at = timezone.now()
+                booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+                booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+                
+                if chain.primary_approver_id != chain.fallback_approver_id and chain.fallback_approver:
+                    notify_auto_approved_informational(booking, 'spaces', [chain.fallback_approver])
+                return
+
             if chain.primary_approver:
                 notify(
                     chain.primary_approver,
@@ -965,7 +977,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         # ── HOD_FALLBACK without a chain: notify the HOD role directly ──
         if uses_hod_fallback:
-            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD)
+            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD, exclude_user=self.request.user)
             return
 
         # ── Standard role-based notification ──
@@ -977,10 +989,22 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             role = Role.Name.RECEPTIONIST
 
+        from apps.notifications.utils import get_raw_space_approvers, notify_auto_approved_informational
+        eligible_set = get_raw_space_approvers(booking.space, role)
+        
+        if len(eligible_set) == 1 and self.request.user in eligible_set:
+            booking.status = 'APPROVED'
+            booking.resolved_by = self.request.user
+            booking.resolved_at = timezone.now()
+            booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+            booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+            return
+
         notify_new_request(
             booking=booking,
             domain='spaces',
-            role_name=role
+            role_name=role,
+            exclude_user=self.request.user
         )
 
     def perform_update(self, serializer):
