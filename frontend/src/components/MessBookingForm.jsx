@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import messService from "../api/messService"
 import AutoSuggestInput from "./AutoSuggestInput"
 import { MEALS, getDateRange } from "../api/messConfig"
-import { Copy, ChevronLeft, ChevronRight } from "lucide-react"
+import { Copy, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react"
 import { bookingSessionActions, useBookingSession } from "../store/bookingSessionStore"
 import { useCreateMessBooking, useUpdateMessBooking } from "../hooks/useMessQueries"
 
@@ -21,6 +21,36 @@ const formatTabLabel = (dateStr) => {
 }
 
 const formatTabDay = (dateStr, index) => `Day ${index + 1}`
+
+// ── ✅ Meal time windows ───────────────────────────────────────────────────────
+// Each meal has an allowed booking window. Used both to constrain the native
+// time picker (min/max) and to validate + warn if a time outside it is chosen.
+const MEAL_TIME_WINDOWS = {
+  breakfast_time:   { min: "07:00", max: "10:00", label: "Breakfast" },
+  morning_tea_time: { min: "10:00", max: "11:30", label: "Morning Tea" },
+  lunch_time:       { min: "12:00", max: "15:00", label: "Lunch" },
+  evening_tea_time: { min: "16:00", max: "18:00", label: "Evening Tea" },
+  dinner_time:      { min: "19:00", max: "22:00", label: "Dinner" },
+}
+
+const formatTimeLabel = (hhmm) => {
+  if (!hhmm) return ""
+  const [h, m] = hhmm.split(":").map(Number)
+  const period = h >= 12 ? "PM" : "AM"
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`
+}
+
+// Returns a warning string if `time` falls outside the window for `timeKey`, else null
+const getMealTimeWarning = (timeKey, time) => {
+  if (!time) return null
+  const window = MEAL_TIME_WINDOWS[timeKey]
+  if (!window) return null
+  if (time < window.min || time > window.max) {
+    return `${window.label} can only be booked between ${formatTimeLabel(window.min)} and ${formatTimeLabel(window.max)}.`
+  }
+  return null
+}
 
 // ── Default state builders ────────────────────────────────────────────────────
 
@@ -191,6 +221,10 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
           const enabledSet = new Set(dayMenu._enabledMeals ?? [])
           const isOn = enabledSet.has(meal.id) || !!dayMenu[meal.timeKey]
 
+          // ✅ Time window for this meal + live warning if current value is outside it
+          const window  = MEAL_TIME_WINDOWS[meal.timeKey]
+          const warning = getMealTimeWarning(meal.timeKey, dayMenu[meal.timeKey])
+
           return (
             <div
               key={meal.id}
@@ -215,24 +249,41 @@ function DayMenuPanel({ dayMenu, onChange, isFirstDay, onApplyToAll, totalDays }
                   }}
                 />
                 {meal.label}
+                {/* ✅ Allowed window shown right next to the meal name */}
+                {window && (
+                  <span className="text-[11px] font-normal text-gray-400 normal-case">
+                    ({formatTimeLabel(window.min)} – {formatTimeLabel(window.max)})
+                  </span>
+                )}
               </label>
 
               {isOn && (
-                <div className="flex flex-col sm:flex-row gap-3 mt-3">
-                  <input
-                    type="time"
-                    className={`${inputCls} sm:w-1/3 bg-white`}
-                    value={dayMenu[meal.timeKey]}
-                    onChange={(e) => set(meal.timeKey, e.target.value)}
-                  />
-                  <AutoSuggestInput
-                    value={dayMenu[meal.menuKey] || ""}
-                    placeholder={meal.menuPlaceholder}
-                    suggestionsFetcher={() =>
-                      messService.getSuggestions(meal.menuKey)
-                    }
-                    onChange={(value) => set(meal.menuKey, value)}
-                  />
+                <div className="mt-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="time"
+                      min={window?.min}
+                      max={window?.max}
+                      className={`${inputCls} sm:w-1/3 bg-white ${warning ? "border-red-300 focus:ring-red-500" : ""}`}
+                      value={dayMenu[meal.timeKey]}
+                      onChange={(e) => set(meal.timeKey, e.target.value)}
+                    />
+                    <AutoSuggestInput
+                      value={dayMenu[meal.menuKey] || ""}
+                      placeholder={meal.menuPlaceholder}
+                      suggestionsFetcher={() =>
+                        messService.getSuggestions(meal.menuKey)
+                      }
+                      onChange={(value) => set(meal.menuKey, value)}
+                    />
+                  </div>
+                  {/* ✅ Inline warning when chosen time falls outside the allowed window */}
+                  {warning && (
+                    <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium mt-2">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      {warning}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -262,10 +313,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
   })
 
   // ── Per-day overrides state ───────────────────────────────────────────────
-  // Stored as { [date]: DayMenu } so dailyMenus can be fully derived via useMemo.
-  // Inline lazy initializer — called exactly once on mount, captures editData
-  // from the closure. No useCallback needed; editData is a prop that never
-  // changes identity after mount (the form is always remounted for edit vs new).
   const [menuOverrides, setMenuOverrides] = useState(() => {
     const map = {}
     if (editData?.daily_menus?.length > 0) {
@@ -296,12 +343,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
   const [dateError,    setDateError]    = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // FIX 1 & 3: Use a ticking `now` ref updated via useEffect so countdown
-  // computation is pure during render (reads state, not Date.now() directly).
-  // We store `now` in state so updates trigger a re-render for the countdown.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000) // refresh every 30s
+    const id = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [])
 
@@ -313,10 +357,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
 
   const today = new Date().toISOString().split("T")[0]
 
-  // ── Derived dailyMenus — no effect needed ─────────────────────────────────
-  // FIX 2 & 3: Derive dailyMenus purely from eventForm + menuOverrides.
-  // No useEffect + setState cascade. When dates change the memo recomputes
-  // automatically, merging saved overrides for dates that still exist.
+  // ── Derived dailyMenus ─────────────────────────────────────────────────────
   const dailyMenus = useMemo(() => {
     const { start_date, end_date } = eventForm
     if (!start_date || !end_date || end_date < start_date) return []
@@ -325,8 +366,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
   }, [eventForm, menuOverrides])
 
   // ── Countdown for 24h SLA ─────────────────────────────────────────────────
-  // FIX 1: `now` comes from state (set by a timer effect), not a bare Date.now()
-  // call inside the render path, so this is a pure computation.
   const countdown = useMemo(() => {
     if (!eventForm.start_date || dailyMenus.length === 0) return null
 
@@ -337,13 +376,35 @@ function MessBookingForm({ onClose, onSave, editData }) {
     const earliest = allTimes.sort()[0]
     const dt       = new Date(`${eventForm.start_date}T${earliest}`)
     const deadline = new Date(dt.getTime() - 24 * 60 * 60 * 1000)
-    const diff     = deadline.getTime() - now   // `now` from state, not Date.now()
+    const diff     = deadline.getTime() - now
 
     if (diff <= 0) return { expired: true, message: "This meal cannot be booked now. Food bookings require at least 24 hours' notice." }
     const h = Math.floor(diff / 3600000)
     const m = Math.floor((diff % 3600000) / 60000)
     return { expired: false, message: `Please submit within ${h}h ${m}m to meet the 24-hour notice requirement.` }
   }, [eventForm.start_date, dailyMenus, now])
+
+  // ── ✅ Aggregate meal-time-window violations across all days ──────────────
+  // Used to block submission and to surface a single clear warning banner.
+  const mealTimeViolations = useMemo(() => {
+    const issues = []
+    dailyMenus.forEach((m, dayIdx) => {
+      MEALS.forEach((meal) => {
+        const warning = getMealTimeWarning(meal.timeKey, m[meal.timeKey])
+        if (warning) {
+          issues.push({
+            dayIndex: dayIdx,
+            date: m.date,
+            mealLabel: meal.label,
+            message: warning,
+          })
+        }
+      })
+    })
+    return issues
+  }, [dailyMenus])
+
+  const hasMealTimeViolations = mealTimeViolations.length > 0
 
   // ── Apply Day 1 to all ────────────────────────────────────────────────────
   const handleApplyToAll = useCallback(() => {
@@ -393,6 +454,10 @@ function MessBookingForm({ onClose, onSave, editData }) {
         const menu = m[meal.menuKey]
         if (time && !String(menu || "").trim())
           return `${label}: Please fill in the ${meal.menuLabel} for ${meal.label}.`
+
+        // ✅ Block submission if any meal time falls outside its allowed window
+        const warning = getMealTimeWarning(meal.timeKey, time)
+        if (warning) return `${label}: ${warning}`
       }
     }
 
@@ -424,7 +489,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
     const validationError = validate()
     if (validationError) { setError(validationError); return }
 
-    // Build the payload
     // eslint-disable-next-line no-unused-vars
     const daily_menus = dailyMenus.map(({ _enabledMeals: _ignored, ...m }) => ({
       date:           m.date,
@@ -465,7 +529,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
       if (!isMounted.current) return
       const data = err?.response?.data
       if (data) {
-        // Handle nested daily_menus errors from DRF
         if (Array.isArray(data.daily_menus)) {
           const firstDayErr = data.daily_menus.find((d) => d && Object.keys(d).length > 0)
           if (firstDayErr) {
@@ -491,7 +554,6 @@ function MessBookingForm({ onClose, onSave, editData }) {
   const isExpired    = countdown?.expired
   const totalDays    = dailyMenus.length
 
-  // Guard activeDay against stale index during render (before the reset effect fires)
   const safeDayIndex = Math.min(activeDay, Math.max(0, totalDays - 1))
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -679,6 +741,24 @@ function MessBookingForm({ onClose, onSave, editData }) {
                   {totalDays > 1 && <span className="ml-2 text-green-600 normal-case font-normal">({totalDays} days)</span>}
                 </SectionLabel>
 
+                {/* ✅ Aggregate meal-time-window warning banner (all days) */}
+                {hasMealTimeViolations && (
+                  <div className="rounded-xl px-4 py-3 text-sm font-medium border bg-red-50 border-red-200 text-red-700 space-y-1.5">
+                    <p className="flex items-center gap-2 font-semibold">
+                      <AlertTriangle size={15} className="shrink-0" />
+                      Some meal times are outside the allowed booking window
+                    </p>
+                    <ul className="list-disc list-inside text-xs space-y-0.5 pl-1">
+                      {mealTimeViolations.map((v, i) => (
+                        <li key={i}>
+                          {totalDays > 1 ? `Day ${v.dayIndex + 1} (${formatTabLabel(v.date)}) — ` : ""}
+                          {v.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {countdown && (
                   <div className={`rounded-xl px-4 py-3 text-sm font-medium border ${
                     countdown.expired
@@ -696,6 +776,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
                       {dailyMenus.map((m, i) => {
                         const hasMeal   = MEALS.some((meal) => m[meal.timeKey])
                         const isActive  = safeDayIndex === i
+                        const dayHasViolation = mealTimeViolations.some((v) => v.dayIndex === i)
                         return (
                           <button
                             key={m.date}
@@ -704,6 +785,8 @@ function MessBookingForm({ onClose, onSave, editData }) {
                             className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
                               isActive
                                 ? "bg-green-600 text-white border-green-600 shadow-sm"
+                                : dayHasViolation
+                                ? "bg-red-50 text-red-600 border-red-200 hover:border-red-300"
                                 : "bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-700"
                             }`}
                           >
@@ -711,8 +794,11 @@ function MessBookingForm({ onClose, onSave, editData }) {
                             <span className={`text-[10px] font-normal mt-0.5 ${isActive ? "text-green-200" : "text-gray-400"}`}>
                               {formatTabLabel(m.date)}
                             </span>
-                            {hasMeal && !isActive && (
+                            {hasMeal && !isActive && !dayHasViolation && (
                               <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" />
+                            )}
+                            {dayHasViolation && !isActive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1" />
                             )}
                           </button>
                         )
@@ -790,9 +876,9 @@ function MessBookingForm({ onClose, onSave, editData }) {
               <button
                 form="mess-booking-form"
                 type="submit"
-                disabled={isSubmitting || isExpired || !datesReady}
+                disabled={isSubmitting || isExpired || !datesReady || hasMealTimeViolations}
                 className={`px-5 py-2 rounded-xl text-white text-sm font-semibold transition-all flex items-center gap-2 ${
-                  isSubmitting || isExpired || !datesReady
+                  isSubmitting || isExpired || !datesReady || hasMealTimeViolations
                     ? "bg-gray-400 cursor-not-allowed opacity-70"
                     : "bg-green-600 hover:bg-green-700"
                 }`}
