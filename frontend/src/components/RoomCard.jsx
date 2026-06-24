@@ -164,15 +164,7 @@ function RoomCard({ room, onOpenAvailability }) {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-6 pt-5 border-t border-gray-50 flex items-center justify-between">
-
-          <div className="flex flex-col">
-            <span className="text-[10px] text-gray-300 uppercase font-bold">
-              Check Status
-            </span>
-          </div>
-
+        <div className="mt-6 pt-5 border-t border-gray-50 flex items-center justify-end">
           <div className="flex gap-2">
 
             {/* Schedule Button */}

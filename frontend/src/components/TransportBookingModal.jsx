@@ -540,86 +540,60 @@ function TransportBookingModal({
                 required
               >
 
-                <div className="grid grid-cols-[1fr_110px] gap-3">
+                <input
+                  type="time"
+                  step="900"
+                  disabled={isPastPickupDate}
+                  className={inputCls}
+                  value={
+                    form.pickup_time_24 || ""
+                  }
 
-                  <input
-                    type="time"
-                    step="900"
-                    disabled={isPastPickupDate}
-                    className={inputCls}
-                    value={
-                      form.pickup_time_24 || ""
+                  onChange={(e) => {
+
+                    const value =
+                      e.target.value
+
+                    if (!value) return
+
+                    let [hour, minute] =
+                      value.split(":")
+
+                    hour = parseInt(hour)
+
+                    let period = "AM"
+
+                    if (hour >= 12) {
+                      period = "PM"
                     }
 
-                    onChange={(e) => {
-
-                      const value =
-                        e.target.value
-
-                      if (!value) return
-
-                      let [hour, minute] =
-                        value.split(":")
-
-                      hour = parseInt(hour)
-
-                      let period = "AM"
-
-                      if (hour >= 12) {
-                        period = "PM"
-                      }
-
-                      if (hour > 12) {
-                        hour -= 12
-                      }
-
-                      if (hour === 0) {
-                        hour = 12
-                      }
-
-                      const formattedHour =
-                        String(hour).padStart(2, "0")
-
-                      set(
-                        "pickup_time",
-                        `${formattedHour}:${minute}`
-                      )
-
-                      set(
-                        "pickup_period",
-                        period
-                      )
-
-                      set(
-                        "pickup_time_24",
-                        value
-                      )
-                    }}
-                  />
-
-                  <select
-                    className={inputCls}
-                    disabled={isPastPickupDate}
-                    value={form.pickup_period}
-                    onChange={(e) =>
-                      set(
-                        "pickup_period",
-                        e.target.value
-                      )
+                    if (hour > 12) {
+                      hour -= 12
                     }
-                  >
 
-                    <option value="AM">
-                      AM
-                    </option>
+                    if (hour === 0) {
+                      hour = 12
+                    }
 
-                    <option value="PM">
-                      PM
-                    </option>
+                    const formattedHour =
+                      String(hour).padStart(2, "0")
 
-                  </select>
+                    set(
+                      "pickup_time",
+                      `${formattedHour}:${minute}`
+                    )
 
-                </div>
+                    set(
+                      "pickup_period",
+                      period
+                    )
+
+                    set(
+                      "pickup_time_24",
+                      value
+                    )
+                  }}
+                />
 
               </Field>
 
@@ -680,7 +654,7 @@ function TransportBookingModal({
                 >
 
                   <option value="">
-                    Select vehicle
+                    {passengerCount > 0 ? "Select vehicle" : "Please enter passenger count first"}
                   </option>
 
                   {suggestedVehicles.map((v) => (
@@ -697,6 +671,12 @@ function TransportBookingModal({
                   ))}
 
                 </select>
+
+                {!passengerCount && (
+                  <p className="text-xs text-amber-600 font-medium mt-1">
+                    Before choosing vehicles, please enter the number of passengers.
+                  </p>
+                )}
 
               </Field>
 
@@ -818,86 +798,60 @@ function TransportBookingModal({
 
                     <Field label="Return time">
 
-                      <div className="grid grid-cols-[1fr_110px] gap-3">
+                      <input
+                        type="time"
+                        step="900"
+                        disabled={isPastReturnDate}
+                        className={inputCls}
+                        value={
+                          form.return_time_24 || ""
+                        }
 
-                        <input
-                          type="time"
-                          step="900"
-                          disabled={isPastReturnDate}
-                          className={inputCls}
-                          value={
-                            form.return_time_24 || ""
+                        onChange={(e) => {
+
+                          const value =
+                            e.target.value
+
+                          if (!value) return
+
+                          let [hour, minute] =
+                            value.split(":")
+
+                          hour = parseInt(hour)
+
+                          let period = "AM"
+
+                          if (hour >= 12) {
+                            period = "PM"
                           }
 
-                          onChange={(e) => {
-
-                            const value =
-                              e.target.value
-
-                            if (!value) return
-
-                            let [hour, minute] =
-                              value.split(":")
-
-                            hour = parseInt(hour)
-
-                            let period = "AM"
-
-                            if (hour >= 12) {
-                              period = "PM"
-                            }
-
-                            if (hour > 12) {
-                              hour -= 12
-                            }
-
-                            if (hour === 0) {
-                              hour = 12
-                            }
-
-                            const formattedHour =
-                              String(hour).padStart(2, "0")
-
-                            set(
-                              "return_time",
-                              `${formattedHour}:${minute}`
-                            )
-
-                            set(
-                              "return_period",
-                              period
-                            )
-
-                            set(
-                              "return_time_24",
-                              value
-                            )
-                          }}
-                        />
-
-                        <select
-                          className={inputCls}
-                          disabled={isPastReturnDate}
-                          value={form.return_period}
-                          onChange={(e) =>
-                            set(
-                              "return_period",
-                              e.target.value
-                            )
+                          if (hour > 12) {
+                            hour -= 12
                           }
-                        >
 
-                          <option value="AM">
-                            AM
-                          </option>
+                          if (hour === 0) {
+                            hour = 12
+                          }
 
-                          <option value="PM">
-                            PM
-                          </option>
+                          const formattedHour =
+                            String(hour).padStart(2, "0")
 
-                        </select>
+                          set(
+                            "return_time",
+                            `${formattedHour}:${minute}`
+                          )
 
-                      </div>
+                          set(
+                            "return_period",
+                            period
+                          )
+
+                          set(
+                            "return_time_24",
+                            value
+                          )
+                        }}
+                      />
 
                     </Field>
 
