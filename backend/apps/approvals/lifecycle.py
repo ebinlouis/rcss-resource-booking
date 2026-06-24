@@ -116,8 +116,9 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
     """
     Idempotently transition due bookings.
 
-    Returns True when the booking status changed. The caller can then decide
-    whether to return an error, refresh serialization, or keep processing.
+    Returns True when the booking status changed or a notification side-effect
+    (e.g. chain escalation) was applied. The caller can then decide whether to
+    return an error, refresh serialization, or keep processing.
     """
     now = now or timezone.now()
     current_status = getattr(booking, 'status', None)
@@ -135,10 +136,47 @@ def refresh_booking_lifecycle(booking, now=None, save=True):
         booking.faculty_timed_out = True
         update_fields.append('faculty_timed_out')
 
-    if not next_status:
+    # ── HOD_FALLBACK chain escalation ─────────────────────────────────────────
+    # Checked alongside (not instead of) the status-change branches above.
+    # Does NOT alter booking.status -- the fallback approver is merely notified;
+    # the booking stays PENDING until someone acts.
+    #
+    # Note: _uses_hod_fallback_workflow lives in apps.approvals.views, which
+    # already imports this module, so we cannot import it here without creating
+    # a circular dependency.  The equivalent one-liner is used inline inside the
+    # local-import block where Space is already available.
+    chain_escalation_fired = False
+    if (
+        current_status == PENDING
+        and getattr(booking, 'chain_escalated_at', None) is None
+        and not is_past_approval_deadline(booking, now)
+    ):
+        try:
+            chain = booking.space.approver_chain
+        except Exception:
+            chain = None
+        if chain is not None:
+            from apps.spaces.models import Space
+            if (
+                booking.space.approval_workflow_type == Space.ApprovalWorkflowType.HOD_FALLBACK
+                and now - booking.created_at >= datetime.timedelta(hours=chain.escalation_hours)
+            ):
+                from apps.notifications.utils import notify_chain_escalated
+                notify_chain_escalated(booking)
+                booking.chain_escalated_at = now
+                update_fields.append('chain_escalated_at')
+                chain_escalation_fired = True
+
+    if not next_status and not chain_escalation_fired:
         return False
 
-    booking.status = next_status
+    if next_status:
+        booking.status = next_status
+    else:
+        # Pure side-effect save: only chain_escalated_at (+ updated_at) changed;
+        # do not write a no-op status column update.
+        update_fields.remove('status')
+
     if save:
         booking.save(update_fields=update_fields)
 
@@ -238,7 +276,7 @@ def refresh_queryset_lifecycle(queryset):
     else:
         completion_q = Q(status=APPROVED)
 
-    # ── Build escalation filter (AWAITING_FACULTY) ────────────────────────────
+    # ── Build faculty-escalation filter (AWAITING_FACULTY) ──────────────────
     # A spaces booking with a faculty sponsor escalates if they don't respond
     # within 24 hours of booking creation.
     if 'faculty_response_deadline' in field_names:
@@ -246,7 +284,27 @@ def refresh_queryset_lifecycle(queryset):
     else:
         escalation_q = Q(pk__in=[])
 
-    candidates = queryset.filter(expiry_q | completion_q | escalation_q)
+    # ── Build chain-escalation filter (HOD_FALLBACK PENDING bookings) ────────
+    # Surfaces PENDING bookings whose HOD_FALLBACK chain has not yet been
+    # notified.  The precise time comparison (created_at + escalation_hours)
+    # is deferred to Python inside refresh_booking_lifecycle because
+    # escalation_hours lives on a related model row and can't be folded into a
+    # simple DB filter without a subquery; fetching a slightly broader set here
+    # and discarding early in Python is safe and consistent with how the
+    # faculty-escalation fallback above works.
+    if 'chain_escalated_at' in field_names:
+        chain_escalation_q = Q(
+            status=PENDING,
+            chain_escalated_at__isnull=True,
+            space__approval_workflow_type='HOD_FALLBACK',
+            space__approver_chain__isnull=False,
+        )
+    else:
+        chain_escalation_q = Q(pk__in=[])
+
+    candidates = queryset.filter(
+        expiry_q | completion_q | escalation_q | chain_escalation_q
+    )
 
     for booking in candidates:
         if refresh_booking_lifecycle(booking, now=now):

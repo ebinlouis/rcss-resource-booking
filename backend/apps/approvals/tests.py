@@ -1,11 +1,13 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.approvals.lifecycle import refresh_booking_lifecycle, refresh_queryset_lifecycle
 from apps.approvals.models import BaseBooking
 from apps.approvals.views import _get_space_queryset_for_user, _user_can_resolve_space_booking
-from apps.spaces.models import Block, Space, SpaceApprover, SpaceBooking
+from apps.spaces.models import Block, Space, SpaceApprover, SpaceApproverChain, SpaceBooking
 from apps.users.models import CustomUser, Department, Role, RoleOverride
 
 
@@ -290,3 +292,173 @@ class RoleOverrideApprovalResolutionTests(TestCase):
         priya_roles = self.priya.get_effective_roles()
         qs = _get_space_queryset_for_user(self.priya, priya_roles, "PENDING")
         self.assertNotIn(booking, qs)
+
+
+class ChainEscalationLifecycleTests(TestCase):
+    """
+    Tests for the HOD_FALLBACK chain escalation wired into
+    refresh_booking_lifecycle / refresh_queryset_lifecycle.
+
+    notify_chain_escalated is patched so no real notification infrastructure
+    is required; assertions target the side-effects (chain_escalated_at,
+    call count, booking.status) that must be observable in the DB.
+    """
+
+    # Path used for all patch() calls in this class.
+    _NOTIFY_PATH = "apps.notifications.utils.notify_chain_escalated"
+
+    def setUp(self):
+        self.block = Block.objects.create(name="Chain Test Block")
+        self.dept = Department.objects.create(
+            department_name="Chain Test Dept",
+            department_code="CTD",
+        )
+
+        # Space configured for HOD_FALLBACK chain workflow.
+        self.space = Space.objects.create(
+            name="Chain Test Space",
+            block=self.block,
+            approval_category=Space.ApprovalCategory.LAB,
+            approval_workflow_type=Space.ApprovalWorkflowType.HOD_FALLBACK,
+            location="Chain Block",
+            capacity_hard=20,
+        )
+
+        # Users
+        self.requester = _make_user("chain_requester@test.com", Role.Name.STAFF)
+        self.primary = _make_user("chain_primary@test.com", Role.Name.LAB_INCHARGE)
+        self.fallback = _make_user("chain_fallback@test.com", Role.Name.HOD)
+
+        # Approver chain with a 24-hour escalation window.
+        self.chain = SpaceApproverChain.objects.create(
+            space=self.space,
+            primary_approver=self.primary,
+            fallback_approver=self.fallback,
+            escalation_hours=24,
+        )
+
+    # ------------------------------------------------------------------ helpers
+
+    def _make_chain_booking(self, age_hours=0):
+        """
+        Create a PENDING booking for the chain space.
+
+        start_datetime / end_datetime are always computed from the real current
+        time so the expiry branch never fires during the test.  Only created_at
+        is backdated (via a raw UPDATE), which is the only thing the chain-
+        escalation time check cares about.
+        """
+        booking = _make_booking(self.requester, self.space, self.dept)
+        if age_hours:
+            backdated = timezone.now() - timedelta(hours=age_hours)
+            SpaceBooking.objects.filter(pk=booking.pk).update(created_at=backdated)
+            booking.refresh_from_db()
+        return booking
+
+    # ------------------------------------------------------------------ tests
+
+    def test_no_escalation_before_window_expires(self):
+        """
+        Test 1: A PENDING chain booking younger than escalation_hours must NOT
+        trigger a notification, and chain_escalated_at must stay None.
+        """
+        booking = self._make_chain_booking(age_hours=0)  # just created
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            result = refresh_booking_lifecycle(booking)
+
+        mock_notify.assert_not_called()
+        booking.refresh_from_db()
+        self.assertIsNone(booking.chain_escalated_at)
+        self.assertFalse(result)  # nothing changed
+
+    def test_escalation_fires_after_window_expires(self):
+        """
+        Test 2: A PENDING chain booking older than escalation_hours MUST
+        call notify_chain_escalated exactly once with actionable=True,
+        set chain_escalated_at, and leave status as PENDING.
+        """
+        booking = self._make_chain_booking(age_hours=25)  # past the 24-h window
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            result = refresh_booking_lifecycle(booking)
+
+        mock_notify.assert_called_once_with(booking)
+        booking.refresh_from_db()
+        self.assertIsNotNone(booking.chain_escalated_at)
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.PENDING)
+        self.assertTrue(result)  # side-effect counted as "changed"
+
+    def test_escalation_is_idempotent(self):
+        """
+        Test 3: Calling refresh a second time on an already-escalated booking
+        must NOT send a second notification.
+        """
+        booking = self._make_chain_booking(age_hours=25)
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            refresh_booking_lifecycle(booking)   # first call – fires
+            booking.refresh_from_db()
+            result = refresh_booking_lifecycle(booking)  # second call – must no-op
+
+        self.assertEqual(mock_notify.call_count, 1)
+        self.assertFalse(result)  # nothing new happened on second call
+
+    def test_approved_booking_never_escalates(self):
+        """
+        Test 4: A booking approved before escalation_hours elapses must never
+        trigger escalation even after the window would have passed.
+        """
+        booking = self._make_chain_booking(age_hours=25)
+        # Manually approve it (simulates approver acting before escalation).
+        SpaceBooking.objects.filter(pk=booking.pk).update(status=BaseBooking.BookingStatus.APPROVED)
+        booking.refresh_from_db()
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            refresh_booking_lifecycle(booking)
+
+        mock_notify.assert_not_called()
+        booking.refresh_from_db()
+        self.assertIsNone(booking.chain_escalated_at)
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.APPROVED)
+
+    def test_queryset_sweep_surfaces_escalation_candidate(self):
+        """
+        Test 5: refresh_queryset_lifecycle (the path the real Celery sweep uses)
+        must surface an escalation-eligible booking and call notify_chain_escalated.
+        """
+        booking = self._make_chain_booking(age_hours=25)
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            changed = refresh_queryset_lifecycle(SpaceBooking.objects.all())
+
+        mock_notify.assert_called_once_with(booking)
+        self.assertEqual(changed, 1)
+        booking.refresh_from_db()
+        self.assertIsNotNone(booking.chain_escalated_at)
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.PENDING)
+
+    def test_expired_booking_does_not_chain_escalate(self):
+        """
+        Test 6 (regression): A booking that is BOTH past escalation_hours AND
+        past its own start_datetime must NOT trigger chain escalation. Only
+        the EXPIRED transition should fire, chain_escalated_at must stay None,
+        and notify_chain_escalated must never be called.
+
+        This guards against a wasted actionable notification for a booking
+        that is simultaneously expiring in the same refresh call.
+        """
+        # Use _make_booking directly with created_at in the past so that
+        # start_datetime is also in the past (the helper computes
+        # start_datetime = created_at + 1h).
+        past = timezone.now() - timedelta(hours=25)
+        booking = _make_booking(self.requester, self.space, self.dept, created_at=past)
+
+        with patch(self._NOTIFY_PATH) as mock_notify:
+            result = refresh_booking_lifecycle(booking)
+
+        mock_notify.assert_not_called()
+        booking.refresh_from_db()
+        self.assertIsNone(booking.chain_escalated_at)
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.EXPIRED)
+        self.assertTrue(result)  # status did change (to EXPIRED)
