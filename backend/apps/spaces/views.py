@@ -1321,7 +1321,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def faculty_approve(self, request, pk=None):
         booking = self.get_object()
-        if booking.faculty_sponsor_id != request.user.id:
+        from apps.approvals.views import user_can_approve_faculty_booking
+        if not user_can_approve_faculty_booking(request.user, booking):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
         if booking.status != 'AWAITING_FACULTY':
             return Response({"error": f"Cannot approve, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1389,7 +1390,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def faculty_reject(self, request, pk=None):
         booking = self.get_object()
-        if booking.faculty_sponsor_id != request.user.id:
+        from apps.approvals.views import user_can_approve_faculty_booking
+        if not user_can_approve_faculty_booking(request.user, booking):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
         if booking.status != 'AWAITING_FACULTY':
             return Response({"error": f"Cannot reject, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
