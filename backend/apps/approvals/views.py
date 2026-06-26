@@ -241,6 +241,32 @@ def _user_can_resolve_space_booking(user, effective_roles, booking):
     )
 
 
+def user_can_resolve_booking(module, booking, user):
+    module = (module or "").lower()
+    if module == "space":
+        module = "spaces"
+
+    effective_roles = user.get_effective_roles()
+
+    if Role.Name.IT_ADMIN in effective_roles:
+        return True
+
+    if module == "spaces":
+        return _user_can_resolve_space_booking(user, effective_roles, booking)
+    if module == "fleet":
+        return Role.Name.FLEET_MANAGER in effective_roles
+    if module == "mess":
+        return Role.Name.MESS_MANAGER in effective_roles
+    if module == "media":
+        return Role.Name.MEDIA_INCHARGE in effective_roles
+
+    return False
+
+
+def user_can_approve_faculty_booking(user, booking):
+    return bool(user and getattr(booking, "faculty_sponsor_id", None) == user.id)
+
+
 def _get_space_queryset_for_user(user, effective_roles, requested_status):
     """
     Builds the SpaceBooking queryset scoped to what this user is allowed to see.
@@ -741,21 +767,7 @@ class AdminResolveBookingAPIView(APIView):
     GROUP_AWARE_MODULES = {"spaces"}
 
     def _can_resolve_booking(self, module, booking, user):
-        effective_roles = user.get_effective_roles()
-
-        if Role.Name.IT_ADMIN in effective_roles:
-            return True
-
-        if module == "spaces":
-            return _user_can_resolve_space_booking(user, effective_roles, booking)
-        if module == "fleet":
-            return Role.Name.FLEET_MANAGER in effective_roles
-        if module == "mess":
-            return Role.Name.MESS_MANAGER in effective_roles
-        if module == "media":
-            return Role.Name.MEDIA_INCHARGE in effective_roles
-
-        return False
+        return user_can_resolve_booking(module, booking, user)
 
     def patch(self, request):
         module = request.data.get("module")
