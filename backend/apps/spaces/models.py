@@ -44,6 +44,7 @@ class Space(models.Model):
         GENERAL_HALL = "GENERAL_HALL", "General Hall"
         LAB = "LAB", "Lab"
         GUEST_ROOM = "GUEST_ROOM", "Guest Room"
+        CLASSROOM = "CLASSROOM", "Classroom"
 
     class ApprovalCategory(models.TextChoices):
         GENERAL = "GENERAL", "General"  # approved by RECEPTIONIST
