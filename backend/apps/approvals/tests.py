@@ -82,7 +82,7 @@ class HodFallbackQueueTests(TestCase):
             is_active=True,
         )
 
-    @override_settings(AI_LAB_HOD_FALLBACK_HOURS=24)
+    @override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24)
     def test_lab_incharge_cannot_see_booking_within_fallback_window(self):
         """LAB_INCHARGE queue is empty while the HOD fallback window is active."""
         booking = _make_booking(self.booker, self.ai_lab, self.dept)
@@ -92,7 +92,7 @@ class HodFallbackQueueTests(TestCase):
 
         self.assertNotIn(booking, qs)
 
-    @override_settings(AI_LAB_HOD_FALLBACK_HOURS=24)
+    @override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24)
     def test_lab_incharge_sees_booking_after_fallback_window_expires(self):
         """LAB_INCHARGE queue shows the booking once the HOD fallback window has passed."""
         # Backdate created_at so the window has already expired
@@ -104,7 +104,7 @@ class HodFallbackQueueTests(TestCase):
 
         self.assertIn(booking, qs)
 
-    @override_settings(AI_LAB_HOD_FALLBACK_HOURS=24)
+    @override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24)
     def test_hod_sees_booking_immediately(self):
         """HOD sees all HOD_FALLBACK bookings immediately regardless of who booked."""
         booking = _make_booking(self.booker, self.ai_lab, self.dept)
@@ -114,7 +114,7 @@ class HodFallbackQueueTests(TestCase):
 
         self.assertIn(booking, qs)
 
-    @override_settings(AI_LAB_HOD_FALLBACK_HOURS=24)
+    @override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24)
     def test_hod_sees_booking_from_any_department(self):
         """HOD visibility is not gated by the booker's department."""
         other_dept = Department.objects.create(
@@ -132,7 +132,7 @@ class HodFallbackQueueTests(TestCase):
 
         self.assertIn(booking, qs)
 
-    @override_settings(AI_LAB_HOD_FALLBACK_HOURS=24)
+    @override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24)
     def test_lab_incharge_sees_non_hod_fallback_space_immediately(self):
         """LAB_INCHARGE exclusion only applies to HOD_FALLBACK spaces - DIRECT workflow spaces appear immediately."""
         direct_lab = Space.objects.create(

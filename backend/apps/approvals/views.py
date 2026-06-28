@@ -28,7 +28,7 @@ from apps.media.models import MediaBooking, MediaSettings
 # ==========================================
 
 VALID_DOMAINS = {"spaces", "fleet", "mess", "media"}
-AI_LAB_FALLBACK_HOURS = settings.AI_LAB_HOD_FALLBACK_HOURS
+HOD_FALLBACK_LAB_EXCLUSION_HOURS = settings.HOD_FALLBACK_LAB_EXCLUSION_HOURS
 
 
 # ==========================================
@@ -87,7 +87,7 @@ def _uses_hod_fallback_workflow(space):
 
 
 def _ai_lab_fallback_ready(booking):
-    fallback_at = booking.created_at + timedelta(hours=AI_LAB_FALLBACK_HOURS)
+    fallback_at = booking.created_at + timedelta(hours=HOD_FALLBACK_LAB_EXCLUSION_HOURS)
     return timezone.now() >= fallback_at
 
 
@@ -334,7 +334,7 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     _lab_exclusion_q = (
         _hod_fallback_q
         & Q(status="PENDING")
-        & Q(created_at__gt=now - timedelta(hours=AI_LAB_FALLBACK_HOURS))
+        & Q(created_at__gt=now - timedelta(hours=HOD_FALLBACK_LAB_EXCLUSION_HOURS))
     )
 
     scope_q = Q()
