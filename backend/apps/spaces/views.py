@@ -89,7 +89,51 @@ class SpaceViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = Space.objects.filter(is_active=True)
+        # CLASSROOM is intentionally excluded from the general catalog queryset.
+        # It has its own dedicated, capacity-deduplicated view (?space_view=classrooms)
+        # and must not appear in venue lists, booking dropdowns, or filter menus
+        # that consume the default catalog path.  The space_view=classrooms branch
+        # below returns early and builds its own queryset, so it is unaffected by
+        # this exclusion.
+        qs = Space.objects.filter(is_active=True).exclude(space_type=Space.SpaceType.CLASSROOM)
+
+        # ── Classroom catalog view (capacity-deduplicated) ───────────────────
+        # When ?space_view=classrooms is requested we bypass all other filters
+        # and return one representative row per distinct capacity_hard value
+        # among active CLASSROOM-type spaces.
+        if self.request.query_params.get('space_view') == 'classrooms':
+            # Admin-only guard: the list action uses AllowAny() for the public
+            # venue catalog, so we cannot rely on permission_classes here.
+            # Return an empty queryset for unauthenticated or non-staff
+            # requests instead of raising a 403 (which would break the public
+            # catalog path that also hits this viewset).
+            if not (
+                self.request.user.is_authenticated
+                and (self.request.user.is_staff or self.request.user.is_superuser)
+            ):
+                return Space.objects.none()
+            # IMPORTANT: when multiple physical classrooms share the same
+            # capacity_hard, .distinct('capacity_hard') returns an arbitrary
+            # one of them as the representative row — Postgres picks whichever
+            # sorts first per the leading order_by column, not based on any
+            # meaningful tiebreak like name or id.  This is intentional and
+            # safe for this phase since the returned row's specific identity is
+            # never used for booking or navigation — only capacity_hard is
+            # displayed.  FLAG: this needs revisiting if/when classroom booking
+            # is built, since naively reusing this row's id would always point
+            # to the same physical room regardless of actual availability.
+            classroom_qs = Space.objects.filter(
+                is_active=True, space_type=Space.SpaceType.CLASSROOM
+            )
+            # Apply optional block scoping to the classroom view — same
+            # try/except-ignore pattern used for min_capacity on the default path.
+            block_param = self.request.query_params.get('block')
+            if block_param is not None:
+                try:
+                    classroom_qs = classroom_qs.filter(block_id=int(block_param))
+                except (ValueError, TypeError):
+                    pass
+            return classroom_qs.order_by('capacity_hard').distinct('capacity_hard')
 
         min_capacity = self.request.query_params.get('min_capacity')
         if min_capacity is not None:
@@ -100,6 +144,13 @@ class SpaceViewSet(viewsets.ModelViewSet):
 
         if self.request.query_params.get('for_suggestion') == 'true':
             qs = qs.filter(is_special_purpose=False)
+
+        block_param = self.request.query_params.get('block')
+        if block_param is not None:
+            try:
+                qs = qs.filter(block_id=int(block_param))
+            except (ValueError, TypeError):
+                pass
 
         if self.request.query_params.get('manage') == 'true':
             user = self.request.user
@@ -117,6 +168,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(id__in=space_ids)
 
         return qs
+
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def check_availability(self, request, pk=None):

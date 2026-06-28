@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, memo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
 import { useAdminSpacesCatalog, useAdminBlocks } from "../../hooks/useSpaceQueries"
@@ -27,6 +28,10 @@ const ACTIVE_FILTERS = [
   { value: "INACTIVE", label: "Unavailable" },
 ]
 
+// Top-level view toggle values
+const VIEW_VENUES     = "VENUES"
+const VIEW_CLASSROOMS = "CLASSROOMS"
+
 // ─────────────────────────────────────────────────────────────
 // Reusable SVG Icon
 // ─────────────────────────────────────────────────────────────
@@ -49,7 +54,7 @@ function Icon({ className = "w-4 h-4", viewBox = "0 0 24 24", fill = "none", str
 }
 
 // ─────────────────────────────────────────────────────────────
-// Space Card
+// Space Card  (venues — interactive)
 // ─────────────────────────────────────────────────────────────
 
 const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimetable, canManageTimetable, onViewDetails }) {
@@ -196,6 +201,66 @@ const SpaceCard = memo(function SpaceCard({ space, blocks, onEdit, onManageTimet
 })
 
 // ─────────────────────────────────────────────────────────────
+// Classroom Card  (read-only — no interaction whatsoever)
+// ─────────────────────────────────────────────────────────────
+// Intentionally no onClick, no role="button", no tabIndex, no
+// keyboard handler.  No hover state that would imply clickability.
+// Visually aligned with SpaceCard spacing/border language but
+// static; only capacity_hard is the meaningful display value.
+// ─────────────────────────────────────────────────────────────
+
+function ClassroomCard({ space }) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden flex flex-col select-none">
+      {/* Capacity headline */}
+      <div className="bg-[#f8fafc] border-b border-[#e2e8f0] px-5 py-5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-[#eff6ff] flex items-center justify-center shrink-0 text-[#3b82f6]">
+          <Icon className="w-5 h-5">
+            {/* chalkboard / classroom icon */}
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <path d="M8 21h8M12 17v4" />
+          </Icon>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8] mb-0.5">Capacity</p>
+          <p className="text-[22px] font-bold text-[#0f172a] leading-none">
+            Seats {space.capacity_hard}
+          </p>
+        </div>
+      </div>
+
+      {/* Secondary info */}
+      <div className="px-5 py-4 flex flex-col gap-2">
+        {space.name && (
+          <div className="flex items-start gap-2">
+            <Icon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#94a3b8]">
+              <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
+            </Icon>
+            <p className="text-[12.5px] text-[#374151] font-medium leading-snug">{space.name}</p>
+          </div>
+        )}
+        {space.location && (
+          <div className="flex items-start gap-2">
+            <Icon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#94a3b8]">
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </Icon>
+            <p className="text-[12px] text-[#6b7280] leading-snug">{space.location}</p>
+          </div>
+        )}
+
+        {/* Static "Classroom" type badge */}
+        <div className="pt-1">
+          <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-[#eff6ff] text-[#1d4ed8] border-[#bfdbfe]">
+            Classroom
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────
 
@@ -214,24 +279,49 @@ const AdminSpacesPage = () => {
   const [timetableModalOpen, setTimetableModalOpen] = useState(false)
   const [timetableTarget, setTimetableTarget] = useState(null)
 
+  // Top-level view toggle: "VENUES" (default) | "CLASSROOMS"
+  const [activeView, setActiveView] = useState(VIEW_VENUES)
+
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType]   = useState("ALL")
   const [filterActive, setFilterActive] = useState("ALL")
   const [filterSpecial, setFilterSpecial] = useState(false)
 
+  // ── Venues data (existing) ──
   const { data: spacesData, isLoading: spacesLoading, isError: spacesError, refetch: refetchSpaces } = useAdminSpacesCatalog()
   const { data: blocksData, isLoading: blocksLoading, isError: blocksError, refetch: refetchBlocks } = useAdminBlocks()
 
+  // ── Classroom data — fetched only when classrooms view is active ──
+  const {
+    data: classroomsData,
+    isLoading: classroomsLoading,
+    isError: classroomsError,
+    refetch: refetchClassrooms,
+  } = useQuery({
+    queryKey: ['spaces', 'catalog', 'classrooms'],
+    queryFn: () =>
+      api.get('/spaces/catalog/?space_view=classrooms&manage=true').then(res => res.data),
+    enabled: activeView === VIEW_CLASSROOMS,
+  })
+
   const spaces = spacesData?.results ?? spacesData ?? EMPTY_ARRAY
   const blocks = Array.isArray(blocksData) ? blocksData : blocksData?.results ?? EMPTY_ARRAY
+  const classrooms = classroomsData?.results ?? classroomsData ?? EMPTY_ARRAY
   
-  const isLoading = spacesLoading || blocksLoading
-  const error = (spacesError || blocksError) ? "Could not load venues. Please check your connection." : null
+  const isLoading = activeView === VIEW_VENUES
+    ? (spacesLoading || blocksLoading)
+    : classroomsLoading
+  const error = activeView === VIEW_VENUES
+    ? ((spacesError || blocksError) ? "Could not load venues. Please check your connection." : null)
+    : (classroomsError ? "Could not load classrooms. Please check your connection." : null)
 
-  // Fix: Set loading state directly in the action handlers, not in the effect
   const handleRefresh = () => {
-    refetchSpaces()
-    refetchBlocks()
+    if (activeView === VIEW_VENUES) {
+      refetchSpaces()
+      refetchBlocks()
+    } else {
+      refetchClassrooms()
+    }
   }
 
   const openCreate = () => { 
@@ -273,7 +363,7 @@ const AdminSpacesPage = () => {
     handleRefresh()
   }
 
-  // ── Derived data ──
+  // ── Derived data (venues only) ──
   const stats = useMemo(() => ({
     total:   spaces.length,
     active:  spaces.filter((s) => s.is_active).length,
@@ -291,6 +381,10 @@ const AdminSpacesPage = () => {
     return true
   }), [spaces, searchQuery, filterType, filterActive, filterSpecial])
 
+  // Explicit min/max — does not assume classrooms arrives in sorted order.
+  const seatMin = classrooms.length ? Math.min(...classrooms.map(c => c.capacity_hard)) : null
+  const seatMax = classrooms.length ? Math.max(...classrooms.map(c => c.capacity_hard)) : null
+
   const isFiltering = searchQuery || filterType !== "ALL" || filterActive !== "ALL" || filterSpecial
 
   return (
@@ -301,7 +395,7 @@ const AdminSpacesPage = () => {
         <SpaceFormModal
           initialData={editTarget}
           onClose={handleModalClose}
-          onSaved={handleModalClose} // Reuse the handler so it triggers loading
+          onSaved={handleModalClose}
         />
       )}
       
@@ -329,8 +423,10 @@ const AdminSpacesPage = () => {
               {error
                 ? "Something went wrong loading venues"
                 : isLoading
-                  ? "Loading venues..."
-                  : "Add, edit, and manage available rooms and venues."}
+                  ? "Loading…"
+                  : activeView === VIEW_VENUES
+                    ? "Add, edit, and manage available rooms and venues."
+                    : "Classroom capacity reference — read-only, no booking actions."}
             </p>
           </div>
 
@@ -350,23 +446,22 @@ const AdminSpacesPage = () => {
               </Tooltip>
             )}
             <Tooltip text="Reload this page" position="top">
-
-            <button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] text-[#4a6b58] hover:bg-[#f0fdf4] transition disabled:opacity-40"
-            >
-              <Icon
-                className="w-4 h-4"
-                style={isLoading ? { animation: "spin 0.7s linear infinite" } : {}}
+              <button
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1fae5] bg-white text-[13.5px] text-[#4a6b58] hover:bg-[#f0fdf4] transition disabled:opacity-40"
               >
-                <path d="M1 4v6h6M23 20v-6h-6" />
-                <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" />
-              </Icon>
-              Refresh
-            </button>
+                <Icon
+                  className="w-4 h-4"
+                  style={isLoading ? { animation: "spin 0.7s linear infinite" } : {}}
+                >
+                  <path d="M1 4v6h6M23 20v-6h-6" />
+                  <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" />
+                </Icon>
+                Refresh
+              </button>
             </Tooltip>
-            {can_manage_system && (
+            {can_manage_system && activeView === VIEW_VENUES && (
               <button
                 onClick={openCreate}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white text-[13.5px] font-semibold transition shadow-sm"
@@ -378,84 +473,126 @@ const AdminSpacesPage = () => {
           </div>
         </div>
 
-        {/* ── Stats ── */}
-        <div className="grid grid-cols-3 gap-3 mb-7">
-          {[
-            { value: stats.total,   label: "Total Venues" },
-            { value: stats.active,  label: "Available" },
-            { value: stats.special, label: "Special Approval Required" },
-          ].map(({ value, label }) => (
-            <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
-              <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
-              <p className="text-[13px] font-medium text-[#374151] mt-2">{label}</p>
+        {/* ── Top-level view toggle: Venues | Classrooms ── */}
+        <div className="flex items-center gap-1.5 mb-6">
+          <button
+            onClick={() => setActiveView(VIEW_VENUES)}
+            className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition border
+              ${activeView === VIEW_VENUES
+                ? "bg-[#0f172a] text-white border-[#0f172a]"
+                : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f8fafc] hover:border-[#94a3b8]"}`}
+          >
+            Venues
+          </button>
+          <button
+            onClick={() => setActiveView(VIEW_CLASSROOMS)}
+            className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition border
+              ${activeView === VIEW_CLASSROOMS
+                ? "bg-[#0f172a] text-white border-[#0f172a]"
+                : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f8fafc] hover:border-[#94a3b8]"}`}
+          >
+            Classrooms
+          </button>
+        </div>
+
+        {/* ── Stats (venues only) ── */}
+        {activeView === VIEW_VENUES && (
+          <div className="grid grid-cols-3 gap-3 mb-7">
+            {[
+              { value: stats.total,   label: "Total Venues" },
+              { value: stats.active,  label: "Available" },
+              { value: stats.special, label: "Special Approval Required" },
+            ].map(({ value, label }) => (
+              <div key={label} className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
+                <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">{value}</p>
+                <p className="text-[13px] font-medium text-[#374151] mt-2">{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Classroom stats strip ── */}
+        {activeView === VIEW_CLASSROOMS && !isLoading && !error && (
+          <div className="grid grid-cols-2 gap-3 mb-7">
+            <div className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
+              <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">{classrooms.length}</p>
+              <p className="text-[13px] font-medium text-[#374151] mt-2">Distinct Capacities</p>
             </div>
-          ))}
-        </div>
-
-        {/* ── Filters ── */}
-        <div className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4 mb-6 flex flex-wrap gap-3 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8] w-4 h-4">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.35-4.35" />
-            </Icon>
-            <input
-              type="text"
-              placeholder="Search by name or location…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-[13.5px] border border-[#e2e8f0] rounded-xl
-                outline-none focus:ring-2 focus:ring-[#15803d] focus:border-transparent
-                text-[#0f172a] placeholder:text-[#94a3b8]"
-            />
+            <div className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4">
+              <p className="text-[30px] font-light text-[#0f172a] tracking-tight leading-none">
+                {seatMin !== null ? `${seatMin}–${seatMax}` : "—"}
+              </p>
+              <p className="text-[13px] font-medium text-[#374151] mt-2">Seat Range</p>
+            </div>
           </div>
+        )}
 
-          {/* Type */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {TYPE_FILTERS.map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`px-3.5 py-1.5 rounded-xl text-[12.5px] font-semibold transition border
-                  ${filterType === type
-                    ? "bg-[#15803d] text-white border-[#15803d]"
-                    : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f0fdf4] hover:border-[#d1fae5]"}`}
-              >
-                {type === "ALL" ? "All Venue Types" : SPACE_TYPE_META[type]?.label ?? type}
-              </button>
-            ))}
-          </div>
+        {/* ── Venue Filters (hidden in classrooms view) ── */}
+        {activeView === VIEW_VENUES && (
+          <div className="bg-white border border-[#e8f5ee] rounded-2xl px-5 py-4 mb-6 flex flex-wrap gap-3 items-center">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8] w-4 h-4">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </Icon>
+              <input
+                type="text"
+                placeholder="Search by name or location…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-[13.5px] border border-[#e2e8f0] rounded-xl
+                  outline-none focus:ring-2 focus:ring-[#15803d] focus:border-transparent
+                  text-[#0f172a] placeholder:text-[#94a3b8]"
+              />
+            </div>
 
-          {/* Active */}
-          <div className="flex items-center gap-1.5">
-            {ACTIVE_FILTERS.map(({ value, label }) => (
+            {/* Type */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {TYPE_FILTERS.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-3.5 py-1.5 rounded-xl text-[12.5px] font-semibold transition border
+                    ${filterType === type
+                      ? "bg-[#15803d] text-white border-[#15803d]"
+                      : "bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f0fdf4] hover:border-[#d1fae5]"}`}
+                >
+                  {type === "ALL" ? "All Venue Types" : SPACE_TYPE_META[type]?.label ?? type}
+                </button>
+              ))}
+            </div>
+
+            {/* Active */}
+            <div className="flex items-center gap-1.5">
+              {ACTIVE_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setFilterActive(value)}
+                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
+                    ${filterActive === value
+                      ? "bg-[#0f172a] text-white border-[#0f172a]"
+                      : "bg-white text-[#374151] border-[#e2e8f0] hover:border-[#94a3b8]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Special toggle */}
+            <Tooltip text="Show only venues that require special approval (e.g. labs, library)." position="top">
               <button
-                key={value}
-                onClick={() => setFilterActive(value)}
+                onClick={() => setFilterSpecial((v) => !v)}
                 className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
-                  ${filterActive === value
-                    ? "bg-[#0f172a] text-white border-[#0f172a]"
-                    : "bg-white text-[#374151] border-[#e2e8f0] hover:border-[#94a3b8]"}`}
+                  ${filterSpecial
+                    ? "bg-yellow-500 text-white border-yellow-500"
+                    : "bg-white text-[#374151] border-[#e2e8f0] hover:border-yellow-300"}`}
               >
-                {label}
+                Requires Special Approval
               </button>
-            ))}
+            </Tooltip>
           </div>
-
-          {/* Special toggle */}
-          <Tooltip text="Show only venues that require special approval (e.g. labs, library)." position="top">
-            <button
-              onClick={() => setFilterSpecial((v) => !v)}
-              className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition border
-                ${filterSpecial
-                  ? "bg-yellow-500 text-white border-yellow-500"
-                  : "bg-white text-[#374151] border-[#e2e8f0] hover:border-yellow-300"}`}
-            >
-              Requires Special Approval
-            </button>
-          </Tooltip>
-        </div>
+        )}
 
         {/* ── Content ── */}
         {error ? (
@@ -467,59 +604,82 @@ const AdminSpacesPage = () => {
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </Icon>
             </div>
-            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load venues</p>
+            <p className="text-[15px] font-semibold text-[#0f172a]">Could not load {activeView === VIEW_CLASSROOMS ? "classrooms" : "venues"}</p>
             <p className="text-[13.5px] text-[#94a3b8] mt-1.5">{error}</p>
           </div>
-        ) : isLoading && spaces.length === 0 ? (
+        ) : isLoading && (activeView === VIEW_VENUES ? spaces.length === 0 : classrooms.length === 0) ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col h-80 animate-pulse">
-                <div className="h-36 bg-gray-100"></div>
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col h-60 animate-pulse">
+                <div className="h-28 bg-gray-100"></div>
                 <div className="p-4 flex flex-col flex-1 gap-3">
                   <div className="h-4 bg-gray-100 rounded w-3/4 mb-1"></div>
                   <div className="h-3 bg-gray-100 rounded w-1/2"></div>
                   <div className="h-3 bg-gray-100 rounded w-1/3 mt-2"></div>
-                  <div className="mt-auto pt-1 flex gap-2">
-                    <div className="h-9 bg-gray-100 rounded-xl flex-1"></div>
-                    <div className="h-9 bg-gray-100 rounded-xl flex-1"></div>
-                  </div>
                 </div>
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
-            <div className="w-12 h-12 rounded-full bg-[#f0fdf4] flex items-center justify-center mx-auto mb-4 text-[#15803d]">
-              <Icon>
-                <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" />
-              </Icon>
+
+        ) : activeView === VIEW_CLASSROOMS ? (
+          // ── Classrooms view ──────────────────────────────────────────────
+          classrooms.length === 0 ? (
+            <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
+              <div className="w-12 h-12 rounded-full bg-[#eff6ff] flex items-center justify-center mx-auto mb-4 text-[#3b82f6]">
+                <Icon>
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <path d="M8 21h8M12 17v4" />
+                </Icon>
+              </div>
+              <p className="text-[15px] font-semibold text-[#0f172a]">No classrooms found</p>
+              <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
+                Add spaces with type "Classroom" to see them here.
+              </p>
             </div>
-            <p className="text-[15px] font-semibold text-[#0f172a]">
-              {spaces.length === 0 ? "No venues yet" : "No venues found"}
-            </p>
-            <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
-              {spaces.length === 0
-                ? `Click "Add New Venue" to create the first one.`
-                : "Try changing your search or filters."}
-            </p>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {classrooms.map((space) => (
+                <ClassroomCard key={space.id} space={space} />
+              ))}
+            </div>
+          )
+
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((space) => (
-              <SpaceCard 
-                key={space.id} 
-                space={space} 
-                blocks={blocks} 
-                onEdit={openEdit}
-                onManageTimetable={openTimetable}
-                canManageTimetable={can_manage_system || space.can_manage_timetable}
-                onViewDetails={openDrawer}
-              />
-            ))}
-          </div>
+          // ── Venues view ───────────────────────────────────────────────────
+          filtered.length === 0 ? (
+            <div className="bg-white border border-[#e8f5ee] rounded-2xl py-20 text-center px-8">
+              <div className="w-12 h-12 rounded-full bg-[#f0fdf4] flex items-center justify-center mx-auto mb-4 text-[#15803d]">
+                <Icon>
+                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 8h.01M15 8h.01M9 13h.01M15 13h.01" />
+                </Icon>
+              </div>
+              <p className="text-[15px] font-semibold text-[#0f172a]">
+                {spaces.length === 0 ? "No venues yet" : "No venues found"}
+              </p>
+              <p className="text-[13.5px] text-[#94a3b8] mt-1.5">
+                {spaces.length === 0
+                  ? `Click "Add New Venue" to create the first one.`
+                  : "Try changing your search or filters."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((space) => (
+                <SpaceCard 
+                  key={space.id} 
+                  space={space} 
+                  blocks={blocks} 
+                  onEdit={openEdit}
+                  onManageTimetable={openTimetable}
+                  canManageTimetable={can_manage_system || space.can_manage_timetable}
+                  onViewDetails={openDrawer}
+                />
+              ))}
+            </div>
+          )
         )}
 
-        {!error && !isLoading && filtered.length > 0 && isFiltering && (
+        {activeView === VIEW_VENUES && !error && !isLoading && filtered.length > 0 && isFiltering && (
           <p className="text-center text-[12.5px] text-[#94a3b8] font-medium mt-5">
             Showing {filtered.length} of {spaces.length} venues
           </p>
