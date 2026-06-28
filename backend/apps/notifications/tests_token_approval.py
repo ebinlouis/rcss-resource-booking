@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apps.approvals.models import BaseBooking
 from apps.fleet.models import FleetBooking, Vehicle
+from apps.mess.models import MessBooking
 from apps.notifications.models import ApprovalToken
 from apps.notifications.views import _token_holder_still_eligible
 from apps.spaces.models import Block, Space, SpaceApprover, SpaceBooking
@@ -41,6 +42,9 @@ class ApprovalTokenLiveEligibilityTests(TestCase):
         self.fleet_manager_role, _ = Role.objects.get_or_create(
             name=Role.Name.FLEET_MANAGER
         )
+        self.mess_manager_role, _ = Role.objects.get_or_create(
+            name=Role.Name.MESS_MANAGER
+        )
         self.faculty_role, _ = Role.objects.get_or_create(name=Role.Name.FACULTY)
         self.staff_role, _ = Role.objects.get_or_create(name=Role.Name.STAFF)
         self.it_admin_role, _ = Role.objects.get_or_create(name=Role.Name.IT_ADMIN)
@@ -56,6 +60,9 @@ class ApprovalTokenLiveEligibilityTests(TestCase):
         )
         self.fleet_manager = self._make_user(
             "fleet-manager-token@test.com", self.fleet_manager_role
+        )
+        self.mess_manager = self._make_user(
+            "mess-manager-token@test.com", self.mess_manager_role
         )
         self.it_admin = self._make_user("it-admin-token@test.com", self.it_admin_role)
 
@@ -100,6 +107,19 @@ class ApprovalTokenLiveEligibilityTests(TestCase):
             destination="City",
             total_passengers=4,
             purpose="Token approval test",
+        )
+
+    def _make_mess_booking(self, reference_code):
+        today = timezone.now().date()
+        return MessBooking.objects.create(
+            reference_code=reference_code,
+            user=self.requester,
+            department=self.department,
+            status=BaseBooking.BookingStatus.PENDING,
+            start_date=today + timedelta(days=3),
+            end_date=today + timedelta(days=3),
+            delivery_location="Mess Hall",
+            purpose_of_programme="Token approval test",
         )
 
     def _make_faculty_booking(self, reference_code, sponsor):
@@ -239,6 +259,36 @@ class ApprovalTokenLiveEligibilityTests(TestCase):
         token.refresh_from_db()
         self.assertEqual(booking.status, BaseBooking.BookingStatus.APPROVED)
         self.assertEqual(booking.resolved_by, self.fleet_manager)
+        self.assertTrue(token.used)
+
+    def test_mess_token_rejects_after_manager_role_removed(self):
+        booking = self._make_mess_booking("MSS-001")
+        token = self._make_token("mess-role-removed", "mess", booking, self.mess_manager)
+        self.assertTrue(_token_holder_still_eligible(token))
+
+        self.mess_manager.roles.remove(self.mess_manager_role)
+
+        response = self._redeem("mess-role-removed")
+
+        self.assert_rejected_for_changed_access(response)
+        booking.refresh_from_db()
+        token.refresh_from_db()
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.PENDING)
+        self.assertFalse(token.used)
+
+    def test_mess_token_still_succeeds_when_holder_remains_eligible(self):
+        booking = self._make_mess_booking("MSS-002")
+        token = self._make_token(
+            "mess-still-eligible", "mess", booking, self.mess_manager
+        )
+
+        response = self._redeem("mess-still-eligible")
+
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        token.refresh_from_db()
+        self.assertEqual(booking.status, BaseBooking.BookingStatus.APPROVED)
+        self.assertEqual(booking.resolved_by, self.mess_manager)
         self.assertTrue(token.used)
 
     def test_faculty_token_rejects_after_sponsor_changed(self):
