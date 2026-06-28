@@ -188,7 +188,7 @@ class SpacesAutoApprovalTests(APITestCase):
         )
 
         # Within the 24-hour fallback window: lab_incharge must NOT be able to resolve
-        with override_settings(AI_LAB_HOD_FALLBACK_HOURS=24):
+        with override_settings(HOD_FALLBACK_LAB_EXCLUSION_HOURS=24):
             from apps.approvals.views import _matches_space_approver_assignment
             assignment = SpaceApprover.objects.get(user=lab_user, space=self.space_chain)
             # Reload to pick up the role relation

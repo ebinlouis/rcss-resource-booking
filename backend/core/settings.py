@@ -126,8 +126,10 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Space approval routing
-# Temporary fallback window until the notification/leave workflow is implemented.
-AI_LAB_HOD_FALLBACK_HOURS = env.int('AI_LAB_HOD_FALLBACK_HOURS', default=24)
+# Time window (hours, measured from booking.created_at) during which LAB_INCHARGE is
+# excluded from acting on a booking for any space using the HOD_FALLBACK workflow type.
+# The HOD gets first action during this window regardless of who made the booking.
+HOD_FALLBACK_LAB_EXCLUSION_HOURS = env.int('HOD_FALLBACK_LAB_EXCLUSION_HOURS', default=24)
 
 # ==========================================
 # EMAIL CONFIGURATION
