@@ -6,6 +6,7 @@ import NotificationBell from "./NotificationBell"
 
 import {
   LayoutGrid,
+  Home as HomeIcon,
   Bus,
   Clapperboard,
   UtensilsCrossed,
@@ -15,6 +16,7 @@ import {
 
 /* ─── Static nav tabs (visible to everyone) ──────────────────────────────── */
 const BASE_TABS = [
+  { name: "Home",      path: "/",          icon: HomeIcon        },
   { name: "Venues",    path: "/dashboard", icon: LayoutGrid      },
   { name: "Transport", path: "/transport", icon: Bus             },
   { name: "Media",     path: "/media",     icon: Clapperboard    },

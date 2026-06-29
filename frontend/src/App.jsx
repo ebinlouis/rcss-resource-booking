@@ -21,6 +21,7 @@ import spaceAdminService from './api/spaceAdminService';
 // Pages — lazy loaded
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
+const HomePage = lazy(() => import("./pages/HomePage"));
 const Transport = lazy(() => import("./pages/Transport"));
 const Mess = lazy(() => import("./pages/Mess"));
 const Media = lazy(() => import("./pages/Media"));
@@ -90,7 +91,7 @@ const router = createBrowserRouter([
           { path: "/login", element: <Login /> }
         ]
       },
-      { path: "/", element: <Navigate to="/dashboard" replace /> },
+      { path: "/", element: <HomePage /> },
       {
         path: "/dashboard",
         element: <Home />,
@@ -249,7 +250,7 @@ const router = createBrowserRouter([
           }
         ]
       },
-      { path: "*", element: <Navigate to="/dashboard" replace /> }
+      { path: "*", element: <Navigate to="/" replace /> }
     ]
   }
 ]);
