@@ -404,7 +404,7 @@ class TokenApprovalView(View):
         base_url = getattr(__import__('django.conf', fromlist=['settings']).settings, 'FRONTEND_BASE_URL', 'http://localhost:5173')
         return {
             'message': (
-                f"✅ Catering request approved.\n\n"
+                f"Catering request approved.\n\n"
                 f"Requested by: {requester}\n"
                 f"Reference: {ref}\n\n"
                 f"The requester has been notified."

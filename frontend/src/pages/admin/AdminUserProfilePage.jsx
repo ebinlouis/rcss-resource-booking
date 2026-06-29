@@ -35,7 +35,7 @@ const ROLE_DESCRIPTIONS = {
   LIBRARIAN: "Manage library venue reservation requests",
   MEDIA_INCHARGE: "Manage media equipment booking requests",
   MESS_MANAGER: "Manage food catering booking requests",
-  RECEPTIONIST: "Manage general space booking requests",
+  RECEPTIONIST: "Manage general venue booking requests",
 }
 
 const SCOPED_ROLES = ["RECEPTIONIST", "LAB_INCHARGE", "LIBRARIAN"]
@@ -1885,13 +1885,13 @@ function DetailItem({ label, value }) {
 function getRoleDescription(roleName) {
   const descriptions = {
     STUDENT: "Standard booking requester access.",
-    FACULTY: "Sponsors student requests and schedules venues.",
+    FACULTY: "In-charge of student requests and schedules venues.",
     STAFF: "Requests resources and coordinates events.",
     RECEPTIONIST: "Manages front desk check-ins and spaces.",
-    LAB_INCHARGE: "Approves laboratory and equipment use.",
+    LAB_INCHARGE: "Approves laboratory and resource use.",
     LIBRARIAN: "Manages library halls and study spaces.",
-    MESS_MANAGER: "Catering services and mess hall approvals.",
-    MEDIA_INCHARGE: "Media crew and equipment scheduling.",
+    MESS_MANAGER: "Catering services and meal approvals.",
+    MEDIA_INCHARGE: "Media team and equipment scheduling.",
     FLEET_MANAGER: "Vehicle scheduling and transport manager.",
     IT_ADMIN: "Global system configuration and administration.",
     HOD: "Departmental academic and resource permissions.",

@@ -237,7 +237,7 @@ function HomePage() {
                 </h1>
                 <p className="mt-3 text-[13px] text-white/55 max-w-sm leading-relaxed">
                   {user
-                    ? "All your bookings — venues, transport, media, and food — in one place."
+                    ? "All your bookings, venues, transport, media, and food in one place."
                     : "Book college resources — venues, transport, media, and food."}
                 </p>
                 {!user && (
