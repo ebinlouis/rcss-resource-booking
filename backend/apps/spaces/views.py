@@ -89,7 +89,51 @@ class SpaceViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = Space.objects.filter(is_active=True)
+        # CLASSROOM is intentionally excluded from the general catalog queryset.
+        # It has its own dedicated, capacity-deduplicated view (?space_view=classrooms)
+        # and must not appear in venue lists, booking dropdowns, or filter menus
+        # that consume the default catalog path.  The space_view=classrooms branch
+        # below returns early and builds its own queryset, so it is unaffected by
+        # this exclusion.
+        qs = Space.objects.filter(is_active=True).exclude(space_type=Space.SpaceType.CLASSROOM)
+
+        # ── Classroom catalog view (capacity-deduplicated) ───────────────────
+        # When ?space_view=classrooms is requested we bypass all other filters
+        # and return one representative row per distinct capacity_hard value
+        # among active CLASSROOM-type spaces.
+        if self.request.query_params.get('space_view') == 'classrooms':
+            # Admin-only guard: the list action uses AllowAny() for the public
+            # venue catalog, so we cannot rely on permission_classes here.
+            # Return an empty queryset for unauthenticated or non-staff
+            # requests instead of raising a 403 (which would break the public
+            # catalog path that also hits this viewset).
+            if not (
+                self.request.user.is_authenticated
+                and (self.request.user.is_staff or self.request.user.is_superuser)
+            ):
+                return Space.objects.none()
+            # IMPORTANT: when multiple physical classrooms share the same
+            # capacity_hard, .distinct('capacity_hard') returns an arbitrary
+            # one of them as the representative row — Postgres picks whichever
+            # sorts first per the leading order_by column, not based on any
+            # meaningful tiebreak like name or id.  This is intentional and
+            # safe for this phase since the returned row's specific identity is
+            # never used for booking or navigation — only capacity_hard is
+            # displayed.  FLAG: this needs revisiting if/when classroom booking
+            # is built, since naively reusing this row's id would always point
+            # to the same physical room regardless of actual availability.
+            classroom_qs = Space.objects.filter(
+                is_active=True, space_type=Space.SpaceType.CLASSROOM
+            )
+            # Apply optional block scoping to the classroom view — same
+            # try/except-ignore pattern used for min_capacity on the default path.
+            block_param = self.request.query_params.get('block')
+            if block_param is not None:
+                try:
+                    classroom_qs = classroom_qs.filter(block_id=int(block_param))
+                except (ValueError, TypeError):
+                    pass
+            return classroom_qs.order_by('capacity_hard').distinct('capacity_hard')
 
         min_capacity = self.request.query_params.get('min_capacity')
         if min_capacity is not None:
@@ -100,6 +144,13 @@ class SpaceViewSet(viewsets.ModelViewSet):
 
         if self.request.query_params.get('for_suggestion') == 'true':
             qs = qs.filter(is_special_purpose=False)
+
+        block_param = self.request.query_params.get('block')
+        if block_param is not None:
+            try:
+                qs = qs.filter(block_id=int(block_param))
+            except (ValueError, TypeError):
+                pass
 
         if self.request.query_params.get('manage') == 'true':
             user = self.request.user
@@ -117,6 +168,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(id__in=space_ids)
 
         return qs
+
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def check_availability(self, request, pk=None):
@@ -776,6 +828,30 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         if self.action in ('incharge_resend',):
             return SpaceBooking.objects.all().select_related('space', 'user')
 
+        # ── Admin: full booking history for a specific venue ──────────────
+        # Used by VenueDetailPage "Booking History" tab.
+        # Returns ALL statuses (PENDING, APPROVED, REJECTED, CANCELLED, etc.)
+        # No models, serializers, or approval logic are changed.
+        if view_param == 'venue_history':
+            if not (user.is_authenticated and (user.is_staff or user.is_superuser)):
+                return SpaceBooking.objects.none()
+            space_id = self.request.query_params.get('space')
+            if not space_id:
+                return SpaceBooking.objects.none()
+            return (
+                SpaceBooking.objects
+                .filter(space_id=space_id)
+                .select_related(
+                    'space', 'user', 'department',
+                    'space__block', 'faculty_sponsor',
+                )
+                .prefetch_related(
+                    'requested_equipment__equipment',
+                    'user__roles',
+                )
+                .order_by('-created_at')
+            )
+
         if view_param == 'general':
             space_id = self.request.query_params.get('space')
             qs = (
@@ -913,8 +989,20 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         # ── Approver-chain notification (specific primary/fallback user) ──
         chain = getattr(booking.space, 'approver_chain', None)
         if chain:
-            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
+            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link, notify_auto_approved_informational
             from apps.notifications.models import Notification
+
+            if self.request.user == chain.primary_approver:
+                booking.status = 'APPROVED'
+                booking.resolved_by = self.request.user
+                booking.resolved_at = timezone.now()
+                booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+                booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+                
+                if chain.primary_approver_id != chain.fallback_approver_id and chain.fallback_approver:
+                    notify_auto_approved_informational(booking, 'spaces', [chain.fallback_approver])
+                return
+
             if chain.primary_approver:
                 notify(
                     chain.primary_approver,
@@ -941,7 +1029,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         # ── HOD_FALLBACK without a chain: notify the HOD role directly ──
         if uses_hod_fallback:
-            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD)
+            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD, exclude_user=self.request.user)
             return
 
         # ── Standard role-based notification ──
@@ -953,10 +1041,22 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             role = Role.Name.RECEPTIONIST
 
+        from apps.notifications.utils import get_raw_space_approvers, notify_auto_approved_informational
+        eligible_set = get_raw_space_approvers(booking.space, role)
+        
+        if len(eligible_set) == 1 and self.request.user in eligible_set:
+            booking.status = 'APPROVED'
+            booking.resolved_by = self.request.user
+            booking.resolved_at = timezone.now()
+            booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+            booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+            return
+
         notify_new_request(
             booking=booking,
             domain='spaces',
-            role_name=role
+            role_name=role,
+            exclude_user=self.request.user
         )
 
     def perform_update(self, serializer):
@@ -1055,135 +1155,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             from apps.notifications.utils import notify_incharge_cancelled
             notify_incharge_cancelled(instance, 'spaces', role)
 
-    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
-    def review(self, request, pk=None):
-        user = request.user
-        if not (user.is_staff or user.is_superuser):
-            return Response(
-                {"detail": "Not authorized to review bookings."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        booking    = self.get_object()
-        new_status = request.data.get('status')
-        remarks    = request.data.get('remarks_by_admin', '')
-        refresh_booking_lifecycle(booking)
-        booking.refresh_from_db()
-
-        if new_status not in ['APPROVED', 'REJECTED', 'PENDING']:
-            return Response(
-                {"error": "Invalid status. Must be PENDING, APPROVED or REJECTED."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if new_status == 'REJECTED' and not remarks:
-            return Response(
-                {"error": "Remarks are required when rejecting a booking."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if new_status == 'APPROVED' and booking.status not in ['PENDING', 'FACULTY_ESCALATED']:
-            return Response(
-                {"error": f"Cannot approve a booking that is currently {booking.status}."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if new_status == 'REJECTED' and booking.status not in ['PENDING', 'APPROVED', 'FACULTY_ESCALATED']:
-            return Response(
-                {"error": f"Cannot reject a booking that is currently {booking.status}."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if new_status == 'PENDING' and booking.status != 'FACULTY_ESCALATED':
-            return Response(
-                {"error": "Can only set PENDING from FACULTY_ESCALATED."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Apply the status change to all siblings in the group
-        bookings_in_group = list(SpaceBooking.objects.filter(
-            group_id=booking.group_id,
-            status__in=['PENDING', 'APPROVED', 'FACULTY_ESCALATED'],
-        ).order_by('start_datetime'))
-
-        updated_bookings = []
-        for b in bookings_in_group:
-            if new_status == 'APPROVED' and b.status not in ['PENDING', 'FACULTY_ESCALATED']:
-                continue
-            if new_status == 'PENDING' and b.status != 'FACULTY_ESCALATED':
-                continue
-            b.status           = new_status
-            b.remarks_by_admin = remarks
-            b.resolved_by      = user if new_status != 'PENDING' else None
-            b.resolved_at      = timezone.now() if new_status != 'PENDING' else None
-            if new_status == 'PENDING':
-                b.faculty_response_deadline = None
-            b.save()
-            updated_bookings.append(b)
-
-        # Fire a single grouped notification instead of one per booking
-        if updated_bookings:
-            if new_status == 'PENDING':
-                from apps.notifications.utils import mark_pending_request_notifications_read
-                for b in updated_bookings:
-                    mark_pending_request_notifications_read(b, domain='spaces')
-                    chain = getattr(b.space, 'approver_chain', None)
-                    if chain:
-                        continue # Chain approvals are handled via notify_new_request manually if needed, but 'PENDING' transition for chain spaces usually shouldn't happen via this bulk review method from ESCALATED.
-                    
-                    category = b.space.approval_category
-                    if category == Space.ApprovalCategory.LAB:
-                        role = Role.Name.LAB_INCHARGE
-                    elif category == Space.ApprovalCategory.LIBRARY:
-                        role = Role.Name.LIBRARIAN
-                    else:
-                        role = Role.Name.RECEPTIONIST
-                    notify_new_request(b, 'spaces', role)
-            else:
-                for b in updated_bookings:
-                    chain = getattr(b.space, 'approver_chain', None)
-                    if chain:
-                        from apps.notifications.utils import (
-                            notify_chain_approved_primary,
-                            notify_chain_approved_fallback,
-                            notify_chain_rejected
-                        )
-                        if new_status == 'APPROVED':
-                            if user == chain.primary_approver:
-                                notify_chain_approved_primary(b)
-                            else:
-                                notify_chain_approved_fallback(b)
-                        elif new_status == 'REJECTED':
-                            notify_chain_rejected(b)
-                    else:
-                        notify_group_status_change(
-                            bookings=[b],
-                            new_status=new_status,
-                            domain='spaces',
-                            resolved_by=user,
-                            remarks=remarks
-                        )
-
-        if new_status == 'REJECTED':
-            cancel_linked_siblings_for_space(
-                booking,
-                reason=remarks or 'Linked Space booking was rejected.',
-            )
-
-        if new_status in ['APPROVED', 'REJECTED'] and updated_bookings:
-            from apps.notifications.utils import notify_comanagers_actioned
-            mark_pending_request_notifications_read(booking, domain='spaces')
-            notify_comanagers_actioned(
-                booking=updated_bookings[0],
-                domain='spaces',
-                actioned_by=user,
-                new_status=new_status,
-            )
-
-        booking.refresh_from_db()
-        serializer = self.get_serializer(booking)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
     @action(detail=True, methods=['patch'], permission_classes=[IsPrincipal])
     def cancel(self, request, pk=None):
         """
@@ -1273,7 +1244,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def faculty_approve(self, request, pk=None):
         booking = self.get_object()
-        if booking.faculty_sponsor_id != request.user.id:
+        from apps.approvals.views import user_can_approve_faculty_booking
+        if not user_can_approve_faculty_booking(request.user, booking):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
         if booking.status != 'AWAITING_FACULTY':
             return Response({"error": f"Cannot approve, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1341,7 +1313,8 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def faculty_reject(self, request, pk=None):
         booking = self.get_object()
-        if booking.faculty_sponsor_id != request.user.id:
+        from apps.approvals.views import user_can_approve_faculty_booking
+        if not user_can_approve_faculty_booking(request.user, booking):
             return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
         if booking.status != 'AWAITING_FACULTY':
             return Response({"error": f"Cannot reject, status is {booking.status}"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1510,6 +1483,7 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
         user_id      = self.request.query_params.get('user')
         role_name    = self.request.query_params.get('role')
         block_id     = self.request.query_params.get('block')
+        space_id     = self.request.query_params.get('space')
         active_param = self.request.query_params.get('active')
 
         if user_id:
@@ -1518,6 +1492,8 @@ class SpaceApproverViewSet(viewsets.ModelViewSet):
             qs = qs.filter(role__name=role_name.upper())
         if block_id:
             qs = qs.filter(block_id=block_id)
+        if space_id:
+            qs = qs.filter(space_id=space_id)
         if active_param is not None:
             qs = qs.filter(is_active=active_param.lower() == 'true')
 

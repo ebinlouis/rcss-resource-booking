@@ -44,6 +44,7 @@ class Space(models.Model):
         GENERAL_HALL = "GENERAL_HALL", "General Hall"
         LAB = "LAB", "Lab"
         GUEST_ROOM = "GUEST_ROOM", "Guest Room"
+        CLASSROOM = "CLASSROOM", "Classroom"
 
     class ApprovalCategory(models.TextChoices):
         GENERAL = "GENERAL", "General"  # approved by RECEPTIONIST
@@ -279,6 +280,14 @@ class SpaceBooking(BaseBooking):
     faculty_timed_out = models.BooleanField(
         default=False,
 help_text="Indicates that approval was escalated after faculty non-response."    )
+    chain_escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Set when the fallback approver is notified via the HOD_FALLBACK "
+            "chain escalation. Null means escalation has not yet fired."
+        ),
+    )
 
     class Meta(BaseBooking.Meta):
         constraints = BaseBooking.Meta.constraints + [

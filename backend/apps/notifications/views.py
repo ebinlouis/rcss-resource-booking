@@ -1,4 +1,5 @@
 import hashlib
+import logging
 
 from django.db import IntegrityError
 from django.http import HttpResponse
@@ -12,6 +13,66 @@ from rest_framework.views import APIView
 
 from apps.notifications.models import Notification
 from apps.notifications.serializers import NotificationSerializer
+
+logger = logging.getLogger(__name__)
+
+
+def _booking_for_approval_token(token):
+    domain = (token.domain or "").lower()
+
+    if domain in {"space", "spaces", "spaces_faculty"}:
+        from apps.spaces.models import SpaceBooking
+        return (
+            SpaceBooking.objects
+            .select_related("space", "space__approver_chain", "user")
+            .filter(reference_code=token.booking_ref)
+            .first()
+        )
+
+    if domain == "fleet":
+        from apps.fleet.models import FleetBooking
+        return (
+            FleetBooking.objects
+            .select_related("vehicle", "user")
+            .filter(reference_code=token.booking_ref)
+            .first()
+        )
+
+    if domain == "mess":
+        from apps.mess.models import MessBooking
+        return (
+            MessBooking.objects
+            .select_related("user")
+            .filter(reference_code=token.booking_ref)
+            .first()
+        )
+
+    return None
+
+
+def _token_holder_still_eligible(token):
+    booking = _booking_for_approval_token(token)
+    if booking is None:
+        return False
+
+    holder = token.issued_to
+    if not holder or not holder.is_active:
+        return False
+
+    domain = (token.domain or "").lower()
+
+    if domain == "spaces_faculty":
+        from apps.approvals.views import user_can_approve_faculty_booking
+        return user_can_approve_faculty_booking(holder, booking)
+
+    if domain in {"space", "spaces"}:
+        domain = "spaces"
+
+    if domain in {"spaces", "fleet", "mess"}:
+        from apps.approvals.views import user_can_resolve_booking
+        return user_can_resolve_booking(domain, booking, holder)
+
+    return False
 
 
 class NotificationPagination(PageNumberPagination):
@@ -155,6 +216,24 @@ class TokenApprovalView(View):
             return self._html_response(
                 'Link Expired',
                 'This approval link has expired. The booking\'s scheduled time has passed.',
+                success=False,
+            )
+
+        # Check: token holder is still authorized for this booking right now.
+        if not _token_holder_still_eligible(token):
+            logger.warning(
+                "ApprovalToken live eligibility rejected token_id=%s domain=%s "
+                "booking_ref=%s issued_to_id=%s",
+                token.id,
+                token.domain,
+                token.booking_ref,
+                token.issued_to_id,
+            )
+            return self._html_response(
+                'Approval Link No Longer Valid',
+                'This approval link is no longer valid because your access to '
+                'approve this booking has changed. Please log in to the '
+                'dashboard to check its current status.',
                 success=False,
             )
 

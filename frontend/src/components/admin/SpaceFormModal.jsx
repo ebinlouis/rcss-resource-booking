@@ -13,6 +13,7 @@ const SPACE_TYPES = [
   { value: "GENERAL_HALL", label: "General Hall" },
   { value: "LAB", label: "Laboratory" },
   { value: "GUEST_ROOM", label: "Guest Room" },
+  { value: "CLASSROOM", label: "Classroom" },
 ]
 
 const APPROVAL_CATEGORIES = [

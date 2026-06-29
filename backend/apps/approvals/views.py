@@ -8,7 +8,7 @@ from datetime import timedelta
 from django.db.models import Q, Sum as _Sum
 
 from apps.users.permissions import IsApprover
-from apps.users.models import Role
+from apps.users.models import Role, RoleOverride
 from apps.approvals.lifecycle import (
     refresh_booking_lifecycle,
 )
@@ -28,7 +28,7 @@ from apps.media.models import MediaBooking, MediaSettings
 # ==========================================
 
 VALID_DOMAINS = {"spaces", "fleet", "mess", "media"}
-AI_LAB_FALLBACK_HOURS = settings.AI_LAB_HOD_FALLBACK_HOURS
+HOD_FALLBACK_LAB_EXCLUSION_HOURS = settings.HOD_FALLBACK_LAB_EXCLUSION_HOURS
 
 
 # ==========================================
@@ -86,93 +86,127 @@ def _uses_hod_fallback_workflow(space):
     )
 
 
-def _is_cs_department(department):
-    if not department:
-        return False
-
-    code = _normalise(getattr(department, "department_code", ""))
-    name = _normalise(getattr(department, "department_name", ""))
-    return code in {"cs", "cse"} or name in {"cs", "cse"} or "computer science" in name
+def _ai_lab_fallback_ready(booking):
+    fallback_at = booking.created_at + timedelta(hours=HOD_FALLBACK_LAB_EXCLUSION_HOURS)
+    return timezone.now() >= fallback_at
 
 
-def _is_cs_hod_fallback_booking(booking):
-    return _uses_hod_fallback_workflow(booking.space) and _is_cs_department(
-        getattr(booking.user, "department", None)
+def _active_role_override_queryset(now=None):
+    now = now or timezone.now()
+    return RoleOverride.objects.filter(
+        user__is_active=True,
+        is_active=True,
+        revoked_at__isnull=True,
+    ).filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+
+
+def _assignment_scope_type(assignment):
+    if isinstance(assignment, RoleOverride):
+        if assignment.space_id:
+            return "SPACE"
+        if assignment.block_id:
+            return "BLOCK"
+        return None
+    return assignment.scope_type
+
+
+def _assignment_block_id(assignment):
+    if isinstance(assignment, RoleOverride) and assignment.space_id:
+        return None
+    return assignment.block_id
+
+
+def _more_specific_space_ids_for_block(role_name, block_id, now=None):
+    approver_space_ids = set(SpaceApprover.objects.filter(
+        scope_type="SPACE",
+        space__block_id=block_id,
+        role__name=role_name,
+        is_active=True,
+        user__is_active=True,
+    ).values_list("space_id", flat=True))
+
+    override_space_ids = set(_active_role_override_queryset(now).filter(
+        space__block_id=block_id,
+        role__name=role_name,
+    ).values_list("space_id", flat=True))
+
+    return list(approver_space_ids | override_space_ids)
+
+
+def _has_more_specific_space_scope(assignment, role_name, space):
+    return space.id in _more_specific_space_ids_for_block(
+        role_name,
+        space.block_id,
     )
 
 
-def _ai_lab_fallback_ready(booking):
-    fallback_at = booking.created_at + timedelta(hours=AI_LAB_FALLBACK_HOURS)
-    return timezone.now() >= fallback_at
+def _space_booking_approval_role_name(booking):
+    category = booking.space.approval_category
+    if category == "LAB":
+        return Role.Name.LAB_INCHARGE
+    if category == "LIBRARY":
+        return Role.Name.LIBRARIAN
+    return Role.Name.RECEPTIONIST
 
 
 def _matches_space_approver_assignment(booking, assignment):
     role_name = assignment.role.name
     space = booking.space
+    scope_type = _assignment_scope_type(assignment)
+    block_id = _assignment_block_id(assignment)
+    space_id = assignment.space_id
 
     if role_name == Role.Name.RECEPTIONIST:
-        if assignment.scope_type == "BLOCK" and assignment.block:
+        if scope_type == "BLOCK" and block_id:
             # Most-specific-wins: if a SPACE-scope assignment exists for this
             # exact space and role, the block-scope user is excluded entirely.
-            has_space_override = SpaceApprover.objects.filter(
-                scope_type="SPACE",
-                space=space,
-                role__name=role_name,
-                is_active=True,
-                user__is_active=True,
-            ).exists()
+            has_space_override = _has_more_specific_space_scope(
+                assignment, role_name, space
+            )
             if has_space_override:
                 return False
             return (
-                space.block_id == assignment.block_id
+                space.block_id == block_id
                 and space.approval_category == "GENERAL"
             )
-        if assignment.scope_type == "SPACE" and assignment.space:
-            return space.id == assignment.space_id
+        if scope_type == "SPACE" and space_id:
+            return space.id == space_id
 
     if role_name == Role.Name.LAB_INCHARGE:
         if (
-            _is_cs_hod_fallback_booking(booking)
+            _uses_hod_fallback_workflow(booking.space)
             and booking.status == "PENDING"
             and not _ai_lab_fallback_ready(booking)
         ):
             return False
-        if assignment.scope_type == "SPACE" and assignment.space:
-            return space.id == assignment.space_id
-        if assignment.scope_type == "BLOCK" and assignment.block:
+        if scope_type == "SPACE" and space_id:
+            return space.id == space_id
+        if scope_type == "BLOCK" and block_id:
             # Most-specific-wins guard
-            has_space_override = SpaceApprover.objects.filter(
-                scope_type="SPACE",
-                space=space,
-                role__name=role_name,
-                is_active=True,
-                user__is_active=True,
-            ).exists()
+            has_space_override = _has_more_specific_space_scope(
+                assignment, role_name, space
+            )
             if has_space_override:
                 return False
             return (
-                space.block_id == assignment.block_id
+                space.block_id == block_id
                 and space.approval_category == "LAB"
             )
 
     if role_name == Role.Name.LIBRARIAN:
-        if assignment.scope_type == "BLOCK" and assignment.block:
+        if scope_type == "BLOCK" and block_id:
             # Most-specific-wins guard
-            has_space_override = SpaceApprover.objects.filter(
-                scope_type="SPACE",
-                space=space,
-                role__name=role_name,
-                is_active=True,
-                user__is_active=True,
-            ).exists()
+            has_space_override = _has_more_specific_space_scope(
+                assignment, role_name, space
+            )
             if has_space_override:
                 return False
             return (
-                space.block_id == assignment.block_id
+                space.block_id == block_id
                 and space.approval_category == "LIBRARY"
             )
-        if assignment.scope_type == "SPACE" and assignment.space:
-            return space.id == assignment.space_id
+        if scope_type == "SPACE" and space_id:
+            return space.id == space_id
 
     return False
 
@@ -184,6 +218,8 @@ def _user_can_resolve_space_booking(user, effective_roles, booking):
     # HOD_FALLBACK: check the space's approver chain directly.
     # Only the explicitly assigned primary or fallback approver can resolve.
     if _uses_hod_fallback_workflow(booking.space):
+        if Role.Name.HOD in effective_roles:
+            return True
         try:
             chain = booking.space.approver_chain
             if user.id in (chain.primary_approver_id, chain.fallback_approver_id):
@@ -197,7 +233,38 @@ def _user_can_resolve_space_booking(user, effective_roles, booking):
     return any(
         _matches_space_approver_assignment(booking, assignment)
         for assignment in assignments
+    ) or any(
+        _matches_space_approver_assignment(booking, override)
+        for override in _active_role_override_queryset()
+        .filter(user=user, role__name=_space_booking_approval_role_name(booking))
+        .select_related("block", "space", "role")
     )
+
+
+def user_can_resolve_booking(module, booking, user):
+    module = (module or "").lower()
+    if module == "space":
+        module = "spaces"
+
+    effective_roles = user.get_effective_roles()
+
+    if Role.Name.IT_ADMIN in effective_roles:
+        return True
+
+    if module == "spaces":
+        return _user_can_resolve_space_booking(user, effective_roles, booking)
+    if module == "fleet":
+        return Role.Name.FLEET_MANAGER in effective_roles
+    if module == "mess":
+        return Role.Name.MESS_MANAGER in effective_roles
+    if module == "media":
+        return Role.Name.MEDIA_INCHARGE in effective_roles
+
+    return False
+
+
+def user_can_approve_faculty_booking(user, booking):
+    return bool(user and getattr(booking, "faculty_sponsor_id", None) == user.id)
 
 
 def _get_space_queryset_for_user(user, effective_roles, requested_status):
@@ -233,8 +300,16 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     if is_it_admin:
         return base_qs
 
+    now = timezone.now()
+
     assignment_list = list(
         SpaceApprover.objects.filter(user=user, is_active=True)
+        .select_related("block", "space", "role")
+    )
+
+    override_list = list(
+        _active_role_override_queryset(now)
+        .filter(user=user)
         .select_related("block", "space", "role")
     )
 
@@ -243,10 +318,10 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
         Q(primary_approver=user) | Q(fallback_approver=user)
     ).exists()
 
-    if not is_chain_approver and not assignment_list:
-        return SpaceBooking.objects.none()
+    is_hod = Role.Name.HOD in effective_roles
 
-    now = timezone.now()
+    if not is_chain_approver and not assignment_list and not override_list and not is_hod:
+        return SpaceBooking.objects.none()
 
     # _uses_hod_fallback_workflow()
     _hod_fallback_q = Q(
@@ -259,7 +334,7 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
     _lab_exclusion_q = (
         _hod_fallback_q
         & Q(status="PENDING")
-        & Q(created_at__gt=now - timedelta(hours=AI_LAB_FALLBACK_HOURS))
+        & Q(created_at__gt=now - timedelta(hours=HOD_FALLBACK_LAB_EXCLUSION_HOURS))
     )
 
     scope_q = Q()
@@ -272,18 +347,22 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
             | Q(space__approver_chain__fallback_approver=user)
         )
 
+    # HOD: sees ALL bookings on HOD_FALLBACK spaces immediately,
+    # regardless of whether a SpaceApproverChain row exists for that
+    # space, and regardless of the booker's department.
+    if is_hod:
+        scope_q |= _hod_fallback_q
+
     for assignment in assignment_list:
         role_name = assignment.role.name
 
         if role_name == Role.Name.RECEPTIONIST:
             if assignment.scope_type == "BLOCK" and assignment.block_id:
-                overridden = list(SpaceApprover.objects.filter(
-                    scope_type="SPACE",
-                    space__block_id=assignment.block_id,
-                    role__name=Role.Name.RECEPTIONIST,
-                    is_active=True,
-                    user__is_active=True,
-                ).values_list("space_id", flat=True))
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.RECEPTIONIST,
+                    assignment.block_id,
+                    now,
+                )
                 block_q = Q(space__block_id=assignment.block_id, space__approval_category="GENERAL")
                 if overridden:
                     block_q &= ~Q(space_id__in=overridden)
@@ -295,13 +374,11 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
             if assignment.scope_type == "SPACE" and assignment.space_id:
                 scope_q |= Q(space_id=assignment.space_id) & ~_lab_exclusion_q
             elif assignment.scope_type == "BLOCK" and assignment.block_id:
-                overridden = list(SpaceApprover.objects.filter(
-                    scope_type="SPACE",
-                    space__block_id=assignment.block_id,
-                    role__name=Role.Name.LAB_INCHARGE,
-                    is_active=True,
-                    user__is_active=True,
-                ).values_list("space_id", flat=True))
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.LAB_INCHARGE,
+                    assignment.block_id,
+                    now,
+                )
                 block_q = Q(space__block_id=assignment.block_id, space__approval_category="LAB")
                 if overridden:
                     block_q &= ~Q(space_id__in=overridden)
@@ -309,14 +386,66 @@ def _get_space_queryset_for_user(user, effective_roles, requested_status):
 
         elif role_name == Role.Name.LIBRARIAN:
             if assignment.scope_type == "BLOCK" and assignment.block_id:
-                overridden = list(SpaceApprover.objects.filter(
-                    scope_type="SPACE",
-                    space__block_id=assignment.block_id,
-                    role__name=Role.Name.LIBRARIAN,
-                    is_active=True,
-                    user__is_active=True,
-                ).values_list("space_id", flat=True))
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.LIBRARIAN,
+                    assignment.block_id,
+                    now,
+                )
                 block_q = Q(space__block_id=assignment.block_id, space__approval_category="LIBRARY")
+                if overridden:
+                    block_q &= ~Q(space_id__in=overridden)
+                scope_q |= block_q
+
+    for override in override_list:
+        role_name = override.role.name
+
+        if role_name == Role.Name.RECEPTIONIST:
+            if override.space_id:
+                scope_q |= Q(space_id=override.space_id)
+            elif override.block_id:
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.RECEPTIONIST,
+                    override.block_id,
+                    now,
+                )
+                block_q = Q(
+                    space__block_id=override.block_id,
+                    space__approval_category="GENERAL",
+                )
+                if overridden:
+                    block_q &= ~Q(space_id__in=overridden)
+                scope_q |= block_q
+
+        elif role_name == Role.Name.LAB_INCHARGE:
+            if override.space_id:
+                scope_q |= Q(space_id=override.space_id) & ~_lab_exclusion_q
+            elif override.block_id:
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.LAB_INCHARGE,
+                    override.block_id,
+                    now,
+                )
+                block_q = Q(
+                    space__block_id=override.block_id,
+                    space__approval_category="LAB",
+                )
+                if overridden:
+                    block_q &= ~Q(space_id__in=overridden)
+                scope_q |= block_q & ~_lab_exclusion_q
+
+        elif role_name == Role.Name.LIBRARIAN:
+            if override.space_id:
+                scope_q |= Q(space_id=override.space_id)
+            elif override.block_id:
+                overridden = _more_specific_space_ids_for_block(
+                    Role.Name.LIBRARIAN,
+                    override.block_id,
+                    now,
+                )
+                block_q = Q(
+                    space__block_id=override.block_id,
+                    space__approval_category="LIBRARY",
+                )
                 if overridden:
                     block_q &= ~Q(space_id__in=overridden)
                 scope_q |= block_q
@@ -638,21 +767,7 @@ class AdminResolveBookingAPIView(APIView):
     GROUP_AWARE_MODULES = {"spaces"}
 
     def _can_resolve_booking(self, module, booking, user):
-        effective_roles = user.get_effective_roles()
-
-        if Role.Name.IT_ADMIN in effective_roles:
-            return True
-
-        if module == "spaces":
-            return _user_can_resolve_space_booking(user, effective_roles, booking)
-        if module == "fleet":
-            return Role.Name.FLEET_MANAGER in effective_roles
-        if module == "mess":
-            return Role.Name.MESS_MANAGER in effective_roles
-        if module == "media":
-            return Role.Name.MEDIA_INCHARGE in effective_roles
-
-        return False
+        return user_can_resolve_booking(module, booking, user)
 
     def patch(self, request):
         module = request.data.get("module")

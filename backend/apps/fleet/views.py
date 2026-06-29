@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.users.permissions import IsAdminOrReadOnly, IsApprover
+from apps.users.permissions import IsAdminOrReadOnly, IsApprover, HasRoleOrReadOnly
 from apps.notifications.utils import (
     mark_pending_request_notifications_read,
     notify_booking_status_change,
@@ -44,6 +44,9 @@ class IsOwnerOrAdminOrReadOnly(drf_permissions.BasePermission):
             return True
         return obj.user == request.user
 
+class IsFleetManagerOrReadOnly(HasRoleOrReadOnly):
+    required_roles = [Role.Name.FLEET_MANAGER, Role.Name.IT_ADMIN]
+
 
 # ==========================================
 # VEHICLE VIEWSET
@@ -56,13 +59,22 @@ class VehicleViewSet(viewsets.ModelViewSet):
     Mirrors SpaceViewSet.
     """
     serializer_class = VehicleSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsFleetManagerOrReadOnly]
 
     def get_permissions(self):
         # Vehicle catalog is publicly viewable
         if self.action in ('list', 'retrieve'):
             return [AllowAny()]
         return super().get_permissions()
+
+    # ✅ FIX: Always look up vehicles from the FULL queryset (active + inactive)
+    # so that admin PATCH actions (reactivate, edit) on inactive vehicles
+    # don't 404. get_queryset() filters out inactive vehicles for regular
+    # users, which was causing the "No Vehicle matches the given query" error.
+    def get_object(self):
+        obj = get_object_or_404(Vehicle, pk=self.kwargs['pk'])
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_queryset(self):
         """
@@ -177,23 +189,18 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         ).update(status='COMPLETED')
 
         if is_admin and view_param == 'general':
-            # All bookings across all users
             qs = FleetBooking.objects.all()
 
         elif is_admin and view_param == 'pending':
-            # Only PENDING bookings (admin approval queue)
             qs = FleetBooking.objects.filter(status='PENDING')
 
         elif is_admin and view_param == 'active':
-            # Currently APPROVED bookings (operational view)
             qs = FleetBooking.objects.filter(status='APPROVED')
 
         elif is_admin and view_param == 'resolved_by_me':
-            # Bookings this admin approved or rejected
             qs = FleetBooking.objects.filter(resolved_by=user)
 
         else:
-            # Regular users (or admin without special view param) — own bookings only
             qs = FleetBooking.objects.filter(user=user)
 
         # --- Optional filters ---
@@ -218,13 +225,8 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
 
     def perform_create(self, serializer):
-        """
-        Mirrors SpaceBookingViewSet.perform_create():
-        Automatically sets the booking owner and their department.
-        The department is non-nullable on BaseBooking, so we pull it
-        from the user's profile.
-        """
         user = self.request.user
+        from apps.users.models import Role
 
         if Role.Name.STUDENT in user.get_effective_roles():
             from rest_framework.exceptions import ValidationError
@@ -241,47 +243,62 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
                 )
             })
 
-        serializer.save(
+        booking = serializer.save(
             user=user,
             department=user.department,
         )
+
+        from apps.notifications.utils import get_raw_global_approvers, notify_new_request
+
+        eligible_set = get_raw_global_approvers(Role.Name.FLEET_MANAGER)
         
+        if len(eligible_set) == 1 and user in eligible_set:
+            booking.status = 'APPROVED'
+            booking.resolved_by = user
+            booking.resolved_at = timezone.now()
+            booking.remarks_by_admin = "Auto-approved -- requester is the sole eligible approver for this resource."
+            booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
+            return
+
+        notify_new_request(
+            booking=booking,
+            domain='fleet',
+            role_name=Role.Name.FLEET_MANAGER,
+            exclude_user=user
+        )
+
     def partial_update(self, request, *args, **kwargs):
-            booking = self.get_object()
-            
-           
+        booking = self.get_object()
 
-            # Prevent editing past bookings
-            if booking.end_datetime <= timezone.now():
-                return Response(
-                    {"error": "Past bookings cannot be modified."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Remember original status before update
-            original_status = booking.status
-
-            serializer = self.get_serializer(
-                booking,
-                data=request.data,
-                partial=True,
-            )
-
-            serializer.is_valid(raise_exception=True)
-
-            updated_booking = serializer.save()
-
-            # If an APPROVED booking was edited,
-            # send it back for approval
-            if original_status == "APPROVED":
-                updated_booking.status = "PENDING"
-                updated_booking.resolved_by = None
-                updated_booking.resolved_at = None
-                updated_booking.save()
-
+        # Prevent editing past bookings
+        if booking.end_datetime <= timezone.now():
             return Response(
-                self.get_serializer(updated_booking).data
+                {"error": "Past bookings cannot be modified."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        original_status = booking.status
+
+        serializer = self.get_serializer(
+            booking,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        updated_booking = serializer.save()
+
+        # If an APPROVED booking was edited, send it back for approval
+        if original_status == "APPROVED":
+            updated_booking.status = "PENDING"
+            updated_booking.resolved_by = None
+            updated_booking.resolved_at = None
+            updated_booking.save()
+
+        return Response(
+            self.get_serializer(updated_booking).data
+        )
 
     # ------------------------------------------------------------------
     # REVIEW ACTION — approve / reject (admin only)
@@ -294,12 +311,6 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         url_path='review',
     )
     def review(self, request, pk=None):
-        """
-        PATCH /api/fleet/bookings/<id>/review/
-        Body: { "status": "APPROVED" | "REJECTED", "remarks": "..." }
-
-        Mirrors the SpaceBooking review action pattern.
-        """
         booking = self.get_object()
 
         if booking.status != 'PENDING':
@@ -363,12 +374,8 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         url_path='cancel',
     )
     def cancel(self, request, pk=None):
-        """
-        PATCH /api/fleet/bookings/<id>/cancel/
-        Allows the booking owner to cancel a PENDING booking.
-        """
         booking = self.get_object()
-        
+
         if booking.end_datetime <= timezone.now():
             return Response(
                 {"error": "Past bookings cannot be cancelled."},
@@ -420,27 +427,14 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         url_path='reschedule',
     )
     def reschedule(self, request, pk=None):
-        """
-        PATCH /api/fleet/bookings/<id>/reschedule/
-        Admin-only: modify vehicle, dates, locations, passengers on
-        an already-APPROVED booking without going back to PENDING.
-
-        Payload (all optional, send only what changes):
-          vehicle, start_datetime, end_datetime,
-          pickup_location, destination, total_passengers,
-          remarks_by_admin
-        """
         booking = self.get_object()
 
-        # Allow rescheduling APPROVED bookings (and PENDING as a convenience)
         if booking.status not in ['APPROVED', 'PENDING']:
             return Response(
                 {"error": f"Cannot reschedule a {booking.status} booking."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Use the existing serializer for validation — pass instance so the
-        # overlap check excludes this booking from the conflict query.
         serializer = self.get_serializer(
             booking,
             data=request.data,
@@ -451,7 +445,6 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Persist admin remark if provided
         remarks = request.data.get('remarks_by_admin', '').strip()
         save_kwargs = {'updated_by': request.user}
         if remarks:
