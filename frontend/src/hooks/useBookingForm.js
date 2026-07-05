@@ -377,12 +377,18 @@ export function useBookingForm({
   // Stable fetch function shared by the suggestion effect and showMoreSuggestions.
   // append=false replaces the list; append=true adds to the end ("show more").
   const fetchSuggestions = useCallback(async (append = false) => {
-    const countToUse = Number.isFinite(attendeeCount) && attendeeCount > 0
-      ? attendeeCount
-      : activeSpaceCap
+    console.log('fetchSuggestions called', { rawAttendees: form.attendees, attendeeCount, isAvailable, triggerReason })
+    if (!Number.isFinite(attendeeCount) || attendeeCount <= 0) {
+      if (!append) {
+        setSuggestedHalls([])
+        setHasMoreSuggestions(false)
+      }
+      return
+    }
+
     const queryParams = new URLSearchParams({
       space_id: activeSpaceId,
-      attendee_count: countToUse,
+      attendee_count: attendeeCount,
       date: form.start_date,
       start_time: form.start_time,
       end_time: form.end_time,
@@ -412,7 +418,7 @@ export function useBookingForm({
     } finally {
       setIsFetchingSuggestions(false)
     }
-  }, [activeSpaceId, attendeeCount, activeSpaceCap, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
+  }, [activeSpaceId, attendeeCount, form.start_date, form.start_time, form.end_time, form.end_date, form.bookingType, isAvailable, exceedsCapacity, seenSpaceIds, triggerReason])
 
   const showMoreSuggestions = useCallback(() => {
     fetchSuggestions(true)
@@ -432,6 +438,12 @@ export function useBookingForm({
 
     // Bug 2 fix: clear suggestions synchronously — no setTimeout, no debounce.
     if (!isLowOccupancy && !isUnavailable && !exceedsCapacity) {
+      setSuggestedHalls([])
+      setHasMoreSuggestions(false)
+      return
+    }
+
+    if (!Number.isFinite(attendeeCount) || attendeeCount <= 0) {
       setSuggestedHalls([])
       setHasMoreSuggestions(false)
       return

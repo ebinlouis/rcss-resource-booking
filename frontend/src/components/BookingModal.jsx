@@ -371,17 +371,14 @@ function BookingModal({
         {isFetchingSuggestions && triggerReason === 'unavailable' && (
           <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
         )}
+        {isAvailable === false && (!Number.isFinite(attendeeCount) || attendeeCount <= 0) && (
+          <p className="text-xs text-gray-400 mt-0.5">Enter expected attendance to see alternative halls.</p>
+        )}
         {triggerReason === 'unavailable' && suggestionCard}
       </div>
 
       {/* ── STEP 2: EVENT DETAILS ── */}
-      <div
-        className={`space-y-6 transition-all duration-300 ${
-          isAvailable === true
-            ? "opacity-100"
-            : "opacity-40 pointer-events-none select-none filter grayscale-[20%]"
-        }`}
-      >
+      <div className="space-y-6 transition-all duration-300">
         <SectionLabel>Step 2: Event Details</SectionLabel>
 
         <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50/60">

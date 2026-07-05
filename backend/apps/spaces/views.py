@@ -438,6 +438,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
             space_type__in=affinity.allowed_categories,
             capacity_hard__gte=min_capacity,
             capacity_hard__lte=max_capacity
+        ).exclude(
+            space_type=Space.SpaceType.CLASSROOM
         ).exclude(id__in=exclude_ids)
 
         # Build the list of dates to check.
