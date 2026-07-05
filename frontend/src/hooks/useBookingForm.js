@@ -147,6 +147,7 @@ export function useBookingForm({
     setActiveSpaceName(space.name)
     setActiveSpaceCap(space.capacity_hard)
     setSuggestedHalls([])
+    seenSuggestionIdsRef.current = []
     justSwitchedRef.current = true
   }
 
@@ -161,6 +162,7 @@ export function useBookingForm({
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
   const debounceTimer = useRef(null)
   const availabilityTimer = useRef(null)
+  const seenSuggestionIdsRef = useRef([])
 
   const attendeeCount = parseInt(form.attendees, 10)
   const exceedsCapacity =
@@ -231,6 +233,7 @@ export function useBookingForm({
   useEffect(() => {
     if (initialSpaceId !== activeSpaceId) {
       setTimeout(() => setSeenSpaceIds([]), 0)
+      seenSuggestionIdsRef.current = []
     }
   }, [initialSpaceId, activeSpaceId])
 
@@ -238,6 +241,7 @@ export function useBookingForm({
   // previously excluded spaces are eligible again for the new time slot.
   useEffect(() => {
     setSeenSpaceIds([])
+    seenSuggestionIdsRef.current = []
     setSuggestedHalls([])
     setHasMoreSuggestions(false)
   }, [form.start_date, form.start_time, form.end_time])
@@ -386,13 +390,19 @@ export function useBookingForm({
       return
     }
 
+    // For a fresh fetch, reset suggestion tracking so re-fired effects
+    // don't exclude the results that were just displayed.
+    if (!append) {
+      seenSuggestionIdsRef.current = []
+    }
+
     const queryParams = new URLSearchParams({
       space_id: activeSpaceId,
       attendee_count: attendeeCount,
       date: form.start_date,
       start_time: form.start_time,
       end_time: form.end_time,
-      exclude_ids: seenSpaceIds.join(','),
+      exclude_ids: [...new Set([...seenSpaceIds, ...seenSuggestionIdsRef.current])].join(','),
       trigger_reason: triggerReason,
       booking_type: form.bookingType,
     })
@@ -404,12 +414,19 @@ export function useBookingForm({
     try {
       const res = await api.get(`/spaces/catalog/suggestions/?${queryParams.toString()}`)
       const suggestions = res.data.results ?? res.data ?? []
+      const batch = suggestions.slice(0, 3)
       if (append) {
-        setSuggestedHalls((prev) => [...prev, ...suggestions.slice(0, 3)])
+        setSuggestedHalls((prev) => [...prev, ...batch])
       } else {
-        setSuggestedHalls(suggestions.slice(0, 3))
+        setSuggestedHalls(batch)
       }
       setHasMoreSuggestions(suggestions.length === 3)
+      // Track returned IDs via ref so subsequent fetches exclude them
+      // (using a ref avoids re-triggering the effect / recreating this callback)
+      if (batch.length > 0) {
+        const newIds = batch.map((s) => s.id)
+        seenSuggestionIdsRef.current = [...new Set([...seenSuggestionIdsRef.current, ...newIds])]
+      }
     } catch {
       if (!append) {
         setSuggestedHalls([])
