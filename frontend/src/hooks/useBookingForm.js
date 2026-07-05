@@ -381,7 +381,6 @@ export function useBookingForm({
   // Stable fetch function shared by the suggestion effect and showMoreSuggestions.
   // append=false replaces the list; append=true adds to the end ("show more").
   const fetchSuggestions = useCallback(async (append = false) => {
-    console.log('fetchSuggestions called', { rawAttendees: form.attendees, attendeeCount, isAvailable, triggerReason })
     if (!Number.isFinite(attendeeCount) || attendeeCount <= 0) {
       if (!append) {
         setSuggestedHalls([])
