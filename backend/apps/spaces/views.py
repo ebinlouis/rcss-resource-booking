@@ -432,15 +432,17 @@ class SpaceViewSet(viewsets.ModelViewSet):
         if requested_space.id not in exclude_ids:
             exclude_ids.append(requested_space.id)
 
-        candidate_spaces = Space.objects.filter(
+        base_candidate_spaces = Space.objects.filter(
             is_active=True,
             is_special_purpose=False,
             space_type__in=affinity.allowed_categories,
             capacity_hard__gte=min_capacity,
-            capacity_hard__lte=max_capacity
         ).exclude(
             space_type=Space.SpaceType.CLASSROOM
         ).exclude(id__in=exclude_ids)
+        candidate_spaces = base_candidate_spaces.filter(
+            capacity_hard__lte=max_capacity
+        )
 
         # Build the list of dates to check.
         # For RECURRING bookings the end_date query param is expected alongside date (the start).
@@ -460,50 +462,62 @@ class SpaceViewSet(viewsets.ModelViewSet):
             for i in range(max(days_diff, 0) + 1)
         ]
 
-        available_spaces = []
-        for space in candidate_spaces:
-            space_is_free = True
-            for i, check_date in enumerate(dates_to_check):
-                if booking_type == 'RECURRING':
-                    slot_start = tz.make_aware(dt.datetime.combine(check_date, start_time))
-                    slot_end   = tz.make_aware(dt.datetime.combine(check_date, end_time))
-                else:
-                    if i == 0 and len(dates_to_check) == 1:
-                        s_time = start_time
-                        e_time = end_time
-                    elif i == 0:
-                        s_time = start_time
-                        e_time = dt.time(23, 59, 59)
-                    elif i == len(dates_to_check) - 1:
-                        s_time = dt.time(0, 0)
-                        e_time = end_time
+        def get_available_spaces(spaces):
+            available = []
+            for space in spaces:
+                space_is_free = True
+                for i, check_date in enumerate(dates_to_check):
+                    if booking_type == 'RECURRING':
+                        slot_start = tz.make_aware(dt.datetime.combine(check_date, start_time))
+                        slot_end   = tz.make_aware(dt.datetime.combine(check_date, end_time))
                     else:
-                        s_time = dt.time(0, 0)
-                        e_time = dt.time(23, 59, 59)
-                    slot_start = tz.make_aware(dt.datetime.combine(check_date, s_time))
-                    slot_end   = tz.make_aware(dt.datetime.combine(check_date, e_time))
+                        if i == 0 and len(dates_to_check) == 1:
+                            s_time = start_time
+                            e_time = end_time
+                        elif i == 0:
+                            s_time = start_time
+                            e_time = dt.time(23, 59, 59)
+                        elif i == len(dates_to_check) - 1:
+                            s_time = dt.time(0, 0)
+                            e_time = end_time
+                        else:
+                            s_time = dt.time(0, 0)
+                            e_time = dt.time(23, 59, 59)
+                        slot_start = tz.make_aware(dt.datetime.combine(check_date, s_time))
+                        slot_end   = tz.make_aware(dt.datetime.combine(check_date, e_time))
 
-                overlaps = get_overlapping_bookings(space, slot_start, slot_end)
-                if overlaps.filter(
-                    status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED']
-                ).exists():
-                    space_is_free = False
-                    break
+                    overlaps = get_overlapping_bookings(space, slot_start, slot_end)
+                    if overlaps.filter(
+                        status__in=['PENDING', 'APPROVED', 'AWAITING_FACULTY', 'FACULTY_ESCALATED']
+                    ).exists():
+                        space_is_free = False
+                        break
 
-                timetable_conflict = SpaceTimetableBlock.objects.filter(
-                    space=space,
-                    date=check_date,
-                    start_time__lt=slot_end.time(),
-                    end_time__gt=slot_start.time()
-                ).exists()
-                if timetable_conflict:
-                    space_is_free = False
-                    break
+                    timetable_conflict = SpaceTimetableBlock.objects.filter(
+                        space=space,
+                        date=check_date,
+                        start_time__lt=slot_end.time(),
+                        end_time__gt=slot_start.time()
+                    ).exists()
+                    if timetable_conflict:
+                        space_is_free = False
+                        break
 
-            if space_is_free:
-                available_spaces.append(space)
+                if space_is_free:
+                    available.append(space)
 
-        available_spaces.sort(key=lambda s: abs(s.capacity_hard - attendee_count))
+            return available
+
+        available_spaces = get_available_spaces(candidate_spaces)
+        used_tier_two = False
+        if not available_spaces and trigger_reason in {'unavailable', 'exceeds_capacity'}:
+            used_tier_two = True
+            available_spaces = get_available_spaces(base_candidate_spaces)
+
+        if used_tier_two:
+            available_spaces.sort(key=lambda s: s.capacity_hard)
+        else:
+            available_spaces.sort(key=lambda s: abs(s.capacity_hard - attendee_count))
         available_spaces = available_spaces[:5]
 
         from .serializers import SpaceSerializer
