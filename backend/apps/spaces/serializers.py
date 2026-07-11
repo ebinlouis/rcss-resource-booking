@@ -14,7 +14,7 @@ from .models import (
     EquipmentRequest,
     SpaceApprover,
 )
-from .utils import get_overlapping_bookings, build_conflict_report
+from .utils import get_overlapping_bookings, build_conflict_report, get_space_time_window
 
 
 # ==========================================
@@ -645,6 +645,57 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         booking_type = data.get(
             "booking_type", SpaceBooking.BookingType.SINGLE_CONTINUOUS
         )
+
+        # ── Past-date / past-time check (all spaces, IST) ─────────────
+        if start:
+            from django.utils import timezone
+            now_local = timezone.localtime(timezone.now())
+            start_local = timezone.localtime(start)
+
+            if start_local.date() < now_local.date():
+                raise serializers.ValidationError(
+                    {"start_datetime": "Cannot create a booking in the past."}
+                )
+            if (
+                start_local.date() == now_local.date()
+                and start_local.time() < now_local.time()
+            ):
+                raise serializers.ValidationError(
+                    {"start_datetime": "Cannot create a booking for a time that has already passed today."}
+                )
+
+        # ── Per-space time-window override check ──────────────────────
+        if space and start and end:
+            earliest, latest = get_space_time_window(space)
+
+            if earliest is not None or latest is not None:
+                from django.utils import timezone as tz
+                start_time = tz.localtime(start).time()
+                end_time = tz.localtime(end).time()
+
+                window_start_str = earliest.strftime("%H:%M") if earliest else "open"
+                window_end_str = latest.strftime("%H:%M") if latest else "open"
+
+                if earliest and start_time < earliest:
+                    raise serializers.ValidationError(
+                        {
+                            "start_datetime": (
+                                f"This space does not allow bookings before "
+                                f"{window_start_str}. "
+                                f"Allowed window: {window_start_str}–{window_end_str}."
+                            )
+                        }
+                    )
+                if latest and end_time > latest:
+                    raise serializers.ValidationError(
+                        {
+                            "end_datetime": (
+                                f"This space does not allow bookings after "
+                                f"{window_end_str}. "
+                                f"Allowed window: {window_start_str}–{window_end_str}."
+                            )
+                        }
+                    )
 
         if space and attendees:
             if attendees > space.capacity_hard:
