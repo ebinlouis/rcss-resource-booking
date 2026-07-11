@@ -212,6 +212,32 @@ class SpaceViewSet(viewsets.ModelViewSet):
             except (TypeError, ValueError):
                 exclude_pk = None
 
+        # ── Per-space time-window override check ──────────────────────
+        from .utils import get_space_time_window
+        earliest, latest = get_space_time_window(space)
+        if earliest is not None or latest is not None:
+            start_time = tz.localtime(start_dt).time()
+            end_time = tz.localtime(end_dt).time()
+
+            window_start_str = earliest.strftime("%H:%M") if earliest else "open"
+            window_end_str = latest.strftime("%H:%M") if latest else "open"
+
+            outside = False
+            if earliest and start_time < earliest:
+                outside = True
+            if latest and end_time > latest:
+                outside = True
+
+            if outside:
+                return Response({
+                    "available": False,
+                    "conflicts": [],
+                    "message": (
+                        f"Booking times must be within "
+                        f"{window_start_str}–{window_end_str} for this space."
+                    ),
+                }, status=status.HTTP_200_OK)
+
         conflicts = []
 
         if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
@@ -439,7 +465,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
             capacity_hard__gte=min_capacity,
         ).exclude(
             space_type=Space.SpaceType.CLASSROOM
-        ).exclude(id__in=exclude_ids)
+        ).exclude(id__in=exclude_ids).select_related('approver_chain')
         candidate_spaces = base_candidate_spaces.filter(
             capacity_hard__lte=max_capacity
         )
@@ -449,7 +475,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
         # For SINGLE (or unspecified) only start_date is checked.
         from django.utils import timezone as tz
         import datetime as dt
-        from .utils import get_overlapping_bookings
+        from .utils import get_overlapping_bookings, get_space_time_window
 
         end_date_str = request.query_params.get('end_date', date_str)
         try:
@@ -465,6 +491,14 @@ class SpaceViewSet(viewsets.ModelViewSet):
         def get_available_spaces(spaces):
             available = []
             for space in spaces:
+                # ── Per-space time-window override check ──────────────
+                earliest, latest = get_space_time_window(space)
+                if earliest is not None or latest is not None:
+                    if earliest and start_time < earliest:
+                        continue  # requested start is before this space's window
+                    if latest and end_time > latest:
+                        continue  # requested end is after this space's window
+
                 space_is_free = True
                 for i, check_date in enumerate(dates_to_check):
                     if booking_type == 'RECURRING':
