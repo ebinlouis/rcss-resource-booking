@@ -426,6 +426,34 @@ class SpaceViewSet(viewsets.ModelViewSet):
         except ValueError:
             return Response([])
 
+        # ── Past-date guard ────────────────────────────────────────────
+        # Use timezone.localdate() for IST-correct "today" (TIME_ZONE =
+        # 'Asia/Kolkata'), matching the serializer's past-date check.
+        from django.utils import timezone as _tz
+        if start_date < _tz.localdate():
+            return Response([])
+
+        # ── End-before-start guard ─────────────────────────────────────
+        # For RECURRING bookings, start_time and end_time define the same
+        # daily slot on every date in the range — end_time <= start_time is
+        # always invalid.
+        # For SINGLE (including multi-day), start_time anchors the first day
+        # and end_time anchors the last day.  On a *single-day* SINGLE booking
+        # both bound the same slot, so end_time <= start_time is invalid.
+        # On a *multi-day* SINGLE booking end_time < start_time is valid (e.g.
+        # starts Monday 14:00, ends Tuesday 10:00), so we only reject when
+        # start_date == end_date.
+        _end_date_str = request.query_params.get('end_date', date_str)
+        try:
+            _end_date = datetime.strptime(_end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            _end_date = start_date
+
+        _is_single_day = (_end_date == start_date)
+        if booking_type == 'RECURRING' or _is_single_day:
+            if end_time <= start_time:
+                return Response([])
+
         from .models import Space, SpaceCategoryAffinity, SpaceTimetableBlock
         try:
             requested_space = Space.objects.get(id=space_id)
