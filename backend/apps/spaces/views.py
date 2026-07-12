@@ -879,9 +879,31 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         """
-        Wraps the entire creation process (validation + saving) 
-        in a single transaction so select_for_update() can hold its lock.
+        Wraps booking creation in a single atomic transaction and acquires a
+        row-level lock on the Space being booked via select_for_update().
+
+        This prevents the TOCTOU (check-then-act) race where two near-simultaneous
+        requests both pass the overlap check (seeing no conflict), then both insert
+        overlapping PENDING bookings before either transaction commits.
+
+        With the lock:
+          - Transaction A acquires SELECT FOR UPDATE on the Space row.
+          - Transaction B also calls SELECT FOR UPDATE and blocks until A commits.
+          - Once A commits (overlap check passed + booking saved), B's lock is
+            granted and its overlap check now sees A's booking — correctly
+            detecting the conflict and rejecting B.
+
+        Lock scope: one row in the spaces_space table, for the specific space being
+        booked. This serializes concurrent creates for the same space without
+        affecting concurrent creates for different spaces.
         """
+        from .models import Space
+        space_id = request.data.get('space')
+        if space_id:
+            # Lock the Space row for the duration of this transaction.
+            # nowait=False (the default) means a second request blocks until
+            # the first transaction releases the lock, which happens on commit.
+            Space.objects.select_for_update().filter(pk=space_id).first()
         return super().create(request, *args, **kwargs)
 
     def get_permissions(self):
