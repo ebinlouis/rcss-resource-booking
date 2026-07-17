@@ -149,7 +149,8 @@ function Mess() {
   const { data: bookingsData, isLoading } = useMyMessBookings()
   const bookings = bookingsData || []
 
-  const [selectedDate,            setSelectedDate]            = useState("")
+  // ✅ Default to today's date so the date picker shows current date on load
+  const [selectedDate,            setSelectedDate]            = useState(todayStr)
   const [mealFilter,              setMealFilter]              = useState("All")
   const [showAllUpcoming,         setShowAllUpcoming]         = useState(false)
   const [selectedViewBooking,     setSelectedViewBooking]     = useState(null)
@@ -250,7 +251,8 @@ function Mess() {
   const handleSave = () => {
     closeForm()
     toast.success(editMode ? "Booking updated successfully!" : "Booking submitted! Waiting for approval.")
-    setSelectedDate("")
+    // ✅ Reset to today after save, not empty string
+    setSelectedDate(todayStr)
     if (isLinkedFlow) navigate("/dashboard?resumeSpace=1")
   }
 
@@ -298,7 +300,7 @@ function Mess() {
           </button>
         </div>
 
-        {/* Meal type filters — left side only, no date picker here */}
+        {/* Meal type filters */}
         <div className="flex gap-2 flex-wrap">
           {["All", "Breakfast", "Lunch", "Dinner", "Snacks"].map((meal) => (
             <button
@@ -321,7 +323,7 @@ function Mess() {
           {/* Main content — takes 2/3 */}
           <div className="lg:col-span-2 space-y-4">
 
-            {/* List header — with date picker inline, mirrors Transport */}
+            {/* List header with date picker */}
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-800">
                 {selectedDate ? `Bookings on ${formatShortDate(selectedDate)}` : "Upcoming Bookings"}
@@ -335,10 +337,19 @@ function Mess() {
                     {showAllUpcoming ? "Show less" : "View all"}
                   </button>
                 )}
+                {/* ✅ Show "Today" button only when date is not today */}
+                {selectedDate && selectedDate !== todayStr && (
+                  <button
+                    onClick={() => setSelectedDate(todayStr)}
+                    className="text-sm text-green-700 hover:text-green-800 font-medium"
+                  >
+                    Today
+                  </button>
+                )}
                 {selectedDate && (
                   <button
                     onClick={() => setSelectedDate("")}
-                    className="text-sm text-green-700 hover:text-green-800 font-medium"
+                    className="text-sm text-slate-500 hover:text-slate-700 font-medium"
                   >
                     Clear
                   </button>
