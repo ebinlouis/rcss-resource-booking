@@ -89,7 +89,12 @@ const router = createBrowserRouter([
           { path: "/login", element: <Login /> }
         ]
       },
+
+      // ✅ "/" is the new HomePage — this is where regular users land after login
       { path: "/", element: <HomePage /> },
+
+      // "/dashboard" still points to the old Home (Venues) page
+      // kept so existing links/bookmarks don't break
       {
         path: "/dashboard",
         element: <Home />,
@@ -225,7 +230,6 @@ const router = createBrowserRouter([
                 ]
               },
               {
-                // ✅ Fleet manager sees both Transport Management AND Vehicle Management
                 element: <ProtectedRoute requiredCapability="can_manage_fleet" />,
                 children: [
                   { path: "/admin/transport", element: <AdminTransportPage /> },
@@ -268,6 +272,7 @@ const router = createBrowserRouter([
           }
         ]
       },
+      // Unknown routes fall back to new HomePage
       { path: "*", element: <Navigate to="/" replace /> }
     ]
   }

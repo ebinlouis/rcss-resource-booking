@@ -16,9 +16,9 @@ const PublicRoute = () => {
         );
     }
 
-    // 2. If they are already logged in, they shouldn't be on the login page!
+    // 2. If already logged in, redirect to the new HomePage
     if (user) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/" replace />;
     }
 
     // 3. Not logged in? Safe to show the Login page.

@@ -33,6 +33,14 @@ const formatConflictDate = (dateStr) => {
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
 }
 
+const formatSuggestedDate = (dateStr) => {
+  const d = new Date(dateStr + "T00:00:00")
+  return {
+    weekday: d.toLocaleDateString("en-IN", { weekday: "short" }),
+    date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+  }
+}
+
 const durationMins = (startTime, endTime) => {
   const [sh, sm] = startTime.split(":").map(Number)
   const [eh, em] = endTime.split(":").map(Number)
@@ -94,7 +102,7 @@ function BookingModal({
   prefillStart = "",
   prefillEnd = "",
   wizardMode = false,
-  isStandalone = false, // ← NEW PROP: when true, ignores session draft for date/time fields
+  isStandalone = false,
   onLinkedIntent,
   onAvailabilityChange = null,
 }) {
@@ -103,6 +111,7 @@ function BookingModal({
     dynamicDepartments, dynamicEquipment, errors, submitted, isSubmitting,
     isAvailable, availabilityMsg, availabilityConflicts, isCheckingAvailability,
     suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
+    suggestedDates, isFetchingDateSuggestions,
     isLowOccupancy, isMultiDay, notesRequired, linkedStartIso,
     linkedEndIso, linkedOptionsReady, continueLinkedBooking,
     handleSubmit, isEdit, isStudent, isAiLab, triggerReason
@@ -123,9 +132,7 @@ function BookingModal({
     onClose()
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Success State
-  // ─────────────────────────────────────────────────────────────
+  // ── Success State ─────────────────────────────────────────────────────────
 
   if (submitted) {
     const finishBooking = () => {
@@ -137,13 +144,7 @@ function BookingModal({
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
         <div className="bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 max-w-sm w-full text-center">
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-            <svg
-              className="w-7 h-7 text-green-700"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
+            <svg className="w-7 h-7 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -153,9 +154,7 @@ function BookingModal({
           <p className="text-sm text-gray-500 leading-relaxed">
             Your booking for{" "}
             <span className="font-semibold text-gray-700">{activeSpaceName}</span> has been{" "}
-            {isEdit
-              ? "updated and sent for review."
-              : "submitted for review."}
+            {isEdit ? "updated and sent for review." : "submitted for review."}
             {form.isExternal && (
               <span className="block mt-1 text-xs text-yellow-600 font-medium">
                 Marked as an external event.
@@ -174,7 +173,7 @@ function BookingModal({
     )
   }
 
-  // Left panel derived values (normal modal only)
+  // Left panel derived values
   const startH = form.start_time
     ? +form.start_time.split(":")[0] + +form.start_time.split(":")[1] / 60
     : null
@@ -192,10 +191,24 @@ function BookingModal({
       ? formatHoursPerDay(form.start_time, form.end_time)
       : null
 
-  // ─────────────────────────────────────────────────────────────
-  // Shared form body (used in both wizard and normal modal)
-  // ─────────────────────────────────────────────────────────────
+  // ── Attendees field — rendered inline near conflict warning ───────────────
+  // ✅ Pulled out as a shared component so it can appear above Step 2
+  const attendeesField = !isAiLab && (
+    <Field label="Expected attendees" required error={errors.attendees}
+      hint="Helps us find the right sized venue for you.">
+      <input
+        type="number"
+        min="1"
+        max={activeSpaceCap || undefined}
+        className={inputCls(errors.attendees)}
+        placeholder="e.g. 45"
+        value={form.attendees}
+        onChange={(e) => set("attendees", e.target.value)}
+      />
+    </Field>
+  )
 
+  // ── Suggestion card ───────────────────────────────────────────────────────
   const suggestionCard = !isFetchingSuggestions && suggestedHalls.length > 0 && (
     <div className="mt-2 mb-4">
       <SpaceSuggestions
@@ -208,6 +221,8 @@ function BookingModal({
       />
     </div>
   )
+
+  // ── Form body ─────────────────────────────────────────────────────────────
 
   const formBody = (
     <div className="space-y-6">
@@ -368,11 +383,70 @@ function BookingModal({
           </div>
         ) : null}
 
+        {/* ✅ Attendees nudge + field — shown right after conflict warning */}
+        {isAvailable === false && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-amber-800">This slot is taken — we can suggest alternatives!</p>
+                <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                  Enter how many people will attend and we'll find available venues that fit your group.
+                </p>
+              </div>
+            </div>
+            {attendeesField}
+          </div>
+        )}
+
+        {/* ✅ Date suggestions — available dates for same venue + same time */}
+        {isAvailable === false && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Available dates for the same time slot
+            </p>
+            {isFetchingDateSuggestions ? (
+              <div className="flex items-center gap-2 text-xs text-slate-500 animate-pulse">
+                <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                Checking nearby dates…
+              </div>
+            ) : suggestedDates.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {suggestedDates.map((dateStr) => {
+                  const { weekday, date } = formatSuggestedDate(dateStr)
+                  return (
+                    <button
+                      key={dateStr}
+                      type="button"
+                      onClick={() => {
+                        // Apply date to both start and end, keeping same time slot
+                        const endDate = form.end_date && form.end_date !== form.start_date
+                          ? dateStr // keep relative end offset? for now just use same date
+                          : dateStr
+                        set("start_date", dateStr)
+                        set("end_date", endDate)
+                      }}
+                      className="flex flex-col items-center px-3 py-2 rounded-xl border border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-400 transition-all group"
+                    >
+                      <span className="text-[10px] font-bold text-green-600 uppercase tracking-wide">{weekday}</span>
+                      <span className="text-sm font-semibold text-green-900 mt-0.5">{date}</span>
+                      <span className="text-[10px] text-green-600 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Book this →</span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">
+                No free slots found in the next 14 days for this time range.
+              </p>
+            )}
+          </div>
+        )}
+
         {isFetchingSuggestions && triggerReason === 'unavailable' && (
           <p className="text-xs text-indigo-600 animate-pulse mt-2 mb-4">Looking for better venue options...</p>
-        )}
-        {isAvailable === false && (!Number.isFinite(attendeeCount) || attendeeCount <= 0) && (
-          <p className="text-xs text-gray-400 mt-0.5">Enter expected attendance to see alternative halls.</p>
         )}
         {triggerReason === 'unavailable' && suggestionCard}
       </div>
@@ -386,7 +460,7 @@ function BookingModal({
             <span className="text-sm font-semibold text-gray-700">External Event</span>
             <span className="text-xs text-gray-500 mt-0.5 leading-relaxed">
               Turn this on if the event involves external guests or organisations.
-These bookings may need additional review.
+              These bookings may need additional review.
             </span>
           </div>
           <button
@@ -461,7 +535,8 @@ These bookings may need additional review.
         )}
         {triggerReason === 'exceeds_capacity' && suggestionCard}
 
-        {activeSpaceName?.toLowerCase().includes("ai lab") ? (
+        {/* ✅ Attendees field in normal position (hidden when already shown above) */}
+        {isAiLab ? (
           <div className="space-y-4">
             <div className="flex gap-6 mt-1 mb-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -495,7 +570,6 @@ These bookings may need additional review.
                 <span className="text-sm font-semibold text-gray-900">Group Booking</span>
               </label>
             </div>
-            
             {form.aiBookingSize === 'GROUP' && (
               <div className="grid grid-cols-1 gap-4">
                 <Field label="Expected attendees" required error={errors.attendees}>
@@ -513,19 +587,12 @@ These bookings may need additional review.
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
-            <Field label="Expected attendees" required error={errors.attendees}>
-              <input
-                type="number"
-                min="1"
-                max={activeSpaceCap || undefined}
-                className={inputCls(errors.attendees)}
-                placeholder="e.g. 45"
-                value={form.attendees}
-                onChange={(e) => set("attendees", e.target.value)}
-              />
-            </Field>
-          </div>
+          // ✅ Only show here when slot IS available (already shown above in conflict nudge)
+          isAvailable !== false && (
+            <div className="grid grid-cols-1 gap-4">
+              {attendeesField}
+            </div>
+          )
         )}
 
         {isLowOccupancy && (
@@ -622,14 +689,11 @@ These bookings may need additional review.
     </div>
   )
 
-  // ─────────────────────────────────────────────────────────────
-  // Wizard mode — matches Mess/Media layout exactly
-  // ─────────────────────────────────────────────────────────────
+  // ── Wizard mode ───────────────────────────────────────────────────────────
 
   if (wizardMode) {
     return (
       <div className="mx-auto w-full max-w-4xl space-y-6">
-        {/* Heading — matches SpaceDraftStep / MessDraftStep / MediaDraftStep */}
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-green-700">Space</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-950">Book a venue</h2>
@@ -663,9 +727,7 @@ These bookings may need additional review.
     )
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Normal modal mode
-  // ─────────────────────────────────────────────────────────────
+  // ── Normal modal mode ─────────────────────────────────────────────────────
 
   const modalContent = (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
@@ -674,9 +736,7 @@ These bookings may need additional review.
         {/* LEFT PANEL */}
         <div
           className="hidden md:flex md:w-[32%] shrink-0 flex-col justify-between p-7"
-          style={{
-            background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)",
-          }}
+          style={{ background: "linear-gradient(160deg, #14532d 0%, #166534 45%, #1e3a5f 100%)" }}
         >
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-green-300 mb-2">
@@ -807,12 +867,13 @@ These bookings may need additional review.
                 {isEdit ? "Edit your booking" : "Book this venue"}
               </h2>
             </div>
-<button
-  onClick={handleClose}
-  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
->
-  ✕
-</button></div>
+            <button
+              onClick={handleClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition"
+            >
+              ✕
+            </button>
+          </div>
 
           {/* RE-APPROVAL NOTICE */}
           {isEdit && initialData?.status === "APPROVED" && (
@@ -849,30 +910,29 @@ These bookings may need additional review.
               )}
             </div>
             <div className="flex gap-2">
-<button
-  onClick={handleClose}
-  className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
->
-  Cancel
-</button>
-
-<Tooltip
-  text={
-    isEdit
-      ? "Save your changes. The booking will be re-reviewed if it was already approved."
-      : "Submit your booking request. Your booking will be reviewed before confirmation."
-  }
-  position="top"
->
- 
- <button
-    onClick={handleSubmit}
-    disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
-    className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-  >
-    {isSubmitting ? "Saving..." : isEdit ? "Update Booking" : "Send Booking Request"}
-  </button>
-</Tooltip></div>
+              <button
+                onClick={handleClose}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <Tooltip
+                text={
+                  isEdit
+                    ? "Save your changes. The booking will be re-reviewed if it was already approved."
+                    : "Submit your booking request. Your booking will be reviewed before confirmation."
+                }
+                position="top"
+              >
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || isAvailable !== true || exceedsCapacity}
+                  className="px-5 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-semibold transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? "Saving..." : isEdit ? "Update Booking" : "Send Booking Request"}
+                </button>
+              </Tooltip>
+            </div>
           </div>
         </div>
       </div>
