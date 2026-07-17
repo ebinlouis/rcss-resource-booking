@@ -2,6 +2,34 @@ from datetime import timedelta
 from django.utils import timezone
 
 
+def get_space_time_window(space):
+    """
+    Return the per-space booking time window as (earliest_start, latest_end).
+
+    Looks up the space's SpaceApproverChain for explicit earliest_start /
+    latest_end overrides.  If the chain doesn't exist or the fields are
+    null, returns (None, None) — meaning no per-space restriction applies
+    and the caller should skip the time-window check entirely.
+
+    Returns:
+        (datetime.time | None, datetime.time | None)
+    """
+    try:
+        chain = space.approver_chain
+    except Exception:
+        # RelatedObjectDoesNotExist — no chain configured for this space
+        return (None, None)
+
+    earliest = chain.earliest_start  # TimeField, nullable
+    latest = chain.latest_end        # TimeField, nullable
+
+    # Only return a window when at least one bound is explicitly set
+    if earliest is None and latest is None:
+        return (None, None)
+
+    return (earliest, latest)
+
+
 def get_buffered_range(space, start_dt, end_dt):
     """
     Expand a booking's raw start/end times by the space's setup and

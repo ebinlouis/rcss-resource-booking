@@ -212,6 +212,32 @@ class SpaceViewSet(viewsets.ModelViewSet):
             except (TypeError, ValueError):
                 exclude_pk = None
 
+        # ── Per-space time-window override check ──────────────────────
+        from .utils import get_space_time_window
+        earliest, latest = get_space_time_window(space)
+        if earliest is not None or latest is not None:
+            start_time = tz.localtime(start_dt).time()
+            end_time = tz.localtime(end_dt).time()
+
+            window_start_str = earliest.strftime("%H:%M") if earliest else "open"
+            window_end_str = latest.strftime("%H:%M") if latest else "open"
+
+            outside = False
+            if earliest and start_time < earliest:
+                outside = True
+            if latest and end_time > latest:
+                outside = True
+
+            if outside:
+                return Response({
+                    "available": False,
+                    "conflicts": [],
+                    "message": (
+                        f"Booking times must be within "
+                        f"{window_start_str}–{window_end_str} for this space."
+                    ),
+                }, status=status.HTTP_200_OK)
+
         conflicts = []
 
         if booking_type == SpaceBooking.BookingType.RECURRING_DAILY:
@@ -400,6 +426,34 @@ class SpaceViewSet(viewsets.ModelViewSet):
         except ValueError:
             return Response([])
 
+        # ── Past-date guard ────────────────────────────────────────────
+        # Use timezone.localdate() for IST-correct "today" (TIME_ZONE =
+        # 'Asia/Kolkata'), matching the serializer's past-date check.
+        from django.utils import timezone as _tz
+        if start_date < _tz.localdate():
+            return Response([])
+
+        # ── End-before-start guard ─────────────────────────────────────
+        # For RECURRING bookings, start_time and end_time define the same
+        # daily slot on every date in the range — end_time <= start_time is
+        # always invalid.
+        # For SINGLE (including multi-day), start_time anchors the first day
+        # and end_time anchors the last day.  On a *single-day* SINGLE booking
+        # both bound the same slot, so end_time <= start_time is invalid.
+        # On a *multi-day* SINGLE booking end_time < start_time is valid (e.g.
+        # starts Monday 14:00, ends Tuesday 10:00), so we only reject when
+        # start_date == end_date.
+        _end_date_str = request.query_params.get('end_date', date_str)
+        try:
+            _end_date = datetime.strptime(_end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            _end_date = start_date
+
+        _is_single_day = (_end_date == start_date)
+        if booking_type == 'RECURRING' or _is_single_day:
+            if end_time <= start_time:
+                return Response([])
+
         from .models import Space, SpaceCategoryAffinity, SpaceTimetableBlock
         try:
             requested_space = Space.objects.get(id=space_id)
@@ -439,7 +493,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
             capacity_hard__gte=min_capacity,
         ).exclude(
             space_type=Space.SpaceType.CLASSROOM
-        ).exclude(id__in=exclude_ids)
+        ).exclude(id__in=exclude_ids).select_related('approver_chain')
         candidate_spaces = base_candidate_spaces.filter(
             capacity_hard__lte=max_capacity
         )
@@ -449,7 +503,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
         # For SINGLE (or unspecified) only start_date is checked.
         from django.utils import timezone as tz
         import datetime as dt
-        from .utils import get_overlapping_bookings
+        from .utils import get_overlapping_bookings, get_space_time_window
 
         end_date_str = request.query_params.get('end_date', date_str)
         try:
@@ -465,6 +519,14 @@ class SpaceViewSet(viewsets.ModelViewSet):
         def get_available_spaces(spaces):
             available = []
             for space in spaces:
+                # ── Per-space time-window override check ──────────────
+                earliest, latest = get_space_time_window(space)
+                if earliest is not None or latest is not None:
+                    if earliest and start_time < earliest:
+                        continue  # requested start is before this space's window
+                    if latest and end_time > latest:
+                        continue  # requested end is after this space's window
+
                 space_is_free = True
                 for i, check_date in enumerate(dates_to_check):
                     if booking_type == 'RECURRING':
@@ -817,9 +879,31 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         """
-        Wraps the entire creation process (validation + saving) 
-        in a single transaction so select_for_update() can hold its lock.
+        Wraps booking creation in a single atomic transaction and acquires a
+        row-level lock on the Space being booked via select_for_update().
+
+        This prevents the TOCTOU (check-then-act) race where two near-simultaneous
+        requests both pass the overlap check (seeing no conflict), then both insert
+        overlapping PENDING bookings before either transaction commits.
+
+        With the lock:
+          - Transaction A acquires SELECT FOR UPDATE on the Space row.
+          - Transaction B also calls SELECT FOR UPDATE and blocks until A commits.
+          - Once A commits (overlap check passed + booking saved), B's lock is
+            granted and its overlap check now sees A's booking — correctly
+            detecting the conflict and rejecting B.
+
+        Lock scope: one row in the spaces_space table, for the specific space being
+        booked. This serializes concurrent creates for the same space without
+        affecting concurrent creates for different spaces.
         """
+        from .models import Space
+        space_id = request.data.get('space')
+        if space_id:
+            # Lock the Space row for the duration of this transaction.
+            # nowait=False (the default) means a second request blocks until
+            # the first transaction releases the lock, which happens on commit.
+            Space.objects.select_for_update().filter(pk=space_id).first()
         return super().create(request, *args, **kwargs)
 
     def get_permissions(self):
