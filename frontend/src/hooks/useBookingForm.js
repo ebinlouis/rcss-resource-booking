@@ -26,6 +26,13 @@ const currentTimeISO = () => {
   ).padStart(2, "0")}`
 }
 
+// ✅ Helper: add N days to a YYYY-MM-DD string
+const addDays = (dateStr, n) => {
+  const d = new Date(dateStr + "T00:00:00")
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split("T")[0]
+}
+
 export function useBookingForm({
   initialSpaceId,
   initialSpaceName,
@@ -161,6 +168,12 @@ export function useBookingForm({
   const [hasMoreSuggestions, setHasMoreSuggestions] = useState(false)
   const [seenSpaceIds, setSeenSpaceIds] = useState([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
+
+  // ✅ Date suggestions state
+  const [suggestedDates, setSuggestedDates] = useState([])
+  const [isFetchingDateSuggestions, setIsFetchingDateSuggestions] = useState(false)
+  const dateSuggestionsAbortRef = useRef(null)
+
   const debounceTimer = useRef(null)
   const availabilityTimer = useRef(null)
   const seenSuggestionIdsRef = useRef([])
@@ -217,17 +230,17 @@ export function useBookingForm({
         const res = await api.get(`/spaces/catalog/${activeSpaceId}/`)
         setActiveSpaceCap(res.data.capacity_hard ?? null)
         if (res.data.built_in_equipment) {
-            const equips = res.data.built_in_equipment.map(eq => ({
-                id: eq.equipment,
-                name: eq.equipment_name,
-                is_active: true
-            }))
-            setDynamicEquipment(equips)
+          const equips = res.data.built_in_equipment.map(eq => ({
+            id: eq.equipment,
+            name: eq.equipment_name,
+            is_active: true
+          }))
+          setDynamicEquipment(equips)
         } else {
-            setDynamicEquipment([])
+          setDynamicEquipment([])
         }
       } catch {
-        // Non-fatal — capacity will remain null
+        // Non-fatal
       }
     }
     fetchSpaceData()
@@ -240,14 +253,68 @@ export function useBookingForm({
     }
   }, [initialSpaceId, activeSpaceId])
 
-  // Bug 6 fix: reset suggestion state when the booking time context changes so
-  // previously excluded spaces are eligible again for the new time slot.
   useEffect(() => {
     setSeenSpaceIds([])
     seenSuggestionIdsRef.current = []
     setSuggestedHalls([])
     setHasMoreSuggestions(false)
+    // ✅ Reset date suggestions when time changes
+    setSuggestedDates([])
   }, [form.start_date, form.start_time, form.end_time])
+
+  // ✅ Fetch next available dates for the same venue + same time slot
+  // Probes the next 14 days and returns the first 5 free ones
+  const fetchDateSuggestions = useCallback(async (startDate, startTime, endTime, spaceId, bookingType) => {
+    if (!startDate || !startTime || !endTime || !spaceId) return
+
+    if (dateSuggestionsAbortRef.current) {
+      dateSuggestionsAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    dateSuggestionsAbortRef.current = controller
+
+    setIsFetchingDateSuggestions(true)
+    setSuggestedDates([])
+
+    const freeDates = []
+    const probeDays = 14 // check up to 14 days ahead
+    const maxSuggestions = 5
+
+    try {
+      for (let i = 1; i <= probeDays && freeDates.length < maxSuggestions; i++) {
+        if (controller.signal.aborted) break
+
+        const probeDate = addDays(startDate, i)
+
+        try {
+          const res = await api.post(
+            `/spaces/catalog/${spaceId}/check_availability/`,
+            {
+              start_datetime: toLocalISO(probeDate, startTime),
+              end_datetime: toLocalISO(probeDate, endTime),
+              booking_type: bookingType || 'SINGLE',
+            },
+            { signal: controller.signal }
+          )
+
+          if (res.data.available) {
+            freeDates.push(probeDate)
+          }
+        } catch (err) {
+          // Skip individual probe failures silently
+          if (axios.isCancel(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') break
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        setSuggestedDates(freeDates)
+      }
+    } finally {
+      if (dateSuggestionsAbortRef.current === controller) {
+        setIsFetchingDateSuggestions(false)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     clearTimeout(availabilityTimer.current)
@@ -261,6 +328,7 @@ export function useBookingForm({
           setIsAvailable(false)
           setAvailabilityMsg("Cannot book a date in the past.")
           setAvailabilityConflicts([])
+          setSuggestedDates([])
         }, 0)
         return
       }
@@ -269,6 +337,7 @@ export function useBookingForm({
           setIsAvailable(false)
           setAvailabilityMsg("Cannot book a time in the past.")
           setAvailabilityConflicts([])
+          setSuggestedDates([])
         }, 0)
         return
       }
@@ -279,6 +348,7 @@ export function useBookingForm({
         setIsAvailable(null)
         setAvailabilityMsg("")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       }, 0)
       return
     }
@@ -288,6 +358,7 @@ export function useBookingForm({
         setIsAvailable(null)
         setAvailabilityMsg("Select an end time to check availability.")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       }, 0)
       return
     }
@@ -302,6 +373,7 @@ export function useBookingForm({
         setIsAvailable(false)
         setAvailabilityMsg("Bookings are allowed only between 8:00 AM and 6:00 PM.")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       }, 0)
       return
     }
@@ -312,7 +384,7 @@ export function useBookingForm({
         setIsAvailable(false)
         setAvailabilityMsg("End date cannot be before start date.")
         setAvailabilityConflicts([])
-        return
+        setSuggestedDates([])
       }, 0)
       return
     }
@@ -322,6 +394,7 @@ export function useBookingForm({
         setIsAvailable(false)
         setAvailabilityMsg("End time must be after start time.")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       }, 0)
       return
     }
@@ -340,16 +413,14 @@ export function useBookingForm({
         setIsAvailable(true)
         setAvailabilityMsg("")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       }, 0)
       return
     }
 
-    setTimeout(() => {
-      setIsAvailable(null)
-    }, 0)
+    setTimeout(() => { setIsAvailable(null) }, 0)
 
     availabilityTimer.current = setTimeout(async () => {
-      // Cancel any previous in-flight availability request before starting a new one.
       if (availabilityAbortRef.current) {
         availabilityAbortRef.current.abort()
       }
@@ -372,22 +443,33 @@ export function useBookingForm({
           { signal: controller.signal }
         )
 
-        // Guard: discard if this request was superseded while in flight.
         if (controller.signal.aborted) return
 
         const conflicts = res.data.conflicts || []
         setIsAvailable(res.data.available)
         setAvailabilityMsg(res.data.message || "")
         setAvailabilityConflicts(conflicts)
+
+        // ✅ If unavailable, kick off date suggestions in background
+        if (!res.data.available && form.start_time && form.end_time) {
+          fetchDateSuggestions(
+            form.start_date,
+            form.start_time,
+            form.end_time,
+            activeSpaceId,
+            isMultiDay ? form.bookingType : 'SINGLE'
+          )
+        } else {
+          setSuggestedDates([])
+        }
       } catch (err) {
-        // Swallow intentional cancellations — do not write error state.
         if (axios.isCancel(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
         console.error("Availability check failed:", err)
         setIsAvailable(false)
         setAvailabilityMsg("Could not verify availability. Please try again.")
         setAvailabilityConflicts([])
+        setSuggestedDates([])
       } finally {
-        // Only clear the loading flag if this controller is still the current one.
         if (availabilityAbortRef.current === controller) {
           setIsCheckingAvailability(false)
         }
@@ -396,16 +478,13 @@ export function useBookingForm({
 
     return () => {
       clearTimeout(availabilityTimer.current)
-      // Cancel any in-flight request that already started — not just the timer.
       if (availabilityAbortRef.current) {
         availabilityAbortRef.current.abort()
         availabilityAbortRef.current = null
       }
     }
-  }, [form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, isMultiDay, activeSpaceId, isEdit, initialData])
+  }, [form.start_date, form.end_date, form.start_time, form.end_time, form.bookingType, isMultiDay, activeSpaceId, isEdit, initialData, fetchDateSuggestions])
 
-  // Stable fetch function shared by the suggestion effect and showMoreSuggestions.
-  // append=false replaces the list; append=true adds to the end ("show more").
   const fetchSuggestions = useCallback(async (append = false) => {
     if (!Number.isFinite(attendeeCount) || attendeeCount <= 0) {
       if (!append) {
@@ -415,8 +494,6 @@ export function useBookingForm({
       return
     }
 
-    // For a fresh fetch, reset suggestion tracking so re-fired effects
-    // don't exclude the results that were just displayed.
     if (!append) {
       seenSuggestionIdsRef.current = []
     }
@@ -435,7 +512,6 @@ export function useBookingForm({
       queryParams.set('end_date', form.end_date)
     }
 
-    // Cancel any previous in-flight suggestions request before starting a new one.
     if (suggestionsAbortRef.current) {
       suggestionsAbortRef.current.abort()
     }
@@ -448,7 +524,6 @@ export function useBookingForm({
         signal: controller.signal,
       })
 
-      // Guard: discard if this request was superseded while in flight.
       if (controller.signal.aborted) return
 
       const suggestions = res.data.results ?? res.data ?? []
@@ -459,21 +534,17 @@ export function useBookingForm({
         setSuggestedHalls(batch)
       }
       setHasMoreSuggestions(suggestions.length > batch.length)
-      // Track returned IDs via ref so subsequent fetches exclude them
-      // (using a ref avoids re-triggering the effect / recreating this callback)
       if (batch.length > 0) {
         const newIds = batch.map((s) => s.id)
         seenSuggestionIdsRef.current = [...new Set([...seenSuggestionIdsRef.current, ...newIds])]
       }
     } catch (err) {
-      // Swallow intentional cancellations — do not write error state.
       if (axios.isCancel(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
       if (!append) {
         setSuggestedHalls([])
         setHasMoreSuggestions(false)
       }
     } finally {
-      // Only clear the loading flag if this controller is still the current one.
       if (suggestionsAbortRef.current === controller) {
         setIsFetchingSuggestions(false)
       }
@@ -485,8 +556,6 @@ export function useBookingForm({
   }, [fetchSuggestions])
 
   useEffect(() => {
-    // Bug 7 fix: skip exactly one effect run immediately after the user switches
-    // halls so we don't fire a new suggestion fetch for the newly selected hall.
     if (justSwitchedRef.current === true) {
       justSwitchedRef.current = false
       return
@@ -496,7 +565,6 @@ export function useBookingForm({
 
     const isUnavailable = isAvailable === false
 
-    // Bug 2 fix: clear suggestions synchronously — no setTimeout, no debounce.
     if (!isLowOccupancy && !isUnavailable && !exceedsCapacity) {
       setSuggestedHalls([])
       setHasMoreSuggestions(false)
@@ -509,8 +577,6 @@ export function useBookingForm({
       return
     }
 
-    // Build the exclude list locally so the fetch can proceed in the same
-    // effect run without waiting for a setState + re-render cycle (fixes Bug 1).
     if (isUnavailable || exceedsCapacity) {
       if (!seenSpaceIds.includes(activeSpaceId)) {
         const updatedSeen = [...seenSpaceIds, activeSpaceId]
@@ -522,7 +588,6 @@ export function useBookingForm({
 
     return () => {
       clearTimeout(debounceTimer.current)
-      // Cancel any in-flight suggestions request — not just the pending timer.
       if (suggestionsAbortRef.current) {
         suggestionsAbortRef.current.abort()
         suggestionsAbortRef.current = null
@@ -658,9 +723,9 @@ export function useBookingForm({
     }
     if (notesRequired && !form.notes.trim())
       e.notes = "Please explain why this venue is needed for a small group."
-      
+
     if (isStudent && !isAiLab && !form.faculty_sponsor) {
-        e.faculty_sponsor = "Faculty sponsor is required for students";
+      e.faculty_sponsor = "Faculty sponsor is required for students";
     }
     return e
   }
@@ -669,9 +734,7 @@ export function useBookingForm({
   const updateMutation = useUpdateSpaceBooking()
 
   const handleSubmit = async () => {
-    if (isAvailable !== true || exceedsCapacity) {
-      return
-    }
+    if (isAvailable !== true || exceedsCapacity) return
 
     const e = validate()
     if (Object.keys(e).length) {
@@ -750,13 +813,11 @@ export function useBookingForm({
           toast.error("This venue is already booked for the selected time slot.")
           return
         }
-
         mappedErrors.server = msg
       }
 
       if (Object.keys(mappedErrors).length === 0) {
         const rawError = errData.error || errData.detail || ""
-
         if (
           rawError.includes("exclude_overlapping_approved_space_bookings") ||
           rawError.includes("conflicting key value violates exclusion constraint")
@@ -765,7 +826,6 @@ export function useBookingForm({
         } else {
           toast.error(rawError || "Submission failed.")
         }
-
         return
       }
       setErrors(mappedErrors)
@@ -778,7 +838,9 @@ export function useBookingForm({
     activeSpaceId, activeSpaceName, activeSpaceCap, form, setForm, set, toggleReq, switchHall,
     dynamicDepartments, dynamicEquipment, errors, submitted, isSubmitting,
     isAvailable, availabilityMsg, availabilityConflicts, isCheckingAvailability,
-    suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions, attendeeCount, exceedsCapacity,
+    suggestedHalls, hasMoreSuggestions, showMoreSuggestions, isFetchingSuggestions,
+    suggestedDates, isFetchingDateSuggestions, // ✅ exposed
+    attendeeCount, exceedsCapacity,
     isLowOccupancy, isMultiDay, notesRequired, linkedEndDate, linkedStartIso,
     linkedEndIso, hasLinkedBookings, linkedOptionsReady, continueLinkedBooking,
     handleSubmit, isEdit, sessionDraft, isStudent, isAiLab, triggerReason,
