@@ -45,9 +45,10 @@ export default function Login() {
             } else if (capabilities.can_manage_media) {
                 navigate('/admin/media', { replace: true });
             } else if (capabilities.can_access_admin_portal) {
-                navigate('/admin', { replace: true }); // Fallback for other admins
+                navigate('/admin', { replace: true });
             } else {
-                navigate('/dashboard', { replace: true });
+                // ✅ Regular users go to the new HomePage at "/"
+                navigate('/', { replace: true });
             }
 
         } catch (err) {
