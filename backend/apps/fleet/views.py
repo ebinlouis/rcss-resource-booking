@@ -8,15 +8,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.utils import timezone
 
 from apps.users.permissions import IsAdminOrReadOnly, IsApprover, HasRoleOrReadOnly
 from apps.notifications.utils import (
     mark_pending_request_notifications_read,
-    notify_booking_status_change,
-    notify_incharge_cancelled,
-    notify_comanagers_actioned,
 )
+from apps.notifications.outbox import enqueue_notification
 from apps.fleet.models import Vehicle, FleetBooking
 from apps.fleet.serializers import VehicleSerializer, FleetBookingSerializer
 from apps.users.models import Role
@@ -224,6 +223,7 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
     # CREATE — auto-assign user + department
     # ------------------------------------------------------------------
 
+    @transaction.atomic
     def perform_create(self, serializer):
         user = self.request.user
         from apps.users.models import Role
@@ -248,7 +248,7 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
             department=user.department,
         )
 
-        from apps.notifications.utils import get_raw_global_approvers, notify_new_request
+        from apps.notifications.utils import get_raw_global_approvers
 
         eligible_set = get_raw_global_approvers(Role.Name.FLEET_MANAGER)
         
@@ -260,13 +260,15 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
             booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
             return
 
-        notify_new_request(
-            booking=booking,
+        enqueue_notification(
+            'fleet.new_request',
+            booking_id=booking.id,
             domain='fleet',
             role_name=Role.Name.FLEET_MANAGER,
-            exclude_user=user
+            exclude_user_id=user.id,
         )
 
+    @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
         booking = self.get_object()
 
@@ -295,6 +297,13 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
             updated_booking.resolved_by = None
             updated_booking.resolved_at = None
             updated_booking.save()
+            enqueue_notification(
+                'fleet.new_request',
+                booking_id=updated_booking.id,
+                domain='fleet',
+                role_name=Role.Name.FLEET_MANAGER,
+                exclude_user_id=None,
+            )
 
         return Response(
             self.get_serializer(updated_booking).data
@@ -310,6 +319,7 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, IsApprover],
         url_path='review',
     )
+    @transaction.atomic
     def review(self, request, pk=None):
         booking = self.get_object()
 
@@ -346,17 +356,19 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
         mark_pending_request_notifications_read(booking, domain='fleet')
-        notify_booking_status_change(
-            booking=booking,
-            new_status=new_status,
+        enqueue_notification(
+            'fleet.status_change',
+            booking_id=booking.id,
             domain='fleet',
-            resolved_by=request.user,
+            new_status=new_status,
+            resolved_by_id=request.user.id,
             remarks=remarks,
         )
-        notify_comanagers_actioned(
-            booking=booking,
+        enqueue_notification(
+            'fleet.comanagers_actioned',
+            booking_id=booking.id,
             domain='fleet',
-            actioned_by=request.user,
+            actioned_by_id=request.user.id,
             new_status=new_status,
         )
 
@@ -373,6 +385,7 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated],
         url_path='cancel',
     )
+    @transaction.atomic
     def cancel(self, request, pk=None):
         booking = self.get_object()
 
@@ -398,16 +411,19 @@ class FleetBookingViewSet(viewsets.ModelViewSet):
         booking.save()
 
         mark_pending_request_notifications_read(booking, domain='fleet')
-        notify_booking_status_change(
-            booking=booking,
+        enqueue_notification(
+            'fleet.status_change',
+            booking_id=booking.id,
+            domain='fleet',
             new_status='CANCELLED',
-            domain='fleet',
-            resolved_by=None,
+            resolved_by_id=None,
+            remarks=None,
         )
-        notify_incharge_cancelled(
-            booking=booking,
+        enqueue_notification(
+            'fleet.incharge_cancelled',
+            booking_id=booking.id,
             domain='fleet',
-            role_name='FLEET_MANAGER',
+            role_name=Role.Name.FLEET_MANAGER,
         )
 
         return Response({

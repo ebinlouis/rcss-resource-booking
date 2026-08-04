@@ -3,7 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from apps.users.models import CustomUser, Department, Role
 from apps.spaces.models import Space, SpaceBooking, SpaceApprover, SpaceApproverChain
-from apps.notifications.models import Notification
+from apps.notifications.models import NotificationOutbox
 
 class SpacesAutoApprovalTests(APITestCase):
     def setUp(self):
@@ -49,8 +49,9 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
         self.assertEqual(booking.resolved_by, self.user1)
-        self.assertEqual(Notification.objects.filter(reference_code=booking.reference_code, is_actionable=True).count(), 0)
-        self.assertEqual(Notification.objects.filter(reference_code=booking.reference_code, is_actionable=False).count(), 0)
+        self.assertFalse(
+            NotificationOutbox.objects.filter(payload__booking_id=booking.id).exists()
+        )
 
     def test_scenario_2_direct_two_approvers(self):
         """2. SPACES, DIRECT, two approvers: two RECEPTIONISTs exist, one books -> stays PENDING, the OTHER approver gets notification."""
@@ -73,11 +74,10 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'PENDING')
         
-        # Check notifications
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.user2)
-        self.assertTrue(notifications.first().is_actionable)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'spaces.new_request')
+        self.assertEqual(outbox.payload['role_name'], Role.Name.RECEPTIONIST)
+        self.assertEqual(outbox.payload['exclude_user_id'], self.user1.id)
 
     def test_scenario_3_hod_chain_primary_books(self):
         """3. SPACES, HOD_FALLBACK with chain: primary_approver books, fallback_approver is a different user -> auto-approved, fallback_approver receives exactly one notification with is_actionable=False."""
@@ -97,10 +97,9 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
         
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.user2)
-        self.assertFalse(notifications.first().is_actionable)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'spaces.auto_approved_informational')
+        self.assertEqual(outbox.payload['recipient_ids'], [self.user2.id])
 
     def test_scenario_4_hod_chain_primary_is_fallback(self):
         """4. SPACES, HOD_FALLBACK with chain: primary_approver_id == fallback_approver_id (same user is both) and that user books -> auto-approved, no informational notification sent to anyone."""
@@ -120,8 +119,9 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
         
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 0)
+        self.assertFalse(
+            NotificationOutbox.objects.filter(payload__booking_id=booking.id).exists()
+        )
 
     def test_scenario_5_hod_chain_fallback_books(self):
         """5. SPACES, HOD_FALLBACK with chain: fallback_approver books, primary_approver is a different user -> stays PENDING, primary_approver gets the normal actionable notification."""
@@ -141,10 +141,10 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'PENDING')
         
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.user1)
-        self.assertTrue(notifications.first().is_actionable)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'spaces.direct_notify')
+        self.assertEqual(outbox.payload['recipient_id'], self.user1.id)
+        self.assertEqual(outbox.payload['variant'], 'new_request')
 
     def test_scenario_6_non_cs_dept_hod_fallback_gated_from_lab_incharge(self):
         """6. HOD_FALLBACK is department-agnostic: a booking from an English (non-CS) department
@@ -238,11 +238,9 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
 
-        # fallback gets exactly one informational (non-actionable) notification
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, fallback)
-        self.assertFalse(notifications.first().is_actionable)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'spaces.auto_approved_informational')
+        self.assertEqual(outbox.payload['recipient_ids'], [fallback.id])
 
     def test_scenario_7_awaiting_faculty_unaffected(self):
         """7. Confirm an AWAITING_FACULTY booking (student with faculty_sponsor, non-HOD_FALLBACK space) is completely unaffected -> goes to AWAITING_FACULTY."""
@@ -261,7 +259,5 @@ class SpacesAutoApprovalTests(APITestCase):
         booking = SpaceBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'AWAITING_FACULTY')
         
-        # Check that no regular notification to space approvers went out yet
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.faculty) # Only the faculty sponsor should be notified
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'spaces.faculty_new_request')

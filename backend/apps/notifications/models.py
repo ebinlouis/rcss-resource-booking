@@ -1,6 +1,44 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
+
+
+class NotificationOutbox(models.Model):
+    """A durable notification intent written with the business transaction.
+
+    Request handlers only create these rows.  A separate worker publishes the
+    notification/email work, so an unavailable broker cannot hold an API
+    response open after a booking has been saved.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        PROCESSING = 'PROCESSING', 'Processing'
+        SENT = 'SENT', 'Sent'
+        FAILED = 'FAILED', 'Failed'
+
+    event_type = models.CharField(max_length=100)
+    payload = models.JSONField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=5)
+    last_error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_attempted_at = models.DateTimeField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['status', 'created_at'])]
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Outbox #{self.pk}: {self.event_type} ({self.status})"
 
 
 class Notification(models.Model):
@@ -23,6 +61,11 @@ class Notification(models.Model):
         FACULTY_ESCALATED      = 'FACULTY_ESCALATED',      'Faculty Escalated'
         FACULTY_RESENT         = 'FACULTY_RESENT',         'Faculty Resent'
 
+    class EmailDispatchStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending queue confirmation'
+        QUEUED = 'QUEUED', 'Queued'
+        NOT_REQUIRED = 'NOT_REQUIRED', 'Not required'
+
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -40,6 +83,30 @@ class Notification(models.Model):
     read_at       = models.DateTimeField(blank=True, null=True)
     created_at    = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    # The inbox row and email task have separate delivery states.  An outbox
+    # retry may find this notification already created after a broker publish
+    # failure; PENDING tells notify() to try publishing the email again rather
+    # than silently treating the row itself as proof of delivery.
+    email_dispatch_status = models.CharField(
+        max_length=20,
+        choices=EmailDispatchStatus.choices,
+        default=EmailDispatchStatus.PENDING,
+        db_index=True,
+    )
+    email_dispatch_attempts = models.PositiveIntegerField(default=0)
+    email_queued_at = models.DateTimeField(blank=True, null=True)
+
+    # Null for legacy and lifecycle notifications.  When a notification was
+    # dispatched from an outbox row, this key makes retries idempotent per
+    # recipient without coupling outbox retention to inbox retention.
+    outbox_entry = models.ForeignKey(
+        'NotificationOutbox',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='notifications',
+    )
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -47,6 +114,13 @@ class Notification(models.Model):
             models.Index(fields=['recipient', 'is_actionable', '-created_at']),
             models.Index(fields=['domain', 'reference_code', 'is_actionable']),
             models.Index(fields=['recipient', '-created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['outbox_entry', 'recipient'],
+                condition=Q(outbox_entry__isnull=False),
+                name='unique_notification_per_outbox_entry_recipient',
+            ),
         ]
 
     def __str__(self):

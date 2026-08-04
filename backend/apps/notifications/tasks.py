@@ -6,6 +6,16 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+@shared_task
+def process_notification_outbox():
+    """Drain durable notification intents outside web request workers."""
+    from apps.notifications.outbox_processor import process_pending_outbox
+
+    result = process_pending_outbox()
+    logger.info('process_notification_outbox completed: %s', result)
+    return result
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def run_booking_lifecycle(self):
     """
@@ -86,4 +96,4 @@ def send_notification_email(self, recipient_email, subject, plain_text, from_ema
         logger.info('Notification email sent to %s | subject: %s', recipient_email, subject)
     except Exception as exc:
         logger.exception('send_notification_email failed for %s: %s', recipient_email, exc)
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc)

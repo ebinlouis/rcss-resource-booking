@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import timedelta
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
@@ -12,13 +13,8 @@ from apps.approvals.lifecycle import (
     can_user_modify_booking,
     refresh_booking_lifecycle,
 )
-from apps.notifications.utils import (
-    notify_booking_status_change, notify_group_status_change, notify_new_request,
-    notify_faculty_new_request, notify_faculty_approved, notify_faculty_rejected,
-    notify_faculty_details_changed, notify_incharge_escalated, notify_incharge_booking_returned,
-    notify_faculty_resent, notify_student_cancelled_faculty, notify_incharge_booking_edited,
-    mark_pending_request_notifications_read,
-)
+from apps.notifications.outbox import enqueue_notification
+from apps.notifications.utils import mark_pending_request_notifications_read
 from apps.users.models import Role, CustomUser
 from apps.users.permissions import IsAdminOrReadOnly, IsEquipmentManagerOrReadOnly, IsITAdmin, IsPrincipal
 from .permissions import IsOwnerOrAdminOrReadOnly, IsAdminOrSpaceManagerOrReadOnly
@@ -1033,6 +1029,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         return response
 
+    @transaction.atomic
     def perform_create(self, serializer):
         from apps.spaces.models import SpaceTimetableBlock
         from rest_framework.exceptions import ValidationError
@@ -1077,7 +1074,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             booking.status = 'AWAITING_FACULTY'
             booking.faculty_response_deadline = timezone.now() + timedelta(hours=24)
             booking.save(update_fields=['status', 'faculty_response_deadline'])
-            notify_faculty_new_request(booking)
+            enqueue_notification(
+                'spaces.faculty_new_request',
+                booking_id=booking.id,
+                domain='spaces',
+            )
             return
 
         # For HOD_FALLBACK spaces, clear any faculty_sponsor that may have
@@ -1089,9 +1090,6 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         # ── Approver-chain notification (specific primary/fallback user) ──
         chain = getattr(booking.space, 'approver_chain', None)
         if chain:
-            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link, notify_auto_approved_informational
-            from apps.notifications.models import Notification
-
             if self.request.user == chain.primary_approver:
                 booking.status = 'APPROVED'
                 booking.resolved_by = self.request.user
@@ -1100,36 +1098,41 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
                 
                 if chain.primary_approver_id != chain.fallback_approver_id and chain.fallback_approver:
-                    notify_auto_approved_informational(booking, 'spaces', [chain.fallback_approver])
+                    enqueue_notification(
+                        'spaces.auto_approved_informational',
+                        booking_id=booking.id,
+                        domain='spaces',
+                        recipient_ids=[chain.fallback_approver_id],
+                    )
                 return
 
             if chain.primary_approver:
-                notify(
-                    chain.primary_approver,
-                    Notification.Category.BOOKING_PENDING,
-                    "New Booking Request",
-                    f"{self.request.user.first_name} requested {_resource_name(booking, 'spaces')}. It requires your approval.",
-                    link=_approver_link('spaces', _booking_reference(booking)),
+                enqueue_notification(
+                    'spaces.direct_notify',
+                    booking_id=booking.id,
                     domain='spaces',
-                    reference_code=_booking_reference(booking),
-                    is_actionable=True,
+                    recipient_id=chain.primary_approver_id,
+                    variant='new_request',
                 )
             elif chain.fallback_approver:
-                notify(
-                    chain.fallback_approver,
-                    Notification.Category.BOOKING_PENDING,
-                    "New Booking Request",
-                    f"{self.request.user.first_name} requested {_resource_name(booking, 'spaces')}. It requires your approval.",
-                    link=_approver_link('spaces', _booking_reference(booking)),
+                enqueue_notification(
+                    'spaces.direct_notify',
+                    booking_id=booking.id,
                     domain='spaces',
-                    reference_code=_booking_reference(booking),
-                    is_actionable=True,
+                    recipient_id=chain.fallback_approver_id,
+                    variant='new_request',
                 )
             return
 
         # ── HOD_FALLBACK without a chain: notify the HOD role directly ──
         if uses_hod_fallback:
-            notify_new_request(booking=booking, domain='spaces', role_name=Role.Name.HOD, exclude_user=self.request.user)
+            enqueue_notification(
+                'spaces.new_request',
+                booking_id=booking.id,
+                domain='spaces',
+                role_name=Role.Name.HOD,
+                exclude_user_id=self.request.user.id,
+            )
             return
 
         # ── Standard role-based notification ──
@@ -1141,7 +1144,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         else:
             role = Role.Name.RECEPTIONIST
 
-        from apps.notifications.utils import get_raw_space_approvers, notify_auto_approved_informational
+        from apps.notifications.utils import get_raw_space_approvers
         eligible_set = get_raw_space_approvers(booking.space, role)
         
         if len(eligible_set) == 1 and self.request.user in eligible_set:
@@ -1152,13 +1155,15 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
             return
 
-        notify_new_request(
-            booking=booking,
+        enqueue_notification(
+            'spaces.new_request',
+            booking_id=booking.id,
             domain='spaces',
             role_name=role,
-            exclude_user=self.request.user
+            exclude_user_id=self.request.user.id,
         )
 
+    @transaction.atomic
     def perform_update(self, serializer):
         user     = self.request.user
         instance = serializer.instance
@@ -1192,7 +1197,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 previous_anchor=previous_anchor,
                 actor=user,
             )
-            notify_faculty_details_changed(booking)
+            enqueue_notification(
+                'spaces.faculty_details_changed',
+                booking_id=booking.id,
+                domain='spaces',
+            )
             if was_approved or instance.status == 'FACULTY_ESCALATED':
                 # We intentionally don't send a notification to the incharge right now
                 # so we don't spam them. They will get notified once the faculty approves.
@@ -1223,12 +1232,14 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 role = Role.Name.LIBRARIAN
             else:
                 role = Role.Name.RECEPTIONIST
-            notify_incharge_booking_edited(
-                booking=booking,
+            enqueue_notification(
+                'spaces.incharge_booking_edited',
+                booking_id=booking.id,
                 domain='spaces',
-                role_name=role
+                role_name=role,
             )
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
@@ -1236,7 +1247,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         status_before = instance.status
 
         if instance.faculty_sponsor_id:
-            notify_student_cancelled_faculty(instance)
+            enqueue_notification(
+                'spaces.student_cancelled_faculty',
+                booking_id=instance.id,
+                domain='spaces',
+            )
             
         instance.status = 'CANCELLED'
         instance.resolved_at = timezone.now()
@@ -1252,10 +1267,15 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
                 role = Role.Name.LIBRARIAN
             else:
                 role = Role.Name.RECEPTIONIST
-            from apps.notifications.utils import notify_incharge_cancelled
-            notify_incharge_cancelled(instance, 'spaces', role)
+            enqueue_notification(
+                'spaces.incharge_cancelled',
+                booking_id=instance.id,
+                domain='spaces',
+                role_name=role,
+            )
 
     @action(detail=True, methods=['patch'], permission_classes=[IsPrincipal])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         """
         Principal cancels an APPROVED booking and releases the slot.
@@ -1296,12 +1316,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
 
         # Fire a single grouped notification for the full cancellation batch
         if siblings:
-            notify_group_status_change(
-                bookings=siblings,
+            enqueue_notification(
+                'spaces.group_status_change',
+                booking_ids=[sibling.id for sibling in siblings],
                 new_status='CANCELLED',
                 domain='spaces',
-                resolved_by=request.user,
-                remarks=remarks
+                resolved_by_id=request.user.id,
+                remarks=remarks,
             )
             cancel_linked_siblings_for_space(
                 booking,
@@ -1342,6 +1363,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def faculty_approve(self, request, pk=None):
         booking = self.get_object()
         from apps.approvals.views import user_can_approve_faculty_booking
@@ -1360,39 +1382,34 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking.faculty_timed_out = False
         booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
         
-        from apps.notifications.utils import mark_pending_request_notifications_read
         mark_pending_request_notifications_read(booking, domain='spaces')
         
-        notify_faculty_approved(booking)
+        enqueue_notification(
+            'spaces.faculty_approved',
+            booking_id=booking.id,
+            domain='spaces',
+        )
         
         workflow_type = getattr(booking.space, 'approval_workflow_type', None)
         chain = getattr(booking.space, 'approver_chain', None) if workflow_type == 'HOD_FALLBACK' else None
         if chain:
-            from apps.notifications.utils import notify, _resource_name, _booking_reference, _approver_link
-            from apps.notifications.models import Notification
             if chain.primary_approver:
-                notify(
-                    chain.primary_approver,
-                    Notification.Category.BOOKING_PENDING,
-                    "New Booking Request",
-                    f"A faculty-approved booking for {_resource_name(booking, 'spaces')} requires your approval.",
-                    link=_approver_link('spaces', _booking_reference(booking)),
+                enqueue_notification(
+                    'spaces.direct_notify',
+                    booking_id=booking.id,
                     domain='spaces',
-                    reference_code=_booking_reference(booking),
-                    is_actionable=True,
+                    recipient_id=chain.primary_approver_id,
+                    variant='faculty_approved',
                 )
             elif chain.fallback_approver:
-                notify(
-                    chain.fallback_approver,
-                    Notification.Category.BOOKING_PENDING,
-                    "New Booking Request",
-                    f"A faculty-approved booking for {_resource_name(booking, 'spaces')} requires your approval.",
-                    link=_approver_link('spaces', _booking_reference(booking)),
+                enqueue_notification(
+                    'spaces.direct_notify',
+                    booking_id=booking.id,
                     domain='spaces',
-                    reference_code=_booking_reference(booking),
-                    is_actionable=True,
+                    recipient_id=chain.fallback_approver_id,
+                    variant='faculty_approved',
                 )
-            return
+            return Response(self.get_serializer(booking).data)
 
         category = booking.space.approval_category
         if category == Space.ApprovalCategory.LAB:
@@ -1403,14 +1420,25 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             role = Role.Name.RECEPTIONIST
             
         if is_edited:
-            from apps.notifications.utils import notify_incharge_booking_edited
-            notify_incharge_booking_edited(booking, 'spaces', role)
+            enqueue_notification(
+                'spaces.incharge_booking_edited',
+                booking_id=booking.id,
+                domain='spaces',
+                role_name=role,
+            )
         else:
-            notify_new_request(booking, 'spaces', role)
+            enqueue_notification(
+                'spaces.new_request',
+                booking_id=booking.id,
+                domain='spaces',
+                role_name=role,
+                exclude_user_id=None,
+            )
         
         return Response(self.get_serializer(booking).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def faculty_reject(self, request, pk=None):
         booking = self.get_object()
         from apps.approvals.views import user_can_approve_faculty_booking
@@ -1430,7 +1458,11 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking.faculty_response_deadline = None
         booking.save(update_fields=['status', 'remarks_by_admin', 'resolved_by', 'resolved_at', 'faculty_response_deadline', 'updated_at'])
         
-        notify_faculty_rejected(booking)
+        enqueue_notification(
+            'spaces.faculty_rejected',
+            booking_id=booking.id,
+            domain='spaces',
+        )
         cancel_linked_siblings_for_space(booking, reason=remarks)
         mark_pending_request_notifications_read(booking, domain='spaces')
         return Response(self.get_serializer(booking).data)
@@ -1507,6 +1539,7 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(qs, many=True).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def incharge_resend(self, request, pk=None):
         booking = self.get_object()
         user = request.user
@@ -1521,10 +1554,13 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
         booking.faculty_timed_out = False
         booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
         
-        from apps.notifications.utils import mark_pending_request_notifications_read
         mark_pending_request_notifications_read(booking, domain='spaces')
         
-        notify_faculty_resent(booking)
+        enqueue_notification(
+            'spaces.faculty_resent',
+            booking_id=booking.id,
+            domain='spaces',
+        )
         return Response(self.get_serializer(booking).data)
 
 

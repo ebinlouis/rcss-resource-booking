@@ -17,9 +17,8 @@ from apps.users.models import Role
 
 from apps.notifications.utils import (
     mark_pending_request_notifications_read,
-    notify_booking_status_change,
-    notify_new_request,
 )
+from apps.notifications.outbox import enqueue_notification
 
 
 # --- Role resolution ---
@@ -85,11 +84,12 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
             return
 
-        notify_new_request(
-            booking=booking,
+        enqueue_notification(
+            'mess.new_request',
+            booking_id=booking.id,
             domain='mess',
             role_name=Role.Name.MESS_MANAGER,
-            exclude_user=user
+            exclude_user_id=user.id,
         )
 
     @transaction.atomic
@@ -101,10 +101,12 @@ class MessBookingViewSet(viewsets.ModelViewSet):
         )
 
         if was_approved and booking.status == 'PENDING':
-            notify_new_request(
-                booking=booking,
+            enqueue_notification(
+                'mess.new_request',
+                booking_id=booking.id,
                 domain='mess',
-                role_name=Role.Name.MESS_MANAGER
+                role_name=Role.Name.MESS_MANAGER,
+                exclude_user_id=None,
             )
 
     def perform_destroy(self, instance):
@@ -253,18 +255,20 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             domain='mess'
         )
 
-        notify_booking_status_change(
-            booking=booking,
-            new_status='APPROVED',
+        enqueue_notification(
+            'mess.status_change',
+            booking_id=booking.id,
             domain='mess',
-            resolved_by=request.user,
+            new_status='APPROVED',
+            resolved_by_id=request.user.id,
+            remarks=None,
         )
 
-        from apps.notifications.utils import notify_comanagers_actioned
-        notify_comanagers_actioned(
-            booking=booking,
+        enqueue_notification(
+            'mess.comanagers_actioned',
+            booking_id=booking.id,
             domain='mess',
-            actioned_by=request.user,
+            actioned_by_id=request.user.id,
             new_status='APPROVED',
         )
 
@@ -332,19 +336,20 @@ class MessBookingViewSet(viewsets.ModelViewSet):
             domain='mess'
         )
 
-        notify_booking_status_change(
-            booking=booking,
-            new_status='REJECTED',
+        enqueue_notification(
+            'mess.status_change',
+            booking_id=booking.id,
             domain='mess',
-            resolved_by=request.user,
-            remarks=remark
+            new_status='REJECTED',
+            resolved_by_id=request.user.id,
+            remarks=remark,
         )
 
-        from apps.notifications.utils import notify_comanagers_actioned
-        notify_comanagers_actioned(
-            booking=booking,
+        enqueue_notification(
+            'mess.comanagers_actioned',
+            booking_id=booking.id,
             domain='mess',
-            actioned_by=request.user,
+            actioned_by_id=request.user.id,
             new_status='REJECTED',
         )
 

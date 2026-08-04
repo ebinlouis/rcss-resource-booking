@@ -33,6 +33,7 @@ def notify(
     domain="",
     reference_code="",
     is_actionable=False,
+    outbox_entry=None,
 ):
     """
     Single entry point for creating notifications.
@@ -40,16 +41,35 @@ def notify(
     This function has no request dependency so it can be wrapped by a Celery
     task later without changing call sites.
     """
-    notification = Notification.objects.create(
-        recipient=recipient,
-        category=category,
-        title=title,
-        message=message,
-        link=link,
-        domain=domain or "",
-        reference_code=reference_code or "",
-        is_actionable=is_actionable,
-    )
+    notification_defaults = {
+        'category': category,
+        'title': title,
+        'message': message,
+        'link': link,
+        'domain': domain or "",
+        'reference_code': reference_code or "",
+        'is_actionable': is_actionable,
+    }
+
+    # A dispatcher retry must not create a second inbox notification for the
+    # same recipient.  Email queue confirmation is tracked independently.
+    if outbox_entry is not None:
+        notification, _ = Notification.objects.get_or_create(
+            outbox_entry=outbox_entry,
+            recipient=recipient,
+            defaults=notification_defaults,
+        )
+    else:
+        notification = Notification.objects.create(
+            recipient=recipient,
+            **notification_defaults,
+        )
+
+    if notification.email_dispatch_status in {
+        Notification.EmailDispatchStatus.QUEUED,
+        Notification.EmailDispatchStatus.NOT_REQUIRED,
+    }:
+        return notification
 
     try:
         # Determine whether to send an email for this notification.
@@ -62,6 +82,18 @@ def notify(
             should_email = True
         else:
             should_email = notification.category in EMAIL_CATEGORIES
+
+        # Inbox creation and email publishing are separate states.  Retrying
+        # an outbox entry with an existing PENDING notification must still
+        # attempt .delay(), while intentionally skipped emails are terminal.
+        if (
+            not should_email
+            or getattr(settings, 'NOTIFICATION_EMAIL_STUB', True)
+            or not recipient.email
+        ):
+            notification.email_dispatch_status = Notification.EmailDispatchStatus.NOT_REQUIRED
+            notification.save(update_fields=['email_dispatch_status'])
+            return notification
 
         if should_email:
             # Honour the stub flag — set NOTIFICATION_EMAIL_STUB=False in
@@ -134,6 +166,9 @@ def notify(
                     plain_text = message
                     html_message = None
 
+                notification.email_dispatch_attempts += 1
+                notification.save(update_fields=['email_dispatch_attempts'])
+
                 from apps.notifications.tasks import send_notification_email
                 send_notification_email.delay(
                     recipient_email=recipient.email,
@@ -142,12 +177,17 @@ def notify(
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     html_message=html_message,
                 )
+                notification.email_dispatch_status = Notification.EmailDispatchStatus.QUEUED
+                notification.email_queued_at = timezone.now()
+                notification.save(update_fields=['email_dispatch_status', 'email_queued_at'])
     except Exception:
         logger.exception(
             "Failed to send email notification to %s (category=%s)",
             getattr(recipient, 'email', '<unknown>'),
             category,
         )
+        if outbox_entry is not None:
+            raise
 
     return notification
 
@@ -191,6 +231,7 @@ def notify_approvers(
     reference_code="",
     is_actionable=False,
     exclude_user=None,
+    outbox_entry=None,
 ):
     """
     Notify all active users who currently hold role_name, excluding exclude_user if given.
@@ -214,13 +255,19 @@ def notify_approvers(
             domain=domain,
             reference_code=reference_code,
             is_actionable=is_actionable,
+            outbox_entry=outbox_entry,
         )
         created_count += 1
 
     return created_count
 
 
-def notify_auto_approved_informational(booking, domain, other_eligible_users):
+def notify_auto_approved_informational(
+    booking,
+    domain,
+    other_eligible_users,
+    outbox_entry=None,
+):
     """
     Sends a non-actionable, in-app-only FYI notification to each user
     in other_eligible_users, informing them that a booking was
@@ -254,6 +301,7 @@ def notify_auto_approved_informational(booking, domain, other_eligible_users):
             reference_code=reference,
             is_actionable=False,
             email_override=False,
+            outbox_entry=outbox_entry,
         )
 
 
@@ -362,6 +410,7 @@ def notify_space_approvers(
     domain="spaces",
     reference_code="",
     is_actionable=False,
+    outbox_entry=None,
 ):
     """
     Scoped notification dispatcher for space bookings.
@@ -384,6 +433,7 @@ def notify_space_approvers(
             domain=domain,
             reference_code=reference_code,
             is_actionable=is_actionable,
+            outbox_entry=outbox_entry,
         )
 
 
@@ -668,7 +718,7 @@ def _format_booking_time(booking, domain=""):
 
 
 def notify_booking_status_change(
-    booking, new_status, domain, resolved_by, remarks=None
+    booking, new_status, domain, resolved_by, remarks=None, outbox_entry=None
 ):
     """
     Notify the requester that their booking status changed.
@@ -713,6 +763,7 @@ def notify_booking_status_change(
             domain=domain,
             reference_code=reference,
             is_actionable=False,
+            outbox_entry=outbox_entry,
         )
 
     if domain == "media":
@@ -733,6 +784,7 @@ def notify_booking_status_change(
             domain=domain,
             reference_code=reference,
             is_actionable=False,
+            outbox_entry=outbox_entry,
         )
 
     # Generate the schedule string
@@ -766,10 +818,18 @@ def notify_booking_status_change(
         domain=domain,
         reference_code=reference,
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_group_status_change(bookings, new_status, domain, resolved_by, remarks=None):
+def notify_group_status_change(
+    bookings,
+    new_status,
+    domain,
+    resolved_by,
+    remarks=None,
+    outbox_entry=None,
+):
     """
     Aggregate notifications for recurring booking groups.
 
@@ -823,10 +883,11 @@ def notify_group_status_change(bookings, new_status, domain, resolved_by, remark
         domain=domain,
         reference_code=reference,
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_incharge_booking_edited(booking, domain, role_name):
+def notify_incharge_booking_edited(booking, domain, role_name, outbox_entry=None):
     """
     Notify the relevant admins that an already approved booking was edited and needs re-review.
     For spaces, uses scoped notify_space_approvers (most-specific-wins).
@@ -851,6 +912,7 @@ def notify_incharge_booking_edited(booking, domain, role_name):
             domain=domain,
             reference_code=reference,
             is_actionable=True,
+            outbox_entry=outbox_entry,
         )
     else:
         notify_approvers(
@@ -862,10 +924,11 @@ def notify_incharge_booking_edited(booking, domain, role_name):
             domain=domain,
             reference_code=reference,
             is_actionable=True,
+            outbox_entry=outbox_entry,
         )
 
 
-def notify_incharge_cancelled(booking, domain, role_name):
+def notify_incharge_cancelled(booking, domain, role_name, outbox_entry=None):
     """
     Notify the relevant admins that an active or pending booking was cancelled by the user.
     For spaces, uses scoped notify_space_approvers (most-specific-wins).
@@ -890,6 +953,7 @@ def notify_incharge_cancelled(booking, domain, role_name):
             domain=domain,
             reference_code=reference,
             is_actionable=False,
+            outbox_entry=outbox_entry,
         )
     else:
         notify_approvers(
@@ -901,10 +965,17 @@ def notify_incharge_cancelled(booking, domain, role_name):
             domain=domain,
             reference_code=reference,
             is_actionable=False,
+            outbox_entry=outbox_entry,
         )
 
 
-def notify_new_request(booking, domain, role_name, exclude_user=None):
+def notify_new_request(
+    booking,
+    domain,
+    role_name,
+    exclude_user=None,
+    outbox_entry=None,
+):
     """
     Notify the relevant admins that a new booking requires approval.
     For spaces, uses scoped notify_space_approvers (most-specific-wins).
@@ -963,6 +1034,7 @@ def notify_new_request(booking, domain, role_name, exclude_user=None):
             domain=domain,
             reference_code=reference,
             is_actionable=True,
+            outbox_entry=outbox_entry,
         )
     else:
         notify_approvers(
@@ -975,6 +1047,7 @@ def notify_new_request(booking, domain, role_name, exclude_user=None):
             reference_code=reference,
             is_actionable=True,
             exclude_user=exclude_user,
+            outbox_entry=outbox_entry,
         )
 
 
@@ -1083,7 +1156,7 @@ def notify_incharge_expired(booking, domain):
 # ==========================================
 
 
-def notify_faculty_new_request(booking):
+def notify_faculty_new_request(booking, outbox_entry=None):
     student_name = getattr(booking.user, "first_name", "A student")
     space_name = _resource_name(booking, "spaces")
     date_str = _format_short_date(getattr(booking, "start_datetime", None))
@@ -1096,10 +1169,11 @@ def notify_faculty_new_request(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=True,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_faculty_approved(booking):
+def notify_faculty_approved(booking, outbox_entry=None):
     space_name = _resource_name(booking, "spaces")
     faculty_name = getattr(
         booking.faculty_sponsor, "first_name", "Your faculty sponsor"
@@ -1113,10 +1187,11 @@ def notify_faculty_approved(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_faculty_rejected(booking):
+def notify_faculty_rejected(booking, outbox_entry=None):
     space_name = _resource_name(booking, "spaces")
     faculty_name = getattr(
         booking.faculty_sponsor, "first_name", "Your faculty sponsor"
@@ -1134,10 +1209,11 @@ def notify_faculty_rejected(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_faculty_details_changed(booking):
+def notify_faculty_details_changed(booking, outbox_entry=None):
     space_name = _resource_name(booking, "spaces")
     notify(
         booking.faculty_sponsor,
@@ -1148,6 +1224,7 @@ def notify_faculty_details_changed(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=True,
+        outbox_entry=outbox_entry,
     )
 
 
@@ -1187,7 +1264,7 @@ def notify_incharge_booking_returned(booking, role_name):
     )
 
 
-def notify_faculty_resent(booking):
+def notify_faculty_resent(booking, outbox_entry=None):
     space_name = _resource_name(booking, "spaces")
     notify(
         booking.faculty_sponsor,
@@ -1198,10 +1275,11 @@ def notify_faculty_resent(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=True,
+        outbox_entry=outbox_entry,
     )
 
 
-def notify_student_cancelled_faculty(booking):
+def notify_student_cancelled_faculty(booking, outbox_entry=None):
     student_name = getattr(booking.user, "first_name", "A student")
     space_name = _resource_name(booking, "spaces")
     notify(
@@ -1214,6 +1292,7 @@ def notify_student_cancelled_faculty(booking):
         domain="spaces",
         reference_code=_booking_reference(booking),
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
 
 
@@ -1221,7 +1300,13 @@ def notify_student_cancelled_faculty(booking):
 # CO-MANAGER ACTIONED NOTIFICATION
 # ==========================================
 
-def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
+def notify_comanagers_actioned(
+    booking,
+    domain,
+    actioned_by,
+    new_status,
+    outbox_entry=None,
+):
     """
     Notifies all co-managers of a venue/domain that another admin has
     actioned a booking, so it doesn't silently vanish from their queue.
@@ -1270,6 +1355,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                         domain=domain,
                         reference_code=reference,
                         is_actionable=False,
+                        outbox_entry=outbox_entry,
                     )
             return
 
@@ -1296,6 +1382,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                     domain=domain,
                     reference_code=reference,
                     is_actionable=False,
+                    outbox_entry=outbox_entry,
                 )
 
     else:
@@ -1341,6 +1428,7 @@ def notify_comanagers_actioned(booking, domain, actioned_by, new_status):
                 domain=domain,
                 reference_code=reference,
                 is_actionable=False,
+                outbox_entry=outbox_entry,
             )
 
 
@@ -1529,7 +1617,7 @@ def notify_chain_cancelled(booking):
                 )
 
 
-def notify_crew_updated(booking):
+def notify_crew_updated(booking, outbox_entry=None):
     """
     Notify the requester that their assigned media team has been updated.
     """
@@ -1546,4 +1634,5 @@ def notify_crew_updated(booking):
         domain='media',
         reference_code=reference,
         is_actionable=False,
+        outbox_entry=outbox_entry,
     )
