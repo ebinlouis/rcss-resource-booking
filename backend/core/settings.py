@@ -241,6 +241,10 @@ CELERY_TASK_ALWAYS_EAGER = False
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 CELERY_BEAT_SCHEDULE = {
+    'process-notification-outbox-every-30-seconds': {
+        'task': 'apps.notifications.tasks.process_notification_outbox',
+        'schedule': 30.0,
+    },
     'run-booking-lifecycle-every-5-minutes': {
         'task': 'apps.notifications.tasks.run_booking_lifecycle',
         'schedule': 300.0,

@@ -3,7 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from apps.users.models import CustomUser, Department, Role
 from apps.fleet.models import Vehicle, FleetBooking
-from apps.notifications.models import Notification
+from apps.notifications.models import NotificationOutbox
 
 class FleetAutoApprovalTests(APITestCase):
     def setUp(self):
@@ -36,7 +36,9 @@ class FleetAutoApprovalTests(APITestCase):
         booking = FleetBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
         self.assertEqual(booking.resolved_by, self.user1)
-        self.assertEqual(Notification.objects.filter(reference_code=booking.reference_code).count(), 0)
+        self.assertFalse(
+            NotificationOutbox.objects.filter(payload__booking_id=booking.id).exists()
+        )
 
     def test_scenario_6_two_fleet_managers(self):
         """6. FLEET: two FLEET_MANAGER users exist, one books -> stays PENDING, only the other is notified."""
@@ -56,6 +58,7 @@ class FleetAutoApprovalTests(APITestCase):
         booking = FleetBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'PENDING')
         
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.user2)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'fleet.new_request')
+        self.assertEqual(outbox.payload['role_name'], Role.Name.FLEET_MANAGER)
+        self.assertEqual(outbox.payload['exclude_user_id'], self.user1.id)

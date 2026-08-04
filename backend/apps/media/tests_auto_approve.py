@@ -4,7 +4,7 @@ from datetime import timedelta
 from apps.users.models import CustomUser, Department, Role
 from apps.media.models import MediaBooking
 from apps.spaces.models import Space
-from apps.notifications.models import Notification
+from apps.notifications.models import NotificationOutbox
 
 class MediaAutoApprovalTests(APITestCase):
     def setUp(self):
@@ -40,7 +40,9 @@ class MediaAutoApprovalTests(APITestCase):
         booking = MediaBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'APPROVED')
         self.assertEqual(booking.resolved_by, self.user1)
-        self.assertEqual(Notification.objects.filter(reference_code=booking.reference_code).count(), 0)
+        self.assertFalse(
+            NotificationOutbox.objects.filter(payload__booking_id=booking.id).exists()
+        )
 
     def test_scenario_10_media_crew_unavailable_raises_validation_error(self):
         """10. MEDIA: sole MEDIA_INCHARGE tries to book but is already busy -> ValidationError raised before auto-approval."""
@@ -106,6 +108,7 @@ class MediaAutoApprovalTests(APITestCase):
         booking = MediaBooking.objects.get(id=res.data['id'])
         self.assertEqual(booking.status, 'PENDING')
         
-        notifications = Notification.objects.filter(reference_code=booking.reference_code)
-        self.assertEqual(notifications.count(), 1)
-        self.assertEqual(notifications.first().recipient, self.user2)
+        outbox = NotificationOutbox.objects.get(payload__booking_id=booking.id)
+        self.assertEqual(outbox.event_type, 'media.new_request')
+        self.assertEqual(outbox.payload['role_name'], Role.Name.MEDIA_INCHARGE)
+        self.assertEqual(outbox.payload['exclude_user_id'], self.user1.id)

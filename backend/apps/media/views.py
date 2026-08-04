@@ -31,14 +31,8 @@ from apps.media.services import (
 )
 from apps.spaces.models import Equipment
 from apps.users.models import Role
-from apps.notifications.utils import (
-    mark_pending_request_notifications_read,
-    notify_booking_status_change,
-    notify_new_request,
-    notify_crew_updated,
-    notify_incharge_booking_edited,
-    notify_incharge_cancelled,
-)
+from apps.notifications.outbox import enqueue_notification
+from apps.notifications.utils import mark_pending_request_notifications_read
 
 
 # ==========================================
@@ -181,11 +175,12 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             booking.save(update_fields=['status', 'resolved_by', 'resolved_at', 'remarks_by_admin'])
             return
 
-        notify_new_request(
-            booking=booking,
+        enqueue_notification(
+            'media.new_request',
+            booking_id=booking.id,
             domain='media',
             role_name=Role.Name.MEDIA_INCHARGE,
-            exclude_user=user
+            exclude_user_id=user.id,
         )
 
     @transaction.atomic
@@ -227,12 +222,14 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
                 'status', 'resolved_by', 'resolved_at',
                 'remarks_by_admin', 'updated_by', 'updated_at',
             ])
-            notify_incharge_booking_edited(
-                booking=booking,
+            enqueue_notification(
+                'media.incharge_booking_edited',
+                booking_id=booking.id,
                 domain='media',
                 role_name=Role.Name.MEDIA_INCHARGE,
             )
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         refresh_booking_lifecycle(instance)
         if not can_user_modify_booking(instance):
@@ -247,8 +244,9 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             'remarks_by_admin', 'updated_at',
         ])
         mark_pending_request_notifications_read(instance, domain='media')
-        notify_incharge_cancelled(
-            booking=instance,
+        enqueue_notification(
+            'media.incharge_cancelled',
+            booking_id=instance.id,
             domain='media',
             role_name=Role.Name.MEDIA_INCHARGE,
         )
@@ -351,18 +349,19 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
             booking.assigned_crew.clear()
 
         mark_pending_request_notifications_read(booking, domain='media')
-        notify_booking_status_change(
-            booking=booking,
+        enqueue_notification(
+            'media.status_change',
+            booking_id=booking.id,
             new_status=new_status,
             domain='media',
-            resolved_by=request.user,
+            resolved_by_id=request.user.id,
             remarks=remarks,
         )
-        from apps.notifications.utils import notify_comanagers_actioned
-        notify_comanagers_actioned(
-            booking=booking,
+        enqueue_notification(
+            'media.comanagers_actioned',
+            booking_id=booking.id,
             domain='media',
-            actioned_by=request.user,
+            actioned_by_id=request.user.id,
             new_status=new_status,
         )
 
@@ -847,7 +846,11 @@ class MediaBookingViewSet(viewsets.ModelViewSet):
         booking.updated_by = request.user
         booking.save(update_fields=['updated_by', 'updated_at'])
 
-        notify_crew_updated(booking)
+        enqueue_notification(
+            'media.crew_updated',
+            booking_id=booking.id,
+            domain='media',
+        )
 
         return Response(self.get_serializer(booking).data)
 
