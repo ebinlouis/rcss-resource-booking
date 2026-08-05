@@ -1,7 +1,7 @@
 import hashlib
 import logging
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from django.views import View
@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.notifications.models import Notification
+from apps.notifications.outbox import enqueue_notification
 from apps.notifications.serializers import NotificationSerializer
 
 logger = logging.getLogger(__name__)
@@ -195,51 +196,61 @@ class TokenApprovalView(View):
 
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
+        from apps.notifications.models import ApprovalToken
+
         try:
-            from apps.notifications.models import ApprovalToken
-            token = ApprovalToken.objects.select_related('issued_to').get(token_hash=token_hash)
+            # Hold the token row from the first validity check until it is
+            # consumed. A second redemption waits here, then observes `used`.
+            with transaction.atomic():
+                token = (
+                    ApprovalToken.objects.select_for_update()
+                    .select_related('issued_to')
+                    .get(token_hash=token_hash)
+                )
+                now = timezone.now()
+
+                if token.used:
+                    return self._html_response(
+                        'Already Actioned',
+                        'This request has already been actioned. This link is no longer valid.',
+                        success=False,
+                    )
+
+                if token.expires_at <= now:
+                    return self._html_response(
+                        'Link Expired',
+                        'This approval link has expired. The booking\'s scheduled time has passed.',
+                        success=False,
+                    )
+
+                if not _token_holder_still_eligible(token):
+                    logger.warning(
+                        "ApprovalToken live eligibility rejected token_id=%s domain=%s "
+                        "booking_ref=%s issued_to_id=%s",
+                        token.id,
+                        token.domain,
+                        token.booking_ref,
+                        token.issued_to_id,
+                    )
+                    return self._html_response(
+                        'Approval Link No Longer Valid',
+                        'This approval link is no longer valid because your access to '
+                        'approve this booking has changed. Please log in to the '
+                        'dashboard to check its current status.',
+                        success=False,
+                    )
+
+                result = self._apply_approval(token, now)
+
+                token.used = True
+                token.used_at = now
+                token.save(update_fields=['used', 'used_at'])
         except ApprovalToken.DoesNotExist:
-            return self._html_response('Invalid Link', 'This approval link is invalid or has already been used.', success=False)
-
-        now = timezone.now()
-
-        # Check: already used
-        if token.used:
             return self._html_response(
-                'Already Actioned',
-                f'This request has already been actioned. This link is no longer valid.',
+                'Invalid Link',
+                'This approval link is invalid or has already been used.',
                 success=False,
             )
-
-        # Check: expired
-        if token.expires_at <= now:
-            return self._html_response(
-                'Link Expired',
-                'This approval link has expired. The booking\'s scheduled time has passed.',
-                success=False,
-            )
-
-        # Check: token holder is still authorized for this booking right now.
-        if not _token_holder_still_eligible(token):
-            logger.warning(
-                "ApprovalToken live eligibility rejected token_id=%s domain=%s "
-                "booking_ref=%s issued_to_id=%s",
-                token.id,
-                token.domain,
-                token.booking_ref,
-                token.issued_to_id,
-            )
-            return self._html_response(
-                'Approval Link No Longer Valid',
-                'This approval link is no longer valid because your access to '
-                'approve this booking has changed. Please log in to the '
-                'dashboard to check its current status.',
-                success=False,
-            )
-
-        # Route to the correct approval handler
-        try:
-            result = self._apply_approval(token, now)
         except IntegrityError:
             return self._html_response(
                 'Venue No Longer Available',
@@ -253,11 +264,6 @@ class TokenApprovalView(View):
                 f'Something went wrong while processing this approval. Please log in to action it manually.',
                 success=False,
             )
-
-        # Mark token as used
-        token.used = True
-        token.used_at = now
-        token.save(update_fields=['used', 'used_at'])
 
         return self._html_response(
             'Approved Successfully',
@@ -289,11 +295,7 @@ class TokenApprovalView(View):
 
     def _approve_space(self, ref, approver, now):
         from apps.spaces.models import SpaceBooking
-        from apps.notifications.utils import (
-            mark_pending_request_notifications_read,
-            notify_booking_status_change,
-            notify_comanagers_actioned,
-        )
+        from apps.notifications.utils import mark_pending_request_notifications_read
 
         booking = SpaceBooking.objects.select_related('space', 'user').filter(
             reference_code=ref
@@ -316,9 +318,22 @@ class TokenApprovalView(View):
             sibling.resolved_at = now
             sibling.save()  # IntegrityError raised here if conflict
             mark_pending_request_notifications_read(sibling, domain='spaces')
-            notify_booking_status_change(sibling, 'APPROVED', 'spaces', approver)
+            enqueue_notification(
+                'spaces.status_change',
+                booking_id=sibling.id,
+                domain='spaces',
+                new_status='APPROVED',
+                resolved_by_id=approver.id,
+                remarks=None,
+            )
 
-        notify_comanagers_actioned(booking, 'spaces', approver, 'APPROVED')
+        enqueue_notification(
+            'spaces.comanagers_actioned',
+            booking_id=booking.id,
+            domain='spaces',
+            actioned_by_id=approver.id,
+            new_status='APPROVED',
+        )
 
         resource = booking.space.name
         requester = f"{booking.user.first_name} {booking.user.last_name}".strip() or booking.user.email
@@ -336,11 +351,7 @@ class TokenApprovalView(View):
 
     def _approve_fleet(self, ref, approver, now):
         from apps.fleet.models import FleetBooking
-        from apps.notifications.utils import (
-            mark_pending_request_notifications_read,
-            notify_booking_status_change,
-            notify_comanagers_actioned,
-        )
+        from apps.notifications.utils import mark_pending_request_notifications_read
 
         booking = FleetBooking.objects.select_related('vehicle', 'user').filter(
             reference_code=ref
@@ -357,8 +368,21 @@ class TokenApprovalView(View):
         booking.resolved_at = now
         booking.save()
         mark_pending_request_notifications_read(booking, domain='fleet')
-        notify_booking_status_change(booking, 'APPROVED', 'fleet', approver)
-        notify_comanagers_actioned(booking, 'fleet', approver, 'APPROVED')
+        enqueue_notification(
+            'fleet.status_change',
+            booking_id=booking.id,
+            domain='fleet',
+            new_status='APPROVED',
+            resolved_by_id=approver.id,
+            remarks=None,
+        )
+        enqueue_notification(
+            'fleet.comanagers_actioned',
+            booking_id=booking.id,
+            domain='fleet',
+            actioned_by_id=approver.id,
+            new_status='APPROVED',
+        )
 
         resource = booking.vehicle.name if booking.vehicle else 'Vehicle'
         requester = f"{booking.user.first_name} {booking.user.last_name}".strip() or booking.user.email
@@ -376,11 +400,7 @@ class TokenApprovalView(View):
 
     def _approve_mess(self, ref, approver, now):
         from apps.mess.models import MessBooking
-        from apps.notifications.utils import (
-            mark_pending_request_notifications_read,
-            notify_booking_status_change,
-            notify_comanagers_actioned,
-        )
+        from apps.notifications.utils import mark_pending_request_notifications_read
 
         booking = MessBooking.objects.select_related('user').filter(
             reference_code=ref
@@ -397,8 +417,21 @@ class TokenApprovalView(View):
         booking.resolved_at = now
         booking.save()
         mark_pending_request_notifications_read(booking, domain='mess')
-        notify_booking_status_change(booking, 'APPROVED', 'mess', approver)
-        notify_comanagers_actioned(booking, 'mess', approver, 'APPROVED')
+        enqueue_notification(
+            'mess.status_change',
+            booking_id=booking.id,
+            domain='mess',
+            new_status='APPROVED',
+            resolved_by_id=approver.id,
+            remarks=None,
+        )
+        enqueue_notification(
+            'mess.comanagers_actioned',
+            booking_id=booking.id,
+            domain='mess',
+            actioned_by_id=approver.id,
+            new_status='APPROVED',
+        )
 
         requester = f"{booking.user.first_name} {booking.user.last_name}".strip() or booking.user.email
         base_url = getattr(__import__('django.conf', fromlist=['settings']).settings, 'FRONTEND_BASE_URL', 'http://localhost:5173')
@@ -417,15 +450,8 @@ class TokenApprovalView(View):
         from apps.users.models import Role
         from apps.notifications.utils import (
             mark_pending_request_notifications_read,
-            notify_faculty_approved,
-            notify_new_request,
-            notify_incharge_booking_edited,
-            notify,
             _resource_name,
-            _booking_reference,
-            _approver_link,
         )
-        from apps.notifications.models import Notification
 
         booking = SpaceBooking.objects.select_related('space', 'user', 'space__approver_chain').filter(
             reference_code=ref
@@ -448,7 +474,11 @@ class TokenApprovalView(View):
         booking.save(update_fields=['status', 'faculty_response_deadline', 'faculty_timed_out', 'updated_at'])
 
         mark_pending_request_notifications_read(booking, domain='spaces')
-        notify_faculty_approved(booking)
+        enqueue_notification(
+            'spaces.faculty_approved',
+            booking_id=booking.id,
+            domain='spaces',
+        )
 
         # Forward to incharge — mirrors faculty_approve() in SpaceBookingViewSet exactly
         workflow_type = getattr(booking.space, 'approval_workflow_type', None)
@@ -456,15 +486,12 @@ class TokenApprovalView(View):
         if chain:
             target = chain.primary_approver or chain.fallback_approver
             if target:
-                notify(
-                    target,
-                    Notification.Category.BOOKING_PENDING,
-                    'New Booking Request',
-                    f'A faculty-approved booking for {_resource_name(booking, "spaces")} requires your approval.',
-                    link=_approver_link('spaces', _booking_reference(booking)),
+                enqueue_notification(
+                    'spaces.direct_notify',
+                    booking_id=booking.id,
                     domain='spaces',
-                    reference_code=_booking_reference(booking),
-                    is_actionable=True,
+                    recipient_id=target.id,
+                    variant='faculty_approved',
                 )
         else:
             category = booking.space.approval_category
@@ -475,9 +502,20 @@ class TokenApprovalView(View):
             else:
                 role = Role.Name.RECEPTIONIST
             if is_edited:
-                notify_incharge_booking_edited(booking, 'spaces', role)
+                enqueue_notification(
+                    'spaces.incharge_booking_edited',
+                    booking_id=booking.id,
+                    domain='spaces',
+                    role_name=role,
+                )
             else:
-                notify_new_request(booking, 'spaces', role)
+                enqueue_notification(
+                    'spaces.new_request',
+                    booking_id=booking.id,
+                    domain='spaces',
+                    role_name=role,
+                    exclude_user_id=None,
+                )
 
         requester = f"{booking.user.first_name} {booking.user.last_name}".strip() or booking.user.email
         resource = _resource_name(booking, 'spaces')
