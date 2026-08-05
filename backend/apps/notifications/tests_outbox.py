@@ -270,6 +270,41 @@ class NotificationOutboxDispatcherTests(TestCase):
         self.assertEqual(notify_faculty_new_request.call_args.args[0].id, booking.id)
         self.assertEqual(notify_faculty_new_request.call_args.kwargs['outbox_entry'].id, entry.id)
 
+    @patch('apps.notifications.utils.notify')
+    def test_routes_direct_space_faculty_approved_notification(self, notify):
+        space = Space.objects.create(
+            name='Dispatcher Chain Space',
+            location='Campus',
+            space_type=Space.SpaceType.GENERAL_HALL,
+            capacity_hard=30,
+        )
+        booking = SpaceBooking.objects.create(
+            user=self.requester,
+            department=self.department,
+            space=space,
+            start_datetime=timezone.now() + timedelta(days=2),
+            end_datetime=timezone.now() + timedelta(days=2, hours=1),
+            attendee_count=5,
+            purpose_of_booking='Dispatcher direct-notify test',
+        )
+        entry = enqueue_notification(
+            'spaces.direct_notify',
+            booking_id=booking.id,
+            domain='spaces',
+            recipient_id=self.requester.id,
+            variant='faculty_approved',
+        )
+
+        dispatch_outbox_event(entry)
+
+        self.assertEqual(notify.call_args.args[0].id, self.requester.id)
+        self.assertEqual(notify.call_args.args[1], Notification.Category.BOOKING_PENDING)
+        self.assertEqual(notify.call_args.args[2], 'New Booking Request')
+        self.assertIn('faculty-approved booking', notify.call_args.args[3])
+        self.assertEqual(notify.call_args.kwargs['domain'], 'spaces')
+        self.assertTrue(notify.call_args.kwargs['is_actionable'])
+        self.assertEqual(notify.call_args.kwargs['outbox_entry'].id, entry.id)
+
     @patch('apps.notifications.outbox_processor.dispatch_outbox_event')
     def test_retry_uses_backoff_then_can_succeed(self, dispatch):
         entry = enqueue_notification('test.event')

@@ -1,5 +1,6 @@
 """Endpoint-level verification that a down broker cannot block booking mutations."""
 
+import hashlib
 from datetime import timedelta
 import socket
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from rest_framework.test import APITestCase
 
 from apps.fleet.models import FleetBooking, Vehicle
 from apps.mess.models import MessBooking
-from apps.notifications.models import NotificationOutbox
+from apps.notifications.models import ApprovalToken, NotificationOutbox
 from apps.notifications.outbox_processor import process_pending_outbox
 from apps.users.models import CustomUser, Department, Role
 
@@ -106,6 +107,15 @@ class BrokerDownEndpointVerificationTests(APITestCase):
             resolved_by=self.manager if status == 'APPROVED' else None,
         )
 
+    def _fleet_approval_token(self, booking, raw_token):
+        return ApprovalToken.objects.create(
+            token_hash=hashlib.sha256(raw_token.encode()).hexdigest(),
+            domain='fleet',
+            booking_ref=booking.reference_code,
+            issued_to=self.manager,
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+
     @patch('apps.notifications.tasks.send_notification_email.delay')
     def test_mess_approve_queues_then_drains_while_broker_is_down(self, delay):
         self._assert_broker_is_unavailable()
@@ -170,3 +180,24 @@ class BrokerDownEndpointVerificationTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         delay.assert_not_called()
         self._assert_events_queue_then_drain(booking, ['fleet.new_request'])
+
+    @patch('apps.notifications.tasks.send_notification_email.delay')
+    def test_token_approval_queues_then_drains_while_broker_is_down(self, delay):
+        self._assert_broker_is_unavailable()
+        booking = self._fleet_booking()
+        raw_token = 'broker-down-token-approval'
+        token = self._fleet_approval_token(booking, raw_token)
+
+        response = self.client.get('/api/notifications/action/', {'token': raw_token})
+
+        self.assertEqual(response.status_code, 200)
+        delay.assert_not_called()
+        booking.refresh_from_db()
+        token.refresh_from_db()
+        self.assertEqual(booking.status, 'APPROVED')
+        self.assertEqual(booking.resolved_by, self.manager)
+        self.assertTrue(token.used)
+        self._assert_events_queue_then_drain(
+            booking,
+            ['fleet.status_change', 'fleet.comanagers_actioned'],
+        )
