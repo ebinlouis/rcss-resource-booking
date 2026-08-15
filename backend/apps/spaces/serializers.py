@@ -13,8 +13,27 @@ from .models import (
     SpaceEquipment,
     EquipmentRequest,
     SpaceApprover,
+    SpaceTimetableBlock,
 )
 from .utils import get_overlapping_bookings, build_conflict_report, get_space_time_window
+
+
+SCHEDULE_ENTRY_BASE_FIELDS = (
+    "id",
+    "start_datetime",
+    "end_datetime",
+    "subject",
+    "purpose_of_booking",
+    "instructor",
+    "status",
+    "booking_type",
+    "is_timetable",
+    "can_modify",
+    "space_details",
+    "booked_by_name",
+    "booked_by_designation",
+    "booked_by_department",
+)
 
 
 # ==========================================
@@ -251,7 +270,104 @@ class EquipmentRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ["is_delivered", "is_returned"]
 
 
-class SpaceBookingSerializer(serializers.ModelSerializer):
+class BookingUserFieldsMixin:
+    """Shared public requester fields for booking-like schedule entries."""
+
+    def _get_effective_roles_for(self, user):
+        if hasattr(user, '_cached_effective_roles'):
+            return user._cached_effective_roles
+
+        from django.utils import timezone
+        from django.db.models import Q
+        now = timezone.now()
+
+        # Use prefetch cache for roles if available — avoids a DB hit
+        if hasattr(user, '_prefetched_objects_cache') and 'roles' in user._prefetched_objects_cache:
+            base = {r.name for r in user.roles.all()}
+        else:
+            base = set(user.roles.values_list('name', flat=True))
+
+        # Use prefetch cache for role_overrides if available
+        if hasattr(user, '_prefetched_objects_cache') and 'role_overrides' in user._prefetched_objects_cache:
+            override_roles = {
+                o.role.name for o in user.role_overrides.all()
+                if o.is_active
+                and (o.valid_until is None or o.valid_until > now)
+                and o.revoked_at is None
+            }
+        else:
+            override_roles = set(
+                RoleOverride.objects.filter(
+                    user=user,
+                    is_active=True,
+                )
+                .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
+                .filter(revoked_at__isnull=True)
+                .values_list('role__name', flat=True)
+            )
+
+        result = base | override_roles
+        user._cached_effective_roles = result
+        return result
+
+    def _booked_by_name_for(self, user):
+        if not user:
+            return None
+
+        parts = [user.first_name, user.last_name]
+        full_name = " ".join(part for part in parts if part)
+        return full_name or user.email
+
+    def _booked_by_designation_for(self, user):
+        if not user:
+            return None
+
+        if user.designation:
+            return user.designation
+
+        role_labels = {
+            "IT_ADMIN": "IT Administrator",
+            "PRINCIPAL": "Principal",
+            "HOD": "Head of Department",
+            "RECEPTIONIST": "Receptionist",
+            "LAB_INCHARGE": "Lab In-Charge",
+            "LIBRARIAN": "Librarian",
+            "MESS_MANAGER": "Mess Manager",
+            "MEDIA_INCHARGE": "Media In-Charge",
+            "FLEET_MANAGER": "Fleet Manager",
+            "FACULTY": "Faculty",
+            "STAFF": "Staff",
+            "STUDENT": "Student",
+        }
+        priority = [
+            "IT_ADMIN",
+            "PRINCIPAL",
+            "HOD",
+            "RECEPTIONIST",
+            "LAB_INCHARGE",
+            "LIBRARIAN",
+            "MESS_MANAGER",
+            "MEDIA_INCHARGE",
+            "FLEET_MANAGER",
+            "FACULTY",
+            "STAFF",
+            "STUDENT",
+        ]
+        effective_roles = self._get_effective_roles_for(user)
+        for role in priority:
+            if role in effective_roles:
+                return role_labels[role]
+
+        return None
+
+    @staticmethod
+    def _booked_by_department_for(user):
+        if not user or not user.department:
+            return None
+        return user.department.department_name
+
+
+class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer):
     space_details = SpaceSerializer(source="space", read_only=True)
 
     equipment_requests = EquipmentRequestSerializer(
@@ -260,7 +376,13 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         required=False,
     )
 
-    purpose_of_booking = serializers.SerializerMethodField()
+    subject = serializers.SerializerMethodField()
+    # Deprecated: frontend clients should migrate to ``subject``.
+    purpose_of_booking = serializers.SerializerMethodField(
+        help_text="Deprecated: use subject instead."
+    )
+    instructor = serializers.SerializerMethodField()
+    is_timetable = serializers.SerializerMethodField()
 
     purpose_of_booking_input = serializers.CharField(
         write_only=True,
@@ -323,7 +445,10 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             "start_datetime",
             "end_datetime",
             "attendee_count",
+            "subject",
             "purpose_of_booking",
+            "instructor",
+            "is_timetable",
             "booked_by_name",
             "booked_by_email",
             "booked_by_designation",
@@ -370,43 +495,6 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
             return None
         return user
 
-    def _get_effective_roles_for(self, user):
-        if hasattr(user, '_cached_effective_roles'):
-            return user._cached_effective_roles
-
-        from django.utils import timezone
-        from django.db.models import Q
-        now = timezone.now()
-
-        # Use prefetch cache for roles if available — avoids a DB hit
-        if hasattr(user, '_prefetched_objects_cache') and 'roles' in user._prefetched_objects_cache:
-            base = {r.name for r in user.roles.all()}
-        else:
-            base = set(user.roles.values_list('name', flat=True))
-
-        # Use prefetch cache for role_overrides if available
-        if hasattr(user, '_prefetched_objects_cache') and 'role_overrides' in user._prefetched_objects_cache:
-            override_roles = {
-                o.role.name for o in user.role_overrides.all()
-                if o.is_active
-                and (o.valid_until is None or o.valid_until > now)
-                and o.revoked_at is None
-            }
-        else:
-            override_roles = set(
-                RoleOverride.objects.filter(
-                    user=user,
-                    is_active=True,
-                )
-                .filter(Q(valid_until__isnull=True) | Q(valid_until__gt=now))
-                .filter(revoked_at__isnull=True)
-                .values_list('role__name', flat=True)
-            )
-
-        result = base | override_roles
-        user._cached_effective_roles = result
-        return result
-
     def get_purpose_of_booking(self, obj):
         if not obj.purpose_of_booking:
             return "Occupied"
@@ -428,6 +516,16 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
 
         return "Occupied"
 
+    def get_subject(self, obj):
+        return self.get_purpose_of_booking(obj)
+
+    def get_instructor(self, obj):
+        return "Not specified"
+
+    @staticmethod
+    def get_is_timetable(obj):
+        return False
+
     def get_can_modify(self, obj):
         user = self._user()
 
@@ -439,59 +537,13 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
         )
 
     def get_booked_by_name(self, obj):
-        user = obj.user
-        if not user:
-            return None
-
-        parts = [user.first_name, user.last_name]
-        full_name = " ".join(p for p in parts if p)  # filters out None and empty
-        return full_name or user.email
+        return self._booked_by_name_for(obj.user)
 
     def get_booked_by_email(self, obj):
         return obj.user.email if obj.user else None
 
     def get_booked_by_designation(self, obj):
-        user = obj.user
-        if not user:
-            return None
-
-        if user.designation:
-            return user.designation
-
-        ROLE_LABELS = {
-            "IT_ADMIN": "IT Administrator",
-            "PRINCIPAL": "Principal",
-            "HOD": "Head of Department",
-            "RECEPTIONIST": "Receptionist",
-            "LAB_INCHARGE": "Lab In-Charge",
-            "LIBRARIAN": "Librarian",
-            "MESS_MANAGER": "Mess Manager",
-            "MEDIA_INCHARGE": "Media In-Charge",
-            "FLEET_MANAGER": "Fleet Manager",
-            "FACULTY": "Faculty",
-            "STAFF": "Staff",
-            "STUDENT": "Student",
-        }
-        priority = [
-            "IT_ADMIN",
-            "PRINCIPAL",
-            "HOD",
-            "RECEPTIONIST",
-            "LAB_INCHARGE",
-            "LIBRARIAN",
-            "MESS_MANAGER",
-            "MEDIA_INCHARGE",
-            "FLEET_MANAGER",
-            "FACULTY",
-            "STAFF",
-            "STUDENT",
-        ]
-        effective_roles = self._get_effective_roles_for(user)
-        for role in priority:
-            if role in effective_roles:
-                return ROLE_LABELS[role]
-
-        return None
+        return self._booked_by_designation_for(obj.user)
 
     def get_booked_by_department(self, obj):
         if not obj.department:
@@ -779,6 +831,97 @@ class SpaceBookingSerializer(serializers.ModelSerializer):
                     )
 
         return data
+
+
+class TimetableScheduleEntrySerializer(BookingUserFieldsMixin, serializers.ModelSerializer):
+    """Public general-schedule representation for an imported timetable block."""
+
+    id = serializers.SerializerMethodField()
+    start_datetime = serializers.SerializerMethodField()
+    end_datetime = serializers.SerializerMethodField()
+    subject = serializers.SerializerMethodField()
+    # Deprecated: frontend clients should migrate to ``subject``.
+    purpose_of_booking = serializers.SerializerMethodField(
+        help_text="Deprecated: use subject instead."
+    )
+    instructor = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    booking_type = serializers.SerializerMethodField()
+    is_timetable = serializers.SerializerMethodField()
+    can_modify = serializers.SerializerMethodField()
+    space_details = serializers.SerializerMethodField()
+    booked_by_name = serializers.SerializerMethodField()
+    booked_by_designation = serializers.SerializerMethodField()
+    booked_by_department = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SpaceTimetableBlock
+        fields = SCHEDULE_ENTRY_BASE_FIELDS
+
+    @staticmethod
+    def _subject_for(obj):
+        return obj.label or obj.batch.upload_label or "Class Timetable"
+
+    def get_id(self, obj):
+        return f"tt_{obj.id}"
+
+    def get_start_datetime(self, obj):
+        from datetime import datetime
+        from django.utils import timezone
+
+        return timezone.make_aware(datetime.combine(obj.date, obj.start_time)).isoformat()
+
+    def get_end_datetime(self, obj):
+        from datetime import datetime
+        from django.utils import timezone
+
+        return timezone.make_aware(datetime.combine(obj.date, obj.end_time)).isoformat()
+
+    def get_subject(self, obj):
+        return self._subject_for(obj)
+
+    def get_purpose_of_booking(self, obj):
+        return self._subject_for(obj)
+
+    def get_instructor(self, obj):
+        return obj.instructor or "Not specified"
+
+    @staticmethod
+    def get_status(obj):
+        return "APPROVED"
+
+    @staticmethod
+    def get_booking_type(obj):
+        return "SINGLE"
+
+    @staticmethod
+    def get_is_timetable(obj):
+        return True
+
+    @staticmethod
+    def get_can_modify(obj):
+        return False
+
+    @staticmethod
+    def get_space_details(obj):
+        return {
+            "id": obj.space.id,
+            "name": obj.space.name,
+            "capacity_hard": obj.space.capacity_hard,
+        }
+
+    @staticmethod
+    def _uploader_for(obj):
+        return obj.batch.uploaded_by if obj.batch_id else None
+
+    def get_booked_by_name(self, obj):
+        return self._booked_by_name_for(self._uploader_for(obj))
+
+    def get_booked_by_designation(self, obj):
+        return self._booked_by_designation_for(self._uploader_for(obj))
+
+    def get_booked_by_department(self, obj):
+        return self._booked_by_department_for(self._uploader_for(obj))
 
 
 # ==========================================
