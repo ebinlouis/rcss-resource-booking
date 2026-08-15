@@ -166,7 +166,7 @@ class SpaceApproverChainAdmin(admin.ModelAdmin):
 class SpaceTimetableBlockInline(admin.TabularInline):
     model = SpaceTimetableBlock
     extra = 0
-    fields = ('space', 'date', 'start_time', 'end_time', 'label')
+    fields = ('space', 'date', 'start_time', 'end_time', 'label', 'instructor')
     autocomplete_fields = ['space']
 
 @admin.register(TimetableUploadBatch)

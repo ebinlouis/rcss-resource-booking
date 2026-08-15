@@ -23,6 +23,7 @@ from .serializers import (
     BlockSerializer,
     SpaceSerializer,
     SpaceBookingSerializer,
+    TimetableScheduleEntrySerializer,
     EquipmentSerializer,
     SpaceApproverSerializer,
 )
@@ -608,7 +609,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
                     'date': b.date.strftime('%Y-%m-%d'),
                     'start_time': b.start_time.strftime('%H:%M'),
                     'end_time': b.end_time.strftime('%H:%M'),
-                    'label': b.label
+                    'label': b.label,
+                    'instructor': b.instructor,
                 })
             return Response({'batches': batches_data, 'blocks': blocks_data})
             
@@ -654,6 +656,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
                         end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
                         label = row['label'].strip()
+                        instructor = (row.get('instructor') or '').strip()
                         
                         start_dt = timezone.make_aware(datetime.combine(date, start_time))
                         end_dt = timezone.make_aware(datetime.combine(date, end_time))
@@ -679,7 +682,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
                             date=date,
                             start_time=start_time,
                             end_time=end_time,
-                            label=label
+                            label=label,
+                            instructor=instructor,
                         ))
                         row_count += 1
                     except Exception:
@@ -833,6 +837,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
                         end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
                         label = row['label'].strip()
+                        instructor = (row.get('instructor') or '').strip()
                         
                         blocks.append(SpaceTimetableBlock(
                             batch=batch,
@@ -840,7 +845,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
                             date=date,
                             start_time=start_time,
                             end_time=end_time,
-                            label=label
+                            label=label,
+                            instructor=instructor,
                         ))
                         row_count += 1
                     except Exception:
@@ -991,36 +997,18 @@ class SpaceBookingViewSet(viewsets.ModelViewSet):
             space_id = request.query_params.get('space')
             today = timezone.localdate()
             blocks_qs = SpaceTimetableBlock.objects.select_related(
-                'space', 'batch'
+                'space', 'batch__uploaded_by__department'
+            ).prefetch_related(
+                'batch__uploaded_by__roles',
+                'batch__uploaded_by__role_overrides__role',
             ).filter(date__gte=today - timedelta(days=1), date__lte=today + timedelta(days=180))
             if space_id:
                 blocks_qs = blocks_qs.filter(space_id=space_id)
-            blocks = blocks_qs.all()
-
-            timetable_data = []
-            for b in blocks:
-                start_dt = timezone.make_aware(datetime.combine(b.date, b.start_time))
-                end_dt   = timezone.make_aware(datetime.combine(b.date, b.end_time))
-
-                label = getattr(b, 'label', '')
-                if not label and getattr(b, 'batch', None):
-                    label = getattr(b.batch, 'upload_label', '')
-
-                timetable_data.append({
-                    "id": f"tt_{b.id}",
-                    "start_datetime": start_dt.isoformat(),
-                    "end_datetime": end_dt.isoformat(),
-                    "purpose_of_booking": label or "Class Timetable",
-                    "status": "APPROVED",
-                    "booking_type": "SINGLE",
-                    "is_timetable": True,
-                    "can_modify": False,
-                    "space_details": {
-                        "id": b.space.id,
-                        "name": b.space.name,
-                        "capacity_hard": getattr(b.space, 'capacity_hard', 0),
-                    }
-                })
+            timetable_data = TimetableScheduleEntrySerializer(
+                blocks_qs,
+                many=True,
+                context={'request': request},
+            ).data
 
             if isinstance(response.data, dict) and 'results' in response.data:
                 response.data['results'].extend(timetable_data)

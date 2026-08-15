@@ -401,6 +401,7 @@ class SpaceTimetableBlock(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     label = models.CharField(max_length=200, default='')
+    instructor = models.CharField(max_length=200, blank=True, default='')
 
     class Meta:
         indexes = [
