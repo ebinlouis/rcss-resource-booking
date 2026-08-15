@@ -117,3 +117,46 @@ class TimetableScheduleParityTests(APITestCase):
             SpaceTimetableBlock.objects.get(label="Calculus").instructor,
             "Dr. Newton",
         )
+
+    def test_booked_by_email_is_hidden_from_anonymous_requests(self):
+        """Anonymous callers of the public general-schedule endpoint must
+        receive None for booked_by_email — the field must never expose a
+        raw email address to unauthenticated users."""
+        # Ensure no authenticated user is attached to the test client
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(
+            f"/api/spaces/requests/?view=general&space={self.space.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        entries = response.data["results"] if isinstance(response.data, dict) else response.data
+        normal_bookings = [e for e in entries if not e["is_timetable"]]
+        self.assertTrue(normal_bookings, "Expected at least one normal booking in response")
+
+        for booking in normal_bookings:
+            self.assertIsNone(
+                booking.get("booked_by_email"),
+                msg=f"booked_by_email should be None for anonymous user, got: {booking.get('booked_by_email')}",
+            )
+
+    def test_booked_by_email_is_returned_for_authorised_user(self):
+        """Staff/IT-admin requesters must receive the real email value for
+        booked_by_email — same authorisation bar as booked_by_phone."""
+        self.client.force_authenticate(self.uploader)  # is_staff + is_superuser + IT_ADMIN
+
+        response = self.client.get(
+            f"/api/spaces/requests/?view=general&space={self.space.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        entries = response.data["results"] if isinstance(response.data, dict) else response.data
+        normal_bookings = [e for e in entries if not e["is_timetable"]]
+        self.assertTrue(normal_bookings, "Expected at least one normal booking in response")
+
+        for booking in normal_bookings:
+            self.assertEqual(
+                booking.get("booked_by_email"),
+                self.uploader.email,
+                msg=f"booked_by_email should be the real email for authorised user",
+            )

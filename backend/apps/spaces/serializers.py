@@ -366,6 +366,20 @@ class BookingUserFieldsMixin:
             return None
         return user.department.department_name
 
+    def _booked_by_email_for(self, booking_user, requester):
+        """Return the booking user's email only to authorised requesters.
+
+        Mirrors the gating on get_booked_by_phone: anonymous users and those
+        without an elevated role always receive None, preventing PII exposure
+        on the public general-schedule endpoint.
+        """
+        if requester is None:
+            return None
+        effective = self._get_effective_roles_for(requester)
+        if requester.is_staff or requester.is_superuser or 'IT_ADMIN' in effective or 'FACULTY' in effective:
+            return getattr(booking_user, 'email', None) if booking_user else None
+        return None
+
 
 class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer):
     space_details = SpaceSerializer(source="space", read_only=True)
@@ -540,7 +554,7 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
         return self._booked_by_name_for(obj.user)
 
     def get_booked_by_email(self, obj):
-        return obj.user.email if obj.user else None
+        return self._booked_by_email_for(obj.user, self._user())
 
     def get_booked_by_designation(self, obj):
         return self._booked_by_designation_for(obj.user)
