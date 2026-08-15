@@ -520,7 +520,7 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
         return self.get_purpose_of_booking(obj)
 
     def get_instructor(self, obj):
-        return "Not specified"
+        return ""
 
     @staticmethod
     def get_is_timetable(obj):
@@ -884,7 +884,7 @@ class TimetableScheduleEntrySerializer(BookingUserFieldsMixin, serializers.Model
         return self._subject_for(obj)
 
     def get_instructor(self, obj):
-        return obj.instructor or "Not specified"
+        return obj.instructor or ""
 
     @staticmethod
     def get_status(obj):

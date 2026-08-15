@@ -207,6 +207,29 @@ function BookingDetailPanel({ booking, onClose, user, onLoginRedirect }) {
             </div>
           </section>
 
+          <hr className="border-gray-100" />
+
+          {/* Subject / Purpose & Instructor */}
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{raw.is_timetable ? "Subject & Instructor" : "Purpose"}</h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                <span className="text-gray-400 text-xs">{raw.is_timetable ? "Subject" : "Purpose"}</span>
+                <span className="font-medium text-gray-800 text-right">
+                  {raw.subject || raw.purpose_of_booking || "Unavailable"}
+                </span>
+              </div>
+              {raw.is_timetable && raw.instructor && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-gray-400 text-xs">Instructor</span>
+                  <span className="font-medium text-gray-800 text-right">
+                    {raw.instructor}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
         </div>
 
         {/* Footer CTA */}
@@ -335,7 +358,7 @@ function TodayBookings() {
         id:          b.id,
         time:        formatTime(startD),
         hall:        b.space_details?.name ?? "Unknown Venue",
-        title:       b.purpose_of_booking,
+        title:       b.subject || b.purpose_of_booking,
         duration:    isMultiDay
           ? `${fmtDate(startKey)} – ${fmtDate(endKey)}`
           : `${formatTime(startD)} – ${formatTime(endD)}`,

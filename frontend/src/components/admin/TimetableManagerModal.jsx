@@ -27,7 +27,7 @@ export default function TimetableManagerModal({ space, onClose }) {
   const [deleteDate, setDeleteDate] = useState("")
   const [selectedBatchId, setSelectedBatchId] = useState(null)
   const [editingBlockId, setEditingBlockId] = useState(null)
-  const [editBlockForm, setEditBlockForm] = useState({ date: "", start_time: "", end_time: "", label: "" })
+  const [editBlockForm, setEditBlockForm] = useState({ date: "", start_time: "", end_time: "", label: "", instructor: "" })
   
   const [cancelAction, setCancelAction] = useState(null)
 
@@ -226,6 +226,10 @@ const handleDeleteBlock = async (blockId) => {
                 {isUploading ? "Uploading..." : "Upload"}
               </button>
             </div>
+            <p className="text-[11px] text-gray-400 mt-2">
+              CSV columns: <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px]">date, start_time, end_time, label, instructor</code>
+              <span className="ml-1 text-gray-300">(instructor is optional)</span>
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -336,7 +340,10 @@ const handleDeleteBlock = async (blockId) => {
                               <input type="time" name="edit_end_time" value={editBlockForm.end_time} onChange={e => setEditBlockForm({...editBlockForm, end_time: e.target.value})} className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
                             </div>
                             <div className="flex gap-3">
-                              <input type="text" name="edit_label" value={editBlockForm.label} onChange={e => setEditBlockForm({...editBlockForm, label: e.target.value})} placeholder="Label" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="text" name="edit_label" value={editBlockForm.label} onChange={e => setEditBlockForm({...editBlockForm, label: e.target.value})} placeholder="Label (subject)" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <input type="text" name="edit_instructor" value={editBlockForm.instructor} onChange={e => setEditBlockForm({...editBlockForm, instructor: e.target.value})} placeholder="Instructor (optional)" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                            <div className="flex gap-3">
                               <button onClick={() => handleSaveBlock(block.id)} className="text-white bg-green-600 text-sm font-semibold px-4 py-2 hover:bg-green-700 rounded-lg transition">Save</button>
                               <button onClick={() => setCancelAction(() => () => setEditingBlockId(null))} className="text-gray-600 bg-gray-100 text-sm font-semibold px-4 py-2 hover:bg-gray-200 rounded-lg transition">Cancel</button>
                             </div>
@@ -346,6 +353,7 @@ const handleDeleteBlock = async (blockId) => {
                             <div>
                               <p className="text-sm font-semibold text-gray-800">{block.date}</p>
                               <p className="text-xs text-gray-500">{block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)} · {block.label}</p>
+                              {block.instructor && <p className="text-[11px] text-gray-400 mt-0.5">Instructor: {block.instructor}</p>}
                             </div>
                             <div className="flex gap-2 items-center">
                               <button 
@@ -355,7 +363,8 @@ const handleDeleteBlock = async (blockId) => {
                                     date: block.date,
                                     start_time: block.start_time.slice(0, 5),
                                     end_time: block.end_time.slice(0, 5),
-                                    label: block.label
+                                    label: block.label,
+                                    instructor: block.instructor || ""
                                   });
                                 }}
                                 className="text-green-500 hover:text-green-700 text-xs font-semibold transition"

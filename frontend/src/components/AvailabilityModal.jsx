@@ -72,6 +72,9 @@ function buildTimeline(bookings) {
         bookedByPhone: bk.bookedByPhone,
         bookedByPhoto: bk.bookedByPhoto,
         purpose: bk.purpose,
+        subject: bk.subject,
+        instructor: bk.instructor,
+        isTimetable: bk.isTimetable,
       })
     }
 
@@ -164,17 +167,20 @@ async function loadBookings(spaceId) {
         grouped[ttCursor].push({
           start: ttStartStr,
           end:   ttEndStr,
-          title: b.purpose_of_booking || "Class Timetable",
+          title: b.subject || b.purpose_of_booking || "Class Timetable",
           status: "APPROVED",
           isMultiDay: ttStartKey !== ttEndKey,
           isContinue: ttCursor !== ttStartKey,
           isLastDay: ttCursor === ttEndKey && ttCursor !== ttStartKey,
-          bookedByName: "Timetable",
-          bookedByDesignation: "Scheduled Class",
-          bookedByDepartment: "Admin",
-          bookedByPhone: "",
-          bookedByPhoto: "",
-          purpose: b.purpose_of_booking,
+          bookedByName: b.booked_by_name,
+          bookedByDesignation: b.booked_by_designation,
+          bookedByDepartment: b.booked_by_department,
+          bookedByPhone: b.booked_by_phone || "",
+          bookedByPhoto: b.booked_by_photo || "",
+          purpose: b.subject || b.purpose_of_booking,
+          subject: b.subject,
+          instructor: b.instructor,
+          isTimetable: true,
         })
         if (ttCursor === ttEndKey) break
         ttCursor = nextDateKey(ttCursor)
@@ -201,7 +207,7 @@ async function loadBookings(spaceId) {
       grouped[cursor].push({
         start: startStr,
         end: endStr,
-        title: b.purpose_of_booking || "Booked Event",
+        title: b.subject || b.purpose_of_booking || "Booked Event",
         status: b.status,
         isMultiDay,
         isContinue: cursor !== startKey,
@@ -212,7 +218,10 @@ async function loadBookings(spaceId) {
         bookedByDepartment: b.booked_by_department,
         bookedByPhone: b.booked_by_phone,
         bookedByPhoto: b.booked_by_photo,
-        purpose: b.purpose_of_booking,
+        purpose: b.subject || b.purpose_of_booking,
+        subject: b.subject,
+        instructor: b.instructor,
+        isTimetable: false,
       })
 
       if (cursor === endKey) break
@@ -736,15 +745,27 @@ onClick={() => {
         )}
       </div>
 
-      {/* Purpose */}
+      {/* Subject / Purpose */}
       <div className="rounded-xl bg-gray-50 px-3 py-2.5">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-          Purpose
+          {activeTooltip.booking.isTimetable ? "Subject" : "Purpose"}
         </p>
         <p className="text-sm text-gray-800 break-words">
-          {activeTooltip.booking.purpose || "Unavailable"}
+          {activeTooltip.booking.subject || activeTooltip.booking.purpose || "Unavailable"}
         </p>
       </div>
+
+      {/* Instructor */}
+      {activeTooltip.booking.isTimetable && activeTooltip.booking.instructor && (
+        <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+            Instructor
+          </p>
+          <p className="text-sm text-gray-800 break-words">
+            {activeTooltip.booking.instructor}
+          </p>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-3">
