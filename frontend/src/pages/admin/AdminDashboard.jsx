@@ -1099,11 +1099,14 @@ const AdminDashboard = () => {
                 navigate('/admin?tab=pending', { replace: true });
             }
 
+            toast.success(`${parentBooking.reference_code} approved.`);
             setSuccessTarget(parentBooking);
             setApproveTarget(null);
         } catch (err) {
             console.error('Approve error:', err);
-            setActionError(err.response?.data?.error || 'Could not approve booking. Please try again.');
+            const msg = err.response?.data?.error || 'Could not approve booking. Please try again.';
+            toast.error(msg);
+            setActionError(msg);
         } finally {
             setActionLoading(null);
         }
@@ -1128,10 +1131,14 @@ const AdminDashboard = () => {
                 navigate('/admin?tab=pending', { replace: true });
             }
 
+            const verb = parentBooking.status === 'APPROVED' ? 'cancelled' : 'rejected';
+            toast.success(`${parentBooking.reference_code} ${verb}.`);
             setRejectTarget(null);
         } catch (err) {
             console.error('Reject error:', err);
-            setActionError(err.response?.data?.error || 'Could not reject booking. Please try again.');
+            const msg = err.response?.data?.error || 'Could not reject booking. Please try again.';
+            toast.error(msg);
+            setActionError(msg);
         } finally {
             setActionLoading(null);
         }
