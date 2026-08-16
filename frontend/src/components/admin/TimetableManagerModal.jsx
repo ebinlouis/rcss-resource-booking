@@ -125,11 +125,14 @@ export default function TimetableManagerModal({ space, onClose }) {
   }
 
 const handleDeleteBatch = async (batchId) => {
+  const targetBatch = batches.find((b) => b.id === batchId)
   setCancelAction(() => async () => {
     try {
       await deleteBatch.mutateAsync(batchId)
+      toast.success(targetBatch?.label ? `Timetable "${targetBatch.label}" deleted.` : "Timetable deleted.")
       fetchBatches()
     } catch {
+      toast.error("Failed to delete timetable.")
       setError("Failed to delete timetable.")
     }
   })
@@ -172,24 +175,30 @@ const handleDeleteBatch = async (batchId) => {
 
 const handleDeleteByDate = async () => {
   if (!deleteDate) return
+  const targetDate = deleteDate
 
   setCancelAction(() => async () => {
     try {
-      await clearDate.mutateAsync(deleteDate)
+      await clearDate.mutateAsync(targetDate)
+      toast.success(`Blocks cleared for ${targetDate}.`)
       setDeleteDate("")
       fetchBatches()
     } catch {
+      toast.error("Failed to delete blocks.")
       setError("Failed to delete blocks.")
     }
   })
 }
 
 const handleDeleteBlock = async (blockId) => {
+  const targetBlock = blocks.find((b) => b.id === blockId)
   setCancelAction(() => async () => {
     try {
       await deleteBlock.mutateAsync(blockId)
+      toast.success(targetBlock?.label ? `Block "${targetBlock.label}" deleted.` : "Block deleted.")
       fetchBatches()
     } catch {
+      toast.error("Failed to delete block.")
       setError("Failed to delete block.")
     }
   })
