@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
+import toast from "react-hot-toast"
 import { getVehicles } from "../api/fleetApi"
 import { useCreateFleetBooking, useUpdateFleetBooking } from "../hooks/useFleetQueries"
 
@@ -351,6 +352,12 @@ function TransportBookingModal({
           await createMutation.mutateAsync(payload)
       }
 
+      const ref = result?.reference_code || result?.purpose || ""
+      if (isEditMode) {
+        toast.success(ref ? `Transport booking updated (${ref}).` : "Transport booking updated.")
+      } else {
+        toast.success(ref ? `Transport booking submitted (${ref}).` : "Transport booking submitted.")
+      }
       onSave(result)
 
     } catch (err) {
@@ -376,6 +383,7 @@ function TransportBookingModal({
       } else {
         setApiError("Failed to submit booking. Please try again.")
       }
+      toast.error("Booking not submitted. Check the form and try again.")
 
     } finally {
 
