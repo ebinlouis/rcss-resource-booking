@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import roleOverrideService from '../../api/roleOverrideService';
 import spaceAdminService from '../../api/spaceAdminService';
+import toast from 'react-hot-toast';
 
 const SCOPED_APPROVER_ROLES = ['RECEPTIONIST', 'LAB_INCHARGE', 'LIBRARIAN'];
 
@@ -133,6 +134,18 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh, defaultScopeType, def
             }
 
             await spaceAdminService.createApprover(payload);
+            const userName = selectedUser?.first_name || selectedUser?.name || selectedUser?.email || 'User';
+            const roleObj = roles.find(r => getRoleValue(r) === String(selectedRole));
+            const roleName = roleObj ? getRoleLabel(roleObj) : 'approver';
+            let scopeLabel = '';
+            if (scopeType === 'BLOCK') {
+                const targetBlock = blocks.find(b => String(b.id) === String(selectedBlockId));
+                scopeLabel = targetBlock ? ` for ${targetBlock.name}` : '';
+            } else if (scopeType === 'SPACE') {
+                const targetSpace = spaces.find(s => String(s.id) === String(selectedSpaceId));
+                scopeLabel = targetSpace ? ` for ${targetSpace.name}` : '';
+            }
+            toast.success(`Assigned ${userName} as ${roleName}${scopeLabel}.`);
             onRefresh();
             handleCloseModal();
         } catch (err) {
@@ -150,6 +163,7 @@ const AssignApproverModal = ({ isOpen, onClose, onRefresh, defaultScopeType, def
             }
 
             setError(errorMsg);
+            toast.error(errorMsg);
             setIsSubmitting(false);
         }
     };
