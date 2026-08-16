@@ -136,22 +136,25 @@ export default function AdminDepartmentsPage() {
         try {
             if (editingId) {
                 await updateDepartment.mutateAsync({ id: editingId, payload: form });
+                toast.success(`Department "${form.department_name}" updated.`);
                 setIsModalOpen(false);
                 setEditingId(null);
                 setForm({ department_name: '', department_code: '' });
             } else {
                 const res = await createDepartment.mutateAsync(form);
+                toast.success(`Department "${form.department_name}" created.`);
                 setIsModalOpen(false);
                 setEditingId(null);
                 setForm({ department_name: '', department_code: '' });
                 navigate(`/admin/departments/${res.id}/faculties?onboard=true`);
             }
         } catch (err) {
-            setFormError(
+            const msg =
                 err.response?.data?.department_name?.[0] ||
                 err.response?.data?.department_code?.[0] ||
-                (editingId ? 'Error updating department' : 'Error adding department')
-            );
+                (editingId ? 'Error updating department' : 'Error adding department');
+            setFormError(msg);
+            toast.error(msg);
         } finally {
             setIsSubmitting(false);
         }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
 import adminUserService from '../../api/adminUserService'
+import toast from 'react-hot-toast'
 
 // ─────────────────────────────────────────────────────────────
 // Helpers (unchanged)
@@ -241,8 +242,11 @@ function AdminUsersPage() {
       const updated = await adminUserService.setRoles(userId, roleIds)
       setAllUsers((cur) => cur.map((u) => u.id === userId ? updated : u))
       setSelectedUser(null)
+      toast.success('User roles updated successfully.')
     } catch (err) {
-      setError(err.response?.data?.roles || 'Could not update user roles. Please try again.')
+      const msg = err.response?.data?.roles || 'Could not update user roles. Please try again.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setIsSaving(false)
     }

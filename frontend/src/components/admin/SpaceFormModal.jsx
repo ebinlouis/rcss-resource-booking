@@ -4,6 +4,7 @@ import api from "../../api/axios"
 import spaceAdminService from "../../api/spaceAdminService"
 import { useCreateSpace, useUpdateSpace } from "../../hooks/useSpaceQueries"
 import { combineSpaceLocation, parseSpaceLocation } from "../../utils/spaceLocation"
+import toast from "react-hot-toast"
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -459,6 +460,11 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
         await createSpace.mutateAsync(fd)
       }
 
+      toast.success(
+        isEdit
+          ? `"${form.name}" updated successfully.`
+          : `"${form.name}" added to the venue catalog.`
+      )
       setSubmitted(true)
       onSaved?.()
     } catch (error) {
@@ -479,6 +485,11 @@ function SpaceFormModal({ initialData = null, onClose, onSaved }) {
           : errData.non_field_errors
       if (Object.keys(mapped).length === 0) mapped.server = "Submission failed. Please try again."
       setErrors(mapped)
+      toast.error(
+        mapped.server ||
+        mapped.name ||
+        (isEdit ? "Failed to update venue. Please check the form." : "Failed to create venue. Please check the form.")
+      )
     } finally {
       setIsSubmitting(false)
     }

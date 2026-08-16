@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import roleOverrideService from '../../api/roleOverrideService';
+import toast from 'react-hot-toast';
 
 const SCOPED_APPROVER_ROLES = ['RECEPTIONIST', 'LAB_INCHARGE', 'LIBRARIAN'];
 
@@ -135,6 +136,21 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
             }
 
             await roleOverrideService.grantOverride(payload);
+            const userName = selectedUser?.first_name || selectedUser?.name || selectedUser?.email || 'User';
+            const roleName = selectedRoleObj?.display_name || selectedRoleObj?.name || 'role';
+            let scopeLabel = '';
+            if (isRoleScoped && scopeType === 'BLOCK') {
+                const targetBlock = blocks.find(b => String(b.id) === String(selectedBlockId));
+                scopeLabel = targetBlock ? ` for ${targetBlock.name}` : '';
+            } else if (isRoleScoped && scopeType === 'SPACE') {
+                const targetSpace = spaces.find(s => String(s.id) === String(selectedSpaceId));
+                scopeLabel = targetSpace ? ` for ${targetSpace.name}` : '';
+            }
+            const formattedExpiry = validUntil 
+                ? new Date(validUntil).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+                : '';
+            const expiryText = formattedExpiry ? ` until ${formattedExpiry}` : '';
+            toast.success(`Temporary ${roleName} access granted to ${userName}${scopeLabel}${expiryText}.`);
             onRefresh();
             handleCloseModal(); 
         } catch (err) {
@@ -154,6 +170,7 @@ const GrantOverrideModal = ({ isOpen, onClose, onRefresh }) => {
             }
             
             setError(errorMsg);
+            toast.error(errorMsg);
             setIsSubmitting(false); 
         }
     };
