@@ -177,9 +177,9 @@ handleCloseModal();
 await softDeleteEquipment.mutateAsync(id);
 toast.success('Equipment deactivated successfully.');
         } catch (err) {
-    console.error('Failed to fetch equipment:', err);
-    toast.error('Failed to load equipment.');
-}
+            console.error('Failed to deactivate equipment:', err);
+            toast.error('Failed to deactivate equipment.');
+        }
     };
 
     // ── Derived ───────────────────────────────────────────────────────────────
