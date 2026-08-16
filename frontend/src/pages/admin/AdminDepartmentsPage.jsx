@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from '../../hooks/useDepartmentQueries';
 
@@ -162,8 +163,10 @@ export default function AdminDepartmentsPage() {
         setDeleteError(null);
         try {
             await deleteDepartment.mutateAsync(deleteTarget.id);
+            toast.success(`Department "${deleteTarget.department_name}" removed.`);
             setDeleteTarget(null);
         } catch {
+            toast.error('Failed to remove department.');
             setDeleteError('This department can\'t be removed because it is currently being used.');
         } finally {
             setIsDeleting(false);
