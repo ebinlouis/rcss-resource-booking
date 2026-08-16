@@ -804,6 +804,22 @@ export function useBookingForm({
         mappedErrors.purpose = Array.isArray(errData.purpose_of_booking_input)
           ? errData.purpose_of_booking_input[0]
           : errData.purpose_of_booking_input
+      if (errData.faculty_sponsor)
+        mappedErrors.faculty_sponsor = Array.isArray(errData.faculty_sponsor)
+          ? errData.faculty_sponsor[0]
+          : errData.faculty_sponsor
+      if (errData.start_datetime)
+        mappedErrors.start_date = Array.isArray(errData.start_datetime)
+          ? errData.start_datetime[0]
+          : errData.start_datetime
+      if (errData.end_datetime)
+        mappedErrors.end_date = Array.isArray(errData.end_datetime)
+          ? errData.end_datetime[0]
+          : errData.end_datetime
+      if (errData.user_notes)
+        mappedErrors.notes = Array.isArray(errData.user_notes)
+          ? errData.user_notes[0]
+          : errData.user_notes
       if (errData.non_field_errors) {
         const msg = Array.isArray(errData.non_field_errors)
           ? errData.non_field_errors[0]
@@ -817,7 +833,8 @@ export function useBookingForm({
       }
 
       if (Object.keys(mappedErrors).length === 0) {
-        const rawError = errData.error || errData.detail || ""
+        const firstVal = typeof errData === "object" ? Object.values(errData).flat?.()[0] : null
+        const rawError = errData.error || errData.detail || (typeof firstVal === "string" ? firstVal : "") || ""
         if (
           rawError.includes("exclude_overlapping_approved_space_bookings") ||
           rawError.includes("conflicting key value violates exclusion constraint")
