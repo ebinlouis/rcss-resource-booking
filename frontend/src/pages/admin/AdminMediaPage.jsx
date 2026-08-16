@@ -911,10 +911,12 @@ function AdminMediaPage() {
             if (normaliseReference(approveTarget.reference_code) === normaliseReference(highlightedReference)) {
                 navigate('/admin/media?tab=pending', { replace: true })
             }
+            toast.success(`${approveTarget.reference_code} approved, ${crewIds.length} crew assigned.`)
             setSuccessTarget(approveTarget)
             setApproveTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
+            toast.error(`Failed to approve. ${apiError(err)}`)
             // Let the modal handle the error display by re-throwing
             setActionLoading(null)
             throw err
@@ -928,9 +930,11 @@ function AdminMediaPage() {
         setActionLoading(updateCrewTarget.id)
         try {
             await mediaApi.updateCrew(updateCrewTarget.id, crewIds)
+            toast.success(`Crew updated — ${crewIds.length} member${crewIds.length !== 1 ? 's' : ''} assigned.`)
             setUpdateCrewTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
+            toast.error(`Failed to update crew. ${apiError(err)}`)
             setActionLoading(null)
             throw err
         } finally {
@@ -947,11 +951,12 @@ function AdminMediaPage() {
             if (normaliseReference(rejectTarget.reference_code) === normaliseReference(highlightedReference)) {
                 navigate('/admin/media?tab=pending', { replace: true })
             }
+            toast.success(`${rejectTarget.reference_code} rejected.`)
             setRejectTarget(null)
             await fetchData({ showLoading: false })
         } catch (err) {
-    toast.error(`Failed to reject booking. ${apiError(err)}`);
-} finally {
+            toast.error(`Failed to reject booking. ${apiError(err)}`);
+        } finally {
             setActionLoading(null)
         }
     }
