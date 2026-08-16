@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import toast from "react-hot-toast"
 import api from "../api/axios"
 import mediaApi from "../api/mediaApi"
 import messService from "../api/messService"
@@ -131,7 +132,10 @@ function useWizardSubmit() {
 
   const finishIfComplete = useCallback((submittedMap) => {
     const allDone = activeServices.every((service) => submittedMap[service])
-    if (allDone) bookingSessionActions.markWizardSuccess()
+    if (allDone) {
+      bookingSessionActions.markWizardSuccess()
+      toast.success("All linked bookings submitted successfully.")
+    }
     return allDone
   }, [activeServices])
 
