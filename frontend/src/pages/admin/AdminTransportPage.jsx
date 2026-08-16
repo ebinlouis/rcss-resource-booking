@@ -513,10 +513,13 @@ export default function AdminTransportPage() {
 
     const handleApprove = async (id) => {
         setActionLoading(id)
+        const targetBooking = bookings.find(b => b.id === id)
+        const refCode = targetBooking?.reference_code
         try {
             await reviewBooking(id, { status: 'APPROVED', remarks: '' })
-            const approved = bookings.find(b => b.id === id)
-            setLastApproved(approved ?? { id, reference_code: '—' })
+            const approved = targetBooking ?? { id, reference_code: '—' }
+            setLastApproved(approved)
+            toast.success(refCode ? `${refCode} approved.` : 'Booking approved.')
             refresh()
         } catch (err) {
             toast.error(err?.response?.data?.error || 'Approval failed.')
@@ -527,10 +530,12 @@ export default function AdminTransportPage() {
 
     const handleRejectConfirm = async (remarks) => {
         if (!rejectTarget) return
+        const refCode = rejectTarget.reference_code
         setActionLoading(rejectTarget.id)
         try {
             await reviewBooking(rejectTarget.id, { status: 'REJECTED', remarks })
             setRejectTarget(null)
+            toast.success(refCode ? `${refCode} rejected.` : 'Booking rejected.')
             refresh()
         } catch (err) {
             toast.error(err?.response?.data?.error || 'Rejection failed.')
@@ -541,10 +546,19 @@ export default function AdminTransportPage() {
 
     const handleRescheduleConfirm = async (payload) => {
         if (!rescheduleTarget) return
+        const refCode = rescheduleTarget.reference_code
         setActionLoading(rescheduleTarget.id)
         try {
-            await rescheduleBooking(rescheduleTarget.id, payload)
+            const updatedBooking = await rescheduleBooking(rescheduleTarget.id, payload)
             setRescheduleTarget(null)
+            const confirmedStart = updatedBooking?.start_datetime || payload.start_datetime
+            const newTime = confirmedStart ? formatDT(confirmedStart) : ''
+            const finalRef = updatedBooking?.reference_code || refCode
+            if (newTime) {
+                toast.success(finalRef ? `${finalRef} rescheduled to ${newTime}.` : `Trip rescheduled to ${newTime}.`)
+            } else {
+                toast.success(finalRef ? `${finalRef} rescheduled.` : 'Trip rescheduled.')
+            }
             refresh()
         } catch (err) {
             const errData = err?.response?.data
