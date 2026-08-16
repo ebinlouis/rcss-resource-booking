@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
+import toast from "react-hot-toast"
 import api from "../../api/axios"
 import {
   useCreateTimetableBatch,
@@ -9,6 +10,11 @@ import {
   useClearTimetableDate,
   useDeleteTimetableBlock
 } from "../../hooks/useSpaceQueries"
+
+const getImportCounts = (data) => ({
+  imported: data?.row_count ?? 0,
+  failed: data?.skipped_count ?? data?.conflicts?.length ?? 0,
+})
 
 export default function TimetableManagerModal({ space, onClose }) {
   const [batches, setBatches] = useState([])
@@ -81,6 +87,8 @@ export default function TimetableManagerModal({ space, onClose }) {
       
       let hasError = false;
       if (res.conflicts && res.conflicts.length > 0) {
+        const { imported, failed } = getImportCounts(res)
+        toast.error(`${imported} blocks imported, ${failed} failed.`)
         setError(
           res.message + 
           "\nFailed Blocks:\n" + 
@@ -88,6 +96,8 @@ export default function TimetableManagerModal({ space, onClose }) {
         )
         hasError = true;
       } else {
+        const { imported } = getImportCounts(res)
+        toast.success(`${imported} blocks imported.`)
         setError(null)
       }
       
@@ -96,12 +106,15 @@ export default function TimetableManagerModal({ space, onClose }) {
       fetchBatches(hasError)
     } catch (err) {
       if (err.response?.data?.conflicts) {
+        const { imported, failed } = getImportCounts(err.response.data)
+        toast.error(`${imported} blocks imported, ${failed} failed.`)
         setError(
           err.response.data.message + 
           "\nFailed Blocks:\n" + 
           err.response.data.conflicts.join("\n")
         )
       } else {
+        toast.error(err.response?.data?.error || "Upload failed. Check your connection and try again.")
         setError(err.response?.data?.error || "Failed to upload timetable.")
       }
       // If it completely fails, we might still want to fetch batches if we deleted the batch, etc.
