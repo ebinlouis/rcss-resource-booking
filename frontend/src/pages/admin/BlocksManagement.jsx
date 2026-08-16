@@ -282,12 +282,15 @@ const BlocksManagement = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const blockName = formData.name?.trim();
 
         try {
             if (editingId) {
                 await spaceAdminService.updateBlock(editingId, formData);
+                toast.success(blockName ? `Block "${blockName}" updated.` : 'Block updated successfully.');
             } else {
                 await spaceAdminService.createBlock(formData);
+                toast.success(blockName ? `Block "${blockName}" created.` : 'Block created successfully.');
             }
 
             setIsModalOpen(false);
