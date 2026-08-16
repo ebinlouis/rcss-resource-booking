@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
+import toast from "react-hot-toast"
 import messService from "../api/messService"
 import AutoSuggestInput from "./AutoSuggestInput"
 import { MEALS, getDateRange } from "../api/messConfig"
@@ -527,6 +528,7 @@ function MessBookingForm({ onClose, onSave, editData }) {
       if (isMounted.current) { setIsSubmitting(false); onSave?.() }
     } catch (err) {
       if (!isMounted.current) return
+      let errorMsg = "Could not send request. Please try again."
       const data = err?.response?.data
       if (data) {
         if (Array.isArray(data.daily_menus)) {
@@ -534,15 +536,20 @@ function MessBookingForm({ onClose, onSave, editData }) {
           if (firstDayErr) {
             const key = Object.keys(firstDayErr)[0]
             const msg = Array.isArray(firstDayErr[key]) ? firstDayErr[key][0] : firstDayErr[key]
-            setError(`daily_menus: ${key}: ${msg}`)
+            errorMsg = `daily_menus: ${key}: ${msg}`
+            setError(errorMsg)
+            toast.error(errorMsg)
             return
           }
         }
         const firstKey = Object.keys(data)[0]
         const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey]
-        setError(`${firstKey === "non_field_errors" ? "Error" : firstKey}: ${msg}`)
+        errorMsg = `${firstKey === "non_field_errors" ? "Error" : firstKey}: ${msg}`
+        setError(errorMsg)
+        toast.error(errorMsg)
       } else {
-        setError("Could not send request. Please try again.")
+        setError(errorMsg)
+        toast.error(errorMsg)
       }
     } finally {
       if (isMounted.current) setIsSubmitting(false)

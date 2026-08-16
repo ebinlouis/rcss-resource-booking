@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
+import toast from "react-hot-toast"
 import MediaBookingDetailsModal from "./MediaBookingDetailsModal"
 import { useCancelMediaBooking } from "../hooks/useMediaQueries"
 
@@ -96,10 +97,13 @@ function MediaBookings({ bookings = [], loading = false, onRefresh }) {
       setDeleteError(null)
       await cancelMutation.mutateAsync(confirmDelete.id)
       setConfirmDelete(null)
+      toast.success("Booking cancelled successfully.")
       onRefresh?.()
     } catch (err) {
       console.error("Cancel failed:", err)
-      setDeleteError("Could not cancel booking. Please try again.")
+      const errorMsg = err?.response?.data?.error || err?.response?.data?.detail || "Could not cancel booking. Please try again."
+      setDeleteError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setDeleting(false)
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Loader2, Save, Upload, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import profileApi from '../api/profileApi';
 
 const inputCls =
@@ -151,9 +152,13 @@ const ProfileForm = ({ user, onUpdate, onClose, onSuccess }) => {
           }
         });
         setFieldErrors(fields);
+        const errMsg = generic.trim() || Object.values(fields)[0] || 'Failed to update profile. Please check the form errors.';
         if (generic) setError(generic.trim());
+        toast.error(errMsg);
       } else {
-        setError('Failed to update profile. Please try again.');
+        const errMsg = 'Failed to update profile. Please try again.';
+        setError(errMsg);
+        toast.error(errMsg);
       }
     } finally {
       setSaving(false);

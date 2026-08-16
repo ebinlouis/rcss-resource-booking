@@ -888,6 +888,7 @@ const confirmCancelBooking = async () => {
   try {
     await cancelMutation.mutateAsync(cancelBookingId)
     setCancelBookingId(null)
+    toast.success("Booking cancelled successfully.")
   } catch {
     toast.error("Booking could not be cancelled. Please try again.")
   } finally {

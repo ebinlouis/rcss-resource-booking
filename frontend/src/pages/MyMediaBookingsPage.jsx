@@ -462,6 +462,7 @@ const MyMediaBookingsPage = () => {
 
     try {
       await cancelMutation.mutateAsync(id)
+      toast.success("Booking cancelled successfully.")
     } catch {
       toast.error("Booking could not be cancelled. Please try again.")
     } finally {
