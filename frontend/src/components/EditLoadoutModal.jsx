@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { Package, Plus, X, AlertCircle, Loader2, CheckCircle2 } from "lucide-react"
+import toast from "react-hot-toast"
 import mediaService from "../api/mediaApi"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -272,6 +273,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
       setSaving(true)
       const updated = await mediaService.updateLoadout(booking.id, payload)
       setSaved(true)
+      toast.success("Equipment loadout updated successfully.")
       setTimeout(() => {
         onSuccess(updated)
       }, 900)
@@ -279,6 +281,7 @@ function EditLoadoutModal({ booking, onClose, onSuccess }) {
       const data = err.response?.data
       const msg  = data?.error || data?.detail || "Failed to save loadout. Please try again."
       setGlobalError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
