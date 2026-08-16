@@ -419,11 +419,12 @@ function AdminMess() {
       toast.success("Booking rejected.");
       closePanel();
     } catch (err) {
-      setRemarkError(
+      const errorMsg =
         err.response?.data?.rejection_remark ||
         err.response?.data?.detail ||
-        "Failed to reject booking."
-      );
+        "Failed to reject booking.";
+      setRemarkError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setActionLoading(false);
     }
