@@ -392,7 +392,9 @@ export default function AdminFacultiesPage() {
                 setIsCSVModalOpen(false);
                 setCsvFile(null);
             } else {
-                setCsvUploadError(data?.detail || 'Upload failed. Please try again.');
+                const errorMsg = data?.detail || 'CSV upload failed. Please try again.';
+                setCsvUploadError(errorMsg);
+                toast.error(errorMsg);
             }
         } finally {
             setIsUploading(false);
