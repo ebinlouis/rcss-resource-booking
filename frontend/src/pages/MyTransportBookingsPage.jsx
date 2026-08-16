@@ -455,9 +455,10 @@ function MyTransportBookingsPage() {
       setCancelTarget(null)
       toast.success("Booking cancelled successfully.")
     } catch (err) {
-      setCancelError(
+      const errorMsg =
         err?.response?.data?.error || "Could not cancel this booking. Please try again."
-      )
+      setCancelError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setCancelLoading(false)
     }
