@@ -139,6 +139,8 @@ const handleDeleteBatch = async (batchId) => {
 }
 
   const handleEditBatch = async (batchId) => {
+    const targetBatch = batches.find((b) => b.id === batchId)
+    const label = editBatchLabel.trim() || targetBatch?.label
     setIsEditingBatch(true)
     try {
       const fd = new FormData()
@@ -148,28 +150,34 @@ const handleDeleteBatch = async (batchId) => {
       }
       
       await updateBatch.mutateAsync({ batchId, fd })
+      toast.success(label ? `Timetable "${label}" updated.` : "Timetable updated.")
       setEditBatchId(null)
       setEditBatchFile(null)
       fetchBatches()
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to update timetable.")
+      const errMsg = err.response?.data?.error || "Failed to update timetable."
+      setError(errMsg)
+      toast.error(errMsg)
     } finally {
       setIsEditingBatch(false)
     }
   }
 
   const handleSaveBlock = async (blockId) => {
+    const targetBlock = blocks.find((b) => b.id === blockId)
+    const label = editBlockForm.label?.trim() || targetBlock?.label
     try {
       await editBlock.mutateAsync({ blockId, data: editBlockForm })
+      toast.success(label ? `Block "${label}" updated.` : "Block updated.")
       setEditingBlockId(null)
       fetchBatches()
       setError(null)
     } catch (err) {
-      if (err.response?.status === 409) {
-        setError(err.response.data.message)
-      } else {
-        setError(err.response?.data?.error || "Failed to update block.")
-      }
+      const errMsg = err.response?.status === 409
+        ? (err.response.data.message || "Conflict: Block overlaps with an existing schedule.")
+        : (err.response?.data?.error || err.response?.data?.detail || "Failed to update block.")
+      setError(errMsg)
+      toast.error(errMsg)
     }
   }
 
