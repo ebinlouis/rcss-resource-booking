@@ -144,7 +144,9 @@ function Transport() {
       setDeleteTarget(null)
       toast.success("Booking cancelled successfully.")
     } catch (err) {
-      setDeleteError(err?.response?.data?.error || "Could not cancel this booking. Please try again.")
+      const errorMsg = err?.response?.data?.error || "Could not cancel this booking. Please try again."
+      setDeleteError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setDeleting(false)
     }
