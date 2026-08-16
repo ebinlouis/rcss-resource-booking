@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom"
 import { useState, useEffect, useMemo } from "react"
+import toast from "react-hot-toast"
 import {
   Clapperboard,
   Package,
@@ -405,6 +406,12 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
         await createMutation.mutateAsync(payload)
         if (isLinkedBooking) bookingSessionActions.markComplete("media")
       }
+      const eventLabel = formData.event_name?.trim() || ""
+      if (initialData?.id) {
+        toast.success(eventLabel ? `"${eventLabel}" updated.` : "Media booking updated.")
+      } else {
+        toast.success(eventLabel ? `"${eventLabel}" submitted for review.` : "Media booking submitted.")
+      }
       bookingSessionActions.clearSession()
       bookingSessionActions.setMediaRequestMode(null)
       setRequestMode(null)
@@ -423,6 +430,7 @@ function MediaBookingModal({ onClose, onSuccess, initialData }) {
         setErrors(mapped)
       } else {
         setErrors({ timeError: "Submission failed. Please try again." })
+        toast.error("Booking not submitted. Please try again.")
       }
     } finally {
       setSubmitting(false)
