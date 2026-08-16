@@ -366,6 +366,7 @@ export default function AdminFacultiesPage() {
         setIsUploading(true);
         setCsvUploadError(null);
         try {
+            const uploadedFileName = csvFile.name;
             const formData = new FormData();
             formData.append('file', csvFile);
             const res = await api.post('/auth/admin-users/csv-upload/', formData, {
@@ -378,7 +379,7 @@ export default function AdminFacultiesPage() {
             // Refresh the faculty list to reflect new/updated users
             fetchData();
             toast.success(
-                `CSV imported: ${res.data.summary.created_count} created, ${res.data.summary.updated_count} updated.`
+                `${res.data.summary.created_count} created, ${res.data.summary.updated_count} updated from ${uploadedFileName}.`
             );
         } catch (err) {
             const data = err.response?.data;
