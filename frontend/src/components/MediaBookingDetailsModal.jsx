@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom"
 import { useState, useEffect, useMemo } from "react"
 import { X, AlertTriangle } from "lucide-react"
+import toast from "react-hot-toast"
 import mediaService from "../api/mediaApi"
 import ErrorBoundary from "./ErrorBoundary"
 
@@ -347,6 +348,8 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
       }
 
       await mediaService.updateBooking(booking.id, payload)
+      const eventLabel = formData.event_name?.trim() || ""
+      toast.success(eventLabel ? `"${eventLabel}" updated.` : "Media booking updated.")
       setShowSaveConfirm(false)
       onRefresh?.()
     } catch (err) {
@@ -371,14 +374,17 @@ function MediaBookingDetailsModal({ booking, onClose, onRefresh }) {
   }
 
   const handleDelete = async () => {
+    const eventLabel = formData.event_name?.trim() || ""
     try {
       setDeleting(true)
       await mediaService.deleteBooking(booking.id)
+      toast.success(eventLabel ? `"${eventLabel}" deleted.` : "Media booking deleted.")
       setShowDeleteConfirm(false)
       onRefresh?.()
     } catch (err) {
       console.error("Delete failed:", err)
       setErrors({ timeError: "Could not delete booking. Please try again." })
+      toast.error("Delete failed. Please try again.")
       setShowDeleteConfirm(false)
     } finally {
       setDeleting(false)
