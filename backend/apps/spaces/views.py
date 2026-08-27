@@ -928,45 +928,192 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 reader = csv.DictReader(io_string)
                 if reader.fieldnames:
                     reader.fieldnames = [field.strip() for field in reader.fieldnames if field]
-                
-                SpaceTimetableBlock.objects.filter(batch=batch).delete()
-                
-                blocks = []
-                row_count = 0
-                skipped_count = 0
-                for row in reader:
+
+                # ── Phase 1: Parse ────────────────────────────────────────────
+                candidates   = []
+                parse_errors = []
+                for file_row_index, row in enumerate(reader):
                     try:
-                        date = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
+                        date       = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
-                        end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
-                        label = row['label'].strip()
+                        end_time   = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
+                        label      = row['label'].strip()
                         instructor = (row.get('instructor') or '').strip()
-                        
-                        blocks.append(SpaceTimetableBlock(
+                        candidates.append({
+                            "row_index":  file_row_index,
+                            "date":       date,
+                            "start_time": start_time,
+                            "end_time":   end_time,
+                            "label":      label,
+                            "instructor": instructor,
+                        })
+                    except Exception:
+                        parse_errors.append({
+                            "row_index":     file_row_index,
+                            "row":           {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()},
+                            "reason":        "Row could not be parsed — missing or malformed field.",
+                            "conflicts_with": {"type": "parse_error"},
+                        })
+
+                if parse_errors:
+                    return Response(
+                        {
+                            "error":        "CSV contains rows that could not be parsed. No changes made.",
+                            "skipped_rows": parse_errors,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # ── Phase 2: Validate + write (locked transaction) ────────────
+                with _db_transaction.atomic():
+                    # Acquire a row-level lock on the Space for the duration of
+                    # validation + delete + insert, mirroring the locking pattern
+                    # used in perform_create (~views.py:908).
+                    from .models import Space as _Space
+                    _Space.objects.select_for_update().filter(pk=space.pk).first()
+
+                    conflict_list = []
+
+                    # 2a. DB conflicts for each candidate.
+                    #     exclude_batch=batch excludes this batch's own prior rows
+                    #     so re-uploading the same file always succeeds.
+                    for cand in candidates:
+                        cand_row = {
+                            "date":       str(cand["date"]),
+                            "start_time": cand["start_time"].strftime('%H:%M'),
+                            "end_time":   cand["end_time"].strftime('%H:%M'),
+                            "label":      cand["label"],
+                            "instructor": cand["instructor"],
+                        }
+                        tt_qs, booking_qs = get_timetable_db_conflicts(
+                            space,
+                            cand["date"],
+                            cand["start_time"],
+                            cand["end_time"],
+                            exclude_batch=batch,
+                        )
+                        if tt_qs.exists():
+                            block = tt_qs.first()
+                            conflict_list.append({
+                                "row_index":     cand["row_index"],
+                                "row":           cand_row,
+                                "reason": (
+                                    f"Conflicts with existing timetable block '{block.label}' "
+                                    f"on {block.date} "
+                                    f"{block.start_time.strftime('%H:%M')}–"
+                                    f"{block.end_time.strftime('%H:%M')}."
+                                ),
+                                "conflicts_with": {
+                                    "type":       "timetable_block",
+                                    "id":         block.id,
+                                    "date":       str(block.date),
+                                    "start_time": block.start_time.strftime('%H:%M'),
+                                    "end_time":   block.end_time.strftime('%H:%M'),
+                                    "label":      block.label,
+                                },
+                            })
+                            continue  # report first DB conflict per candidate row
+
+                        if booking_qs.exists():
+                            booking = booking_qs.first()
+                            conflict_list.append({
+                                "row_index":     cand["row_index"],
+                                "row":           cand_row,
+                                "reason": (
+                                    f"Conflicts with existing booking {booking.reference_code} "
+                                    f"({booking.start_datetime.strftime('%H:%M')}–"
+                                    f"{booking.end_datetime.strftime('%H:%M')})."
+                                ),
+                                "conflicts_with": {
+                                    "type":           "booking",
+                                    "reference_code": booking.reference_code,
+                                    "start_datetime": booking.start_datetime.isoformat(),
+                                    "end_datetime":   booking.end_datetime.isoformat(),
+                                },
+                            })
+
+                    # 2b. Intra-file conflicts — full pairwise (unlike POST's progressive
+                    #     approach, nothing is "accepted" until every row passes).
+                    n = len(candidates)
+                    for i in range(n):
+                        a = candidates[i]
+                        for j in range(i + 1, n):
+                            b = candidates[j]
+                            if a["date"] == b["date"] and time_ranges_overlap(
+                                a["start_time"], a["end_time"],
+                                b["start_time"], b["end_time"],
+                            ):
+                                # Report the later row (j) as conflicting with the earlier (i).
+                                conflict_list.append({
+                                    "row_index":     b["row_index"],
+                                    "row": {
+                                        "date":       str(b["date"]),
+                                        "start_time": b["start_time"].strftime('%H:%M'),
+                                        "end_time":   b["end_time"].strftime('%H:%M'),
+                                        "label":      b["label"],
+                                        "instructor": b["instructor"],
+                                    },
+                                    "reason": (
+                                        f"Conflicts with row {a['row_index']} in this file "
+                                        f"('{a['label']}' "
+                                        f"{a['start_time'].strftime('%H:%M')}–"
+                                        f"{a['end_time'].strftime('%H:%M')})."
+                                    ),
+                                    "conflicts_with": {
+                                        "type":       "intra_file",
+                                        "row_index":  a["row_index"],
+                                        "date":       str(a["date"]),
+                                        "start_time": a["start_time"].strftime('%H:%M'),
+                                        "end_time":   a["end_time"].strftime('%H:%M'),
+                                        "label":      a["label"],
+                                    },
+                                })
+
+                    if conflict_list:
+                        # Return 409 — no DB writes were made, the transaction
+                        # commits as a no-op and releases the lock.
+                        return Response(
+                            {
+                                "error": (
+                                    f"Re-upload rejected: {len(conflict_list)} conflict(s) found. "
+                                    "No changes made."
+                                ),
+                                "skipped_rows": conflict_list,
+                                "conflicts":    [row["reason"] for row in conflict_list],
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    # All candidates are clean — delete old blocks and insert new ones.
+                    SpaceTimetableBlock.objects.filter(batch=batch).delete()
+                    new_blocks = [
+                        SpaceTimetableBlock(
                             batch=batch,
                             space=space,
-                            date=date,
-                            start_time=start_time,
-                            end_time=end_time,
-                            label=label,
-                            instructor=instructor,
-                        ))
-                        row_count += 1
-                    except Exception:
-                        skipped_count += 1
-                        
-                SpaceTimetableBlock.objects.bulk_create(blocks)
-                batch.row_count = row_count
-                batch.skipped_count = skipped_count
-                if 'label' in request.data:
-                    batch.upload_label = request.data['label']
-                batch.save()
-                
-                return Response({
-                    "batch_id": batch.id,
-                    "row_count": row_count,
-                    "skipped_count": skipped_count
-                })
+                            date=cand["date"],
+                            start_time=cand["start_time"],
+                            end_time=cand["end_time"],
+                            label=cand["label"],
+                            instructor=cand["instructor"],
+                        )
+                        for cand in candidates
+                    ]
+                    SpaceTimetableBlock.objects.bulk_create(new_blocks)
+
+                    batch.row_count    = len(candidates)
+                    batch.skipped_count = 0
+                    save_fields = ['row_count', 'skipped_count']
+                    if 'label' in request.data:
+                        batch.upload_label = request.data['label']
+                        save_fields.append('upload_label')
+                    batch.save(update_fields=save_fields)
+
+                    return Response({
+                        "batch_id":      batch.id,
+                        "row_count":     len(candidates),
+                        "skipped_count": 0,
+                    })
+
             except Exception as e:
                 return Response({"error": f"Error parsing CSV: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
