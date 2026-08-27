@@ -115,14 +115,16 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
         - date:      ISO date string (YYYY-MM-DD) of the booking's start
         - start:     HH:MM of the booking's start time
         - end:       HH:MM of the booking's end time
-        - label:     Human-readable purpose, role-gated (Occupied for others)
-        - reference_code: e.g. SPC-XXXX (shown to staff/admin only)
+        - label:     The booking's purpose (shown to everyone — whoever books
+                     must know what's happening and why they're being blocked)
+        - reference_code: e.g. SPC-XXXX (shown to staff/admin or the booking's
+                          own owner only)
 
-    Role gating mirrors the serializer's get_purpose_of_booking logic:
-        - Staff/superuser → sees real purpose + reference_code
-        - Faculty group   → sees real purpose, no reference_code
-        - Booking owner   → sees their own purpose
-        - Everyone else   → sees "Occupied"
+    Visibility rules:
+        - label (purpose_of_booking): always shown to the requesting user;
+          intentionally public so they understand the conflict.
+        - reference_code: shown only to staff/superusers or the user who owns
+          the conflicting booking.
 
     Args:
         overlapping_qs:   QuerySet from get_overlapping_bookings().
@@ -135,10 +137,6 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
 
     is_staff = requesting_user and (
         requesting_user.is_staff or requesting_user.is_superuser
-    )
-    is_faculty = requesting_user and (
-        not is_staff and
-        requesting_user.groups.filter(name='Faculty').exists()
     )
 
     for booking in overlapping_qs:
