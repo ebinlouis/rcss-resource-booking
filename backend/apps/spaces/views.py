@@ -643,77 +643,170 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 )
                 
                 blocks = []
-                row_count = 0
+                accepted_rows = []  # rows accepted so far in this upload; used for intra-file checking
+                skipped_rows  = []  # structured per-row skip records returned in the response
+                row_count     = 0
                 skipped_count = 0
-                conflict_details = []
-                
-                from .utils import get_overlapping_bookings
-                from django.utils import timezone
 
-                for row in reader:
+                from .utils import get_timetable_db_conflicts, time_ranges_overlap
+
+                for file_row_index, row in enumerate(reader):
                     try:
-                        date = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
+                        date       = datetime.strptime(row['date'].strip(), '%Y-%m-%d').date()
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
-                        end_time = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
-                        label = row['label'].strip()
+                        end_time   = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
+                        label      = row['label'].strip()
                         instructor = (row.get('instructor') or '').strip()
-                        
-                        start_dt = timezone.make_aware(datetime.combine(date, start_time))
-                        end_dt = timezone.make_aware(datetime.combine(date, end_time))
-                        
-                        overlaps = get_overlapping_bookings(space, start_dt, end_dt)
-                        
-                        # Also check existing timetable blocks for the same day/time
-                        tt_overlaps = SpaceTimetableBlock.objects.filter(
-                            space=space,
-                            date=date,
-                            start_time__lt=end_time,
-                            end_time__gt=start_time
-                        )
-
-                        if overlaps.exists() or tt_overlaps.exists():
-                            skipped_count += 1
-                            conflict_details.append(f"{date} {start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} ({label})")
-                            continue
-
-                        blocks.append(SpaceTimetableBlock(
-                            batch=batch,
-                            space=space,
-                            date=date,
-                            start_time=start_time,
-                            end_time=end_time,
-                            label=label,
-                            instructor=instructor,
-                        ))
-                        row_count += 1
                     except Exception:
                         skipped_count += 1
-                        
+                        skipped_rows.append({
+                            "row_index": file_row_index,
+                            "row": {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()},
+                            "reason": "Row could not be parsed — missing or malformed field.",
+                            "conflicts_with": {"type": "parse_error"},
+                        })
+                        continue
+
+                    row_summary = {
+                        "date":       str(date),
+                        "start_time": start_time.strftime('%H:%M'),
+                        "end_time":   end_time.strftime('%H:%M'),
+                        "label":      label,
+                        "instructor": instructor,
+                    }
+
+                    # 1. Check against existing DB state.
+                    #    No batch exclusion needed: the batch was just created and has no blocks yet.
+                    tt_qs, booking_qs = get_timetable_db_conflicts(space, date, start_time, end_time)
+
+                    if tt_qs.exists():
+                        block = tt_qs.first()
+                        skipped_count += 1
+                        skipped_rows.append({
+                            "row_index":     file_row_index,
+                            "row":           row_summary,
+                            "reason": (
+                                f"Conflicts with existing timetable block '{block.label}' "
+                                f"on {block.date} "
+                                f"{block.start_time.strftime('%H:%M')}–"
+                                f"{block.end_time.strftime('%H:%M')}."
+                            ),
+                            "conflicts_with": {
+                                "type":       "timetable_block",
+                                "id":         block.id,
+                                "date":       str(block.date),
+                                "start_time": block.start_time.strftime('%H:%M'),
+                                "end_time":   block.end_time.strftime('%H:%M'),
+                                "label":      block.label,
+                            },
+                        })
+                        continue
+
+                    if booking_qs.exists():
+                        booking = booking_qs.first()
+                        skipped_count += 1
+                        skipped_rows.append({
+                            "row_index":     file_row_index,
+                            "row":           row_summary,
+                            "reason": (
+                                f"Conflicts with existing booking {booking.reference_code} "
+                                f"({booking.start_datetime.strftime('%H:%M')}–"
+                                f"{booking.end_datetime.strftime('%H:%M')})."
+                            ),
+                            "conflicts_with": {
+                                "type":           "booking",
+                                "reference_code": booking.reference_code,
+                                "start_datetime": booking.start_datetime.isoformat(),
+                                "end_datetime":   booking.end_datetime.isoformat(),
+                            },
+                        })
+                        continue
+
+                    # 2. Check against rows already accepted in this upload (first-occurrence-wins).
+                    intra_conflict = None
+                    for accepted in accepted_rows:
+                        if accepted["date"] == date and time_ranges_overlap(
+                            accepted["start_time"], accepted["end_time"],
+                            start_time, end_time,
+                        ):
+                            intra_conflict = accepted
+                            break
+
+                    if intra_conflict is not None:
+                        skipped_count += 1
+                        skipped_rows.append({
+                            "row_index":     file_row_index,
+                            "row":           row_summary,
+                            "reason": (
+                                f"Conflicts with row {intra_conflict['row_index']} in this file "
+                                f"('{intra_conflict['label']}' "
+                                f"{intra_conflict['start_time'].strftime('%H:%M')}–"
+                                f"{intra_conflict['end_time'].strftime('%H:%M')})."
+                            ),
+                            "conflicts_with": {
+                                "type":       "intra_file",
+                                "row_index":  intra_conflict["row_index"],
+                                "date":       str(intra_conflict["date"]),
+                                "start_time": intra_conflict["start_time"].strftime('%H:%M'),
+                                "end_time":   intra_conflict["end_time"].strftime('%H:%M'),
+                                "label":      intra_conflict["label"],
+                            },
+                        })
+                        continue
+
+                    # Row is conflict-free — accept it.
+                    accepted_rows.append({
+                        "row_index":  file_row_index,
+                        "date":       date,
+                        "start_time": start_time,
+                        "end_time":   end_time,
+                        "label":      label,
+                    })
+                    blocks.append(SpaceTimetableBlock(
+                        batch=batch,
+                        space=space,
+                        date=date,
+                        start_time=start_time,
+                        end_time=end_time,
+                        label=label,
+                        instructor=instructor,
+                    ))
+                    row_count += 1
+
                 if row_count == 0:
                     batch.delete()
-                    res_data = {
-                        "batch_id": None,
-                        "row_count": 0,
-                        "skipped_count": skipped_count
-                    }
-                    if conflict_details:
-                        res_data["message"] = f"Upload failed. All {skipped_count} blocks were skipped due to conflicts or errors."
-                        res_data["conflicts"] = conflict_details
-                    return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {
+                            "batch_id":     None,
+                            "row_count":    0,
+                            "skipped_count": skipped_count,
+                            "skipped_rows": skipped_rows,
+                            "conflicts":    [row["reason"] for row in skipped_rows],
+                            "message": (
+                                f"Upload failed. All {skipped_count} row(s) were skipped "
+                                "due to conflicts or parse errors."
+                            ),
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 SpaceTimetableBlock.objects.bulk_create(blocks)
                 batch.row_count = row_count
                 batch.skipped_count = skipped_count
                 batch.save(update_fields=['row_count', 'skipped_count'])
-                
+
                 res_data = {
-                    "batch_id": batch.id,
-                    "row_count": row_count,
-                    "skipped_count": skipped_count
+                    "batch_id":      batch.id,
+                    "row_count":     row_count,
+                    "skipped_count": skipped_count,
+                    "skipped_rows":  skipped_rows,
+                    "conflicts":     [row["reason"] for row in skipped_rows],
                 }
-                if conflict_details:
-                    res_data["message"] = f"Uploaded {row_count} blocks. Skipped {skipped_count} due to conflicts or errors."
-                    res_data["conflicts"] = conflict_details
+                if skipped_rows:
+                    res_data["message"] = (
+                        f"Uploaded {row_count} block(s). "
+                        f"Skipped {skipped_count} due to conflicts or parse errors."
+                    )
 
                 return Response(res_data)
             except Exception as e:
@@ -812,12 +905,22 @@ class SpaceViewSet(viewsets.ModelViewSet):
             if 'file' not in request.FILES:
                 return Response({"status": "updated"})
                 
-            # Re-upload handling
+            # Re-upload handling:
+            # Phase 1 — parse the full candidate set from the new CSV.
+            #            No DB writes yet; parse errors abort with 400 immediately.
+            # Phase 2 — inside transaction.atomic() with a Space row lock:
+            #            validate all candidates against DB state (excluding this
+            #            batch's own prior rows) and against each other (full
+            #            pairwise, not progressive).  If any conflict exists return
+            #            409 with the full list — no rows are deleted or inserted.
+            #            If clean, delete old blocks and bulk_create the new ones.
             import csv
             import io
             from datetime import datetime
+            from django.db import transaction as _db_transaction
             from .models import SpaceTimetableBlock
-            
+            from .utils import get_timetable_db_conflicts, time_ranges_overlap
+
             file = request.FILES['file']
             try:
                 decoded_file = file.read().decode('utf-8-sig')
