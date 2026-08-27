@@ -570,7 +570,7 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
             return None
         effective = self._get_effective_roles_for(requester)
         if requester.is_staff or requester.is_superuser or 'IT_ADMIN' in effective or 'FACULTY' in effective:
-            return getattr(obj.user, "phone_number", None) or getattr(obj.user, "phone", None)
+            return obj.user.phone
         return None
 
     def get_booked_by_photo(self, obj):
