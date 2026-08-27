@@ -164,4 +164,73 @@ def build_conflict_report(overlapping_qs, requesting_user=None):
         conflicts.append(entry)
 
     return conflicts
+
+
+def time_ranges_overlap(start1, end1, start2, end2):
+    """
+    Return True if time range [start1, end1) overlaps [start2, end2).
+
+    Uses the standard half-open-interval overlap test:
+        start1 < end2  AND  end1 > start2
+
+    All four arguments must be datetime.time objects on the same calendar date.
+    Back-to-back ranges (e.g. 09:00–10:00 and 10:00–11:00) do NOT overlap.
+    """
+    return start1 < end2 and end1 > start2
+
+
+def get_timetable_db_conflicts(space, date, start_time, end_time, exclude_batch=None):
+    """
+    Return DB conflicts for one candidate timetable row.
+
+    Checks two independent sets:
+
+    1. Existing SpaceTimetableBlock rows for the same space/date whose time
+       range overlaps [start_time, end_time).  If *exclude_batch* is given,
+       that batch's own rows are excluded so a re-upload does not conflict
+       with itself.
+
+    2. Existing SpaceBooking rows (PENDING / APPROVED / AWAITING_FACULTY /
+       FACULTY_ESCALATED) that overlap the equivalent datetime range, via
+       get_overlapping_bookings() which also applies the space's setup/teardown
+       buffer expansion.
+
+    Args:
+        space:         Space instance.
+        date:          datetime.date of the candidate row.
+        start_time:    datetime.time — candidate slot start (inclusive).
+        end_time:      datetime.time — candidate slot end (exclusive).
+        exclude_batch: Optional batch PK (int) or TimetableUploadBatch
+                       instance whose SpaceTimetableBlock rows are excluded
+                       from the timetable check.  Pass None to check against
+                       all existing blocks.
+
+    Returns:
+        (tt_qs, booking_qs) — two querysets; either may be empty.
+        Callers should test .exists() before iterating to avoid unnecessary
+        DB round-trips.
+    """
+    from datetime import datetime as _datetime
+    from django.utils import timezone as _tz
+    from .models import SpaceTimetableBlock
+
+    tt_qs = SpaceTimetableBlock.objects.filter(
+        space=space,
+        date=date,
+        start_time__lt=end_time,
+        end_time__gt=start_time,
+    )
+    if exclude_batch is not None:
+        batch_pk = (
+            exclude_batch
+            if isinstance(exclude_batch, int)
+            else exclude_batch.pk
+        )
+        tt_qs = tt_qs.exclude(batch_id=batch_pk)
+
+    start_dt = _tz.make_aware(_datetime.combine(date, start_time))
+    end_dt   = _tz.make_aware(_datetime.combine(date, end_time))
+    booking_qs = get_overlapping_bookings(space, start_dt, end_dt)
+
+    return tt_qs, booking_qs
 
