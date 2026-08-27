@@ -155,9 +155,18 @@ const handleDeleteBatch = async (batchId) => {
       setEditBatchFile(null)
       fetchBatches()
     } catch (err) {
-      const errMsg = err.response?.data?.error || "Failed to update timetable."
-      setError(errMsg)
-      toast.error(errMsg)
+      if (err.response?.data?.conflicts && err.response.data.conflicts.length > 0) {
+        const errMsg =
+          (err.response.data.error || "Re-upload rejected due to conflicts.") +
+          "\nFailed Blocks:\n" +
+          err.response.data.conflicts.join("\n")
+        setError(errMsg)
+        toast.error(err.response.data.error || "Re-upload rejected due to conflicts.")
+      } else {
+        const errMsg = err.response?.data?.error || "Failed to update timetable."
+        setError(errMsg)
+        toast.error(errMsg)
+      }
     } finally {
       setIsEditingBatch(false)
     }
