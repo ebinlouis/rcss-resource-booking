@@ -231,4 +231,39 @@ def get_timetable_db_conflicts(space, date, start_time, end_time, exclude_batch=
     booking_qs = get_overlapping_bookings(space, start_dt, end_dt)
 
     return tt_qs, booking_qs
+
+
+def resolve_instructor(raw_value):
+    """
+    Attempt to resolve a raw instructor CSV/form value to a CustomUser
+    by exact (case-insensitive) email match.
+
+    Args:
+        raw_value: The raw string from the CSV/form 'instructor' field.
+                   Expected to be an email address going forward.
+
+    Returns:
+        (matched_user_or_None, cleaned_raw_string)
+
+        matched_user_or_None: CustomUser instance if an exact email match
+            is found, otherwise None. Never raises on no-match — an
+            unmatched instructor is an expected, valid outcome (e.g. a
+            guest lecturer with no account yet, or a typo to be
+            reconciled manually later).
+        cleaned_raw_string: the input, stripped of leading/trailing
+            whitespace. This is always returned and always stored as-is
+            in ``instructor``, regardless of match success.
+    """
+    from apps.users.models import CustomUser  # local import mirrors the
+                                               # SpaceBooking import above
+                                               # to avoid circular imports
+
+    cleaned = (raw_value or '').strip()
+    if not cleaned:
+        return None, cleaned
+
+    try:
+        return CustomUser.objects.get(email__iexact=cleaned), cleaned
+    except CustomUser.DoesNotExist:
+        return None, cleaned
 
