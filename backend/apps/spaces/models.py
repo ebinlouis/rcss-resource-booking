@@ -402,6 +402,16 @@ class SpaceTimetableBlock(models.Model):
     end_time = models.TimeField()
     label = models.CharField(max_length=200, default='')
     instructor = models.CharField(max_length=200, blank=True, default='')
+    instructor_user = models.ForeignKey(
+        'users.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='instructor_timetable_blocks',
+        help_text='Resolved CustomUser match for the instructor field, if any. '
+                  'Null means unmatched — the raw instructor string is the '
+                  'source of truth for display in that case.',
+    )
 
     class Meta:
         indexes = [

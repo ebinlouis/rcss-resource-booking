@@ -25,6 +25,7 @@ SCHEDULE_ENTRY_BASE_FIELDS = (
     "subject",
     "purpose_of_booking",
     "instructor",
+    "instructor_details",
     "status",
     "booking_type",
     "is_timetable",
@@ -396,6 +397,7 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
         help_text="Deprecated: use subject instead."
     )
     instructor = serializers.SerializerMethodField()
+    instructor_details = serializers.SerializerMethodField()
     is_timetable = serializers.SerializerMethodField()
 
     purpose_of_booking_input = serializers.CharField(
@@ -462,6 +464,7 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
             "subject",
             "purpose_of_booking",
             "instructor",
+            "instructor_details",
             "is_timetable",
             "booked_by_name",
             "booked_by_email",
@@ -535,6 +538,11 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
 
     def get_instructor(self, obj):
         return ""
+
+    @staticmethod
+    def get_instructor_details(obj):
+        # Bookings have no CSV instructor concept; always None.
+        return None
 
     @staticmethod
     def get_is_timetable(obj):
@@ -859,6 +867,7 @@ class TimetableScheduleEntrySerializer(BookingUserFieldsMixin, serializers.Model
         help_text="Deprecated: use subject instead."
     )
     instructor = serializers.SerializerMethodField()
+    instructor_details = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     booking_type = serializers.SerializerMethodField()
     is_timetable = serializers.SerializerMethodField()
@@ -899,6 +908,18 @@ class TimetableScheduleEntrySerializer(BookingUserFieldsMixin, serializers.Model
 
     def get_instructor(self, obj):
         return obj.instructor or ""
+
+    def get_instructor_details(self, obj):
+        if not obj.instructor_user:
+            return None
+        user = obj.instructor_user
+        return {
+            "id": user.id,
+            "name": self._booked_by_name_for(user),
+            "email": user.email,
+            "phone": getattr(user, 'phone', None),
+            "department": self._booked_by_department_for(user),
+        }
 
     @staticmethod
     def get_status(obj):

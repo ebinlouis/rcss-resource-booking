@@ -656,7 +656,8 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
                         end_time   = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
                         label      = row['label'].strip()
-                        instructor = (row.get('instructor') or '').strip()
+                        from .utils import resolve_instructor
+                        instructor_user, instructor = resolve_instructor(row.get('instructor'))
                     except Exception:
                         skipped_count += 1
                         skipped_rows.append({
@@ -770,6 +771,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         end_time=end_time,
                         label=label,
                         instructor=instructor,
+                        instructor_user=instructor_user,
                     ))
                     row_count += 1
 
@@ -862,6 +864,11 @@ class SpaceViewSet(viewsets.ModelViewSet):
             block.end_time = new_end
             if 'label' in request.data:
                 block.label = request.data['label']
+            if 'instructor' in request.data:
+                from .utils import resolve_instructor
+                instructor_user, instructor_raw = resolve_instructor(request.data['instructor'])
+                block.instructor = instructor_raw
+                block.instructor_user = instructor_user
             block.save()
             return Response({"status": "updated"})
 
@@ -938,14 +945,16 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         start_time = datetime.strptime(row['start_time'].strip(), '%H:%M').time()
                         end_time   = datetime.strptime(row['end_time'].strip(), '%H:%M').time()
                         label      = row['label'].strip()
-                        instructor = (row.get('instructor') or '').strip()
+                        from .utils import resolve_instructor
+                        instructor_user, instructor = resolve_instructor(row.get('instructor'))
                         candidates.append({
-                            "row_index":  file_row_index,
-                            "date":       date,
-                            "start_time": start_time,
-                            "end_time":   end_time,
-                            "label":      label,
-                            "instructor": instructor,
+                            "row_index":       file_row_index,
+                            "date":            date,
+                            "start_time":      start_time,
+                            "end_time":        end_time,
+                            "label":           label,
+                            "instructor":      instructor,
+                            "instructor_user": instructor_user,
                         })
                     except Exception:
                         parse_errors.append({
@@ -1095,6 +1104,7 @@ class SpaceViewSet(viewsets.ModelViewSet):
                             end_time=cand["end_time"],
                             label=cand["label"],
                             instructor=cand["instructor"],
+                            instructor_user=cand["instructor_user"],
                         )
                         for cand in candidates
                     ]
