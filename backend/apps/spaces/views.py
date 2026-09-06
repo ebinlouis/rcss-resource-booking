@@ -797,12 +797,25 @@ class SpaceViewSet(viewsets.ModelViewSet):
                 batch.skipped_count = skipped_count
                 batch.save(update_fields=['row_count', 'skipped_count'])
 
+                unmatched_qs = batch.blocks.filter(
+                    instructor_user__isnull=True
+                ).exclude(instructor='').order_by('date', 'start_time').values(
+                    'id', 'date', 'start_time', 'label', 'instructor'
+                )
+                unmatched_instructors = [
+                    {**row, 'date': row['date'].isoformat(),
+                     'start_time': row['start_time'].strftime('%H:%M')}
+                    for row in unmatched_qs
+                ]
+
                 res_data = {
-                    "batch_id":      batch.id,
-                    "row_count":     row_count,
-                    "skipped_count": skipped_count,
-                    "skipped_rows":  skipped_rows,
-                    "conflicts":     [row["reason"] for row in skipped_rows],
+                    "batch_id":             batch.id,
+                    "row_count":            row_count,
+                    "skipped_count":        skipped_count,
+                    "skipped_rows":         skipped_rows,
+                    "conflicts":            [row["reason"] for row in skipped_rows],
+                    "unmatched_instructors": unmatched_instructors,
+                    "unmatched_count":       len(unmatched_instructors),
                 }
                 if skipped_rows:
                     res_data["message"] = (
@@ -1118,10 +1131,23 @@ class SpaceViewSet(viewsets.ModelViewSet):
                         save_fields.append('upload_label')
                     batch.save(update_fields=save_fields)
 
+                    unmatched_qs = batch.blocks.filter(
+                        instructor_user__isnull=True
+                    ).exclude(instructor='').order_by('date', 'start_time').values(
+                        'id', 'date', 'start_time', 'label', 'instructor'
+                    )
+                    unmatched_instructors = [
+                        {**row, 'date': row['date'].isoformat(),
+                         'start_time': row['start_time'].strftime('%H:%M')}
+                        for row in unmatched_qs
+                    ]
+
                     return Response({
-                        "batch_id":      batch.id,
-                        "row_count":     len(candidates),
-                        "skipped_count": 0,
+                        "batch_id":              batch.id,
+                        "row_count":             len(candidates),
+                        "skipped_count":         0,
+                        "unmatched_instructors": unmatched_instructors,
+                        "unmatched_count":       len(unmatched_instructors),
                     })
 
             except Exception as e:

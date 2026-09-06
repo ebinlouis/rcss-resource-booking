@@ -104,9 +104,12 @@ export const useDeleteTimetableBatch = (spaceId) => {
 export const useUpdateTimetableBatch = (spaceId) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ batchId, fd }) => api.patch(`/spaces/catalog/${spaceId}/timetable/${batchId}/`, fd, {
-      headers: { "Content-Type": "multipart/form-data" }
-    }),
+    mutationFn: async ({ batchId, fd }) => {
+      const res = await api.patch(`/spaces/catalog/${spaceId}/timetable/${batchId}/`, fd, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spaces', 'catalog'] });
       queryClient.invalidateQueries({ queryKey: ['spaces', 'admin', 'catalog'] });
