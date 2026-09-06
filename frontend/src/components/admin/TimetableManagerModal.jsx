@@ -16,6 +16,47 @@ const getImportCounts = (data) => ({
   failed: data?.skipped_count ?? data?.conflicts?.length ?? 0,
 })
 
+function UnmatchedInstructorsBanner({ unmatched, onDismiss }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!unmatched || unmatched.length === 0) return null
+  return (
+    <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+        </div>
+        <button
+          className="flex-1 text-left text-sm font-semibold text-amber-800 hover:text-amber-900 transition"
+          onClick={() => setExpanded(v => !v)}
+        >
+          {unmatched.length} instructor{unmatched.length !== 1 ? 's' : ''} not matched to a system user — click to {expanded ? 'hide' : 'view'}
+        </button>
+        <button
+          onClick={onDismiss}
+          className="w-6 h-6 flex items-center justify-center rounded-full text-amber-400 hover:text-amber-700 hover:bg-amber-100 transition text-xs font-bold shrink-0"
+          title="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+      {expanded && (
+        <div className="border-t border-amber-200 divide-y divide-amber-100">
+          {unmatched.map(row => (
+            <div key={row.id} className="px-4 py-2.5 flex items-center gap-4 text-xs text-amber-900">
+              <span className="font-semibold shrink-0">{row.date}</span>
+              <span className="text-amber-600 shrink-0">{row.start_time}</span>
+              <span className="flex-1 truncate text-amber-700">{row.label}</span>
+              <span className="italic text-amber-500 truncate max-w-[180px]">{row.instructor}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TimetableManagerModal({ space, onClose }) {
   const [batches, setBatches] = useState([])
   const [blocks, setBlocks] = useState([])
@@ -36,6 +77,7 @@ export default function TimetableManagerModal({ space, onClose }) {
   const [editBlockForm, setEditBlockForm] = useState({ date: "", start_time: "", end_time: "", label: "", instructor: "" })
   
   const [cancelAction, setCancelAction] = useState(null)
+  const [unmatchedInstructors, setUnmatchedInstructors] = useState(null)
 
   const createBatch = useCreateTimetableBatch(space.id)
   const deleteBatch = useDeleteTimetableBatch(space.id)
@@ -100,7 +142,9 @@ export default function TimetableManagerModal({ space, onClose }) {
         toast.success(`${imported} blocks imported.`)
         setError(null)
       }
-      
+
+      setUnmatchedInstructors(res.unmatched_count > 0 ? res.unmatched_instructors : null)
+
       setUploadFile(null)
       setUploadLabel("")
       fetchBatches(hasError)
@@ -149,8 +193,9 @@ const handleDeleteBatch = async (batchId) => {
         fd.append("file", editBatchFile)
       }
       
-      await updateBatch.mutateAsync({ batchId, fd })
+      const res = await updateBatch.mutateAsync({ batchId, fd })
       toast.success(label ? `Timetable "${label}" updated.` : "Timetable updated.")
+      setUnmatchedInstructors(res.unmatched_count > 0 ? res.unmatched_instructors : null)
       setEditBatchId(null)
       setEditBatchFile(null)
       fetchBatches()
@@ -235,6 +280,10 @@ const handleDeleteBlock = async (blockId) => {
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          <UnmatchedInstructorsBanner
+            unmatched={unmatchedInstructors}
+            onDismiss={() => setUnmatchedInstructors(null)}
+          />
           <div className="mb-8 p-5 bg-gray-50 border border-gray-200 rounded-xl">
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Upload New Timetable (CSV)</h3>
             <div className="flex gap-3 items-end">
