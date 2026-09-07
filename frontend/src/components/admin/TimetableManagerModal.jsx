@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import toast from "react-hot-toast"
 import api from "../../api/axios"
@@ -15,6 +15,183 @@ const getImportCounts = (data) => ({
   imported: data?.row_count ?? 0,
   failed: data?.skipped_count ?? data?.conflicts?.length ?? 0,
 })
+
+// ─────────────────────────────────────────────────────────────
+// InstructorPickerField
+// Two explicit modes: "search" (typeahead against /spaces/instructor-search/)
+// and "manual" (free-text, same as the previous plain <input>).
+// Mode switching preserves each mode's local value independently.
+// ─────────────────────────────────────────────────────────────
+function InstructorPickerField({ spaceId, initialUserId, initialUserName, initialUserEmail, initialRawText, onChange }) {
+  // Determine initial mode from block data:
+  //   matched user → "matched" chip display (sub-mode of "search")
+  //   raw text with no user → "manual"
+  //   both empty → "search"
+  const [mode, setMode] = useState(() =>
+    initialUserId ? 'search' : initialRawText ? 'manual' : 'search'
+  )
+  // When a matched user is shown as chip
+  const [matchedUser, setMatchedUser] = useState(() =>
+    initialUserId ? { id: initialUserId, name: initialUserName || '', email: initialUserEmail || '' } : null
+  )
+  // Search mode input text and results
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const debounceRef = useRef(null)
+  // Manual mode text value (preserved across mode switches)
+  const [manualText, setManualText] = useState(initialRawText || '')
+
+  // Notify parent on any change
+  const emit = (patch) => onChange(patch)
+
+  const runSearch = (q) => {
+    setSearchQuery(q)
+    clearTimeout(debounceRef.current)
+    if (!q.trim()) { setSearchResults([]); setIsOpen(false); return }
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const res = await api.get(`/spaces/instructor-search/?space=${spaceId}&q=${encodeURIComponent(q)}`)
+        setSearchResults(res.data ?? [])
+        setIsOpen(true)
+      } catch {
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+  }
+
+  const selectUser = (user) => {
+    const name = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email
+    setMatchedUser({ id: user.id, name, email: user.email })
+    setSearchQuery('')
+    setSearchResults([])
+    setIsOpen(false)
+    emit({ instructor_user_id: user.id, instructor: undefined })
+  }
+
+  const clearMatch = (keepEmail = false) => {
+    // Transition to manual mode, pre-filling with the matched user's email
+    const prefill = keepEmail && matchedUser ? matchedUser.email : ''
+    setMatchedUser(null)
+    setMode('manual')
+    setManualText(prefill)
+    emit({ instructor_user_id: undefined, instructor: prefill })
+  }
+
+  const switchToManual = () => {
+    if (matchedUser) {
+      clearMatch(true) // pre-fill with matched email per spec
+    } else {
+      setMode('manual')
+      emit({ instructor_user_id: undefined, instructor: manualText })
+    }
+  }
+
+  const switchToSearch = () => {
+    setMode('search')
+    setMatchedUser(null)
+    // Do NOT emit here — only change which mode is displayed.
+    // The parent's last-saved instructor_user_id/instructor value
+    // should persist until the user actually selects someone new.
+  }
+
+  const inputCls = "flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500"
+
+  if (mode === 'search') {
+    return (
+      <div className="flex-1 flex flex-col gap-1">
+        {matchedUser ? (
+          // Matched chip
+          <div className="flex items-center gap-2 border border-green-300 bg-green-50 rounded-lg px-3 py-2 text-sm">
+            <div className="flex-1 min-w-0">
+              <span className="font-semibold text-green-900 block truncate">{matchedUser.name}</span>
+              <span className="text-[11px] text-green-600 truncate">{matchedUser.email}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => clearMatch(true)}
+              className="text-[11px] text-green-600 hover:text-green-800 font-semibold shrink-0 underline"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          // Search input
+          <div className="relative">
+            <input
+              className={inputCls}
+              value={searchQuery}
+              onChange={e => runSearch(e.target.value)}
+              placeholder="Search by name or email…"
+              autoComplete="off"
+            />
+            {isSearching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400">
+                Searching…
+              </span>
+            )}
+            {isOpen && searchResults.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                {searchResults.map(user => {
+                  const name = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email
+                  return (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => selectUser(user)}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-gray-900 hover:bg-green-50 transition flex flex-col"
+                    >
+                      <span className="font-semibold">{name}</span>
+                      {user.email && <span className="text-[11px] text-gray-400">{user.email}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {isOpen && !isSearching && searchResults.length === 0 && searchQuery.trim() && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-[13px] text-gray-400">
+                No users found
+              </div>
+            )}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={switchToManual}
+          className="text-[11px] text-gray-400 hover:text-gray-600 underline text-left w-fit"
+        >
+          Enter manually instead
+        </button>
+      </div>
+    )
+  }
+
+  // Manual mode
+  return (
+    <div className="flex-1 flex flex-col gap-1">
+      <input
+        className={inputCls}
+        value={manualText}
+        onChange={e => {
+          setManualText(e.target.value)
+          emit({ instructor_user_id: undefined, instructor: e.target.value })
+        }}
+        placeholder="Instructor (optional)"
+      />
+      <button
+        type="button"
+        onClick={switchToSearch}
+        className="text-[11px] text-gray-400 hover:text-gray-600 underline text-left w-fit"
+      >
+        Search instead
+      </button>
+    </div>
+  )
+}
 
 function UnmatchedInstructorsBanner({ unmatched, onDismiss }) {
   const [expanded, setExpanded] = useState(false)
@@ -220,8 +397,17 @@ const handleDeleteBatch = async (batchId) => {
   const handleSaveBlock = async (blockId) => {
     const targetBlock = blocks.find((b) => b.id === blockId)
     const label = editBlockForm.label?.trim() || targetBlock?.label
+    // Build clean payload: send exactly one of instructor_user_id or instructor,
+    // never both. instructor_user_id wins when present.
+    const { instructor_user_id, instructor, ...rest } = editBlockForm
+    const data = { ...rest }
+    if (instructor_user_id !== undefined) {
+      data.instructor_user_id = instructor_user_id
+    } else if (instructor !== undefined) {
+      data.instructor = instructor
+    }
     try {
-      await editBlock.mutateAsync({ blockId, data: editBlockForm })
+      await editBlock.mutateAsync({ blockId, data })
       toast.success(label ? `Block "${label}" updated.` : "Block updated.")
       setEditingBlockId(null)
       fetchBatches()
@@ -429,7 +615,15 @@ const handleDeleteBlock = async (blockId) => {
                             </div>
                             <div className="flex gap-3">
                               <input type="text" name="edit_label" value={editBlockForm.label} onChange={e => setEditBlockForm({...editBlockForm, label: e.target.value})} placeholder="Label (subject)" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
-                              <input type="text" name="edit_instructor" value={editBlockForm.instructor} onChange={e => setEditBlockForm({...editBlockForm, instructor: e.target.value})} placeholder="Instructor (optional)" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                              <InstructorPickerField
+                                key={editingBlockId}
+                                spaceId={space.id}
+                                initialUserId={editBlockForm.instructor_user_id}
+                                initialUserName={editBlockForm.instructor_user_name}
+                                initialUserEmail={editBlockForm.instructor_user_id ? editBlockForm.instructor : undefined}
+                                initialRawText={editBlockForm.instructor_user_id ? undefined : editBlockForm.instructor}
+                                onChange={patch => setEditBlockForm(prev => ({ ...prev, ...patch }))}
+                              />
                             </div>
                             <div className="flex gap-3">
                               <button onClick={() => handleSaveBlock(block.id)} className="text-white bg-green-600 text-sm font-semibold px-4 py-2 hover:bg-green-700 rounded-lg transition">Save</button>
@@ -452,7 +646,9 @@ const handleDeleteBlock = async (blockId) => {
                                     start_time: block.start_time.slice(0, 5),
                                     end_time: block.end_time.slice(0, 5),
                                     label: block.label,
-                                    instructor: block.instructor || ""
+                                    instructor: block.instructor || "",
+                                    instructor_user_id: block.instructor_user_id ?? undefined,
+                                    instructor_user_name: block.instructor_user_name ?? undefined,
                                   });
                                 }}
                                 className="text-green-500 hover:text-green-700 text-xs font-semibold transition"

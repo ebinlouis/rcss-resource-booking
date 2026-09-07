@@ -2,7 +2,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SpaceViewSet, SpaceBookingViewSet, EquipmentViewSet, BlockViewSet, SpaceApproverViewSet, faculty_list
+from .views import SpaceViewSet, SpaceBookingViewSet, EquipmentViewSet, BlockViewSet, SpaceApproverViewSet, faculty_list, instructor_search
 
 router = DefaultRouter()
 router.register(r'catalog',   SpaceViewSet,         basename='space')
@@ -15,6 +15,7 @@ router.register(r'approvers', SpaceApproverViewSet, basename='space-approver')
 
 urlpatterns = [
     path('faculty-list/', faculty_list, name='faculty-list'),
+    path('instructor-search/', instructor_search, name='instructor-search'),
     path('', include(router.urls)),
 ]
 
