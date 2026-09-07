@@ -600,9 +600,10 @@ class SpaceViewSet(viewsets.ModelViewSet):
                     'skipped_count': b.skipped_count
                 })
 
-            blocks = SpaceTimetableBlock.objects.filter(space=space).order_by('-date', 'start_time')
+            blocks = SpaceTimetableBlock.objects.filter(space=space).select_related('instructor_user').order_by('-date', 'start_time')
             blocks_data = []
             for b in blocks:
+                u = b.instructor_user
                 blocks_data.append({
                     'id': b.id,
                     'batch_id': b.batch_id,
@@ -611,6 +612,10 @@ class SpaceViewSet(viewsets.ModelViewSet):
                     'end_time': b.end_time.strftime('%H:%M'),
                     'label': b.label,
                     'instructor': b.instructor,
+                    'instructor_user_id': b.instructor_user_id,
+                    'instructor_user_name': (
+                        f"{u.first_name} {u.last_name}".strip() or u.email
+                    ) if u else None,
                 })
             return Response({'batches': batches_data, 'blocks': blocks_data})
             
@@ -877,7 +882,19 @@ class SpaceViewSet(viewsets.ModelViewSet):
             block.end_time = new_end
             if 'label' in request.data:
                 block.label = request.data['label']
-            if 'instructor' in request.data:
+            if 'instructor_user_id' in request.data:
+                # instructor_user_id wins: skip the instructor-string block below.
+                from apps.users.models import CustomUser
+                try:
+                    user = CustomUser.objects.get(id=request.data['instructor_user_id'])
+                except CustomUser.DoesNotExist:
+                    return Response(
+                        {"error": "Selected instructor no longer exists."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                block.instructor_user = user
+                block.instructor = user.email  # keep raw-string fallback invariant
+            elif 'instructor' in request.data:
                 from .utils import resolve_instructor
                 instructor_user, instructor_raw = resolve_instructor(request.data['instructor'])
                 block.instructor = instructor_raw
@@ -2082,3 +2099,57 @@ def faculty_list(request):
     ]
 
     return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def instructor_search(request):
+    """
+    Search for instructor candidates for a given space's timetable manager.
+
+    Query params:
+        q     — search term (min 2 chars; returns [] if shorter)
+        space — Space id (required; 400 if missing or not found)
+
+    Permission: caller must be a timetable manager for the given space
+    (same check as timetable_block_detail via SpaceViewSet._is_timetable_manager).
+    Returns up to 10 active users matching email/first_name/last_name/employee_student_id.
+    No role filter — any active user is a valid instructor candidate.
+    """
+    space_id = request.query_params.get('space', '').strip()
+    if not space_id:
+        return Response(
+            {"error": "Missing required query parameter: space"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from .models import Space
+    try:
+        space = Space.objects.get(id=space_id)
+    except (Space.DoesNotExist, ValueError):
+        return Response(
+            {"error": "Space not found."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Reuse the exact same manager check used by timetable_block_detail.
+    # SpaceViewSet is defined above in this same module — no import needed.
+    _vs = SpaceViewSet()
+    if not _vs._is_timetable_manager(request, space):
+        return Response(
+            {"detail": "Not authorized. Must be the assigned space approver."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    q = request.query_params.get('q', '').strip()
+    if len(q) < 2:  # mirror UserSearchView's existing threshold (line 612 users/views.py)
+        return Response([])
+
+    users = CustomUser.objects.filter(is_active=True).filter(
+        Q(email__icontains=q)
+        | Q(first_name__icontains=q)
+        | Q(last_name__icontains=q)
+        | Q(employee_student_id__icontains=q)
+    ).values('id', 'email', 'first_name', 'last_name')[:10]
+
+    return Response(list(users))
