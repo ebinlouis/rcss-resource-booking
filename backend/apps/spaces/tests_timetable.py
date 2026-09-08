@@ -426,3 +426,204 @@ class TimetableConflictTests(APITestCase):
             SpaceTimetableBlock.objects.filter(space=self.space, batch=batch).count(),
             2,
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+# FIX 1 — build_conflict_report visibility
+# ═══════════════════════════════════════════════════════════════
+
+class BuildConflictReportVisibilityTests(APITestCase):
+    """
+    Confirms that build_conflict_report:
+      - Always exposes purpose_of_booking in `label` regardless of the
+        requesting user's role (including a plain student with no elevated role).
+      - Keeps `reference_code` gated to staff/superusers and booking owners only.
+
+    These are regression tests: the is_faculty dead-code block was removed
+    and the docstring corrected.  Behavior for label was already unconditional;
+    the tests confirm it stays that way and that ref-gating is untouched.
+    """
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            department_name="Visibility Test Dept",
+            department_code="VTD",
+        )
+        # The user who OWNS the conflicting booking (staff + superuser)
+        self.booking_owner = CustomUser.objects.create_user(
+            email="owner@example.com",
+            employee_student_id="VTD-001",
+            password="pw",
+        )
+        self.booking_owner.is_staff = True
+        self.booking_owner.is_superuser = True
+        self.booking_owner.save(update_fields=["is_staff", "is_superuser"])
+
+        # A plain student requester — no staff, no superuser, not the owner
+        self.student = CustomUser.objects.create_user(
+            email="student@example.com",
+            employee_student_id="VTD-002",
+            password="pw",
+        )
+
+        self.space = Space.objects.create(
+            name="Conflict Visibility Room",
+            space_type=Space.SpaceType.GENERAL_HALL,
+            capacity_hard=30,
+            location="Block B",
+        )
+
+        now = timezone.now()
+        self.booking = SpaceBooking.objects.create(
+            user=self.booking_owner,
+            department=self.department,
+            space=self.space,
+            start_datetime=now + timezone.timedelta(hours=1),
+            end_datetime=now + timezone.timedelta(hours=2),
+            attendee_count=10,
+            purpose_of_booking="Board Meeting",
+            status=SpaceBooking.BookingStatus.APPROVED,
+        )
+
+    def _conflict_qs(self):
+        from apps.spaces.models import SpaceBooking as SB
+        return SB.objects.filter(pk=self.booking.pk)
+
+    def test_label_shows_purpose_for_student_requester(self):
+        """purpose_of_booking must appear in label even for a plain student
+        requester — not gated by any role."""
+        from apps.spaces.utils import build_conflict_report
+        conflicts = build_conflict_report(self._conflict_qs(), requesting_user=self.student)
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(
+            conflicts[0]["label"],
+            "Board Meeting",
+            "label should be purpose_of_booking for any requester",
+        )
+
+    def test_reference_code_hidden_from_non_owner_non_staff(self):
+        """reference_code must be absent for a requester who is neither staff
+        nor the booking's own owner."""
+        from apps.spaces.utils import build_conflict_report
+        conflicts = build_conflict_report(self._conflict_qs(), requesting_user=self.student)
+        self.assertNotIn(
+            "reference_code",
+            conflicts[0],
+            "reference_code must not appear for a non-staff, non-owner requester",
+        )
+
+    def test_reference_code_shown_to_staff_requester(self):
+        """reference_code must be present for a staff/superuser requester,
+        confirming ref-gating is still active and correct."""
+        from apps.spaces.utils import build_conflict_report
+        conflicts = build_conflict_report(self._conflict_qs(), requesting_user=self.booking_owner)
+        # reference_code is only present in the dict when it has a value
+        ref = conflicts[0].get("reference_code")
+        self.assertEqual(
+            ref,
+            self.booking.reference_code,
+            "reference_code should be the booking's code for a staff/superuser requester",
+        )
+
+    def test_label_shows_purpose_when_requesting_user_is_none(self):
+        """Anonymous callers (requesting_user=None) must still see label."""
+        from apps.spaces.utils import build_conflict_report
+        conflicts = build_conflict_report(self._conflict_qs(), requesting_user=None)
+        self.assertEqual(conflicts[0]["label"], "Board Meeting")
+        self.assertNotIn("reference_code", conflicts[0])
+
+    def test_label_falls_back_to_occupied_when_purpose_blank(self):
+        """If purpose_of_booking is blank, label must fall back to 'Occupied'."""
+        self.booking.purpose_of_booking = ""
+        self.booking.save(update_fields=["purpose_of_booking"])
+        from apps.spaces.utils import build_conflict_report
+        conflicts = build_conflict_report(self._conflict_qs(), requesting_user=self.student)
+        self.assertEqual(conflicts[0]["label"], "Occupied")
+
+
+# ═══════════════════════════════════════════════════════════════
+# FIX 2 — get_booked_by_phone field lookup
+# ═══════════════════════════════════════════════════════════════
+
+class BookedByPhoneFieldTests(APITestCase):
+    """
+    Regression test for get_booked_by_phone in SpaceBookingSerializer.
+
+    The dead `phone_number` getattr fallback was removed; this test
+    confirms the field still returns the correct value (via obj.user.phone)
+    for an authorised requester, and is None for an anonymous caller.
+    """
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            department_name="Phone Test Dept",
+            department_code="PTD",
+        )
+        # Booking owner with a known phone number
+        self.booker = CustomUser.objects.create_user(
+            email="booker@example.com",
+            employee_student_id="PTD-001",
+            password="pw",
+            phone="9876543210",
+        )
+        # Staff/IT_ADMIN requester who is authorised to see phone
+        self.staff_viewer = CustomUser.objects.create_user(
+            email="staff@example.com",
+            employee_student_id="PTD-002",
+            password="pw",
+        )
+        self.staff_viewer.is_staff = True
+        self.staff_viewer.is_superuser = True
+        self.staff_viewer.save(update_fields=["is_staff", "is_superuser"])
+        it_admin, _ = Role.objects.get_or_create(name=Role.Name.IT_ADMIN)
+        self.staff_viewer.roles.add(it_admin)
+
+        self.space = Space.objects.create(
+            name="Phone Test Room",
+            space_type=Space.SpaceType.GENERAL_HALL,
+            capacity_hard=20,
+            location="Block C",
+        )
+        now = timezone.now()
+        self.booking = SpaceBooking.objects.create(
+            user=self.booker,
+            department=self.department,
+            space=self.space,
+            start_datetime=now + timezone.timedelta(hours=3),
+            end_datetime=now + timezone.timedelta(hours=4),
+            attendee_count=5,
+            purpose_of_booking="Phone Test Booking",
+            status=SpaceBooking.BookingStatus.APPROVED,
+        )
+
+    def _get_booking_entry(self):
+        """Return the serialized booking entry via the API for the authenticated client."""
+        response = self.client.get(
+            f"/api/spaces/requests/?view=general&space={self.space.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        entries = response.data["results"] if isinstance(response.data, dict) else response.data
+        normal = [e for e in entries if not e["is_timetable"]]
+        self.assertTrue(normal, "Expected at least one normal booking entry")
+        return normal[0]
+
+    def test_booked_by_phone_returned_for_authorised_requester(self):
+        """Staff/IT_ADMIN requesters must receive the real phone value — confirming
+        the obj.user.phone lookup works correctly after removing the dead
+        phone_number getattr fallback."""
+        self.client.force_authenticate(self.staff_viewer)
+        entry = self._get_booking_entry()
+        self.assertEqual(
+            entry.get("booked_by_phone"),
+            "9876543210",
+            "booked_by_phone must return obj.user.phone for an authorised requester",
+        )
+
+    def test_booked_by_phone_hidden_from_anonymous(self):
+        """Anonymous callers must receive None for booked_by_phone."""
+        self.client.force_authenticate(user=None)
+        entry = self._get_booking_entry()
+        self.assertIsNone(
+            entry.get("booked_by_phone"),
+            "booked_by_phone must be None for anonymous callers",
+        )
