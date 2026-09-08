@@ -627,3 +627,137 @@ class BookedByPhoneFieldTests(APITestCase):
             entry.get("booked_by_phone"),
             "booked_by_phone must be None for anonymous callers",
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Q-import fix — instructor_search endpoint
+# ═══════════════════════════════════════════════════════════════
+
+class InstructorSearchEndpointTests(APITestCase):
+    """
+    Regression tests for GET /api/spaces/instructor-search/.
+
+    Primary regression: before the fix, any q >= 2 chars raised
+    NameError because Q was never imported at module level in views.py.
+    The second test below directly exercises that path.
+
+    Also covers the short-circuit (q < 2 → []) and the 403 case
+    (non-manager requester), neither of which had any test coverage.
+    """
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            department_name="Search Test Dept",
+            department_code="STD",
+        )
+
+        # Timetable manager: SpaceApprover SPACE-scoped (not superuser,
+        # so the 403 test uses a genuinely distinct non-privileged user).
+        self.manager = CustomUser.objects.create_user(
+            email="mgr-search@example.com",
+            employee_student_id="STD-MGR-01",
+            password="pw",
+            first_name="Timetable",
+            last_name="Manager",
+        )
+        # Plain authenticated user with no manager assignment
+        self.outsider = CustomUser.objects.create_user(
+            email="outsider-search@example.com",
+            employee_student_id="STD-OUT-01",
+            password="pw",
+        )
+        # A user who should appear in search results
+        self.searchable = CustomUser.objects.create_user(
+            email="findable-instructor@example.com",
+            employee_student_id="STD-SRC-01",
+            password="pw",
+            first_name="Findable",
+            last_name="Instructor",
+        )
+
+        self.space = Space.objects.create(
+            name="Instructor Search Room",
+            space_type=Space.SpaceType.GENERAL_HALL,
+            capacity_hard=40,
+            location="Block D",
+        )
+
+        # Grant manager the timetable-manager right via SpaceApprover SPACE scope
+        from apps.spaces.models import SpaceApprover
+        receptionist_role, _ = Role.objects.get_or_create(name=Role.Name.RECEPTIONIST)
+        SpaceApprover.objects.create(
+            user=self.manager,
+            role=receptionist_role,
+            scope_type="SPACE",
+            space=self.space,
+            is_active=True,
+        )
+
+    def _url(self, **params):
+        from urllib.parse import urlencode
+        base = f"/api/spaces/instructor-search/"
+        if params:
+            base += "?" + urlencode(params)
+        return base
+
+    def test_short_query_returns_empty_list(self):
+        """q with < 2 chars must return [] immediately (no DB search)."""
+        self.client.force_authenticate(self.manager)
+        for short_q in ['', 'a']:
+            response = self.client.get(self._url(space=self.space.id, q=short_q))
+            self.assertEqual(response.status_code, 200, f"Expected 200 for q={short_q!r}")
+            self.assertEqual(response.data, [], f"Expected [] for q={short_q!r}")
+
+    def test_non_manager_gets_403(self):
+        """An authenticated user who is not a timetable manager for the
+        space must receive 403 — regardless of search term."""
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(self._url(space=self.space.id, q="find"))
+        self.assertEqual(
+            response.status_code, 403,
+            f"Expected 403 for non-manager; got {response.status_code}: {response.data}",
+        )
+
+    def test_search_returns_matching_users(self):
+        """PRIMARY REGRESSION TEST: q >= 2 chars must execute the Q filter and
+        return matching users. Before the fix this raised NameError because
+        django.db.models.Q was never imported at module level in views.py."""
+        self.client.force_authenticate(self.manager)
+
+        # Search by first name prefix — 'Find' matches self.searchable
+        response = self.client.get(self._url(space=self.space.id, q="Find"))
+        self.assertEqual(
+            response.status_code, 200,
+            f"Expected 200; got {response.status_code}: {response.data}",
+        )
+        self.assertIsInstance(response.data, list)
+        ids = [u["id"] for u in response.data]
+        self.assertIn(
+            self.searchable.id,
+            ids,
+            f"Expected searchable user (id={self.searchable.id}) in results; got ids={ids}",
+        )
+        # Confirm result shape: each entry has id, email, first_name, last_name
+        for entry in response.data:
+            for field in ("id", "email", "first_name", "last_name"):
+                self.assertIn(field, entry, f"Missing field {field!r} in result entry")
+
+    def test_search_by_email_returns_matching_user(self):
+        """Search by email fragment also exercises the Q-OR chain."""
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(self._url(space=self.space.id, q="findable-i"))
+        self.assertEqual(response.status_code, 200)
+        ids = [u["id"] for u in response.data]
+        self.assertIn(self.searchable.id, ids)
+
+    def test_missing_space_param_returns_400(self):
+        """Omitting the space query param must return 400."""
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(self._url(q="find"))
+        self.assertEqual(response.status_code, 400)
+
+    def test_invalid_space_id_returns_400(self):
+        """A space id that does not exist must return 400."""
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(self._url(space=999999, q="find"))
+        self.assertEqual(response.status_code, 400)
