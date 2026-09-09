@@ -162,6 +162,154 @@ class TimetableScheduleParityTests(APITestCase):
             )
 
 
+class GeneralScheduleSensitiveFieldsTests(APITestCase):
+    """Visibility coverage for PII-bearing general-schedule serializer fields."""
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            department_name="Schedule Privacy Dept",
+            department_code="SPD",
+        )
+        student_role, _ = Role.objects.get_or_create(name=Role.Name.STUDENT)
+        faculty_role, _ = Role.objects.get_or_create(name=Role.Name.FACULTY)
+        it_admin_role, _ = Role.objects.get_or_create(name=Role.Name.IT_ADMIN)
+
+        self.owner = self._user("owner", "Owner", "Student")
+        self.owner.roles.add(student_role)
+        self.non_owner_student = self._user("non-owner", "Non", "Owner")
+        self.non_owner_student.roles.add(student_role)
+        self.faculty_viewer = self._user("faculty", "Faculty", "Viewer")
+        self.faculty_viewer.roles.add(faculty_role)
+        self.it_admin_viewer = self._user("it-admin", "IT", "Admin")
+        self.it_admin_viewer.roles.add(it_admin_role)
+        self.staff_viewer = self._user("staff", "Staff", "Viewer")
+        self.staff_viewer.is_staff = True
+        self.staff_viewer.save(update_fields=["is_staff"])
+        self.superuser_viewer = self._user("superuser", "Super", "User")
+        self.superuser_viewer.is_superuser = True
+        self.superuser_viewer.save(update_fields=["is_superuser"])
+        self.faculty_sponsor = self._user("sponsor", "Faculty", "Sponsor", phone="9000000001")
+        self.instructor = self._user("instructor", "Timetable", "Instructor", phone="9000000002")
+
+        self.space = Space.objects.create(
+            name="Schedule Privacy Room",
+            space_type=Space.SpaceType.GENERAL_HALL,
+            capacity_hard=40,
+            location="Block Privacy",
+        )
+        day = timezone.localdate() + timedelta(days=1)
+        start = timezone.make_aware(datetime.combine(day, time(9, 0)))
+        self.booking = SpaceBooking.objects.create(
+            user=self.owner,
+            department=self.department,
+            space=self.space,
+            start_datetime=start,
+            end_datetime=start + timedelta(hours=1),
+            attendee_count=10,
+            purpose_of_booking="Privacy Test Booking",
+            faculty_sponsor=self.faculty_sponsor,
+            status=SpaceBooking.BookingStatus.APPROVED,
+        )
+        batch = TimetableUploadBatch.objects.create(
+            space=self.space,
+            uploaded_by=self.owner,
+            upload_label="Privacy Timetable",
+        )
+        self.timetable_block = SpaceTimetableBlock.objects.create(
+            batch=batch,
+            space=self.space,
+            date=day,
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            label="Privacy Class",
+            instructor="Timetable Instructor",
+            instructor_user=self.instructor,
+        )
+
+    def _user(self, identifier, first_name, last_name, **extra_fields):
+        return CustomUser.objects.create_user(
+            email=f"{identifier}@example.com",
+            employee_student_id=f"SPD-{identifier}",
+            password="test-password",
+            first_name=first_name,
+            last_name=last_name,
+            department=self.department,
+            **extra_fields,
+        )
+
+    def _schedule_entries(self):
+        response = self.client.get(
+            f"/api/spaces/requests/?view=general&space={self.space.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        entries = response.data["results"] if isinstance(response.data, dict) else response.data
+        booking = next(entry for entry in entries if entry["id"] == self.booking.id)
+        timetable = next(
+            entry for entry in entries if entry["id"] == f"tt_{self.timetable_block.id}"
+        )
+        return booking, timetable
+
+    def test_instructor_details_hidden_from_anonymous_and_student_requesters(self):
+        for label, requester in (("anonymous", None), ("student", self.non_owner_student)):
+            with self.subTest(requester=label):
+                self.client.force_authenticate(user=requester)
+                _, timetable = self._schedule_entries()
+                self.assertIsNone(timetable["instructor_details"])
+
+    def test_instructor_details_hidden_from_booking_owner_without_role(self):
+        """The booking owner has no ownership relationship to
+        SpaceTimetableBlock/instructor_user — instructor_details must
+        stay role-gated only, with no owner carve-out, even for the
+        owner of the (separate) SpaceBooking entry in the same response."""
+        self.client.force_authenticate(self.owner)
+        _, timetable = self._schedule_entries()
+        self.assertIsNone(timetable["instructor_details"])
+
+    def test_instructor_details_returned_for_authorised_requesters(self):
+        for label, requester in (
+            ("faculty", self.faculty_viewer),
+            ("IT admin", self.it_admin_viewer),
+            ("staff", self.staff_viewer),
+            ("superuser", self.superuser_viewer),
+        ):
+            with self.subTest(requester=label):
+                self.client.force_authenticate(requester)
+                _, timetable = self._schedule_entries()
+                self.assertEqual(timetable["instructor_details"]["id"], self.instructor.id)
+                self.assertEqual(timetable["instructor_details"]["email"], self.instructor.email)
+
+    def test_booking_sensitive_fields_hidden_from_anonymous_and_non_owner_student(self):
+        for label, requester in (("anonymous", None), ("student", self.non_owner_student)):
+            with self.subTest(requester=label):
+                self.client.force_authenticate(user=requester)
+                booking, _ = self._schedule_entries()
+                self.assertIsNone(booking["faculty_sponsor_details"])
+                self.assertIsNone(booking["faculty_phone"])
+                self.assertIsNone(booking["reference_code"])
+
+    def test_booking_sensitive_fields_returned_to_student_booking_owner(self):
+        self.client.force_authenticate(self.owner)
+        booking, _ = self._schedule_entries()
+
+        self.assertEqual(booking["faculty_sponsor_details"]["id"], self.faculty_sponsor.id)
+        self.assertEqual(booking["faculty_phone"], self.faculty_sponsor.phone)
+        self.assertEqual(booking["reference_code"], self.booking.reference_code)
+
+    def test_booking_sensitive_fields_returned_to_authorised_requesters(self):
+        for label, requester in (
+            ("faculty", self.faculty_viewer),
+            ("IT admin", self.it_admin_viewer),
+            ("staff", self.staff_viewer),
+            ("superuser", self.superuser_viewer),
+        ):
+            with self.subTest(requester=label):
+                self.client.force_authenticate(requester)
+                booking, _ = self._schedule_entries()
+                self.assertEqual(booking["faculty_sponsor_details"]["id"], self.faculty_sponsor.id)
+                self.assertEqual(booking["faculty_phone"], self.faculty_sponsor.phone)
+                self.assertEqual(booking["reference_code"], self.booking.reference_code)
+
+
 class TimetableConflictTests(APITestCase):
     """
     Tests for intra-file and DB-level conflict checking on timetable upload.
