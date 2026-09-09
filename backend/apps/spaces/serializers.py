@@ -274,6 +274,19 @@ class EquipmentRequestSerializer(serializers.ModelSerializer):
 class BookingUserFieldsMixin:
     """Shared public requester fields for booking-like schedule entries."""
 
+    def _request(self):
+        return self.context.get("request")
+
+    def _user(self):
+        req = self._request()
+        if not req:
+            return None
+        user = req.user
+        # AnonymousUser has no pk — treat as unauthenticated
+        if not user or not user.is_authenticated:
+            return None
+        return user
+
     def _get_effective_roles_for(self, user):
         if hasattr(user, '_cached_effective_roles'):
             return user._cached_effective_roles
@@ -419,13 +432,38 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
     faculty_sponsor_details = serializers.SerializerMethodField()
     faculty_timed_out = serializers.BooleanField(read_only=True)
     faculty_phone = serializers.SerializerMethodField()
+    reference_code = serializers.SerializerMethodField()
 
     def get_faculty_phone(self, obj):
+        requester = self._user()
+        if requester is None:
+            return None
+        effective = self._get_effective_roles_for(requester)
+        if not (
+            requester.is_staff
+            or requester.is_superuser
+            or 'IT_ADMIN' in effective
+            or 'FACULTY' in effective
+            or obj.user_id == requester.pk
+        ):
+            return None
         if obj.faculty_sponsor:
             return getattr(obj.faculty_sponsor, 'phone', None)
         return None
 
     def get_faculty_sponsor_details(self, obj):
+        requester = self._user()
+        if requester is None:
+            return None
+        effective = self._get_effective_roles_for(requester)
+        if not (
+            requester.is_staff
+            or requester.is_superuser
+            or 'IT_ADMIN' in effective
+            or 'FACULTY' in effective
+            or obj.user_id == requester.pk
+        ):
+            return None
         if not obj.faculty_sponsor:
             return None
         
@@ -444,6 +482,21 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
             "email": getattr(obj.faculty_sponsor, 'email', ''),
             "profile_image": profile_image
         }
+
+    def get_reference_code(self, obj):
+        requester = self._user()
+        if requester is None:
+            return None
+        effective = self._get_effective_roles_for(requester)
+        if (
+            requester.is_staff
+            or requester.is_superuser
+            or 'IT_ADMIN' in effective
+            or 'FACULTY' in effective
+            or obj.user_id == requester.pk
+        ):
+            return obj.reference_code
+        return None
 
     class Meta:
         model = SpaceBooking
@@ -488,7 +541,6 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
             "faculty_phone",
         ]
         read_only_fields = [
-            "reference_code",
             "group_id",
             "created_at",
             "updated_at",
@@ -498,19 +550,6 @@ class SpaceBookingSerializer(BookingUserFieldsMixin, serializers.ModelSerializer
             "faculty_response_deadline",
             "faculty_timed_out",
         ]
-
-    def _request(self):
-        return self.context.get("request")
-
-    def _user(self):
-        req = self._request()
-        if not req:
-            return None
-        user = req.user
-        # AnonymousUser has no pk — treat as unauthenticated
-        if not user or not user.is_authenticated:
-            return None
-        return user
 
     def get_purpose_of_booking(self, obj):
         if not obj.purpose_of_booking:
@@ -910,6 +949,17 @@ class TimetableScheduleEntrySerializer(BookingUserFieldsMixin, serializers.Model
         return obj.instructor or ""
 
     def get_instructor_details(self, obj):
+        requester = self._user()
+        if requester is None:
+            return None
+        effective = self._get_effective_roles_for(requester)
+        if not (
+            requester.is_staff
+            or requester.is_superuser
+            or 'IT_ADMIN' in effective
+            or 'FACULTY' in effective
+        ):
+            return None
         if not obj.instructor_user:
             return None
         user = obj.instructor_user
